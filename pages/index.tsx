@@ -62,6 +62,19 @@ const handleLogout = async () => {
 
     return (
       <div className="min-h-screen bg-white p-4">
+        <header className="flex justify-between items-center mb-6">
+  <h2 className="text-xl font-bold">Cronometraje App</h2>
+  <div>
+    {user ? (
+      <>
+        <a href="/perfil" className="mr-4 text-green-700 hover:underline">Mi perfil</a>
+        <button onClick={handleLogout} className="text-red-600 hover:underline">Cerrar sesión</button>
+      </>
+    ) : (
+      <a href="/login" className="text-blue-600 hover:underline">Iniciar sesión</a>
+    )}
+  </div>
+</header>
         <h1 className="text-3xl font-bold text-center mb-8">Carreras disponibles</h1>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {carreras.map((carrera) => (

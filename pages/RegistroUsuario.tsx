@@ -1,7 +1,21 @@
 import { useState } from "react";
-import { registrarUsuario } from "@/lib/registrarUsuario";
+import { registrarUsuario } from "@/lib/usuarios";
+import { useRouter } from "next/router";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { app } from "@/lib/firebase";
 
-export default function RegistroUsuario() {
+function calcularEdad(fechaNacimiento: string): number {
+  const hoy = new Date();
+  const nacimiento = new Date(fechaNacimiento);
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const m = hoy.getMonth() - nacimiento.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
+    edad--;
+  }
+  return edad;
+}
+
+export default function RegistroUsuarioPage() {
   const [formData, setFormData] = useState({
     nombre: "",
     apellidoPaterno: "",
@@ -17,6 +31,7 @@ export default function RegistroUsuario() {
   });
 
   const [mensaje, setMensaje] = useState("");
+  const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -25,50 +40,58 @@ export default function RegistroUsuario() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await registrarUsuario(formData);
-      setMensaje("Usuario registrado correctamente");
+      const auth = getAuth(app);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+      const uid = userCredential.user.uid;
+      const edad = calcularEdad(formData.fechaNacimiento);
+
+      const usuario = {
+        uid,
+        nombre: formData.nombre,
+        apPaterno: formData.apellidoPaterno,
+        apMaterno: formData.apellidoMaterno,
+        email: formData.email,
+        celular: formData.celular,
+        pais: formData.pais,
+        estado: formData.estado,
+        ciudad: formData.ciudad,
+        club: formData.club,
+        fechaNacimiento: formData.fechaNacimiento,
+        edad,
+      };
+
+      await registrarUsuario(usuario);
+      router.push("/perfil");
     } catch (error: any) {
       setMensaje("Error: " + error.message);
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white shadow rounded-xl mt-10">
-      <h2 className="text-xl font-semibold mb-4 text-softGreen">Registro de Usuario</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {[
-          { label: "Nombre", name: "nombre" },
-          { label: "Apellido Paterno", name: "apellidoPaterno" },
-          { label: "Apellido Materno", name: "apellidoMaterno" },
-          { label: "Email", name: "email", type: "email" },
-          { label: "Contraseña", name: "password", type: "password" },
-          { label: "Celular", name: "celular" },
-          { label: "País", name: "pais" },
-          { label: "Estado", name: "estado" },
-          { label: "Ciudad", name: "ciudad" },
-          { label: "Club", name: "club", optional: true },
-          { label: "Fecha de Nacimiento", name: "fechaNacimiento", type: "date" },
-        ].map(({ label, name, type = "text", optional }) => (
-          <div key={name}>
-            <label className="block text-sm font-medium text-gray-700">{label}{optional ? " (opcional)" : ""}</label>
-            <input
-              type={type}
-              name={name}
-              required={!optional}
-              value={formData[name as keyof typeof formData]}
-              onChange={handleChange}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-softGreen focus:border-softGreen"
-            />
-          </div>
+    <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
+      <h1 className="text-2xl font-bold mb-4">Registro de Usuario</h1>
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4">
+        {Object.entries(formData).map(([key, value]) => (
+          <input
+            key={key}
+            type={key === "password" ? "password" : key === "fechaNacimiento" ? "date" : "text"}
+            name={key}
+            placeholder={key}
+            value={value}
+            onChange={handleChange}
+            className="border p-2 rounded"
+            required={key !== "club"}
+          />
         ))}
-        <button
-          type="submit"
-          className="bg-softPurple text-white py-2 px-4 rounded hover:bg-opacity-90"
-        >
-          Registrar
+        <button type="submit" className="bg-green-600 text-white py-2 rounded">
+          Registrarse
         </button>
       </form>
-      {mensaje && <p className="mt-4 text-center text-sm text-gray-700">{mensaje}</p>}
+      {mensaje && <p className="mt-4 text-red-500">{mensaje}</p>}
     </div>
   );
 }
