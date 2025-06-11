@@ -1,18 +1,17 @@
-import React from 'react';
+import Link from 'next/link'
 
 interface CarreraCardProps {
-  nombre: string;
-  fecha: string;
-  lugar: string;
-  descripcion?: string;
+  id: string
+  nombre: string
+  fecha: string
 }
 
-export default function CarreraCard({ nombre, fecha, lugar, descripcion }: CarreraCardProps) {
+export default function CarreraCard({ id, nombre, fecha }: CarreraCardProps) {
   return (
-    <div className="border rounded-2xl p-4 shadow-md bg-white hover:shadow-lg transition-all">
-      <h2 className="text-xl font-bold text-blue-700">{nombre}</h2>
-      <p className="text-sm text-gray-500">{fecha} • {lugar}</p>
-      {descripcion && <p className="mt-2 text-gray-700">{descripcion}</p>}
+    <div className="border rounded p-4 shadow">
+      <h2 className="text-xl font-bold">{nombre}</h2>
+      <p>{fecha}</p>
+      <Link href={`/carrera/${id}`} className="text-blue-500 underline">Ver detalles</Link>
     </div>
-  );
+  )
 }
