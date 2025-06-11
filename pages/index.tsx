@@ -1,41 +1,62 @@
-// pages/index.tsx
-import { GetServerSideProps } from "next";
-import { getCarreras } from "@/lib/getCarreras";
-import Link from "next/link";
+import { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
-type Carrera = {
+interface Carrera {
   id: string;
   titulo: string;
-  fecha: string;
-  ubicacion: string;
   descripcion: string;
-};
+  ubicacion: string;
+  fecha: Date;
+}
 
-export default function Home({ carreras }: { carreras: Carrera[] }) {
+export default function HomePage() {
+  const [carreras, setCarreras] = useState<Carrera[]>([]);
+
+  useEffect(() => {
+    const cargarCarreras = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, "carreras"));
+        const carrerasData: Carrera[] = querySnapshot.docs.map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            titulo: data.titulo,
+            descripcion: data.descripcion,
+            ubicacion: data.ubicacion,
+            fecha: data.fecha.toDate(), // 🔥 Convertimos el Timestamp a Date
+          };
+        });
+        setCarreras(carrerasData);
+      } catch (error) {
+        console.error("Error cargando carreras:", error);
+      }
+    };
+
+    cargarCarreras();
+  }, []);
+
   return (
-    <main className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Próximas Carreras</h1>
-      <div className="grid gap-4">
+    <div className="min-h-screen bg-white p-4">
+      <h1 className="text-3xl font-bold text-center mb-8">Carreras disponibles</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {carreras.map((carrera) => (
-          <div key={carrera.id} className="border p-4 rounded shadow-md">
-            <h2 className="text-xl font-semibold">{carrera.titulo}</h2>
-            <p className="text-sm text-gray-600">{carrera.fecha} - {carrera.ubicacion}</p>
-            <p className="mt-2">{carrera.descripcion}</p>
-            <Link href={`/carrera/${carrera.id}`} className="mt-3 inline-block text-green-700 hover:underline">
-              Ver más / Inscribirse →
-            </Link>
+          <div key={carrera.id} className="p-4 border rounded-2xl shadow hover:shadow-md transition">
+            <h2 className="text-xl font-semibold mb-1">{carrera.titulo}</h2>
+            <p className="text-gray-700 mb-1">{carrera.descripcion}</p>
+            <p className="text-gray-600 text-sm mb-1">{carrera.ubicacion}</p>
+            <p className="text-gray-500 text-sm">
+              Fecha: {carrera.fecha.toLocaleDateString()}
+            </p>
+            <a
+              href={`/inscribirse?id=${carrera.id}`}
+              className="inline-block mt-3 text-green-600 hover:underline"
+            >
+              Inscribirse →
+            </a>
           </div>
         ))}
       </div>
-    </main>
+    </div>
   );
 }
-
-export const getServerSideProps: GetServerSideProps = async () => {
-  const carreras = await getCarreras();
-  return {
-    props: {
-      carreras,
-    },
-  };
-};

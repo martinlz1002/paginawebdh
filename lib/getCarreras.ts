@@ -5,10 +5,17 @@ import { app } from "./firebase";
 const db = getFirestore(app);
 
 export async function getCarreras() {
-  const carrerasRef = collection(db, "carreras");
-  const snapshot = await getDocs(carrerasRef);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  try {
+    const carrerasRef = collection(db, "carreras");
+    const snapshot = await getDocs(carrerasRef);
+    const data = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    console.log("Carreras cargadas:", data);
+    return data;
+  } catch (error) {
+    console.error("Error cargando carreras:", error);
+    return [];
+  }
 }
