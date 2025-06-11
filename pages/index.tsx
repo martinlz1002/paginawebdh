@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 interface Carrera {
@@ -15,7 +15,7 @@ export default function HomePage() {
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
-    setIsClient(true); // 🚀 Solo activamos renderizado una vez en el cliente
+    setIsClient(true);
 
     const cargarCarreras = async () => {
       try {
@@ -27,7 +27,10 @@ export default function HomePage() {
             titulo: data.titulo,
             descripcion: data.descripcion,
             ubicacion: data.ubicacion,
-            fecha: data.fecha?.toDate?.() ?? new Date(), // con fallback
+            fecha:
+              data.fecha instanceof Timestamp
+                ? data.fecha.toDate()
+                : new Date(data.fecha),
           };
         });
         setCarreras(carrerasData);
@@ -39,14 +42,19 @@ export default function HomePage() {
     cargarCarreras();
   }, []);
 
-  if (!isClient) return null; // ⛔️ Evita renderizar en el servidor
+  if (!isClient) return null;
 
   return (
     <div className="min-h-screen bg-white p-4">
-      <h1 className="text-3xl font-bold text-center mb-8">Carreras disponibles</h1>
+      <h1 className="text-3xl font-bold text-center mb-8">
+        Carreras disponibles
+      </h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {carreras.map((carrera) => (
-          <div key={carrera.id} className="p-4 border rounded-2xl shadow hover:shadow-md transition">
+          <div
+            key={carrera.id}
+            className="p-4 border rounded-2xl shadow hover:shadow-md transition"
+          >
             <h2 className="text-xl font-semibold mb-1">{carrera.titulo}</h2>
             <p className="text-gray-700 mb-1">{carrera.descripcion}</p>
             <p className="text-gray-600 text-sm mb-1">{carrera.ubicacion}</p>
