@@ -1,66 +1,82 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
+import { getDoc, doc } from "firebase/firestore";
+import { app, db } from "@/lib/firebase";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
-export default function Perfil() {
+interface UserData {
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  email: string;
+  celular: string;
+  pais: string;
+  estado: string;
+  ciudad: string;
+  club?: string;
+  fechaNacimiento: string;
+  edad: number;
+}
+
+export default function PerfilPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [inscripciones, setInscripciones] = useState<any[]>([]);
+  const auth = getAuth(app);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUser(user);
-        const q = query(
-          collection(db, "inscripciones"),
-          where("uid", "==", user.uid)
-        );
-        const querySnapshot = await getDocs(q);
-        const datos = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setInscripciones(datos);
+    const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
+      if (usuario) {
+        setUser(usuario);
+        const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
+        if (userDoc.exists()) {
+          setUserData(userDoc.data() as UserData);
+        }
+        setLoading(false);
       } else {
         router.push("/login");
       }
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, []);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
+
+  if (loading || !userData) {
+    return (
+      <ProtectedRoute>
+        <p className="text-center mt-10">Cargando perfil...</p>
+      </ProtectedRoute>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-4xl mx-auto bg-white shadow rounded-xl p-6">
-        <h1 className="text-2xl font-bold mb-4 text-softPurple">Mi perfil</h1>
-        {user && (
-          <div className="mb-6">
-            <p><strong>Nombre:</strong> {user.displayName}</p>
-            <p><strong>Email:</strong> {user.email}</p>
-          </div>
-        )}
+    <ProtectedRoute>
+      <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
+        <h1 className="text-2xl font-bold mb-4">Perfil de usuario</h1>
+        <p><strong>Nombre:</strong> {userData.nombre} {userData.apellidoPaterno} {userData.apellidoMaterno}</p>
+        <p><strong>Correo:</strong> {userData.email}</p>
+        <p><strong>Celular:</strong> {userData.celular}</p>
+        <p><strong>País:</strong> {userData.pais}</p>
+        <p><strong>Estado:</strong> {userData.estado}</p>
+        <p><strong>Ciudad:</strong> {userData.ciudad}</p>
+        {userData.club && <p><strong>Club:</strong> {userData.club}</p>}
+        <p><strong>Fecha de nacimiento:</strong> {userData.fechaNacimiento}</p>
+        <p><strong>Edad:</strong> {userData.edad}</p>
 
-        <h2 className="text-xl font-semibold mb-2 text-softGreen">Mis inscripciones</h2>
-        <div className="space-y-4">
-          {inscripciones.length > 0 ? (
-            inscripciones.map((i) => (
-              <div
-                key={i.id}
-                className="p-4 border rounded shadow-sm bg-gray-100 flex justify-between items-center"
-              >
-                <div>
-                  <p className="font-semibold">{i.carrera}</p>
-                  <p className="text-sm text-gray-600">Pago: {i.estadoPago}</p>
-                </div>
-              </div>
-            ))
-          ) : (
-            <p>No tienes inscripciones aún.</p>
-          )}
-        </div>
+        <button
+          onClick={handleLogout}
+          className="mt-6 bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition"
+        >
+          Cerrar sesión
+        </button>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }
