@@ -12,8 +12,11 @@ interface Carrera {
 
 export default function HomePage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    setIsClient(true); // 🚀 Solo activamos renderizado una vez en el cliente
+
     const cargarCarreras = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "carreras"));
@@ -24,7 +27,7 @@ export default function HomePage() {
             titulo: data.titulo,
             descripcion: data.descripcion,
             ubicacion: data.ubicacion,
-            fecha: data.fecha.toDate(), // 🔥 Convertimos el Timestamp a Date
+            fecha: data.fecha?.toDate?.() ?? new Date(), // con fallback
           };
         });
         setCarreras(carrerasData);
@@ -35,6 +38,8 @@ export default function HomePage() {
 
     cargarCarreras();
   }, []);
+
+  if (!isClient) return null; // ⛔️ Evita renderizar en el servidor
 
   return (
     <div className="min-h-screen bg-white p-4">
