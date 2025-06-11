@@ -1,113 +1,140 @@
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, addDoc, collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { loadStripe } from "@stripe/stripe-js";
+import { doc, getDoc, collection, getDocs, addDoc } from "firebase/firestore";
+import { app, db } from "@/lib/firebase";
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+interface Categoria {
+  id: string;
+  nombre: string;
+  edadMinima: number;
+  edadMaxima: number;
+}
 
-const schema = z.object({
-  nombre: z.string().min(1),
-  apellidoPaterno: z.string().min(1),
-  apellidoMaterno: z.string().min(1),
-  email: z.string().email(),
-  celular: z.string().min(10),
-  fechaNacimiento: z.string(),
-  club: z.string().optional(),
-  carreraId: z.string().min(1),
-});
-
-type FormData = z.infer<typeof schema>;
+interface Perfil {
+  id?: string;
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  fechaNacimiento: string;
+  edad: number;
+  club?: string;
+}
 
 export default function InscribirsePage() {
-  const { register, handleSubmit, setValue } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
-
   const router = useRouter();
-  const [carreras, setCarreras] = useState<any[]>([]);
-  const [userId, setUserId] = useState<string | null>(null);
+  const { id: carreraId } = router.query;
+  const [user, setUser] = useState<any>(null);
+  const [perfiles, setPerfiles] = useState<Perfil[]>([]);
+  const [perfilSeleccionado, setPerfilSeleccionado] = useState<Perfil | null>(null);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState<string>("");
+
+  const auth = getAuth(app);
 
   useEffect(() => {
-    const auth = getAuth();
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setUserId(user.uid);
-        const ref = doc(db, "usuarios", user.uid);
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data();
-          setValue("nombre", data.nombre);
-          setValue("apellidoPaterno", data.apellidoPaterno);
-          setValue("apellidoMaterno", data.apellidoMaterno);
-          setValue("email", data.email);
-          setValue("celular", data.celular);
-          setValue("fechaNacimiento", data.fechaNacimiento);
-          setValue("club", data.club || "");
-        }
+    const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
+      if (usuario && carreraId) {
+        setUser(usuario);
+
+        const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
+        const titular = userDoc.data();
+        const titularEdad = titular?.edad || 0;
+
+        const perfilTitular: Perfil = {
+          nombre: titular?.nombre,
+          apellidoPaterno: titular?.apellidoPaterno,
+          apellidoMaterno: titular?.apellidoMaterno,
+          fechaNacimiento: titular?.fechaNacimiento,
+          edad: titularEdad,
+          club: titular?.club,
+        };
+
+        const perfilesSnap = await getDocs(collection(db, "usuarios", usuario.uid, "perfiles"));
+        const perfilesSecundarios = perfilesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Perfil[];
+
+        setPerfiles([perfilTitular, ...perfilesSecundarios]);
+        setPerfilSeleccionado(perfilTitular);
+
+        const categoriasSnap = await getDocs(collection(db, "carreras", String(carreraId), "categorias"));
+        const categoriasData = categoriasSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Categoria[];
+        setCategorias(categoriasData);
+      } else {
+        router.push("/login");
       }
     });
 
-    const cargarCarreras = async () => {
-  try {
-    const snapshot = await getDocs(collection(db, "carreras"));
-    const docs = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
-    setCarreras(docs);
-  } catch (error) {
-    console.error("Error cargando carreras:", error);
-  }
-};
+    return () => unsubscribe();
+  }, [carreraId]);
 
-    cargarCarreras();
-  }, [setValue]);
+  const handleInscripcion = async () => {
+    if (!perfilSeleccionado || !categoriaSeleccionada || !user) return;
 
-  const onSubmit = async (data: FormData) => {
-    const stripe = await stripePromise;
-    const res = await fetch("/api/create-checkout-session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+    await addDoc(collection(db, "inscripciones"), {
+      carreraId,
+      uid: user.uid,
+      perfil: perfilSeleccionado,
+      categoriaId: categoriaSeleccionada,
+      fecha: new Date(),
     });
 
-    const session = await res.json();
-
-    if (session.id && stripe) {
-      await stripe.redirectToCheckout({ sessionId: session.id });
-    }
+    alert("Inscripción realizada con éxito");
+    router.push("/");
   };
 
+  const categoriasDisponibles = categorias.filter(cat => {
+    return perfilSeleccionado && perfilSeleccionado.edad >= cat.edadMinima && perfilSeleccionado.edad <= cat.edadMaxima;
+  });
+
   return (
-    <div className="max-w-xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Formulario de inscripción</h1>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <input {...register("nombre")} placeholder="Nombre" className="w-full p-2 border rounded" />
-        <input {...register("apellidoPaterno")} placeholder="Apellido paterno" className="w-full p-2 border rounded" />
-        <input {...register("apellidoMaterno")} placeholder="Apellido materno" className="w-full p-2 border rounded" />
-        <input {...register("email")} placeholder="Email" className="w-full p-2 border rounded" />
-        <input {...register("celular")} placeholder="Celular" className="w-full p-2 border rounded" />
-        <input {...register("fechaNacimiento")} type="date" className="w-full p-2 border rounded" />
-        <input {...register("club")} placeholder="Club (opcional)" className="w-full p-2 border rounded" />
+    <div className="max-w-xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Inscripción a carrera</h1>
 
-        <select {...register("carreraId")} className="w-full p-2 border rounded">
-          <option value="">Selecciona una carrera</option>
-          {carreras.map((carrera) => (
-            <option key={carrera.id} value={carrera.id}>
-              {carrera.titulo}
-            </option>
-          ))}
-        </select>
+      {perfiles.length > 0 && (
+        <div className="mb-4">
+          <label className="font-semibold">Selecciona un perfil:</label>
+          <select
+            className="block w-full border p-2 rounded"
+            onChange={(e) => {
+              const seleccion = perfiles.find(p => p.id === e.target.value || !p.id);
+              if (seleccion) setPerfilSeleccionado(seleccion);
+            }}
+          >
+            {perfiles.map((p, i) => (
+              <option key={p.id || i} value={p.id || "titular"}>
+                {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded">
-          Proceder al pago
-        </button>
-      </form>
+      {categoriasDisponibles.length > 0 ? (
+        <div className="mb-4">
+          <label className="font-semibold">Selecciona una categoría:</label>
+          <select
+            className="block w-full border p-2 rounded"
+            onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+          >
+            <option value="">Selecciona una categoría</option>
+            {categoriasDisponibles.map(cat => (
+              <option key={cat.id} value={cat.id}>
+                {cat.nombre} ({cat.edadMinima}-{cat.edadMaxima} años)
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <p>No hay categorías disponibles para la edad del perfil seleccionado.</p>
+      )}
+
+      <button
+        onClick={handleInscripcion}
+        disabled={!categoriaSeleccionada || !perfilSeleccionado}
+        className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
+      >
+        Confirmar inscripción
+      </button>
     </div>
   );
 }

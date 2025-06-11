@@ -1,17 +1,14 @@
 import Link from "next/link";
+import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { app, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-
-interface UserData {
-  nombre: string;
-  apellidoPaterno: string;
-}
+import { app, db } from "@/lib/firebase";
 
 export default function Header() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const [nombre, setNombre] = useState<string>("");
   const auth = getAuth(app);
 
   useEffect(() => {
@@ -20,51 +17,63 @@ export default function Header() {
       if (usuario) {
         const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
         if (userDoc.exists()) {
-          const data = userDoc.data() as UserData;
-          setUserData(data);
+          const data = userDoc.data();
+          setNombre(data.nombre);
         }
       } else {
-        setUserData(null);
+        setNombre("");
       }
     });
-
     return () => unsubscribe();
   }, []);
 
   const handleLogout = async () => {
     await signOut(auth);
     setUser(null);
-    setUserData(null);
+    setNombre("");
+    router.push("/");
   };
 
+  const isActive = (path: string) => router.pathname === path;
+
+  const linkStyle = (path: string) =>
+    isActive(path)
+      ? "text-green-700 font-semibold underline"
+      : "text-gray-700 hover:text-green-700";
+
   return (
-    <header className="w-full bg-white shadow p-4 flex justify-between items-center sticky top-0 z-50">
-      <Link href="/">
-        <span className="text-xl font-bold cursor-pointer">DHTime</span>
+    <header className="flex justify-between items-center px-4 py-3 shadow bg-white sticky top-0 z-50">
+      <Link href="/" className="text-xl font-bold text-green-800">
+        DHTime
       </Link>
-      <div className="space-x-4">
-        {user && userData ? (
+
+      <nav className="flex items-center space-x-4">
+        {user ? (
           <>
-            <Link href="/perfil">
-              <span className="text-green-700 hover:underline cursor-pointer">
-                {userData.nombre} {userData.apellidoPaterno}
-              </span>
+            <Link href="/mis-inscripciones" className={linkStyle("/mis-inscripciones")}>
+              Mis inscripciones
             </Link>
-            <button onClick={handleLogout} className="text-red-600 hover:underline">
+            <Link href="/perfil" className={linkStyle("/perfil")}>
+              {nombre || "Mi perfil"}
+            </Link>
+            <button
+              onClick={handleLogout}
+              className="text-red-600 hover:underline"
+            >
               Cerrar sesión
             </button>
           </>
         ) : (
           <>
-            <Link href="/login">
-              <span className="text-blue-600 hover:underline">Iniciar sesión</span>
+            <Link href="/login" className={linkStyle("/login")}>
+              Iniciar sesión
             </Link>
-            <Link href="/signup">
-              <span className="text-purple-600 hover:underline">Registrarse</span>
+            <Link href="/signup" className={linkStyle("/signup")}>
+              Registrarse
             </Link>
           </>
         )}
-      </div>
+      </nav>
     </header>
   );
 }
