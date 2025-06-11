@@ -1,71 +1,84 @@
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useRouter } from "next/router";
 import { useState } from "react";
-
-const loginSchema = z.object({
-  email: z.string().email("Correo inválido"),
-  password: z.string().min(6, "Mínimo 6 caracteres"),
-});
-
-type LoginForm = z.infer<typeof loginSchema>;
+import { useRouter } from "next/router";
+import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
+import { app } from "@/lib/firebase";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mensaje, setMensaje] = useState("");
+  const [sugerirRegistro, setSugerirRegistro] = useState(false);
   const router = useRouter();
-  const [error, setError] = useState("");
+  const auth = getAuth(app);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
-  });
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMensaje("");
+    setSugerirRegistro(false);
 
-  const onSubmit = async (data: LoginForm) => {
-    setError("");
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
-      router.push("/");
-    } catch (err: any) {
-      setError("Correo o contraseña incorrectos");
-      console.error("Login error:", err);
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/perfil");
+    } catch (error: any) {
+      if (error.code === "auth/user-not-found") {
+        setSugerirRegistro(true);
+        setMensaje("Usuario no encontrado. ¿Deseas registrarte?");
+      } else if (error.code === "auth/wrong-password") {
+        setMensaje("Contraseña incorrecta.");
+      } else {
+        setMensaje("Error: " + error.message);
+      }
     }
   };
 
   return (
-    <div className="max-w-md mx-auto p-6 mt-10 border rounded-2xl shadow">
-      <h1 className="text-2xl font-bold mb-6 text-center">Iniciar Sesión</h1>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <div className="max-w-md mx-auto mt-10 p-6 border rounded-2xl shadow">
+      <h1 className="text-2xl font-bold mb-4">Iniciar sesión</h1>
+      <form onSubmit={handleLogin} className="grid grid-cols-1 gap-4">
         <div>
           <label className="block text-sm font-medium">Correo electrónico</label>
           <input
             type="email"
-            {...register("email")}
-            className="w-full border px-3 py-2 rounded mt-1"
+            className="w-full border p-2 rounded mt-1"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
           />
-          {errors.email && <p className="text-red-500 text-sm">{errors.email.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium">Contraseña</label>
           <input
             type="password"
-            {...register("password")}
-            className="w-full border px-3 py-2 rounded mt-1"
+            className="w-full border p-2 rounded mt-1"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
           />
-          {errors.password && <p className="text-red-500 text-sm">{errors.password.message}</p>}
         </div>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
         <button
           type="submit"
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
+          className="bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
         >
-          Entrar
+          Iniciar sesión
         </button>
       </form>
+
+      {mensaje && (
+        <p className={`mt-4 ${sugerirRegistro ? "text-orange-600" : "text-red-600"}`}>
+          {mensaje}
+        </p>
+      )}
+
+      {sugerirRegistro && (
+        <div className="mt-4 text-sm">
+          <a
+            href="/signup"
+            className="text-green-600 hover:underline"
+          >
+            Crear una cuenta nueva →
+          </a>
+        </div>
+      )}
     </div>
   );
 }

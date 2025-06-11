@@ -1,7 +1,7 @@
-  import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
-import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import { db, app } from "@/lib/firebase";
+import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 
 interface Carrera {
   id: string;
@@ -13,8 +13,8 @@ interface Carrera {
 
 export default function HomePage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
-  const [user, setUser] = useState<User | null>(null);
   const [isClient, setIsClient] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const auth = getAuth(app);
 
   useEffect(() => {
@@ -34,10 +34,9 @@ export default function HomePage() {
             titulo: data.titulo,
             descripcion: data.descripcion,
             ubicacion: data.ubicacion,
-            fecha:
-              data.fecha instanceof Timestamp
-                ? data.fecha.toDate()
-                : new Date(data.fecha),
+            fecha: (data.fecha instanceof Timestamp)
+              ? data.fecha.toDate()
+              : new Date(data.fecha),
           };
         });
         setCarreras(carrerasData);
@@ -47,7 +46,6 @@ export default function HomePage() {
     };
 
     cargarCarreras();
-
     return () => unsubscribe();
   }, []);
 
@@ -62,30 +60,24 @@ export default function HomePage() {
     <div className="min-h-screen bg-white p-4">
       <header className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-bold">Cronometraje App</h2>
-        <div>
+        <div className="space-x-4">
           {user ? (
             <>
-              <a href="/perfil" className="mr-4 text-green-700 hover:underline">
-                Mi perfil
-              </a>
-              <button
-                onClick={handleLogout}
-                className="text-red-600 hover:underline"
-              >
+              <a href="/perfil" className="text-green-700 hover:underline">Mi perfil</a>
+              <button onClick={handleLogout} className="text-red-600 hover:underline">
                 Cerrar sesión
               </button>
             </>
           ) : (
-            <a href="/login" className="text-blue-600 hover:underline">
-              Iniciar sesión
-            </a>
+            <>
+              <a href="/login" className="text-blue-600 hover:underline">Iniciar sesión</a>
+              <a href="/signup" className="text-purple-600 hover:underline">Registrarse</a>
+            </>
           )}
         </div>
       </header>
 
-      <h1 className="text-3xl font-bold text-center mb-8">
-        Carreras disponibles
-      </h1>
+      <h1 className="text-3xl font-bold text-center mb-8">Carreras disponibles</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {carreras.map((carrera) => (
