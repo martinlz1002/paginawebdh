@@ -40,7 +40,7 @@ export default function Header() {
   return (
     <header className="w-full bg-white shadow p-4 flex justify-between items-center sticky top-0 z-50">
       <Link href="/">
-        <span className="text-xl font-bold cursor-pointer">Cronometraje App</span>
+        <span className="text-xl font-bold cursor-pointer">DHTime</span>
       </Link>
       <div className="space-x-4">
         {user && userData ? (
