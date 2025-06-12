@@ -61,54 +61,58 @@ export default function InscribirsePage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
-      if (usuario && id) {
-        setUser(usuario);
-        try {
-          const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
-          const titular = userDoc.data() as UserData;
-          setPerfilTitular(titular);
-          setPerfilSeleccionado(titular);
+  const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
+    setAuthLoading(false); // Ya terminó la verificación de auth
 
-          const perfilesSnapshot = await getDocs(
-            collection(db, "usuarios", usuario.uid, "perfiles")
-          );
-          const perfilesList = perfilesSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as UserData[];
-          setPerfiles(perfilesList);
+    if (!usuario) {
+      router.push("/login");
+      return;
+    }
 
-          const carreraDoc = await getDoc(doc(db, "carreras", id as string));
-          if (carreraDoc.exists()) {
-            const data = carreraDoc.data() as CarreraData;
-            setCarrera(data);
-            const fechaCarrera = data.fecha.toDate();
-            if (fechaCarrera < new Date()) {
-              setCarreraActiva(false);
-            }
-          }
+    if (!id) return;
 
-          const categoriasSnapshot = await getDocs(
-            collection(db, "carreras", id as string, "categorias")
-          );
-          const categoriasList = categoriasSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Categoria[];
-          setCategorias(categoriasList);
-        } catch (error) {
-          console.error("Error cargando datos:", error);
+    setUser(usuario);
+
+    try {
+      const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
+      const titular = userDoc.data() as UserData;
+      setPerfilTitular(titular);
+      setPerfilSeleccionado(titular);
+
+      const perfilesSnapshot = await getDocs(
+        collection(db, "usuarios", usuario.uid, "perfiles")
+      );
+      const perfilesList = perfilesSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as UserData[];
+      setPerfiles(perfilesList);
+
+      const carreraDoc = await getDoc(doc(db, "carreras", id as string));
+      if (carreraDoc.exists()) {
+        const data = carreraDoc.data() as CarreraData;
+        setCarrera(data);
+        const fechaCarrera = data.fecha.toDate();
+        if (fechaCarrera < new Date()) {
+          setCarreraActiva(false);
         }
-        setAuthLoading(false);
-      } else {
-        setAuthLoading(false);
-        router.push("/login");
       }
-    });
 
-    return () => unsubscribe();
-  }, [id]);
+      const categoriasSnapshot = await getDocs(
+        collection(db, "carreras", id as string, "categorias")
+      );
+      const categoriasList = categoriasSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Categoria[];
+      setCategorias(categoriasList);
+    } catch (error) {
+      console.error("Error al cargar datos de inscripción:", error);
+    }
+  });
+
+  return () => unsubscribe();
+}, [id]);
 
   useEffect(() => {
     const validarInscripcion = async () => {
