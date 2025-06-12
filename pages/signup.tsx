@@ -26,6 +26,7 @@ export default function SignupPage() {
   const [exito, setExito] = useState(false);
   const router = useRouter();
   const auth = getAuth(app);
+  const { password, ...datosSinPassword } = formData;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -92,11 +93,11 @@ export default function SignupPage() {
 
       const edad = calcularEdad(fechaNacimiento);
 
-      await setDoc(doc(db, "usuarios", user.uid), {
-        ...formData,
-        uid: user.uid,
-        edad,
-      });
+     await setDoc(doc(db, "usuarios", user.uid), {
+  ...datosSinPassword,
+  uid: user.uid,
+  edad,
+});
 
       await sendEmailVerification(user);
 
