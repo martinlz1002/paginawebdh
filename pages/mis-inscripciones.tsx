@@ -1,100 +1,87 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
-import { app, db } from "@/lib/firebase";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db, app } from "@/lib/firebase";
 import ProtectedRoute from "@/components/ProtectedRoute";
 
 interface Inscripcion {
   id: string;
   carreraId: string;
-  perfilId: string;
-}
-
-interface Carrera {
-  titulo: string;
-}
-
-interface Perfil {
-  nombre: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
+  categoriaId: string;
+  perfil: {
+    nombre: string;
+    apellidoPaterno: string;
+    apellidoMaterno: string;
+    edad?: number;
+    fechaNacimiento?: string;
+    celular?: string;
+    pais?: string;
+    estado?: string;
+    ciudad?: string;
+    club?: string;
+  };
+  creado: string;
 }
 
 export default function MisInscripcionesPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [inscripciones, setInscripciones] = useState<
-    { carrera: Carrera; perfil: Perfil }[]
-  >([]);
+  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
+  const auth = getAuth(app);
 
   useEffect(() => {
-    const auth = getAuth(app);
-    const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
-      if (usuario) {
-        setUser(usuario);
-        const inscripcionesSnapshot = await getDocs(
-          collection(db, "usuarios", usuario.uid, "inscripciones")
-        );
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const q = query(collection(db, "inscripciones"), where("usuarioId", "==", user.uid));
+        const snapshot = await getDocs(q);
 
-        const data = await Promise.all(
-          inscripcionesSnapshot.docs.map(async (docSnap) => {
-            const data = docSnap.data() as Inscripcion;
-
-            const carreraDoc = await getDoc(doc(db, "carreras", data.carreraId));
-            const perfilDoc = await getDoc(
-              doc(db, "usuarios", usuario.uid, "perfiles", data.perfilId)
-            );
-
-            return {
-              carrera: carreraDoc.exists()
-                ? (carreraDoc.data() as Carrera)
-                : { titulo: "Carrera no encontrada" },
-              perfil: perfilDoc.exists()
-                ? (perfilDoc.data() as Perfil)
-                : { nombre: "Perfil", apellidoPaterno: "no", apellidoMaterno: "encontrado" },
-            };
-          })
-        );
+        const data = snapshot.docs.map((doc) => {
+          const insc = doc.data();
+          return {
+            id: doc.id,
+            carreraId: insc.carreraId,
+            categoriaId: insc.categoriaId,
+            perfil: insc.perfil,
+            creado: new Date(insc.creado.seconds * 1000).toLocaleString(),
+          };
+        });
 
         setInscripciones(data);
         setLoading(false);
-      } else {
-        router.push("/login");
       }
     });
 
     return () => unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <ProtectedRoute>
-        <p className="text-center mt-10">Cargando inscripciones...</p>
-      </ProtectedRoute>
-    );
-  }
+  if (loading) return <p className="p-6">Cargando inscripciones...</p>;
 
   return (
     <ProtectedRoute>
-      <div className="max-w-2xl mx-auto mt-10 p-4">
-        <h1 className="text-2xl font-bold mb-6">Mis inscripciones</h1>
+      <div className="max-w-3xl mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-4">Mis inscripciones</h1>
         {inscripciones.length === 0 ? (
-          <p className="text-gray-600">No tienes inscripciones registradas.</p>
+          <p>No tienes inscripciones registradas.</p>
         ) : (
           <ul className="space-y-4">
-            {inscripciones.map(({ carrera, perfil }, i) => (
-              <li
-                key={i}
-                className="border p-4 rounded-xl shadow hover:shadow-md transition"
-              >
-                <p className="font-semibold text-lg">
-                  {carrera.titulo}
+            {inscripciones.map((inscripcion) => (
+              <li key={inscripcion.id} className="border p-4 rounded shadow">
+                <p>
+                  <strong>Nombre:</strong> {inscripcion.perfil.nombre} {inscripcion.perfil.apellidoPaterno} {inscripcion.perfil.apellidoMaterno}
                 </p>
-                <p className="text-gray-600">
-                  Inscrito como: {perfil.nombre} {perfil.apellidoPaterno} {perfil.apellidoMaterno}
+                <p>
+                  <strong>Edad:</strong> {inscripcion.perfil.edad} años
                 </p>
+                <p>
+                  <strong>Fecha de nacimiento:</strong> {inscripcion.perfil.fechaNacimiento}
+                </p>
+                <p>
+                  <strong>Celular:</strong> {inscripcion.perfil.celular}
+                </p>
+                <p>
+                  <strong>País:</strong> {inscripcion.perfil.pais}, <strong>Estado:</strong> {inscripcion.perfil.estado}, <strong>Ciudad:</strong> {inscripcion.perfil.ciudad}
+                </p>
+                {inscripcion.perfil.club && <p><strong>Club:</strong> {inscripcion.perfil.club}</p>}
+                <p className="text-sm text-gray-500 mt-2">Registrado el {inscripcion.creado}</p>
               </li>
             ))}
           </ul>
