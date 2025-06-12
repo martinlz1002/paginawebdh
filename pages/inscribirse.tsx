@@ -113,20 +113,24 @@ export default function InscribirsePage() {
 }, [id]);
 
   useEffect(() => {
-    const validarInscripcion = async () => {
-      if (!user || !perfilSeleccionado || !id) return;
-      const inscripcionesQuery = query(
-        collection(db, "inscripciones"),
-        where("carreraId", "==", id),
-        where("perfilId", "==", perfilSeleccionado.id || "titular")
-      );
-      const inscripcionesSnapshot = await getDocs(inscripcionesQuery);
-      if (!inscripcionesSnapshot.empty) {
-        setYaInscrito(true);
-      }
-    };
-    validarInscripcion();
-  }, [perfilSeleccionado, id, user]);
+  const validarInscripcion = async () => {
+    if (!user || !perfilSeleccionado || !id) return;
+
+    const inscripcionesQuery = query(
+      collection(db, "inscripciones"),
+      where("carreraId", "==", id),
+      where("usuarioId", "==", user.uid), // Asegura que es este usuario
+      where("perfilId", "==", perfilSeleccionado.id || "titular")
+    );
+
+    const inscripcionesSnapshot = await getDocs(inscripcionesQuery);
+    if (!inscripcionesSnapshot.empty) {
+      setYaInscrito(true);
+    }
+  };
+
+  validarInscripcion();
+}, [perfilSeleccionado, id, user]);
 
   const handleInscribirse = async () => {
     if (!perfilSeleccionado || !categoriaSeleccionada || yaInscrito) return;
