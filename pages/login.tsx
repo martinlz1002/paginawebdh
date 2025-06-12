@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -9,7 +9,7 @@ export default function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,13 +19,37 @@ export default function LoginForm() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/");
     } catch (err: any) {
-      if (err.code === "auth/invalid-login-credentials") {
-        setError("Usuario no registrado. ¿Deseas ");
+      if (
+        err.code === "auth/user-not-found" ||
+        err.code === "auth/invalid-login-credentials"
+      ) {
+        setError(
+          <>
+            Usuario no registrado. ¿Deseas{" "}
+            <span
+              onClick={() => router.push("/signup")}
+              className="text-blue-600 underline cursor-pointer"
+            >
+              registrarte
+            </span>
+            ?
+          </>
+        );
+      } else if (err.code === "auth/wrong-password") {
+        setError("Correo o contraseña inválida.");
       } else {
         setError("Error al iniciar sesión. Intenta nuevamente.");
       }
     }
   };
+
+  // 🧼 Limpiar error después de 5 segundos
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   return (
     <div className="max-w-md mx-auto p-6">
@@ -47,26 +71,21 @@ export default function LoginForm() {
           className="border p-2 w-full rounded"
           required
         />
-        <button type="submit" className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 w-full">
+        <button
+          type="submit"
+          className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 w-full"
+        >
           Iniciar sesión
         </button>
+        <div className="mt-2 text-sm text-center">
+  <span>¿Olvidaste tu contraseña? </span>
+  <Link href="/reset-password" className="text-blue-600 underline">
+    Restablecer
+  </Link>
+</div>
       </form>
 
-      {error && (
-        <p className="mt-4 text-red-600">
-          {error === "Usuario no registrado. ¿Deseas " ? (
-            <>
-              Usuario no registrado. ¿Deseas{" "}
-              <Link href="/signup" className="text-purple-600 underline hover:text-purple-800">
-                registrarte
-              </Link>
-              ?
-            </>
-          ) : (
-            error
-          )}
-        </p>
-      )}
+      {error && <p className="mt-4 text-red-600">{error}</p>}
     </div>
   );
 }
