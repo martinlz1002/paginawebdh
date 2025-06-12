@@ -58,6 +58,7 @@ export default function InscribirsePage() {
   const [yaInscrito, setYaInscrito] = useState(false);
   const [carrera, setCarrera] = useState<CarreraData | null>(null);
   const [carreraActiva, setCarreraActiva] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
   if (!id) return; // No ejecutar hasta que 'id' esté disponible
@@ -133,23 +134,28 @@ export default function InscribirsePage() {
 }, [perfilSeleccionado, id, user]);
 
   const handleInscribirse = async () => {
-    if (!perfilSeleccionado || !categoriaSeleccionada || yaInscrito) return;
-    try {
-      await addDoc(collection(db, "inscripciones"), {
-        carreraId: id,
-        categoriaId: categoriaSeleccionada,
-        perfilId: perfilSeleccionado.id || "titular",
-        usuarioId: user.uid,
-        creado: new Date(),
-        ...perfilSeleccionado,
-      });
-      alert("Inscripción realizada con éxito");
-      router.push("/mis-inscripciones");
-    } catch (error) {
-      console.error("Error al inscribir:", error);
-    }
-  };
+  if (!perfilSeleccionado || !categoriaSeleccionada || yaInscrito || loading) return;
 
+  setLoading(true);
+  try {
+    await addDoc(collection(db, "inscripciones"), {
+      carreraId: id,
+      categoriaId: categoriaSeleccionada,
+      perfilId: perfilSeleccionado.id || "titular",
+      usuarioId: user.uid,
+      creado: new Date(),
+      ...perfilSeleccionado,
+    });
+
+    alert("Inscripción realizada con éxito");
+    router.push("/mis-inscripciones");
+  } catch (error) {
+    console.error("Error al inscribir:", error);
+    alert("Ocurrió un error al intentar inscribirte.");
+  } finally {
+    setLoading(false);
+  }
+};
   if (!carrera) return <p className="p-6">Cargando carrera...</p>;
 
   if (!carreraActiva) {
@@ -213,12 +219,40 @@ export default function InscribirsePage() {
         </select>
 
         <button
-          disabled={!categoriaSeleccionada || yaInscrito}
-          onClick={handleInscribirse}
-          className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 disabled:opacity-50"
-        >
-          {yaInscrito ? "Ya inscrito" : "Confirmar inscripción"}
-        </button>
+  disabled={!categoriaSeleccionada || yaInscrito || loading}
+  onClick={handleInscribirse}
+  className="flex items-center justify-center bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 disabled:opacity-50"
+>
+  {loading ? (
+    <>
+      <svg
+        className="animate-spin h-5 w-5 mr-2 text-white"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+      >
+        <circle
+          className="opacity-25"
+          cx="12"
+          cy="12"
+          r="10"
+          stroke="currentColor"
+          strokeWidth="4"
+        ></circle>
+        <path
+          className="opacity-75"
+          fill="currentColor"
+          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+        ></path>
+      </svg>
+      Inscribiendo...
+    </>
+  ) : yaInscrito ? (
+    "Ya inscrito"
+  ) : (
+    "Confirmar inscripción"
+  )}
+</button>
       </div>
     </ProtectedRoute>
   );

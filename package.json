@@ -21,6 +21,7 @@
     "zod": "^3.25.61"
   },
   "devDependencies": {
+    "@types/file-saver": "^2.0.7",
     "@types/micro": "^7.3.7",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19.1.7",

@@ -5,29 +5,30 @@ import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 
-const ADMIN_UID = "ADMIN_USER_UID_AQUI"; // Reemplaza por el UID real
-
 export default function Header() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [nombre, setNombre] = useState<string>("");
   const [esAdmin, setEsAdmin] = useState<boolean>(false);
+  const [loadingUserData, setLoadingUserData] = useState<boolean>(true);
   const auth = getAuth(app);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
       setUser(usuario);
+      setLoadingUserData(true);
       if (usuario) {
         const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
-          setNombre(data.nombre);
+          setNombre(data.nombre || "");
+          setEsAdmin(data.admin === true);
         }
-        setEsAdmin(usuario.uid === "tkn5hHQkouceQjq7hnOJgua5G593");
       } else {
         setNombre("");
         setEsAdmin(false);
       }
+      setLoadingUserData(false);
     });
     return () => unsubscribe();
   }, []);
@@ -62,8 +63,10 @@ export default function Header() {
             <Link href="/perfil" className={linkStyle("/perfil")}>
               {nombre || "Mi perfil"}
             </Link>
-            {esAdmin && (
-              <Link href="/admin" className={linkStyle("/admin")}>Admin</Link>
+            {!loadingUserData && esAdmin && (
+              <Link href="/admin" className={linkStyle("/admin")}>
+                Admin
+              </Link>
             )}
             <button
               onClick={handleLogout}

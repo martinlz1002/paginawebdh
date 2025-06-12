@@ -1,10 +1,17 @@
-// pages/admin/index.tsx
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs } from "firebase/firestore";
-import { db, app } from "@/lib/firebase";
-import { useRouter } from "next/router";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+} from "firebase/firestore";
 import Papa from "papaparse";
+import { saveAs } from "file-saver";
+import { useRouter } from "next/router";
 
 interface Inscripcion {
   id: string;
@@ -24,109 +31,120 @@ interface Inscripcion {
 }
 
 export default function AdminPage() {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
+  const [carreras, setCarreras] = useState<{ id: string; titulo: string }[]>([]);
+  const [carreraSeleccionada, setCarreraSeleccionada] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const auth = getAuth();
   const router = useRouter();
 
   useEffect(() => {
-    const auth = getAuth(app);
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        router.push("/login");
-        return;
-      }
+  const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
 
-      const userDoc = await getDocs(collection(db, "usuarios"));
-      const currentUser = userDoc.docs.find(doc => doc.id === user.uid);
-      const admin = currentUser?.data()?.admin;
+    const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+    const userData = userDoc.data();
 
-      if (!admin) {
-        alert("Acceso denegado");
-        router.push("/");
-        return;
-      }
-
+    if (userData?.admin === true) {
       setIsAdmin(true);
 
-      const snapshot = await getDocs(collection(db, "inscripciones"));
+      const carrerasSnap = await getDocs(collection(db, "carreras"));
+      const carrerasList = carrerasSnap.docs.map((doc) => ({
+        id: doc.id,
+        titulo: doc.data().titulo,
+      }));
+      setCarreras(carrerasList);
+    } else {
+      router.push("/"); // Redirigir si no es admin
+    }
+  });
+
+  return () => unsubscribe();
+}, []);
+
+  useEffect(() => {
+    const fetchInscripciones = async () => {
+      if (!carreraSeleccionada) return;
+      const q = query(collection(db, "inscripciones"), where("carreraId", "==", carreraSeleccionada));
+      const snapshot = await getDocs(q);
       const data = snapshot.docs.map((doc) => {
-        const d = doc.data();
+        const insc = doc.data();
         return {
           id: doc.id,
-          carreraId: d.carreraId,
-          categoriaId: d.categoriaId,
-          nombre: d.nombre,
-          apellidoPaterno: d.apellidoPaterno,
-          apellidoMaterno: d.apellidoMaterno,
-          edad: d.edad,
-          fechaNacimiento: d.fechaNacimiento,
-          celular: d.celular,
-          pais: d.pais,
-          estado: d.estado,
-          ciudad: d.ciudad,
-          club: d.club,
-          creado: new Date(d.creado?.seconds * 1000).toLocaleString(),
+          carreraId: insc.carreraId,
+          categoriaId: insc.categoriaId,
+          nombre: insc.nombre,
+          apellidoPaterno: insc.apellidoPaterno,
+          apellidoMaterno: insc.apellidoMaterno,
+          edad: insc.edad,
+          fechaNacimiento: insc.fechaNacimiento,
+          celular: insc.celular,
+          pais: insc.pais,
+          estado: insc.estado,
+          ciudad: insc.ciudad,
+          club: insc.club,
+          creado: new Date(insc.creado?.seconds * 1000 || Date.now()).toLocaleString(),
         };
       });
-
       setInscripciones(data);
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, []);
+    fetchInscripciones();
+  }, [carreraSeleccionada]);
 
-  const exportarCSV = () => {
+  const exportCSV = () => {
     const csv = Papa.unparse(inscripciones);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "inscripciones.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    saveAs(blob, "inscripciones.csv");
   };
 
-  if (loading) return <p className="p-6">Cargando...</p>;
+  if (!isAdmin) return null;
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Panel de Administrador</h1>
-      <button
-        onClick={exportarCSV}
-        className="mb-4 bg-purple-700 text-white px-4 py-2 rounded hover:bg-purple-800"
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-4">Panel de Administración</h1>
+
+      <label className="block mb-2 font-semibold">Selecciona una carrera:</label>
+      <select
+        value={carreraSeleccionada}
+        onChange={(e) => setCarreraSeleccionada(e.target.value)}
+        className="border p-2 rounded w-full mb-6"
       >
-        Descargar CSV
-      </button>
-      <table className="w-full table-auto border border-collapse">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="border px-2 py-1">Nombre</th>
-            <th className="border px-2 py-1">Edad</th>
-            <th className="border px-2 py-1">Ciudad</th>
-            <th className="border px-2 py-1">País</th>
-            <th className="border px-2 py-1">Carrera</th>
-            <th className="border px-2 py-1">Fecha de inscripción</th>
-          </tr>
-        </thead>
-        <tbody>
-          {inscripciones.map((insc) => (
-            <tr key={insc.id}>
-              <td className="border px-2 py-1">
-                {insc.nombre} {insc.apellidoPaterno} {insc.apellidoMaterno}
-              </td>
-              <td className="border px-2 py-1">{insc.edad}</td>
-              <td className="border px-2 py-1">{insc.ciudad}</td>
-              <td className="border px-2 py-1">{insc.pais}</td>
-              <td className="border px-2 py-1">{insc.carreraId}</td>
-              <td className="border px-2 py-1">{insc.creado}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        <option value="">Seleccione una carrera</option>
+        {carreras.map((carrera) => (
+          <option key={carrera.id} value={carrera.id}>
+            {carrera.titulo}
+          </option>
+        ))}
+      </select>
+
+      {inscripciones.length > 0 && (
+        <>
+          <button
+            onClick={exportCSV}
+            className="mb-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            Exportar a CSV
+          </button>
+
+          <ul className="space-y-4">
+            {inscripciones.map((inscripcion) => (
+              <li key={inscripcion.id} className="border p-4 rounded shadow">
+                <p><strong>Nombre:</strong> {inscripcion.nombre} {inscripcion.apellidoPaterno} {inscripcion.apellidoMaterno}</p>
+                <p><strong>Edad:</strong> {inscripcion.edad} años</p>
+                <p><strong>Fecha de nacimiento:</strong> {inscripcion.fechaNacimiento}</p>
+                <p><strong>Celular:</strong> {inscripcion.celular}</p>
+                <p><strong>País:</strong> {inscripcion.pais}, <strong>Estado:</strong> {inscripcion.estado}, <strong>Ciudad:</strong> {inscripcion.ciudad}</p>
+                {inscripcion.club && <p><strong>Club:</strong> {inscripcion.club}</p>}
+                <p className="text-sm text-gray-500 mt-2">Registrado el {inscripcion.creado}</p>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
