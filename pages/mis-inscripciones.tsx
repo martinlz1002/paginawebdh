@@ -8,18 +8,16 @@ interface Inscripcion {
   id: string;
   carreraId: string;
   categoriaId: string;
-  perfil: {
-    nombre: string;
-    apellidoPaterno: string;
-    apellidoMaterno: string;
-    edad?: number;
-    fechaNacimiento?: string;
-    celular?: string;
-    pais?: string;
-    estado?: string;
-    ciudad?: string;
-    club?: string;
-  };
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  edad?: number;
+  fechaNacimiento?: string;
+  celular?: string;
+  pais?: string;
+  estado?: string;
+  ciudad?: string;
+  club?: string;
   creado: string;
 }
 
@@ -40,8 +38,17 @@ export default function MisInscripcionesPage() {
             id: doc.id,
             carreraId: insc.carreraId,
             categoriaId: insc.categoriaId,
-            perfil: insc.perfil,
-            creado: new Date(insc.creado.seconds * 1000).toLocaleString(),
+            nombre: insc.nombre,
+            apellidoPaterno: insc.apellidoPaterno,
+            apellidoMaterno: insc.apellidoMaterno,
+            edad: insc.edad,
+            fechaNacimiento: insc.fechaNacimiento,
+            celular: insc.celular,
+            pais: insc.pais,
+            estado: insc.estado,
+            ciudad: insc.ciudad,
+            club: insc.club,
+            creado: new Date(insc.creado?.seconds * 1000 || Date.now()).toLocaleString(),
           };
         });
 
@@ -66,21 +73,21 @@ export default function MisInscripcionesPage() {
             {inscripciones.map((inscripcion) => (
               <li key={inscripcion.id} className="border p-4 rounded shadow">
                 <p>
-                  <strong>Nombre:</strong> {inscripcion.perfil.nombre} {inscripcion.perfil.apellidoPaterno} {inscripcion.perfil.apellidoMaterno}
+                  <strong>Nombre:</strong> {inscripcion.nombre} {inscripcion.apellidoPaterno} {inscripcion.apellidoMaterno}
                 </p>
                 <p>
-                  <strong>Edad:</strong> {inscripcion.perfil.edad} años
+                  <strong>Edad:</strong> {inscripcion.edad} años
                 </p>
                 <p>
-                  <strong>Fecha de nacimiento:</strong> {inscripcion.perfil.fechaNacimiento}
+                  <strong>Fecha de nacimiento:</strong> {inscripcion.fechaNacimiento}
                 </p>
                 <p>
-                  <strong>Celular:</strong> {inscripcion.perfil.celular}
+                  <strong>Celular:</strong> {inscripcion.celular}
                 </p>
                 <p>
-                  <strong>País:</strong> {inscripcion.perfil.pais}, <strong>Estado:</strong> {inscripcion.perfil.estado}, <strong>Ciudad:</strong> {inscripcion.perfil.ciudad}
+                  <strong>País:</strong> {inscripcion.pais}, <strong>Estado:</strong> {inscripcion.estado}, <strong>Ciudad:</strong> {inscripcion.ciudad}
                 </p>
-                {inscripcion.perfil.club && <p><strong>Club:</strong> {inscripcion.perfil.club}</p>}
+                {inscripcion.club && <p><strong>Club:</strong> {inscripcion.club}</p>}
                 <p className="text-sm text-gray-500 mt-2">Registrado el {inscripcion.creado}</p>
               </li>
             ))}
