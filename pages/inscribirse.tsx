@@ -47,6 +47,7 @@ export default function InscribirsePage() {
   const router = useRouter();
   const { id } = router.query;
 
+  const [authLoading, setAuthLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [perfilTitular, setPerfilTitular] = useState<UserData | null>(null);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<UserData | null>(null);
@@ -63,41 +64,45 @@ export default function InscribirsePage() {
     const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
       if (usuario && id) {
         setUser(usuario);
+        try {
+          const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
+          const titular = userDoc.data() as UserData;
+          setPerfilTitular(titular);
+          setPerfilSeleccionado(titular);
 
-        const userDoc = await getDoc(doc(db, "usuarios", usuario.uid));
-        const perfilTitular = userDoc.data() as UserData;
-        setPerfilTitular(perfilTitular);
-        setPerfilSeleccionado(perfilTitular);
+          const perfilesSnapshot = await getDocs(
+            collection(db, "usuarios", usuario.uid, "perfiles")
+          );
+          const perfilesList = perfilesSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as UserData[];
+          setPerfiles(perfilesList);
 
-        const perfilesSnapshot = await getDocs(
-          collection(db, "usuarios", usuario.uid, "perfiles")
-        );
-        const perfilesList = perfilesSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as UserData[];
-        setPerfiles(perfilesList);
-
-        const carreraDoc = await getDoc(doc(db, "carreras", id as string));
-        if (carreraDoc.exists()) {
-          const data = carreraDoc.data() as CarreraData;
-          setCarrera(data);
-
-          const fechaCarrera = data.fecha.toDate();
-          if (fechaCarrera < new Date()) {
-            setCarreraActiva(false);
+          const carreraDoc = await getDoc(doc(db, "carreras", id as string));
+          if (carreraDoc.exists()) {
+            const data = carreraDoc.data() as CarreraData;
+            setCarrera(data);
+            const fechaCarrera = data.fecha.toDate();
+            if (fechaCarrera < new Date()) {
+              setCarreraActiva(false);
+            }
           }
-        }
 
-        const categoriasSnapshot = await getDocs(
-          collection(db, "carreras", id as string, "categorias")
-        );
-        const categoriasList = categoriasSnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Categoria[];
-        setCategorias(categoriasList);
+          const categoriasSnapshot = await getDocs(
+            collection(db, "carreras", id as string, "categorias")
+          );
+          const categoriasList = categoriasSnapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Categoria[];
+          setCategorias(categoriasList);
+        } catch (error) {
+          console.error("Error cargando datos:", error);
+        }
+        setAuthLoading(false);
       } else {
+        setAuthLoading(false);
         router.push("/login");
       }
     });
@@ -122,38 +127,38 @@ export default function InscribirsePage() {
   }, [perfilSeleccionado, id, user]);
 
   const handleInscribirse = async () => {
-  if (!perfilSeleccionado) {
-    alert("Selecciona un perfil para continuar.");
-    return;
-  }
+    if (!perfilSeleccionado) {
+      alert("Selecciona un perfil para continuar.");
+      return;
+    }
 
-  if (!categoriaSeleccionada) {
-    alert("Selecciona una categoría para poder inscribirte.");
-    return;
-  }
+    if (!categoriaSeleccionada) {
+      alert("Selecciona una categoría para poder inscribirte.");
+      return;
+    }
 
-  if (yaInscrito) {
-    alert("Ya estás inscrito a esta carrera con este perfil.");
-    return;
-  }
+    if (yaInscrito) {
+      alert("Ya estás inscrito a esta carrera con este perfil.");
+      return;
+    }
 
-  try {
-    await addDoc(collection(db, "inscripciones"), {
-      carreraId: id,
-      categoriaId: categoriaSeleccionada,
-      perfilId: perfilSeleccionado.id || "titular",
-      usuarioId: user.uid,
-      creado: new Date(),
-    });
-    alert("Inscripción realizada con éxito");
-    router.push("/mis-inscripciones");
-  } catch (error) {
-    console.error("Error al inscribir:", error);
-    alert("Ocurrió un error al intentar inscribirte.");
-  }
-};
+    try {
+      await addDoc(collection(db, "inscripciones"), {
+        carreraId: id,
+        categoriaId: categoriaSeleccionada,
+        perfilId: perfilSeleccionado.id || "titular",
+        usuarioId: user.uid,
+        creado: new Date(),
+      });
+      alert("Inscripción realizada con éxito");
+      router.push("/mis-inscripciones");
+    } catch (error) {
+      console.error("Error al inscribir:", error);
+      alert("Ocurrió un error al intentar inscribirte.");
+    }
+  };
 
-  if (!carrera) return <p className="p-6">Cargando carrera...</p>;
+  if (authLoading || !carrera) return <p className="p-6">Cargando datos...</p>;
 
   if (!carreraActiva) {
     return (
