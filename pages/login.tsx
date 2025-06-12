@@ -15,32 +15,29 @@ export default function LoginForm() {
     e.preventDefault();
     setError(null);
 
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
-    } catch (err: any) {
-      if (
-        err.code === "auth/user-not-found" ||
-        err.code === "auth/invalid-login-credentials"
-      ) {
-        setError(
-          <>
-            Usuario no registrado. ¿Deseas{" "}
-            <span
-              onClick={() => router.push("/signup")}
-              className="text-blue-600 underline cursor-pointer"
-            >
-              registrarte
-            </span>
-            ?
-          </>
-        );
-      } else if (err.code === "auth/wrong-password") {
-        setError("Correo o contraseña inválida.");
-      } else {
-        setError("Error al iniciar sesión. Intenta nuevamente.");
-      }
-    }
+   try {
+  await signInWithEmailAndPassword(auth, email, password);
+  router.push("/");
+} catch (err: any) {
+  if (err.code === "auth/user-not-found") {
+    setError(
+      <>
+        Usuario no registrado. ¿Deseas{" "}
+        <span
+          onClick={() => router.push("/signup")}
+          className="text-blue-600 underline cursor-pointer"
+        >
+          registrarte
+        </span>
+        ?
+      </>
+    );
+  } else if (err.code === "auth/wrong-password" || err.code === "auth/invalid-login-credentials") {
+    setError("Correo o contraseña incorrecta.");
+  } else {
+    setError("Error al iniciar sesión. Intenta nuevamente.");
+  }
+}
   };
 
   // 🧼 Limpiar error después de 5 segundos
