@@ -15,6 +15,7 @@ import {
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
 import { useRouter } from "next/router";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 interface Inscripcion {
   id: string;
@@ -39,6 +40,7 @@ export default function AdminPage() {
   const [carreraSeleccionada, setCarreraSeleccionada] = useState<string>("");
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [filtro, setFiltro] = useState<string>("");
+  const [imagenArchivo, setImagenArchivo] = useState<File | null>(null);
   const [nuevaCarrera, setNuevaCarrera] = useState({
     titulo: "",
     descripcion: "",
@@ -57,7 +59,6 @@ export default function AdminPage() {
         const userData = userDoc.data();
         if (userData?.admin) {
           setIsAdmin(true);
-
           const carrerasSnap = await getDocs(collection(db, "carreras"));
           const carrerasList = carrerasSnap.docs.map((doc) => ({
             id: doc.id,
@@ -112,16 +113,26 @@ export default function AdminPage() {
 
   const agregarCarrera = async () => {
     if (!nuevaCarrera.titulo || !nuevaCarrera.fecha) return;
+    let imagenUrl = "";
+
+    if (imagenArchivo) {
+      const storage = getStorage();
+      const storageRef = ref(storage, `carreras/${Date.now()}_${imagenArchivo.name}`);
+      await uploadBytes(storageRef, imagenArchivo);
+      imagenUrl = await getDownloadURL(storageRef);
+    }
+
     try {
       await addDoc(collection(db, "carreras"), {
         titulo: nuevaCarrera.titulo,
         descripcion: nuevaCarrera.descripcion,
         ubicacion: nuevaCarrera.ubicacion,
         fecha: Timestamp.fromDate(new Date(nuevaCarrera.fecha)),
-        imagenUrl: nuevaCarrera.imagenUrl || null,
+        imagenUrl: imagenUrl || null,
         creado: serverTimestamp(),
       });
       setNuevaCarrera({ titulo: "", descripcion: "", ubicacion: "", fecha: "", imagenUrl: "" });
+      setImagenArchivo(null);
       alert("Carrera agregada exitosamente");
     } catch (e) {
       alert("Error al agregar carrera");
@@ -150,7 +161,7 @@ export default function AdminPage() {
           <input type="text" placeholder="Título" value={nuevaCarrera.titulo} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, titulo: e.target.value })} className="border p-2 rounded" />
           <input type="text" placeholder="Ubicación" value={nuevaCarrera.ubicacion} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, ubicacion: e.target.value })} className="border p-2 rounded" />
           <input type="date" value={nuevaCarrera.fecha} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, fecha: e.target.value })} className="border p-2 rounded" />
-          <input type="text" placeholder="Imagen URL (opcional)" value={nuevaCarrera.imagenUrl} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, imagenUrl: e.target.value })} className="border p-2 rounded" />
+          <input type="file" onChange={(e) => setImagenArchivo(e.target.files?.[0] || null)} className="border p-2 rounded" />
           <textarea placeholder="Descripción" value={nuevaCarrera.descripcion} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, descripcion: e.target.value })} className="border p-2 rounded col-span-1 md:col-span-2" />
         </div>
         <button onClick={agregarCarrera} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Agregar carrera</button>
