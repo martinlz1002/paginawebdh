@@ -4,7 +4,7 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 
 export const crearCarrera = functions.https.onCall(
-  async (data: any, context: functions.https.CallableContext) => {
+  async (data, context) => {
     if (!context.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
