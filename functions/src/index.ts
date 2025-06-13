@@ -3,16 +3,15 @@ import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
-// Cambiar el tipo de 'context' para asegurar que se trata de un contexto autenticado.
+// Utilizando el tipo correcto para context
 export const crearCarrera = functions.https.onCall(async (data, context) => {
-  // Asegúrate de que el contexto esté presente y contenga la propiedad 'auth'
-  if (!context || !context.auth) {
+  // Asegurándonos de que context esté bien definido y tenga auth
+  if (!context?.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
   }
 
   const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo } = data;
 
-  // Validación de imagen
   if (!imagenBase64 || !nombreArchivo) {
     throw new functions.https.HttpsError("invalid-argument", "Imagen y nombre de archivo son requeridos.");
   }
