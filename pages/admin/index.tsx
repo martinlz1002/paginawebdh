@@ -8,14 +8,11 @@ import {
   where,
   doc,
   getDoc,
-  addDoc,
-  Timestamp,
-  serverTimestamp,
 } from "firebase/firestore";
 import Papa from "papaparse";
 import { saveAs } from "file-saver";
 import { useRouter } from "next/router";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 interface Inscripcion {
   id: string;
@@ -113,23 +110,25 @@ export default function AdminPage() {
 
   const agregarCarrera = async () => {
     if (!nuevaCarrera.titulo || !nuevaCarrera.fecha) return;
-    let imagenUrl = "";
-
     try {
+      const functions = getFunctions();
+      const crearCarrera = httpsCallable(functions, "crearCarrera");
+
+      let imagenBase64 = "";
       if (imagenArchivo) {
-        const storage = getStorage();
-        const storageRef = ref(storage, `carreras/${Date.now()}_${imagenArchivo.name}`);
-        await uploadBytes(storageRef, imagenArchivo);
-        imagenUrl = await getDownloadURL(storageRef);
+        const reader = new FileReader();
+        reader.readAsDataURL(imagenArchivo);
+        await new Promise((res) => (reader.onloadend = res));
+        imagenBase64 = (reader.result as string).split(",")[1];
       }
 
-      await addDoc(collection(db, "carreras"), {
+      await crearCarrera({
         titulo: nuevaCarrera.titulo,
         descripcion: nuevaCarrera.descripcion,
         ubicacion: nuevaCarrera.ubicacion,
-        fecha: Timestamp.fromDate(new Date(nuevaCarrera.fecha)),
-        imagenUrl: imagenUrl || null,
-        creado: serverTimestamp(),
+        fecha: nuevaCarrera.fecha,
+        imagenBase64,
+        nombreArchivo: imagenArchivo?.name,
       });
 
       setNuevaCarrera({ titulo: "", descripcion: "", ubicacion: "", fecha: "", imagenUrl: "" });
