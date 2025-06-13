@@ -115,14 +115,14 @@ export default function AdminPage() {
     if (!nuevaCarrera.titulo || !nuevaCarrera.fecha) return;
     let imagenUrl = "";
 
-    if (imagenArchivo) {
-      const storage = getStorage();
-      const storageRef = ref(storage, `carreras/${Date.now()}_${imagenArchivo.name}`);
-      await uploadBytes(storageRef, imagenArchivo);
-      imagenUrl = await getDownloadURL(storageRef);
-    }
-
     try {
+      if (imagenArchivo) {
+        const storage = getStorage();
+        const storageRef = ref(storage, `carreras/${Date.now()}_${imagenArchivo.name}`);
+        await uploadBytes(storageRef, imagenArchivo);
+        imagenUrl = await getDownloadURL(storageRef);
+      }
+
       await addDoc(collection(db, "carreras"), {
         titulo: nuevaCarrera.titulo,
         descripcion: nuevaCarrera.descripcion,
@@ -131,10 +131,12 @@ export default function AdminPage() {
         imagenUrl: imagenUrl || null,
         creado: serverTimestamp(),
       });
+
       setNuevaCarrera({ titulo: "", descripcion: "", ubicacion: "", fecha: "", imagenUrl: "" });
       setImagenArchivo(null);
       alert("Carrera agregada exitosamente");
     } catch (e) {
+      console.error("Error al agregar carrera:", e);
       alert("Error al agregar carrera");
     }
   };
@@ -161,7 +163,7 @@ export default function AdminPage() {
           <input type="text" placeholder="Título" value={nuevaCarrera.titulo} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, titulo: e.target.value })} className="border p-2 rounded" />
           <input type="text" placeholder="Ubicación" value={nuevaCarrera.ubicacion} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, ubicacion: e.target.value })} className="border p-2 rounded" />
           <input type="date" value={nuevaCarrera.fecha} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, fecha: e.target.value })} className="border p-2 rounded" />
-          <input type="file" onChange={(e) => setImagenArchivo(e.target.files?.[0] || null)} className="border p-2 rounded" />
+          <input type="file" accept="image/*" onChange={(e) => setImagenArchivo(e.target.files?.[0] || null)} className="border p-2 rounded" />
           <textarea placeholder="Descripción" value={nuevaCarrera.descripcion} onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, descripcion: e.target.value })} className="border p-2 rounded col-span-1 md:col-span-2" />
         </div>
         <button onClick={agregarCarrera} className="mt-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Agregar carrera</button>
