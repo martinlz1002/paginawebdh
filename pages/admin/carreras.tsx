@@ -2,14 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  updateDoc,
-  doc,
-} from "firebase/firestore";
+import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc } from "firebase/firestore";
 
 export default function AdminCarreras() {
   const router = useRouter();
@@ -24,16 +17,26 @@ export default function AdminCarreras() {
 
   const agregarCarrera = async () => {
     if (nuevaCarrera.nombre && nuevaCarrera.fecha) {
-      await addDoc(collection(db, "carreras"), nuevaCarrera);
-      setNuevaCarrera({ nombre: "", fecha: "" });
-      fetchCarreras();
+      try {
+        await addDoc(collection(db, "carreras"), nuevaCarrera);
+        setNuevaCarrera({ nombre: "", fecha: "" });
+        fetchCarreras();
+      } catch (error) {
+        console.error("Error al agregar carrera:", error);
+        alert("Hubo un problema al agregar la carrera.");
+      }
     }
   };
 
   const eliminarCarrera = async (id: string) => {
     if (confirm("¿Eliminar esta carrera?")) {
-      await deleteDoc(doc(db, "carreras", id));
-      fetchCarreras();
+      try {
+        await deleteDoc(doc(db, "carreras", id));
+        fetchCarreras();
+      } catch (error) {
+        console.error("Error al eliminar carrera:", error);
+        alert("Hubo un problema al eliminar la carrera.");
+      }
     }
   };
 
@@ -41,11 +44,16 @@ export default function AdminCarreras() {
     const nuevoNombre = prompt("Nuevo nombre:", nombre);
     const nuevaFecha = prompt("Nueva fecha:", fecha);
     if (nuevoNombre && nuevaFecha) {
-      await updateDoc(doc(db, "carreras", id), {
-        nombre: nuevoNombre,
-        fecha: nuevaFecha,
-      });
-      fetchCarreras();
+      try {
+        await updateDoc(doc(db, "carreras", id), {
+          nombre: nuevoNombre,
+          fecha: nuevaFecha,
+        });
+        fetchCarreras();
+      } catch (error) {
+        console.error("Error al editar carrera:", error);
+        alert("Hubo un problema al editar la carrera.");
+      }
     }
   };
 
@@ -65,7 +73,6 @@ export default function AdminCarreras() {
   return (
     <div className="min-h-screen bg-white p-6">
       <h1 className="text-2xl font-bold text-softPurple mb-4">Gestión de Carreras</h1>
-
       <div className="mb-6 flex gap-2">
         <input
           type="text"
@@ -96,7 +103,7 @@ export default function AdminCarreras() {
           >
             <div>
               <p className="font-semibold">{c.nombre}</p>
-              <p className="text-sm text-gray-500">Fecha: {c.fecha}</p>
+              <p className="text-sm text-gray-500">Fecha: {new Date(c.fecha.seconds * 1000).toLocaleDateString()}</p>
             </div>
             <div className="flex gap-2">
               <button

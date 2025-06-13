@@ -1,12 +1,8 @@
 import { useState } from "react";
-import { useRouter } from "next/router";
-import {
-  createUserWithEmailAndPassword,
-  getAuth,
-  sendEmailVerification,
-} from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { getAuth, createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { app, db } from "@/lib/firebase";
+import { setDoc, doc } from "firebase/firestore";
+import { useRouter } from "next/router";
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -22,102 +18,64 @@ export default function SignupPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState("");
-  const [exito, setExito] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const router = useRouter();
   const auth = getAuth(app);
-  const { password, ...datosSinPassword } = formData;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const calcularEdad = (fechaNacimiento: string): number => {
-    const nacimiento = new Date(fechaNacimiento);
-    const hoy = new Date();
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const m = hoy.getMonth() - nacimiento.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-      edad--;
-    }
-    return edad;
-  };
-
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMensaje("");
-    setExito(false);
-
-    const {
-      nombre,
-      apellidoPaterno,
-      apellidoMaterno,
-      email,
-      password,
-      celular,
-      pais,
-      estado,
-      ciudad,
-      fechaNacimiento,
-    } = formData;
-
-    if (
-      !nombre ||
-      !apellidoPaterno ||
-      !apellidoMaterno ||
-      !email ||
-      !password ||
-      !celular ||
-      !pais ||
-      !estado ||
-      !ciudad ||
-      !fechaNacimiento
-    ) {
-      setMensaje("Por favor, completa todos los campos obligatorios.");
-      return;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setMensaje("El correo electrónico no es válido.");
-      return;
-    }
-
-    if (password.length < 6) {
-      setMensaje("La contraseña debe tener al menos 6 caracteres.");
-      return;
-    }
+    setErrorMessage("");  // Limpiar mensaje de error
+    setSuccessMessage("");  // Limpiar mensaje de éxito
 
     try {
+      const { email, password, fechaNacimiento, ...rest } = formData;
+
+      // Validación de contraseña mínima
+      if (password.length < 6) {
+        setErrorMessage("La contraseña debe tener al menos 6 caracteres.");
+        return;
+      }
+
+      // Crear nuevo usuario
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      const edad = calcularEdad(fechaNacimiento);  // Calcular edad con la fecha de nacimiento
 
-      const edad = calcularEdad(fechaNacimiento);
+      // Guardar información del usuario en Firestore
+      await setDoc(doc(db, "usuarios", user.uid), { ...rest, uid: user.uid, edad });
 
-     await setDoc(doc(db, "usuarios", user.uid), {
-  ...datosSinPassword,
-  uid: user.uid,
-  edad,
-});
-
+      // Enviar verificación de correo
       await sendEmailVerification(user);
 
-      setExito(true);
-      setMensaje("¡Registro exitoso! Te hemos enviado un correo de verificación.");
-
-      setTimeout(() => {
-        router.push("/perfil");
-      }, 3000); // Redirige después de 3 segundos
+      // Mostrar mensaje de éxito
+      setSuccessMessage("¡Registro exitoso! Te hemos enviado un correo de verificación.");
+      
+      // Redirigir al perfil después de 3 segundos
+      setTimeout(() => router.push("/perfil"), 3000);
 
     } catch (error: any) {
-      setMensaje("Error: " + error.message);
+      // Mostrar errores si hay
+      setErrorMessage(error.message);
     }
+  };
+
+  const calcularEdad = (fechaNacimiento: string) => {
+    const hoy = new Date();
+    const nacimiento = new Date(fechaNacimiento);
+    return hoy.getFullYear() - nacimiento.getFullYear();
   };
 
   return (
     <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
       <h1 className="text-2xl font-bold mb-4">Registro de Usuario</h1>
       <form onSubmit={handleSignup} className="grid grid-cols-1 gap-4">
-        {[
+        {[ // Mapeamos los campos del formulario
           { name: "nombre", label: "Nombre" },
           { name: "apellidoPaterno", label: "Apellido paterno" },
           { name: "apellidoMaterno", label: "Apellido materno" },
@@ -131,17 +89,15 @@ export default function SignupPage() {
           { name: "fechaNacimiento", label: "Fecha de nacimiento", type: "date" },
         ].map((field) => (
           <div key={field.name}>
-            <label className="block text-sm font-medium">
-              {field.label}
-              <input
-                type={field.type || "text"}
-                name={field.name}
-                value={(formData as any)[field.name]}
-                onChange={handleChange}
-                className="w-full border p-2 rounded mt-1"
-                required={field.required !== false}
-              />
-            </label>
+            <label className="block text-sm font-medium">{field.label}</label>
+            <input
+              type={field.type || "text"}
+              name={field.name}
+              value={formData[field.name as keyof typeof formData]}
+              onChange={handleChange}
+              className="w-full border p-2 rounded mt-1"
+              required={field.required !== false}
+            />
           </div>
         ))}
         <button
@@ -152,10 +108,12 @@ export default function SignupPage() {
         </button>
       </form>
 
-      {mensaje && (
-        <p className={`mt-4 ${exito ? "text-green-600" : "text-red-600"}`}>
-          {mensaje}
-        </p>
+      {errorMessage && (
+        <p className="mt-4 text-red-600">{errorMessage}</p> // Mostrar mensaje de error
+      )}
+
+      {successMessage && (
+        <p className="mt-4 text-green-600">{successMessage}</p> // Mostrar mensaje de éxito
       )}
     </div>
   );

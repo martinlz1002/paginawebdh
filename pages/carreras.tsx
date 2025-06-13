@@ -24,8 +24,8 @@ export default function CarrerasPage() {
         datos.push({
           id: doc.id,
           nombre: d.nombre,
-          fecha: d.fecha,
-          lugar: d.lugar,
+          fecha: d.fecha?.toDate().toLocaleDateString(),
+          lugar: d.ubicacion,
           descripcion: d.descripcion,
         });
       });

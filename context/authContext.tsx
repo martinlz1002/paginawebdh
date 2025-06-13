@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { useRouter } from "next/router";
+import { auth } from "@/lib/firebase";  // Usamos la configuración de Firebase ya establecida
 
 interface AuthContextProps {
   user: User | null;
@@ -17,7 +16,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
-      setLoading(false);
+      setLoading(false);  // Cambiamos el estado de loading cuando el usuario está autenticado
     });
 
     return () => unsubscribe();
