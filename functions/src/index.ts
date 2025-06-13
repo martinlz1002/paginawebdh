@@ -3,10 +3,10 @@ import * as admin from "firebase-admin";
 
 admin.initializeApp();
 
-// Utilizando el tipo correcto para context
+// Asegurándonos de que context tenga el tipo correcto
 export const crearCarrera = functions.https.onCall(async (data, context) => {
-  // Asegurándonos de que context esté bien definido y tenga auth
-  if (!context?.auth) {
+  // Verificación de autenticación
+  if (!context || !context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "Debes iniciar sesión.");
   }
 
