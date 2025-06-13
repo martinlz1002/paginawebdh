@@ -8,7 +8,8 @@
     "moduleResolution": "node",
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "outDir": "lib"
+    "outDir": "lib",
+    "types": ["node"]  // 🔧 Añade definiciones para Node.js (necesario para Buffer, etc.)
   },
   "compileOnSave": true,
   "include": ["src"]
