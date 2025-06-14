@@ -1,69 +1,50 @@
-import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
-import express from "express";
-import cors from "cors";
+import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
+import express, { Request, Response } from 'express';
+import cors from 'cors';
 
 admin.initializeApp();
 
 const app = express();
 
-// 1) CORS: permite orígenes cruzados desde cualquier dominio
+// 1) CORS: permite peticiones desde cualquier origen (o restringe poniendo tu dominio)
 app.use(cors({ origin: true }));
 
-// 2) Parse JSON bodies
-app.use(express.json());
+// 2) Body parser para JSON
+app.use(express.json({ limit: '10mb' })); // aumenta límite si subes imágenes grandes
 
-// 3) Ruta POST para crear carrera
-app.post("/crearCarrera", async (req, res) => {
-  // 3.1) Autenticación: espera token Bearer en header
-  const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "No autenticado." });
-  }
-  const idToken = authHeader.split("Bearer ")[1];
-
-  let decoded;
+// --- RUTA: crearCarrera
+app.post('/crearCarrera', async (req: Request, res: Response) => {
   try {
-    decoded = await admin.auth().verifyIdToken(idToken);
-  } catch (err) {
-    return res.status(403).json({ error: "Token inválido." });
-  }
+    // Validar autorización (puedes verificar un token aquí)
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
 
-  // 3.2) Verificar claim admin en el token
-  if (!decoded.admin) {
-    return res.status(403).json({ error: "Se requieren permisos de administrador." });
-  }
+    // Desestructuramos datos
+    const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo } = req.body;
+    if (!titulo || !descripcion || !ubicacion || !fecha || !imagenBase64 || !nombreArchivo) {
+      return res.status(400).json({ error: 'Faltan datos obligatorios' });
+    }
 
-  // 3.3) Validar payload
-  const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo } = req.body;
-  if (
-    !titulo ||
-    !descripcion ||
-    !ubicacion ||
-    !fecha ||
-    !imagenBase64 ||
-    !nombreArchivo
-  ) {
-    return res.status(400).json({ error: "Faltan datos obligatorios." });
-  }
-
-  try {
-    // 3.4) Procesar y subir la imagen
-    const buffer = Buffer.from(imagenBase64, "base64");
+    // Subida a Storage
+    const buffer = Buffer.from(imagenBase64, 'base64');
     const bucket = admin.storage().bucket();
     const filePath = `carreras/${Date.now()}_${nombreArchivo}`;
     const file = bucket.file(filePath);
 
     await file.save(buffer, {
-      metadata: { contentType: "image/jpeg" },
-    });
-    const [url] = await file.getSignedUrl({
-      action: "read",
-      expires: "03-01-2030",
+      metadata: { contentType: 'image/jpeg' },
     });
 
-    // 3.5) Guardar documento en Firestore
-    await admin.firestore().collection("carreras").add({
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: '03-01-2030',
+    });
+
+    // Escritura en Firestore
+    await admin.firestore().collection('carreras').add({
       titulo,
       descripcion,
       ubicacion,
@@ -72,15 +53,12 @@ app.post("/crearCarrera", async (req, res) => {
       creado: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    return res.json({ mensaje: "Carrera creada exitosamente." });
+    return res.status(200).json({ mensaje: 'Carrera creada exitosamente' });
   } catch (error) {
-    console.error("Error creando carrera:", error);
-    return res.status(500).json({ error: "Error interno al crear carrera." });
+    console.error('Error al crear la carrera:', error);
+    return res.status(500).json({ error: 'Error interno', detalle: (error as Error).message });
   }
 });
 
-// 4) Exportar la función en us-central1
-export const api = functions.https.onRequest(
-  { region: "us-central1" },
-  app
-);
+// --- Exponemos la función en la ruta /api/*
+export const api = functions.https.onRequest(app);

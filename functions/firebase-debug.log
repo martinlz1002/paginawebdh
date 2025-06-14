@@ -120,3 +120,127 @@
 [debug] [2025-06-14T10:08:24.629Z] Found firebase-functions binary at 'C:\Users\Lloyder\Documents\Pagina web de DH\functions\node_modules\.bin\firebase-functions'
 [info] Serving at port 8929
 
+[debug] [2025-06-14T10:32:18.017Z] ----------------------------------------------------------------------
+[debug] [2025-06-14T10:32:18.021Z] Command:       C:\Users\Lloyder\.nvm\versions\node\v20.19.2\bin\node.exe C:\Users\Lloyder\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:api
+[debug] [2025-06-14T10:32:18.021Z] CLI Version:   14.7.0
+[debug] [2025-06-14T10:32:18.022Z] Platform:      win32
+[debug] [2025-06-14T10:32:18.022Z] Node Version:  v20.19.2
+[debug] [2025-06-14T10:32:18.022Z] Time:          Sat Jun 14 2025 03:32:18 GMT-0700 (hora estándar del Pacífico de México)
+[debug] [2025-06-14T10:32:18.022Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-06-14T10:32:18.248Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-06-14T10:32:18.249Z] > authorizing via signed-in user (dhtimeservicios@gmail.com)
+[debug] [2025-06-14T10:32:18.249Z] [iam] checking project webdh-730dc for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2025-06-14T10:32:18.250Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:18.250Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:18.251Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc:testIamPermissions [none]
+[debug] [2025-06-14T10:32:18.251Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc:testIamPermissions x-goog-quota-user=projects/webdh-730dc
+[debug] [2025-06-14T10:32:18.252Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-06-14T10:32:19.129Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc:testIamPermissions 200
+[debug] [2025-06-14T10:32:19.129Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-06-14T10:32:19.130Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:19.130Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:19.130Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/webdh-730dc/serviceAccounts/webdh-730dc@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2025-06-14T10:32:19.130Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/webdh-730dc/serviceAccounts/webdh-730dc@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2025-06-14T10:32:19.946Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/webdh-730dc/serviceAccounts/webdh-730dc@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2025-06-14T10:32:19.947Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/webdh-730dc/serviceAccounts/webdh-730dc@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'webdh-730dc'...
+[info] 
+[info] i  deploying functions 
+[info] +  functions: Finished running predeploy script. 
+[debug] [2025-06-14T10:32:19.961Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:19.961Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:19.961Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudresourcemanager.googleapis.com [none]
+[debug] [2025-06-14T10:32:19.961Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudresourcemanager.googleapis.com x-goog-quota-user=projects/webdh-730dc
+[debug] [2025-06-14T10:32:21.026Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudresourcemanager.googleapis.com 200
+[debug] [2025-06-14T10:32:21.026Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudresourcemanager.googleapis.com [omitted]
+[debug] [2025-06-14T10:32:21.027Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.027Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.027Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc [none]
+[debug] [2025-06-14T10:32:21.215Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc 200
+[debug] [2025-06-14T10:32:21.215Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/webdh-730dc {"projectNumber":"906410641968","projectId":"webdh-730dc","lifecycleState":"ACTIVE","name":"WebDH","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-06-09T23:15:39.290179Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[debug] [2025-06-14T10:32:21.217Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.217Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.217Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.217Z] Checked if tokens are valid: true, expires at: 1749899126760
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[debug] [2025-06-14T10:32:21.218Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.218Z] Checked if tokens are valid: true, expires at: 1749899126760
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2025-06-14T10:32:21.219Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.219Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:21.219Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudfunctions.googleapis.com [none]
+[debug] [2025-06-14T10:32:21.219Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudfunctions.googleapis.com x-goog-quota-user=projects/webdh-730dc
+[debug] [2025-06-14T10:32:21.219Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/runtimeconfig.googleapis.com [none]
+[debug] [2025-06-14T10:32:21.219Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/runtimeconfig.googleapis.com x-goog-quota-user=projects/webdh-730dc
+[debug] [2025-06-14T10:32:21.221Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudbuild.googleapis.com [none]
+[debug] [2025-06-14T10:32:21.221Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudbuild.googleapis.com x-goog-quota-user=projects/webdh-730dc
+[debug] [2025-06-14T10:32:21.223Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/artifactregistry.googleapis.com [none]
+[debug] [2025-06-14T10:32:21.223Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/artifactregistry.googleapis.com x-goog-quota-user=projects/webdh-730dc
+[debug] [2025-06-14T10:32:21.566Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudfunctions.googleapis.com 200
+[debug] [2025-06-14T10:32:21.566Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudfunctions.googleapis.com [omitted]
+[info] +  functions: required API cloudfunctions.googleapis.com is enabled 
+[debug] [2025-06-14T10:32:21.921Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/runtimeconfig.googleapis.com 200
+[debug] [2025-06-14T10:32:21.921Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/runtimeconfig.googleapis.com [omitted]
+[debug] [2025-06-14T10:32:22.127Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudbuild.googleapis.com 200
+[debug] [2025-06-14T10:32:22.127Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/cloudbuild.googleapis.com [omitted]
+[info] +  functions: required API cloudbuild.googleapis.com is enabled 
+[debug] [2025-06-14T10:32:22.130Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/artifactregistry.googleapis.com 200
+[debug] [2025-06-14T10:32:22.130Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/webdh-730dc/services/artifactregistry.googleapis.com [omitted]
+[info] +  artifactregistry: required API artifactregistry.googleapis.com is enabled 
+[debug] [2025-06-14T10:32:22.131Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:22.131Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:22.131Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/webdh-730dc/adminSdkConfig [none]
+[debug] [2025-06-14T10:32:23.022Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/webdh-730dc/adminSdkConfig 200
+[debug] [2025-06-14T10:32:23.022Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/webdh-730dc/adminSdkConfig {"projectId":"webdh-730dc","storageBucket":"webdh-730dc.firebasestorage.app"}
+[debug] [2025-06-14T10:32:23.022Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:23.022Z] Checked if tokens are valid: true, expires at: 1749899126760
+[debug] [2025-06-14T10:32:23.023Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/webdh-730dc/configs [none]
+[debug] [2025-06-14T10:32:23.658Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/webdh-730dc/configs 200
+[debug] [2025-06-14T10:32:23.658Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/webdh-730dc/configs {}
+[debug] [2025-06-14T10:32:23.660Z] Validating nodejs source
+[debug] [2025-06-14T10:32:24.854Z] > [functions] package.json contents: {
+  "name": "functions",
+  "type": "commonjs",
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "lint": "eslint --ext .js,.ts .",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "firebase": "^11.9.1",
+    "firebase-admin": "^13.4.0",
+    "firebase-functions": "^6.3.2"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.8.3"
+  },
+  "private": true
+}
+[debug] [2025-06-14T10:32:24.854Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2025-06-14T10:32:24.856Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-06-14T10:32:24.867Z] Found firebase-functions binary at 'C:\Users\Lloyder\Documents\Pagina web de DH\functions\node_modules\.bin\firebase-functions'
+[info] Serving at port 8685
+
+[debug] [2025-06-14T10:32:27.845Z] Got response from /__/functions.yaml {"endpoints":{"api":{"availableMemoryMb":null,"timeoutSeconds":null,"minInstances":null,"maxInstances":null,"ingressSettings":null,"concurrency":null,"serviceAccountEmail":null,"vpc":null,"platform":"gcfv2","labels":{},"httpsTrigger":{},"entryPoint":"api"}},"specVersion":"v1alpha1","requiredAPIs":[],"extensions":{}}
