@@ -32,54 +32,57 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.api = void 0;
-// functions/src/index.ts
+exports.crearCarrera = void 0;
+const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
-const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
-const https_1 = require("firebase-functions/v2/https");
-// Inicializar SDK Admin
 admin.initializeApp();
-// Crear servidor Express
-const app = (0, express_1.default)();
-// Permitir CORS para peticiones desde cualquier origen
-app.use((0, cors_1.default)({ origin: true }));
-app.use(express_1.default.json());
-// Middleware de autenticación de Firebase
-async function validateFirebaseIdToken(req, res, next) {
-    const header = req.headers.authorization;
-    if (!header || !header.startsWith('Bearer ')) {
+// Función HTTP con región, CORS manual y verificación de token
+exports.crearCarrera = functions
+    .region('us-central1')
+    .https.onRequest(async (req, res) => {
+    // 1) CORS
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'OPTIONS, POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    if (req.method === 'OPTIONS') {
+        return res.status(204).send('');
+    }
+    if (req.method !== 'POST') {
+        return res.status(405).send('Método no permitido');
+    }
+    // 2) Autenticación: extraer Bearer <ID_TOKEN>
+    const authHeader = req.headers.authorization || '';
+    const match = authHeader.match(/^Bearer (.+)$/);
+    if (!match) {
         return res.status(401).json({ error: 'No autenticado' });
     }
-    const idToken = header.split('Bearer ')[1];
+    const idToken = match[1];
+    let uid;
     try {
         const decoded = await admin.auth().verifyIdToken(idToken);
-        req.uid = decoded.uid;
-        return next();
+        uid = decoded.uid;
     }
     catch (err) {
         return res.status(401).json({ error: 'Token inválido' });
     }
-}
-// Ruta POST para crear carrera
-app.post('/crearCarrera', validateFirebaseIdToken, async (req, res) => {
+    // 3) Leer y validar payload
     const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo, } = req.body;
     if (!titulo || !fecha || !imagenBase64 || !nombreArchivo) {
         return res.status(400).json({ error: 'Faltan campos obligatorios.' });
     }
     try {
-        // Subir imagen a Storage
+        // 4) Subir imagen a Firebase Storage
         const buffer = Buffer.from(imagenBase64, 'base64');
         const bucket = admin.storage().bucket();
-        const path = `carreras/${Date.now()}_${nombreArchivo}`;
-        const file = bucket.file(path);
+        const filePath = `carreras/${Date.now()}_${nombreArchivo}`;
+        const file = bucket.file(filePath);
         await file.save(buffer, { metadata: { contentType: 'image/jpeg' } });
-        const [url] = await file.getSignedUrl({ action: 'read', expires: '03-01-2030' });
-        // Guardar documento en Firestore
+        const [url] = await file.getSignedUrl({
+            action: 'read',
+            expires: '03-01-2030',
+        });
+        // 5) Guardar carrera en Firestore
         await admin.firestore().collection('carreras').add({
             titulo,
             descripcion,
@@ -87,6 +90,7 @@ app.post('/crearCarrera', validateFirebaseIdToken, async (req, res) => {
             fecha: admin.firestore.Timestamp.fromDate(new Date(fecha)),
             imagenUrl: url,
             creado: admin.firestore.FieldValue.serverTimestamp(),
+            creadoPor: uid,
         });
         return res.json({ mensaje: 'Carrera creada exitosamente' });
     }
@@ -95,5 +99,3 @@ app.post('/crearCarrera', validateFirebaseIdToken, async (req, res) => {
         return res.status(500).json({ error: 'Error interno al crear la carrera.' });
     }
 });
-// Exportar función en US Central 1
-exports.api = (0, https_1.onRequest)({ region: 'us-central1' }, app);
