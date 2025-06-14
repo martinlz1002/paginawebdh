@@ -32,45 +32,55 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.crearCarrera = void 0;
+exports.api = void 0;
+// functions/src/index.ts
 const admin = __importStar(require("firebase-admin"));
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
 const https_1 = require("firebase-functions/v2/https");
+// Inicializar SDK Admin
 admin.initializeApp();
-exports.crearCarrera = (0, https_1.onCall)(
-// Opcional: si quisieras añadir opciones (memory, timeout, etc.) las pones aquí:
-// { region: 'us-central1', memory: '256MiB', timeoutSeconds: 120 },
-async (request) => {
-    // request.auth es el contexto de autenticación
-    const auth = request.auth;
-    if (!auth?.uid) {
-        // El usuario no está autenticado
-        throw new https_1.HttpsError('unauthenticated', 'Debes iniciar sesión.');
+// Crear servidor Express
+const app = (0, express_1.default)();
+// Permitir CORS para peticiones desde cualquier origen
+app.use((0, cors_1.default)({ origin: true }));
+app.use(express_1.default.json());
+// Middleware de autenticación de Firebase
+async function validateFirebaseIdToken(req, res, next) {
+    const header = req.headers.authorization;
+    if (!header || !header.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'No autenticado' });
     }
-    // Desestructuramos y validamos brevemente
-    const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo, } = request.data;
+    const idToken = header.split('Bearer ')[1];
+    try {
+        const decoded = await admin.auth().verifyIdToken(idToken);
+        req.uid = decoded.uid;
+        return next();
+    }
+    catch (err) {
+        return res.status(401).json({ error: 'Token inválido' });
+    }
+}
+// Ruta POST para crear carrera
+app.post('/crearCarrera', validateFirebaseIdToken, async (req, res) => {
+    const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo, } = req.body;
     if (!titulo || !fecha || !imagenBase64 || !nombreArchivo) {
-        throw new https_1.HttpsError('invalid-argument', 'Faltan campos obligatorios.');
+        return res.status(400).json({ error: 'Faltan campos obligatorios.' });
     }
     try {
-        // Subir la imagen
+        // Subir imagen a Storage
         const buffer = Buffer.from(imagenBase64, 'base64');
         const bucket = admin.storage().bucket();
-        const filePath = `carreras/${Date.now()}_${nombreArchivo}`;
-        const file = bucket.file(filePath);
-        await file.save(buffer, {
-            metadata: { contentType: 'image/jpeg' },
-        });
-        // Obtener URL pública
-        const [url] = await file.getSignedUrl({
-            action: 'read',
-            expires: '03-01-2030',
-        });
-        // Guardar en Firestore
-        await admin
-            .firestore()
-            .collection('carreras')
-            .add({
+        const path = `carreras/${Date.now()}_${nombreArchivo}`;
+        const file = bucket.file(path);
+        await file.save(buffer, { metadata: { contentType: 'image/jpeg' } });
+        const [url] = await file.getSignedUrl({ action: 'read', expires: '03-01-2030' });
+        // Guardar documento en Firestore
+        await admin.firestore().collection('carreras').add({
             titulo,
             descripcion,
             ubicacion,
@@ -78,10 +88,12 @@ async (request) => {
             imagenUrl: url,
             creado: admin.firestore.FieldValue.serverTimestamp(),
         });
-        return { mensaje: 'Carrera creada exitosamente' };
+        return res.json({ mensaje: 'Carrera creada exitosamente' });
     }
     catch (error) {
-        console.error('Error al crear la carrera:', error);
-        throw new https_1.HttpsError('internal', 'Ocurrió un error al crear la carrera.');
+        console.error('Error al crear carrera:', error);
+        return res.status(500).json({ error: 'Error interno al crear la carrera.' });
     }
 });
+// Exportar función en US Central 1
+exports.api = (0, https_1.onRequest)({ region: 'us-central1' }, app);

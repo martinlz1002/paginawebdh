@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebase';
+import React, { useState, FormEvent } from 'react';
+import { getAuth } from 'firebase/auth';
 
-export default function CrearCarreraForm() {
+export default function AdminCarrerasForm() {
   const [titulo, setTitulo]             = useState('');
   const [descripcion, setDescripcion]   = useState('');
   const [ubicacion, setUbicacion]       = useState('');
@@ -10,108 +9,136 @@ export default function CrearCarreraForm() {
   const [imagenArchivo, setImagenArchivo] = useState<File | null>(null);
   const [mensaje, setMensaje]           = useState('');
 
-  // getFunctions sin región (v2 toma us-central1 por defecto)
-  const functions = getFunctions(app);
-  const crearCarreraFn = httpsCallable<
-    {
-      titulo: string;
-      descripcion: string;
-      ubicacion: string;
-      fecha: string;
-      imagenBase64: string;
-      nombreArchivo: string;
-    },
-    { mensaje: string }
-  >(functions, 'crearCarrera');
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setMensaje('');
+
     if (!titulo || !fecha || !imagenArchivo) {
-      setMensaje('Completa título, fecha e imagen.');
+      setMensaje('Por favor completa título, fecha e imagen.');
       return;
     }
-    setMensaje('Creando…');
-
-    // Convertir imagen a Base64
-    const reader = new FileReader();
-    reader.readAsDataURL(imagenArchivo);
-    await new Promise<void>(res => (reader.onloadend = () => res()));
-    const base64 = (reader.result as string).split(',')[1];
 
     try {
-      const res = await crearCarreraFn({
-        titulo,
-        descripcion,
-        ubicacion,
-        fecha,
-        imagenBase64: base64,
-        nombreArchivo: imagenArchivo.name,
-      });
-      setMensaje(res.data.mensaje);
-      // Limpiar
+      setMensaje('Creando carrera…');
+
+      // 1) Convertir la imagen a Base64
+      const reader = new FileReader();
+      reader.readAsDataURL(imagenArchivo);
+      await new Promise<void>(res => { reader.onloadend = () => res(); });
+      const base64 = (reader.result as string).split(',')[1];
+
+      // 2) Obtener token de Firebase Auth
+      const auth = getAuth();
+      const user = auth.currentUser;
+      if (!user) {
+        setMensaje('Debes iniciar sesión como administrador.');
+        return;
+      }
+      const idToken = await user.getIdToken();
+
+      // 3) Enviar petición POST al endpoint Express + CORS
+      const resp = await fetch(
+        'https://us-central1-webdh-730dc.cloudfunctions.net/api/crearCarrera',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type':  'application/json',
+            Authorization:   `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            titulo,
+            descripcion,
+            ubicacion,
+            fecha,
+            imagenBase64: base64,
+            nombreArchivo: imagenArchivo.name,
+          }),
+        }
+      );
+
+      const body = await resp.json();
+      if (!resp.ok) {
+        throw new Error(body.error || 'Error al crear la carrera.');
+      }
+
+      // 4) Éxito
+      setMensaje(body.mensaje);
       setTitulo('');
       setDescripcion('');
       setUbicacion('');
       setFecha('');
       setImagenArchivo(null);
+
     } catch (err: any) {
       console.error('Error creando carrera:', err);
-      setMensaje('Error interno al crear la carrera.');
+      setMensaje(err.message || 'Error interno al crear la carrera.');
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-4 bg-white rounded shadow">
-      <h2 className="text-xl font-bold">Crear Nueva Carrera</h2>
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white p-6 rounded-lg shadow">
+      <h2 className="text-xl font-bold mb-4">Crear Nueva Carrera</h2>
 
-      <input
-        type="text"
-        value={titulo}
-        onChange={e => setTitulo(e.target.value)}
-        placeholder="Título"
-        className="w-full border p-2 rounded"
-        required
-      />
+      <label className="block mb-2">
+        <span className="font-medium">Título*</span>
+        <input
+          type="text"
+          value={titulo}
+          onChange={e => setTitulo(e.target.value)}
+          className="mt-1 block w-full border rounded p-2"
+          required
+        />
+      </label>
 
-      <input
-        type="date"
-        value={fecha}
-        onChange={e => setFecha(e.target.value)}
-        className="w-full border p-2 rounded"
-        required
-      />
+      <label className="block mb-2">
+        <span className="font-medium">Fecha*</span>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          className="mt-1 block w-full border rounded p-2"
+          required
+        />
+      </label>
 
-      <input
-        type="text"
-        value={ubicacion}
-        onChange={e => setUbicacion(e.target.value)}
-        placeholder="Ubicación"
-        className="w-full border p-2 rounded"
-      />
+      <label className="block mb-2">
+        <span className="font-medium">Ubicación</span>
+        <input
+          type="text"
+          value={ubicacion}
+          onChange={e => setUbicacion(e.target.value)}
+          className="mt-1 block w-full border rounded p-2"
+        />
+      </label>
 
-      <textarea
-        value={descripcion}
-        onChange={e => setDescripcion(e.target.value)}
-        placeholder="Descripción (opcional)"
-        className="w-full border p-2 rounded"
-      />
+      <label className="block mb-2">
+        <span className="font-medium">Descripción</span>
+        <textarea
+          value={descripcion}
+          onChange={e => setDescripcion(e.target.value)}
+          className="mt-1 block w-full border rounded p-2"
+        />
+      </label>
 
-      <input
-        type="file"
-        accept="image/*"
-        onChange={e => setImagenArchivo(e.target.files?.[0] || null)}
-        className="w-full"
-        required
-      />
+      <label className="block mb-4">
+        <span className="font-medium">Imagen*</span>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e => setImagenArchivo(e.target.files?.[0] || null)}
+          className="mt-1 block w-full"
+          required
+        />
+      </label>
 
       <button
         type="submit"
-        className="bg-green-600 text-white py-2 px-6 rounded hover:bg-green-700"
+        className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
       >
         Guardar Carrera
       </button>
 
-      {mensaje && <p className="mt-2 text-gray-800">{mensaje}</p>}
+      {mensaje && <p className="mt-4 text-center text-gray-800">{mensaje}</p>}
     </form>
   );
 }
