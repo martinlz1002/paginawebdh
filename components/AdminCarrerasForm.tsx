@@ -1,40 +1,34 @@
-// components/CrearCarreraForm.tsx
 import React, { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebase'; // tu inicialización de Firebase
+import { app } from '@/lib/firebase';
 
 export default function CrearCarreraForm() {
-  // Estados del formulario
-  const [titulo, setTitulo]         = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [ubicacion, setUbicacion]   = useState('');
-  const [fecha, setFecha]           = useState('');
+  const [titulo, setTitulo]             = useState('');
+  const [descripcion, setDescripcion]   = useState('');
+  const [ubicacion, setUbicacion]       = useState('');
+  const [fecha, setFecha]               = useState('');
   const [imagenArchivo, setImagenArchivo] = useState<File | null>(null);
-  const [mensaje, setMensaje]       = useState<string>('');
+  const [mensaje, setMensaje]           = useState<string>('');
 
-  // Obtén la instancia de Functions y la referencia a tu función
-  const functions = getFunctions(app);
-  const crearCarreraFn = httpsCallable<{
-    titulo: string;
-    descripcion: string;
-    ubicacion: string;
-    fecha: string;
-    imagenBase64: string;
-    nombreArchivo: string;
-  }, { mensaje: string }>(functions, 'crearCarrera');
+  // Aquí indicamos explícitamente la región de nuestras funciones
+  const functions = getFunctions(app, 'us-central1');
+  const crearCarreraFn = httpsCallable<
+    { titulo: string; descripcion: string; ubicacion: string; fecha: string; imagenBase64: string; nombreArchivo: string },
+    { mensaje: string }
+  >(functions, 'crearCarrera');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!titulo || !fecha || !imagenArchivo) {
-      setMensaje('Completa todos los campos obligatorios.');
+      setMensaje('Completa título, fecha e imagen.');
       return;
     }
 
     try {
       setMensaje('Creando carrera…');
 
-      // Convierte la imagen a Base64
+      // Convertimos la imagen a Base64
       const reader = new FileReader();
       reader.readAsDataURL(imagenArchivo);
       await new Promise<void>(res => {
@@ -42,7 +36,7 @@ export default function CrearCarreraForm() {
       });
       const base64 = (reader.result as string).split(',')[1];
 
-      // Invoca la función callable
+      // Llamada al Callable Function
       const result = await crearCarreraFn({
         titulo,
         descripcion,
@@ -52,9 +46,8 @@ export default function CrearCarreraForm() {
         nombreArchivo: imagenArchivo.name,
       });
 
-      // Éxito
       setMensaje(result.data.mensaje);
-      // Limpia el form si quieres
+      // Limpiamos el formulario
       setTitulo('');
       setDescripcion('');
       setUbicacion('');
