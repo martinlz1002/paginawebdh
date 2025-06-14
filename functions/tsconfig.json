@@ -1,16 +1,13 @@
 {
   "compilerOptions": {
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["../*"]  // Este cambio es importante para que la ruta se resuelva correctamente desde el directorio de funciones
-    },
     "target": "ES2020",
-    "moduleResolution": "node",
     "module": "commonjs",
+    "rootDir": "src",
+    "outDir": "lib",
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "strict": true,
-    "resolveJsonModule": true,
-    "typeRoots": ["./node_modules/@types"]
-  }
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src"]
 }

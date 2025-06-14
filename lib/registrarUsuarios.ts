@@ -16,6 +16,6 @@ export interface Usuario {
   edad: number;
 }
 
-export async function registrarUsuario(user: Usuario) {
-  await setDoc(doc(db, 'usuarios', user.uid), user);
+export async function registrarUsuario(usuario: Usuario) {
+  await setDoc(doc(db, 'usuarios', usuario.uid), usuario);
 }

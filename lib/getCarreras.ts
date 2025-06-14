@@ -1,21 +1,15 @@
-// lib/getCarreras.ts
-import { getFirestore, collection, getDocs } from "firebase/firestore";
-import { app } from "./firebase";
-
-const db = getFirestore(app);
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from './firebase';
 
 export async function getCarreras() {
   try {
-    const carrerasRef = collection(db, "carreras");
-    const snapshot = await getDocs(carrerasRef);
-    const data = snapshot.docs.map(doc => ({
+    const snapshot = await getDocs(collection(db, 'carreras'));
+    return snapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
+      ...doc.data(),
     }));
-    console.log("Carreras cargadas:", data);
-    return data;
   } catch (error) {
-    console.error("Error cargando carreras:", error);
+    console.error('Error cargando carreras:', error);
     return [];
   }
 }

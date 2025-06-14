@@ -32,70 +32,78 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.crearCarrera = void 0;
+exports.api = void 0;
 const functions = __importStar(require("firebase-functions"));
 const admin = __importStar(require("firebase-admin"));
+const express_1 = __importDefault(require("express"));
+const cors_1 = __importDefault(require("cors"));
 admin.initializeApp();
-// Función HTTP con región, CORS manual y verificación de token
-exports.crearCarrera = functions
-    .region('us-central1')
-    .https.onRequest(async (req, res) => {
-    // 1) CORS
-    res.set('Access-Control-Allow-Origin', '*');
-    res.set('Access-Control-Allow-Methods', 'OPTIONS, POST');
-    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    if (req.method === 'OPTIONS') {
-        return res.status(204).send('');
+const app = (0, express_1.default)();
+// 1) CORS: permite orígenes cruzados desde cualquier dominio
+app.use((0, cors_1.default)({ origin: true }));
+// 2) Parse JSON bodies
+app.use(express_1.default.json());
+// 3) Ruta POST para crear carrera
+app.post("/crearCarrera", async (req, res) => {
+    // 3.1) Autenticación: espera token Bearer en header
+    const authHeader = req.headers.authorization;
+    if (!authHeader?.startsWith("Bearer ")) {
+        return res.status(401).json({ error: "No autenticado." });
     }
-    if (req.method !== 'POST') {
-        return res.status(405).send('Método no permitido');
-    }
-    // 2) Autenticación: extraer Bearer <ID_TOKEN>
-    const authHeader = req.headers.authorization || '';
-    const match = authHeader.match(/^Bearer (.+)$/);
-    if (!match) {
-        return res.status(401).json({ error: 'No autenticado' });
-    }
-    const idToken = match[1];
-    let uid;
+    const idToken = authHeader.split("Bearer ")[1];
+    let decoded;
     try {
-        const decoded = await admin.auth().verifyIdToken(idToken);
-        uid = decoded.uid;
+        decoded = await admin.auth().verifyIdToken(idToken);
     }
     catch (err) {
-        return res.status(401).json({ error: 'Token inválido' });
+        return res.status(403).json({ error: "Token inválido." });
     }
-    // 3) Leer y validar payload
-    const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo, } = req.body;
-    if (!titulo || !fecha || !imagenBase64 || !nombreArchivo) {
-        return res.status(400).json({ error: 'Faltan campos obligatorios.' });
+    // 3.2) Verificar claim admin en el token
+    if (!decoded.admin) {
+        return res.status(403).json({ error: "Se requieren permisos de administrador." });
+    }
+    // 3.3) Validar payload
+    const { titulo, descripcion, ubicacion, fecha, imagenBase64, nombreArchivo } = req.body;
+    if (!titulo ||
+        !descripcion ||
+        !ubicacion ||
+        !fecha ||
+        !imagenBase64 ||
+        !nombreArchivo) {
+        return res.status(400).json({ error: "Faltan datos obligatorios." });
     }
     try {
-        // 4) Subir imagen a Firebase Storage
-        const buffer = Buffer.from(imagenBase64, 'base64');
+        // 3.4) Procesar y subir la imagen
+        const buffer = Buffer.from(imagenBase64, "base64");
         const bucket = admin.storage().bucket();
         const filePath = `carreras/${Date.now()}_${nombreArchivo}`;
         const file = bucket.file(filePath);
-        await file.save(buffer, { metadata: { contentType: 'image/jpeg' } });
-        const [url] = await file.getSignedUrl({
-            action: 'read',
-            expires: '03-01-2030',
+        await file.save(buffer, {
+            metadata: { contentType: "image/jpeg" },
         });
-        // 5) Guardar carrera en Firestore
-        await admin.firestore().collection('carreras').add({
+        const [url] = await file.getSignedUrl({
+            action: "read",
+            expires: "03-01-2030",
+        });
+        // 3.5) Guardar documento en Firestore
+        await admin.firestore().collection("carreras").add({
             titulo,
             descripcion,
             ubicacion,
             fecha: admin.firestore.Timestamp.fromDate(new Date(fecha)),
             imagenUrl: url,
             creado: admin.firestore.FieldValue.serverTimestamp(),
-            creadoPor: uid,
         });
-        return res.json({ mensaje: 'Carrera creada exitosamente' });
+        return res.json({ mensaje: "Carrera creada exitosamente." });
     }
     catch (error) {
-        console.error('Error al crear carrera:', error);
-        return res.status(500).json({ error: 'Error interno al crear la carrera.' });
+        console.error("Error creando carrera:", error);
+        return res.status(500).json({ error: "Error interno al crear carrera." });
     }
 });
+// 4) Exportar la función en us-central1
+exports.api = functions.https.onRequest({ region: "us-central1" }, app);
