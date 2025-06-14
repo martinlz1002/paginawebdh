@@ -8,36 +8,38 @@ export default function CrearCarreraForm() {
   const [ubicacion, setUbicacion]       = useState('');
   const [fecha, setFecha]               = useState('');
   const [imagenArchivo, setImagenArchivo] = useState<File | null>(null);
-  const [mensaje, setMensaje]           = useState<string>('');
+  const [mensaje, setMensaje]           = useState('');
 
-  // Aquí indicamos explícitamente la región de nuestras funciones
-  const functions = getFunctions(app, 'us-central1');
+  // getFunctions sin región (v2 toma us-central1 por defecto)
+  const functions = getFunctions(app);
   const crearCarreraFn = httpsCallable<
-    { titulo: string; descripcion: string; ubicacion: string; fecha: string; imagenBase64: string; nombreArchivo: string },
+    {
+      titulo: string;
+      descripcion: string;
+      ubicacion: string;
+      fecha: string;
+      imagenBase64: string;
+      nombreArchivo: string;
+    },
     { mensaje: string }
   >(functions, 'crearCarrera');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!titulo || !fecha || !imagenArchivo) {
       setMensaje('Completa título, fecha e imagen.');
       return;
     }
+    setMensaje('Creando…');
+
+    // Convertir imagen a Base64
+    const reader = new FileReader();
+    reader.readAsDataURL(imagenArchivo);
+    await new Promise<void>(res => (reader.onloadend = () => res()));
+    const base64 = (reader.result as string).split(',')[1];
 
     try {
-      setMensaje('Creando carrera…');
-
-      // Convertimos la imagen a Base64
-      const reader = new FileReader();
-      reader.readAsDataURL(imagenArchivo);
-      await new Promise<void>(res => {
-        reader.onloadend = () => res();
-      });
-      const base64 = (reader.result as string).split(',')[1];
-
-      // Llamada al Callable Function
-      const result = await crearCarreraFn({
+      const res = await crearCarreraFn({
         titulo,
         descripcion,
         ubicacion,
@@ -45,16 +47,15 @@ export default function CrearCarreraForm() {
         imagenBase64: base64,
         nombreArchivo: imagenArchivo.name,
       });
-
-      setMensaje(result.data.mensaje);
-      // Limpiamos el formulario
+      setMensaje(res.data.mensaje);
+      // Limpiar
       setTitulo('');
       setDescripcion('');
       setUbicacion('');
       setFecha('');
       setImagenArchivo(null);
-    } catch (error: any) {
-      console.error('Error creando carrera:', error);
+    } catch (err: any) {
+      console.error('Error creando carrera:', err);
       setMensaje('Error interno al crear la carrera.');
     }
   };
