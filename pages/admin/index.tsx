@@ -1,5 +1,5 @@
-import AdminCarrerasForm from '@/components/AdminCarrerasForm';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminCarrerasForm from "@/components/AdminCarrerasForm";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 export default function AdminPage() {
   return (
@@ -10,8 +10,10 @@ export default function AdminPage() {
           <aside className="col-span-1 bg-gray-50 p-4 rounded shadow">
             <h2 className="font-semibold mb-4">Menú</h2>
             <ul className="space-y-2">
-              <li><button className="w-full text-left">Crear Carrera</button></li>
-              {/* futuras opciones */}
+              <li>
+                <button className="w-full text-left">Crear Carrera</button>
+              </li>
+              {/* aquí más opciones en el futuro */}
             </ul>
           </aside>
           <main className="col-span-2">
