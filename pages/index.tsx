@@ -1,6 +1,7 @@
+// pages/index.tsx
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase"; // Asegúrate de que db esté configurado correctamente
+import { db } from "@/lib/firebase";
 import Link from "next/link";
 
 interface Carrera {
@@ -14,7 +15,6 @@ interface Carrera {
 
 export default function HomePage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchCarreras = async () => {
@@ -31,24 +31,20 @@ export default function HomePage() {
         };
       });
       setCarreras(data);
-      setLoading(false);
     };
 
     fetchCarreras();
   }, []);
-
-  if (loading) {
-    return <p>Cargando las carreras...</p>;
-  }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-2xl font-bold mb-4">Próximas Carreras</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {carreras.map((carrera) => (
-          <div
+          <Link
             key={carrera.id}
-            className="border rounded-lg shadow p-4 flex flex-col items-center"
+            href={`/inscribirse?carreraId=${carrera.id}`}
+            className="block border rounded-lg shadow p-4 flex flex-col items-center hover:shadow-lg transition"
           >
             {carrera.imagenUrl ? (
               <img
@@ -64,14 +60,11 @@ export default function HomePage() {
                 <p className="text-sm">📅 {carrera.fecha}</p>
               </div>
             )}
-
-            <Link
-              href={`/inscribirse?carreraId=${carrera.id}`}
-              className="mt-auto bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-            >
+            {!carrera.imagenUrl && null /* cuando no hay imagen, el texto ya está arriba */}
+            <span className="mt-auto bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
               Inscribirse
-            </Link>
-          </div>
+            </span>
+          </Link>
         ))}
       </div>
     </div>
