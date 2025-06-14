@@ -1,16 +1,28 @@
 import { useState } from "react";
-import { getAuth, createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
-import { app, db } from "@/lib/firebase";
-import { setDoc, doc } from "firebase/firestore";
+import { registrarUsuario, Usuario } from "@/lib/usuarios";
 import { useRouter } from "next/router";
+import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { app } from "@/lib/firebase";
 
-export default function SignupPage() {
+function calcularEdad(fechaNacimiento: string): number {
+  const hoy = new Date();
+  const nacimiento = new Date(fechaNacimiento);
+  let edad = hoy.getFullYear() - nacimiento.getFullYear();
+  const m = hoy.getMonth() - nacimiento.getMonth();
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
+    edad--;
+  }
+  return edad;
+}
+
+export default function RegistroUsuarioPage() {
   const [formData, setFormData] = useState({
     nombre: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
     email: "",
     password: "",
+    confirmPassword: "",
     celular: "",
     pais: "",
     estado: "",
@@ -18,102 +30,240 @@ export default function SignupPage() {
     club: "",
     fechaNacimiento: "",
   });
-
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const router = useRouter();
-  const auth = getAuth(app);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage("");  // Limpiar mensaje de error
-    setSuccessMessage("");  // Limpiar mensaje de éxito
+    setMensaje(null);
+
+    // Validaciones de contraseña
+    if (formData.password.length < 6) {
+      setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
+      return;
+    }
 
     try {
-      const { email, password, fechaNacimiento, ...rest } = formData;
+      const auth = getAuth(app);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+      const uid = userCredential.user.uid;
+      const edad = calcularEdad(formData.fechaNacimiento);
 
-      // Validación de contraseña mínima
-      if (password.length < 6) {
-        setErrorMessage("La contraseña debe tener al menos 6 caracteres.");
-        return;
-      }
+      const usuario: Usuario = {
+        uid,
+        nombre: formData.nombre,
+        apPaterno: formData.apellidoPaterno,
+        apMaterno: formData.apellidoMaterno,
+        email: formData.email,
+        celular: formData.celular,
+        pais: formData.pais,
+        estado: formData.estado,
+        ciudad: formData.ciudad,
+        club: formData.club || undefined,
+        fechaNacimiento: formData.fechaNacimiento,
+        edad,
+      };
 
-      // Crear nuevo usuario
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      const edad = calcularEdad(fechaNacimiento);  // Calcular edad con la fecha de nacimiento
-
-      // Guardar información del usuario en Firestore
-      await setDoc(doc(db, "usuarios", user.uid), { ...rest, uid: user.uid, edad });
-
-      // Enviar verificación de correo
-      await sendEmailVerification(user);
-
-      // Mostrar mensaje de éxito
-      setSuccessMessage("¡Registro exitoso! Te hemos enviado un correo de verificación.");
-      
-      // Redirigir al perfil después de 3 segundos
-      setTimeout(() => router.push("/perfil"), 3000);
-
+      await registrarUsuario(usuario);
+      setMensaje({ type: "success", text: "Registro exitoso. Redirigiendo..." });
+      setTimeout(() => router.push("/perfil"), 2000);
     } catch (error: any) {
-      // Mostrar errores si hay
-      setErrorMessage(error.message);
+      setMensaje({ type: "error", text: "Error: " + error.message });
     }
   };
 
-  const calcularEdad = (fechaNacimiento: string) => {
-    const hoy = new Date();
-    const nacimiento = new Date(fechaNacimiento);
-    return hoy.getFullYear() - nacimiento.getFullYear();
-  };
-
   return (
-    <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
-      <h1 className="text-2xl font-bold mb-4">Registro de Usuario</h1>
-      <form onSubmit={handleSignup} className="grid grid-cols-1 gap-4">
-        {[ // Mapeamos los campos del formulario
-          { name: "nombre", label: "Nombre" },
-          { name: "apellidoPaterno", label: "Apellido paterno" },
-          { name: "apellidoMaterno", label: "Apellido materno" },
-          { name: "email", label: "Correo electrónico", type: "email" },
-          { name: "password", label: "Contraseña", type: "password" },
-          { name: "celular", label: "Celular" },
-          { name: "pais", label: "País" },
-          { name: "estado", label: "Estado" },
-          { name: "ciudad", label: "Ciudad" },
-          { name: "club", label: "Club (opcional)", required: false },
-          { name: "fechaNacimiento", label: "Fecha de nacimiento", type: "date" },
-        ].map((field) => (
-          <div key={field.name}>
-            <label className="block text-sm font-medium">{field.label}</label>
+    <div className="max-w-lg mx-auto mt-12 p-8 bg-white rounded-xl shadow-md">
+      <h1 className="text-3xl font-bold mb-6 text-center">Crear Cuenta</h1>
+
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
+        {/* Nombre */}
+        <div>
+          <label htmlFor="nombre" className="block text-sm font-medium">Nombre</label>
+          <input
+            id="nombre"
+            name="nombre"
+            type="text"
+            value={formData.nombre}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+          />
+        </div>
+
+        {/* Apellidos */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="apellidoPaterno" className="block text-sm font-medium">Apellido Paterno</label>
             <input
-              type={field.type || "text"}
-              name={field.name}
-              value={formData[field.name as keyof typeof formData]}
+              id="apellidoPaterno"
+              name="apellidoPaterno"
+              type="text"
+              value={formData.apellidoPaterno}
               onChange={handleChange}
-              className="w-full border p-2 rounded mt-1"
-              required={field.required !== false}
+              required
+              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
             />
           </div>
-        ))}
+          <div>
+            <label htmlFor="apellidoMaterno" className="block text-sm font-medium">Apellido Materno</label>
+            <input
+              id="apellidoMaterno"
+              name="apellidoMaterno"
+              type="text"
+              value={formData.apellidoMaterno}
+              onChange={handleChange}
+              required
+              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            />
+          </div>
+        </div>
+
+        {/* Email y celular */}
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium">Correo Electrónico</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            value={formData.email}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+          />
+        </div>
+        <div>
+          <label htmlFor="celular" className="block text-sm font-medium">Celular</label>
+          <input
+            id="celular"
+            name="celular"
+            type="tel"
+            value={formData.celular}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+          />
+        </div>
+
+        {/* Contraseña */}
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium">Contraseña</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            value={formData.password}
+            onChange={handleChange}
+            minLength={6}
+            required
+            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+          />
+        </div>
+        <div>
+          <label htmlFor="confirmPassword" className="block text-sm font-medium">Confirmar Contraseña</label>
+          <input
+            id="confirmPassword"
+            name="confirmPassword"
+            type="password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+          />
+        </div>
+
+        {/* Ubicación */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="pais" className="block text-sm font-medium">País</label>
+            <input
+              id="pais"
+              name="pais"
+              type="text"
+              value={formData.pais}
+              onChange={handleChange}
+              required
+              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            />
+          </div>
+          <div>
+            <label htmlFor="estado" className="block text-sm font-medium">Estado</label>
+            <input
+              id="estado"
+              name="estado"
+              type="text"
+              value={formData.estado}
+              onChange={handleChange}
+              required
+              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="ciudad" className="block text-sm font-medium">Ciudad</label>
+            <input
+              id="ciudad"
+              name="ciudad"
+              type="text"
+              value={formData.ciudad}
+              onChange={handleChange}
+              required
+              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            />
+          </div>
+          <div>
+            <label htmlFor="club" className="block text-sm font-medium">Club (opcional)</label>
+            <input
+              id="club"
+              name="club"
+              type="text"
+              value={formData.club}
+              onChange={handleChange}
+              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            />
+          </div>
+        </div>
+
+        {/* Fecha de nacimiento */}
+        <div>
+          <label htmlFor="fechaNacimiento" className="block text-sm font-medium">Fecha de Nacimiento</label>
+          <input
+            id="fechaNacimiento"
+            name="fechaNacimiento"
+            type="date"
+            value={formData.fechaNacimiento}
+            onChange={handleChange}
+            required
+            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+          />
+        </div>
+
         <button
           type="submit"
-          className="bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
+          className="mt-4 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 transition"
         >
           Registrarse
         </button>
       </form>
 
-      {errorMessage && (
-        <p className="mt-4 text-red-600">{errorMessage}</p> // Mostrar mensaje de error
-      )}
-
-      {successMessage && (
-        <p className="mt-4 text-green-600">{successMessage}</p> // Mostrar mensaje de éxito
+      {mensaje && (
+        <p className={`mt-4 text-sm ${mensaje.type === "error" ? "text-red-600" : "text-green-600"}`}>
+          {mensaje.text}
+        </p>
       )}
     </div>
   );
