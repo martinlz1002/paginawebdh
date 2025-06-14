@@ -1,4 +1,3 @@
-// pages/index.tsx
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -32,7 +31,6 @@ export default function HomePage() {
       });
       setCarreras(data);
     };
-
     fetchCarreras();
   }, []);
 
@@ -44,26 +42,37 @@ export default function HomePage() {
           <Link
             key={carrera.id}
             href={`/inscribirse?carreraId=${carrera.id}`}
-            className="block border rounded-lg shadow p-4 flex flex-col items-center hover:shadow-lg transition"
+            className="group block border rounded-lg shadow hover:shadow-lg transition-shadow duration-200"
           >
-            {carrera.imagenUrl ? (
-              <img
-                src={carrera.imagenUrl}
-                alt={carrera.titulo}
-                className="w-full h-48 object-cover rounded mb-4"
-              />
-            ) : (
-              <div className="w-full mb-4">
-                <h2 className="text-xl font-semibold">{carrera.titulo}</h2>
-                <p className="text-sm text-gray-600">{carrera.descripcion}</p>
-                <p className="text-sm">📍 {carrera.ubicacion}</p>
-                <p className="text-sm">📅 {carrera.fecha}</p>
-              </div>
-            )}
-            {!carrera.imagenUrl && null /* cuando no hay imagen, el texto ya está arriba */}
-            <span className="mt-auto bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
-              Inscribirse
-            </span>
+            <div className="overflow-hidden rounded-t-lg">
+              {carrera.imagenUrl ? (
+                <img
+                  src={carrera.imagenUrl}
+                  alt={carrera.titulo}
+                  className="w-full h-48 object-cover transform transition-transform duration-300 group-hover:scale-105"
+                />
+              ) : (
+                <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+                  <div className="text-center p-4">
+                    <h2 className="text-xl font-semibold">{carrera.titulo}</h2>
+                    <p className="text-sm text-gray-600">
+                      📍 {carrera.ubicacion}
+                    </p>
+                    <p className="text-sm text-gray-600">📅 {carrera.fecha}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4">
+              <h2 className="text-lg font-semibold mb-1">{carrera.titulo}</h2>
+              <p className="text-sm text-gray-700 mb-2">{carrera.descripcion}</p>
+              <p className="text-sm text-gray-500">
+                📅 {carrera.fecha} · 📍 {carrera.ubicacion}
+              </p>
+              <button className="mt-3 inline-block bg-purple-600 text-white py-1 px-3 rounded hover:bg-purple-700 transition-colors duration-200">
+                Inscribirse
+              </button>
+            </div>
           </Link>
         ))}
       </div>
