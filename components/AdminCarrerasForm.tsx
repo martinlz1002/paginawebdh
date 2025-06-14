@@ -1,44 +1,58 @@
-import React, { useState, FormEvent } from 'react';
-import { getAuth } from 'firebase/auth';
+"use client";
+
+import { useState } from "react";
+import { getAuth } from "firebase/auth";
 
 export default function AdminCarrerasForm() {
-  const [titulo, setTitulo]             = useState('');
-  const [descripcion, setDescripcion]   = useState('');
-  const [ubicacion, setUbicacion]       = useState('');
-  const [fecha, setFecha]               = useState('');
-  const [imagenArchivo, setImagenArchivo] = useState<File | null>(null);
-  const [mensaje, setMensaje]           = useState('');
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
+  const [fecha, setFecha] = useState("");
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [mensaje, setMensaje] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setArchivo(e.target.files?.[0] || null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMensaje('');
-    if (!titulo || !fecha || !imagenArchivo) {
-      setMensaje('Completa título, fecha e imagen.');
+    if (!titulo || !fecha || !archivo) {
+      setMensaje("Debe completar título, fecha y elegir una imagen.");
       return;
     }
 
-    setMensaje('Creando carrera…');
-    try {
-      // Base64
-      const reader = new FileReader();
-      reader.readAsDataURL(imagenArchivo);
-      await new Promise<void>(res => reader.onloadend = () => res());
-      const base64 = (reader.result as string).split(',')[1];
+    setCargando(true);
+    setMensaje(null);
 
-      // Token
+    try {
+      // 1) Convertir imagen a Base64
+      const reader = new FileReader();
+      const base64: string = await new Promise((res, rej) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          // quitamos el prefijo "data:*;base64,"
+          res(result.split(",")[1]);
+        };
+        reader.onerror = err => rej(err);
+        reader.readAsDataURL(archivo);
+      });
+
+      // 2) Obtener token de Firebase para autenticación
       const auth = getAuth();
       const user = auth.currentUser;
-      if (!user) throw new Error('No autenticado');
-      const idToken = await user.getIdToken();
+      if (!user) throw new Error("Usuario no autenticado.");
+      const token = await user.getIdToken();
 
-      // Fetch POST
-      const resp = await fetch(
-        'https://us-central1-webdh-730dc.cloudfunctions.net/crearCarrera',
+      // 3) Llamar a la función HTTP
+      const res = await fetch(
+        "https://us-central1-webdh-730dc.cloudfunctions.net/api/crearCarrera",
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            Authorization:  `Bearer ${idToken}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             titulo,
@@ -46,34 +60,107 @@ export default function AdminCarrerasForm() {
             ubicacion,
             fecha,
             imagenBase64: base64,
-            nombreArchivo: imagenArchivo.name,
+            nombreArchivo: archivo.name,
           }),
         }
       );
 
-      const body = await resp.json();
-      if (!resp.ok) throw new Error(body.error || 'Error desconocido');
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Error desconocido");
+      }
 
-      setMensaje(body.mensaje);
-      // Limpiar
-      setTitulo('');
-      setDescripcion('');
-      setUbicacion('');
-      setFecha('');
-      setImagenArchivo(null);
+      setMensaje("🏁 Carrera creada correctamente.");
+      // limpiar
+      setTitulo("");
+      setDescripcion("");
+      setUbicacion("");
+      setFecha("");
+      setArchivo(null);
     } catch (err: any) {
-      console.error(err);
-      setMensaje(err.message || 'Error interno');
+      console.error("Error creando carrera:", err);
+      setMensaje("❌ " + (err.message || "Error al crear carrera"));
+    } finally {
+      setCargando(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto p-6 bg-white rounded shadow">
-      {/* inputs idénticos a la versión anterior */}
-      <button type="submit" className="w-full bg-green-600 text-white py-2 rounded">
-        Guardar Carrera
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto space-y-4"
+    >
+      {mensaje && (
+        <p
+          className={`p-2 rounded ${
+            mensaje.startsWith("🏁")
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
+          }`}
+        >
+          {mensaje}
+        </p>
+      )}
+      <div>
+        <label className="block font-medium">Título</label>
+        <input
+          type="text"
+          value={titulo}
+          onChange={e => setTitulo(e.target.value)}
+          className="mt-1 block w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Descripción</label>
+        <textarea
+          value={descripcion}
+          onChange={e => setDescripcion(e.target.value)}
+          className="mt-1 block w-full border p-2 rounded"
+          rows={3}
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Ubicación</label>
+        <input
+          type="text"
+          value={ubicacion}
+          onChange={e => setUbicacion(e.target.value)}
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Fecha</label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={e => setFecha(e.target.value)}
+          className="mt-1 block w-full border p-2 rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block font-medium">Imagen</label>
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          className="mt-1 block w-full"
+          required
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={cargando}
+        className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 disabled:opacity-50"
+      >
+        {cargando ? "Creando…" : "Crear Carrera"}
       </button>
-      {mensaje && <p className="mt-4 text-center">{mensaje}</p>}
     </form>
   );
 }
