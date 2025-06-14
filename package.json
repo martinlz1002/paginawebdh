@@ -28,7 +28,10 @@
     "@types/micro": "^7.3.7",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19.1.7",
+    "@typescript-eslint/eslint-plugin": "^8.34.0",
+    "@typescript-eslint/parser": "^8.34.0",
     "autoprefixer": "^10.4.2",
+    "eslint": "^9.29.0",
     "postcss": "^8.4.6",
     "tailwindcss": "^3.0.23",
     "typescript": "5.8.3"
