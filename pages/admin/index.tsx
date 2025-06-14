@@ -1,29 +1,31 @@
 // pages/admin/index.tsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Head from "next/head";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { useRouter } from "next/router";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import AdminCarrerasForm from "@/components/AdminCarrerasForm";
-import MisInscripcionesAdmin from "@/components/MisInscripcionesAdmin"; // suponiendo que tienes este componente
+import MisInscripcionesAdmin from "@/components/MisInscripcionesAdmin";
 
 export default function AdminPage() {
-  const [user, setUser] = useState<any>(null);
-  const [section, setSection] = useState<"crear"|"inscripciones">("crear");
+  const [user, setUser] = useState<any>(undefined);
+  const [section, setSection] = useState<"crear" | "inscripciones">("crear");
   const router = useRouter();
 
-  // Verificar que sea admin
-  useState(() => {
+  useEffect(() => {
     const auth = getAuth();
-    return onAuthStateChanged(auth, u => {
-      if (!u) return router.push("/login");
-      // Aquí podrías verificar campo admin en Firestore,
-      // pero asumimos que ya lo hiciste previamente
-      setUser(u);
+    const unsub = onAuthStateChanged(auth, (u) => {
+      if (!u) {
+        router.push("/login");
+      } else {
+        setUser(u);
+      }
     });
-  });
+    return () => unsub();
+  }, [router]);
 
-  if (user === null) {
-    return <p className="p-6 text-center">Cargando...</p>;
+  // Mientras esperamos al auth
+  if (user === undefined) {
+    return <p className="p-6 text-center">Cargando…</p>;
   }
 
   return (
@@ -57,11 +59,10 @@ export default function AdminPage() {
                 Ver Inscripciones
               </button>
             </li>
-            {/* En el futuro agrega más opciones aquí */}
           </ul>
         </nav>
 
-        {/* Contenido principal */}
+        {/* Contenido */}
         <main className="flex-1 p-8 bg-gray-100">
           {section === "crear" && (
             <>
@@ -69,7 +70,6 @@ export default function AdminPage() {
               <AdminCarrerasForm />
             </>
           )}
-
           {section === "inscripciones" && (
             <>
               <h1 className="text-3xl font-bold mb-6">Inscripciones</h1>
