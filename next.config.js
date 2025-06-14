@@ -2,6 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  
+  
 }
-
-module.exports = nextConfig
+const path = require('path');  // Asegúrate de importar 'path'
+module.exports = {
+  webpack(config) {
+    config.resolve.alias['@'] = path.join(__dirname); // Asegúrate de que 'path' esté importado al inicio
+    return config;
+  }
+};

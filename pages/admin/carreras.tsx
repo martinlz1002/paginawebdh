@@ -1,127 +1,62 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc } from "firebase/firestore";
+import { useState } from "react";
+import { getFunctions, httpsCallable } from "firebase/functions";
+import { app } from "@/lib/firebase"; // Importa tu instancia de Firebase
 
-export default function AdminCarreras() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [carreras, setCarreras] = useState<any[]>([]);
-  const [nuevaCarrera, setNuevaCarrera] = useState({ nombre: "", fecha: "" });
+export default function CrearCarrera() {
+  const [titulo, setTitulo] = useState("");
+  const [descripcion, setDescripcion] = useState("");
+  const [ubicacion, setUbicacion] = useState("");
+  const [fecha, setFecha] = useState("");
+  const [imagenUrl, setImagenUrl] = useState("");
+  const [mensaje, setMensaje] = useState("");
 
-  const fetchCarreras = async () => {
-    const snap = await getDocs(collection(db, "carreras"));
-    setCarreras(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-  };
+  const handleCrearCarrera = async () => {
+    try {
+      const functions = getFunctions(app);
+      const crearCarrera = httpsCallable(functions, "crearCarrera");
 
-  const agregarCarrera = async () => {
-    if (nuevaCarrera.nombre && nuevaCarrera.fecha) {
-      try {
-        await addDoc(collection(db, "carreras"), nuevaCarrera);
-        setNuevaCarrera({ nombre: "", fecha: "" });
-        fetchCarreras();
-      } catch (error) {
-        console.error("Error al agregar carrera:", error);
-        alert("Hubo un problema al agregar la carrera.");
-      }
+      await crearCarrera({ titulo, descripcion, ubicacion, fecha, imagenUrl });
+
+      setMensaje("Carrera creada exitosamente.");
+    } catch (error) {
+      setMensaje("Error al crear la carrera.");
+      console.error(error);
     }
   };
-
-  const eliminarCarrera = async (id: string) => {
-    if (confirm("¿Eliminar esta carrera?")) {
-      try {
-        await deleteDoc(doc(db, "carreras", id));
-        fetchCarreras();
-      } catch (error) {
-        console.error("Error al eliminar carrera:", error);
-        alert("Hubo un problema al eliminar la carrera.");
-      }
-    }
-  };
-
-  const editarCarrera = async (id: string, nombre: string, fecha: string) => {
-    const nuevoNombre = prompt("Nuevo nombre:", nombre);
-    const nuevaFecha = prompt("Nueva fecha:", fecha);
-    if (nuevoNombre && nuevaFecha) {
-      try {
-        await updateDoc(doc(db, "carreras", id), {
-          nombre: nuevoNombre,
-          fecha: nuevaFecha,
-        });
-        fetchCarreras();
-      } catch (error) {
-        console.error("Error al editar carrera:", error);
-        alert("Hubo un problema al editar la carrera.");
-      }
-    }
-  };
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
-        setUser(user);
-        fetchCarreras();
-      } else {
-        router.push("/login");
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
 
   return (
-    <div className="min-h-screen bg-white p-6">
-      <h1 className="text-2xl font-bold text-softPurple mb-4">Gestión de Carreras</h1>
-      <div className="mb-6 flex gap-2">
-        <input
-          type="text"
-          placeholder="Nombre de la carrera"
-          className="border p-2 rounded w-1/2"
-          value={nuevaCarrera.nombre}
-          onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, nombre: e.target.value })}
-        />
-        <input
-          type="date"
-          className="border p-2 rounded w-1/3"
-          value={nuevaCarrera.fecha}
-          onChange={(e) => setNuevaCarrera({ ...nuevaCarrera, fecha: e.target.value })}
-        />
-        <button
-          onClick={agregarCarrera}
-          className="bg-softGreen text-white px-4 py-2 rounded"
-        >
-          Agregar
-        </button>
-      </div>
-
-      <div className="space-y-2">
-        {carreras.map((c) => (
-          <div
-            key={c.id}
-            className="p-4 bg-gray-100 rounded shadow flex justify-between items-center"
-          >
-            <div>
-              <p className="font-semibold">{c.nombre}</p>
-              <p className="text-sm text-gray-500">Fecha: {new Date(c.fecha.seconds * 1000).toLocaleDateString()}</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => editarCarrera(c.id, c.nombre, c.fecha)}
-                className="px-3 py-1 bg-blue-500 text-white rounded"
-              >
-                Editar
-              </button>
-              <button
-                onClick={() => eliminarCarrera(c.id)}
-                className="px-3 py-1 bg-red-500 text-white rounded"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div>
+      <h2>Crear Carrera</h2>
+      <input
+        type="text"
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        placeholder="Título"
+      />
+      <textarea
+        value={descripcion}
+        onChange={(e) => setDescripcion(e.target.value)}
+        placeholder="Descripción"
+      />
+      <input
+        type="text"
+        value={ubicacion}
+        onChange={(e) => setUbicacion(e.target.value)}
+        placeholder="Ubicación"
+      />
+      <input
+        type="date"
+        value={fecha}
+        onChange={(e) => setFecha(e.target.value)}
+      />
+      <input
+        type="text"
+        value={imagenUrl}
+        onChange={(e) => setImagenUrl(e.target.value)}
+        placeholder="URL de la imagen"
+      />
+      <button onClick={handleCrearCarrera}>Crear Carrera</button>
+      <p>{mensaje}</p>
     </div>
   );
 }

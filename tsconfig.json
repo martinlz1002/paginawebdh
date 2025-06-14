@@ -1,10 +1,8 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
+    "baseUrl": ".",  // Aquí estamos diciendo que la base es la raíz del proyecto
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]  // Esto hace que cualquier importación que use '@' apunte a la raíz del proyecto
     },
     "target": "es5",
     "lib": [

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase"; // Asegúrate de que db esté configurado correctamente
 import Link from "next/link";
 
 interface Carrera {
@@ -14,6 +14,7 @@ interface Carrera {
 
 export default function HomePage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchCarreras = async () => {
@@ -30,10 +31,15 @@ export default function HomePage() {
         };
       });
       setCarreras(data);
+      setLoading(false);
     };
 
     fetchCarreras();
   }, []);
+
+  if (loading) {
+    return <p>Cargando las carreras...</p>;
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -58,6 +64,7 @@ export default function HomePage() {
                 <p className="text-sm">📅 {carrera.fecha}</p>
               </div>
             )}
+
             <Link
               href={`/inscribirse?carreraId=${carrera.id}`}
               className="mt-auto bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
