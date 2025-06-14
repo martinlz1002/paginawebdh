@@ -14,8 +14,12 @@ export interface Usuario {
   club?: string;
   fechaNacimiento: string;
   edad: number;
+  pago?: boolean;
 }
 
-export async function registrarUsuario(user: Usuario) {
-  await setDoc(doc(db, 'usuarios', user.uid), user);
+/**
+ * Registra o actualiza un usuario en Firestore bajo la colección 'usuarios'.
+ */
+export async function registrarUsuario(usuario: Usuario) {
+  await setDoc(doc(db, 'usuarios', usuario.uid), usuario);
 }
