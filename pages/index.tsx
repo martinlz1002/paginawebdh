@@ -19,7 +19,7 @@ export default function HomePage() {
     const fetchCarreras = async () => {
       const snapshot = await getDocs(collection(db, "carreras"));
       const data = snapshot.docs.map((doc) => {
-        const c = doc.data();
+        const c = doc.data() as any;
         return {
           id: doc.id,
           titulo: c.titulo,
@@ -44,25 +44,21 @@ export default function HomePage() {
             href={`/inscribirse?carreraId=${carrera.id}`}
             className="group block border rounded-lg shadow hover:shadow-lg transition-shadow duration-200"
           >
-            <div className="overflow-hidden rounded-t-lg">
+            {/* envolvemos en aspect-video para un ratio 16/9 */}
+            <div className="overflow-hidden rounded-t-lg aspect-video">
               {carrera.imagenUrl ? (
                 <img
                   src={carrera.imagenUrl}
                   alt={carrera.titulo}
-                  className="w-full h-48 object-cover transform transition-transform duration-300 group-hover:scale-105"
+                  className="w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                  <div className="text-center p-4">
-                    <h2 className="text-xl font-semibold">{carrera.titulo}</h2>
-                    <p className="text-sm text-gray-600">
-                      📍 {carrera.ubicacion}
-                    </p>
-                    <p className="text-sm text-gray-600">📅 {carrera.fecha}</p>
-                  </div>
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-500">Sin imagen</span>
                 </div>
               )}
             </div>
+
             <div className="p-4">
               <h2 className="text-lg font-semibold mb-1">{carrera.titulo}</h2>
               <p className="text-sm text-gray-700 mb-2">{carrera.descripcion}</p>
