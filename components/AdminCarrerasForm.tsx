@@ -1,214 +1,128 @@
-import { useState, useEffect } from "react";
-import {
-  collection,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  doc,
-  Timestamp,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { useState, useEffect, FormEvent } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { app } from '@/lib/firebase';
+import type { CarreraData } from '@/types/carrera';
 
-interface Carrera {
-  id: string;
-  titulo: string;
-  descripcion: string;
-  ubicacion: string;
-  fecha: string; // YYYY-MM-DD
+export interface AdminCarrerasFormProps {
+  /** Valores iniciales (para edición) */
+  initialValues?: CarreraData & { id?: string };
+  /** Callback llamado tras crear/editar exitosamente */
+  onSuccess?: () => void;
 }
 
-export default function AdminCarrerasForm() {
-  const [carreras, setCarreras] = useState<Carrera[]>([]);
-  const [editingId, setEditingId] = useState<string | null>(null);
+export default function AdminCarrerasForm({
+  initialValues,
+  onSuccess = () => {},
+}: AdminCarrerasFormProps) {
+  // Estado del formulario
+  const [titulo, setTitulo] = useState(initialValues?.titulo || '');
+  const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
+  const [ubicacion, setUbicacion] = useState(initialValues?.ubicacion || '');
+  const [fecha, setFecha] = useState(initialValues?.fecha || '');
+  const [imagenUrl, setImagenUrl] = useState(initialValues?.imagenBase64 || '');
+  const [mensaje, setMensaje] = useState('');
 
-  // Campos del formulario
-  const [titulo, setTitulo] = useState("");
-  const [descripcion, setDescripcion] = useState("");
-  const [ubicacion, setUbicacion] = useState("");
-  const [fecha, setFecha] = useState("");
-
-  // 1) Carga inicial de carreras
+  // Si cambian los valores iniciales, recarga el formulario
   useEffect(() => {
-    fetchCarreras();
-  }, []);
+    if (initialValues) {
+      setTitulo(initialValues.titulo);
+      setDescripcion(initialValues.descripcion);
+      setUbicacion(initialValues.ubicacion);
+      setFecha(initialValues.fecha);
+      setImagenUrl(initialValues.imagenBase64 || '');
+    }
+  }, [initialValues]);
 
-  async function fetchCarreras() {
-    const snap = await getDocs(collection(db, "carreras"));
-    const list = snap.docs.map((d) => {
-      const data = d.data() as any;
-      // Convertimos Timestamp a string YYYY-MM-DD si existe
-      let fechaStr = "";
-      if (data.fecha && (data.fecha as Timestamp).toDate) {
-        fechaStr = (data.fecha as Timestamp)
-          .toDate()
-          .toISOString()
-          .split("T")[0];
-      }
-      return {
-        id: d.id,
-        titulo: data.titulo || "",
-        descripcion: data.descripcion || "",
-        ubicacion: data.ubicacion || "",
-        fecha: fechaStr,
-      };
-    });
-    setCarreras(list);
-  }
-
-  // 2) Crear o actualizar
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // Validación mínima
-    if (!titulo || !descripcion || !ubicacion || !fecha) {
-      alert("Completa todos los campos.");
-      return;
+    setMensaje('');
+
+    try {
+      const functions = getFunctions(app);
+      // Decide si es creación o edición
+      const fnName = initialValues?.id ? 'editarCarrera' : 'crearCarrera';
+      const crearEditar = httpsCallable(functions, fnName);
+
+      await crearEditar({
+        id: initialValues?.id,
+        titulo,
+        descripcion,
+        ubicacion,
+        fecha,
+        imagenUrl,
+      });
+
+      setMensaje('Operación realizada con éxito');
+      onSuccess();
+    } catch (error: any) {
+      console.error('Error en crear/editar carrera:', error);
+      setMensaje('Error: ' + (error.message || error));
     }
-
-    const payload = {
-      titulo,
-      descripcion,
-      ubicacion,
-      fecha: Timestamp.fromDate(new Date(fecha)),
-    };
-
-    if (editingId) {
-      await updateDoc(doc(db, "carreras", editingId), payload);
-      alert("Carrera actualizada.");
-    } else {
-      await addDoc(collection(db, "carreras"), payload);
-      alert("Carrera creada.");
-    }
-
-    clearForm();
-    fetchCarreras();
-  }
-
-  // 3) Preparar edición
-  function handleEdit(c: Carrera) {
-    setEditingId(c.id);
-    setTitulo(c.titulo);
-    setDescripcion(c.descripcion);
-    setUbicacion(c.ubicacion);
-    setFecha(c.fecha);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  // 4) Eliminar
-  async function handleDelete(id: string) {
-    if (confirm("¿Eliminar esta carrera?")) {
-      await deleteDoc(doc(db, "carreras", id));
-      fetchCarreras();
-    }
-  }
-
-  function clearForm() {
-    setEditingId(null);
-    setTitulo("");
-    setDescripcion("");
-    setUbicacion("");
-    setFecha("");
-  }
+  };
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-4">
-        {editingId ? "Editar Carrera" : "Crear Carrera"}
-      </h2>
+    <form onSubmit={handleSubmit} className="space-y-4 p-4 border rounded-lg">
+      <div>
+        <label className="block text-sm font-medium">Título</label>
+        <input
+          type="text"
+          value={titulo}
+          onChange={(e) => setTitulo(e.target.value)}
+          required
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
 
-      <form onSubmit={handleSubmit} className="grid gap-4 mb-8">
-        <div>
-          <label className="block text-sm font-medium">Título</label>
-          <input
-            type="text"
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            className="mt-1 w-full border p-2 rounded"
-            required
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium">Descripción</label>
+        <textarea
+          value={descripcion}
+          onChange={(e) => setDescripcion(e.target.value)}
+          required
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium">Descripción</label>
-          <textarea
-            value={descripcion}
-            onChange={(e) => setDescripcion(e.target.value)}
-            className="mt-1 w-full border p-2 rounded"
-            required
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium">Ubicación</label>
+        <input
+          type="text"
+          value={ubicacion}
+          onChange={(e) => setUbicacion(e.target.value)}
+          required
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium">Ubicación</label>
-          <input
-            type="text"
-            value={ubicacion}
-            onChange={(e) => setUbicacion(e.target.value)}
-            className="mt-1 w-full border p-2 rounded"
-            required
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium">Fecha</label>
+        <input
+          type="date"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+          required
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
 
-        <div>
-          <label className="block text-sm font-medium">Fecha</label>
-          <input
-            type="date"
-            value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
-            className="mt-1 w-full border p-2 rounded"
-            required
-          />
-        </div>
+      <div>
+        <label className="block text-sm font-medium">URL de Imagen (opcional)</label>
+        <input
+          type="url"
+          value={imagenUrl}
+          onChange={(e) => setImagenUrl(e.target.value)}
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
 
-        <button
-          type="submit"
-          className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition"
-        >
-          {editingId ? "Actualizar" : "Crear"}
-        </button>
-        {editingId && (
-          <button
-            type="button"
-            onClick={clearForm}
-            className="ml-2 bg-gray-400 text-white py-2 px-4 rounded hover:bg-gray-500 transition"
-          >
-            Cancelar
-          </button>
-        )}
-      </form>
+      <button
+        type="submit"
+        className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
+      >
+        {initialValues?.id ? 'Actualizar Carrera' : 'Crear Carrera'}
+      </button>
 
-      <h3 className="text-lg font-semibold mb-2">Carreras existentes</h3>
-      {carreras.length === 0 && <p>No hay carreras.</p>}
-      <ul className="space-y-2">
-        {carreras.map((c) => (
-          <li
-            key={c.id}
-            className="border p-4 rounded flex justify-between items-center"
-          >
-            <div>
-              <p className="font-medium">{c.titulo}</p>
-              <p className="text-sm text-gray-600">{c.descripcion}</p>
-              <p className="text-sm">
-                📍 {c.ubicacion} — 📅 {c.fecha}
-              </p>
-            </div>
-            <div className="space-x-2">
-              <button
-                onClick={() => handleEdit(c)}
-                className="text-blue-600 hover:underline"
-              >
-                Editar
-              </button>
-              <button
-                onClick={() => handleDelete(c.id)}
-                className="text-red-600 hover:underline"
-              >
-                Eliminar
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+      {mensaje && <p className="mt-2 text-sm text-green-600">{mensaje}</p>}
+    </form>
   );
 }
