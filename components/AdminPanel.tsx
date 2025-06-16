@@ -1,31 +1,51 @@
 // components/AdminPanel.tsx
-import { useState } from "react";
-import AdminCarrerasForm from "./AdminCarrerasForm";
-import AdminCarrerasList from "./AdminCarrerasList";
-import AdminInscripcionesView from "./AdminInscripcionesView";
+import { useState } from 'react';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import AdminCarrerasForm from '@/components/AdminCarrerasForm';
+import AdminCarrerasList, { CarreraItem } from '@/components/AdminCarrerasList';
 
 export default function AdminPanel() {
-  const [vista, setVista] = useState<"crear" | "listar" | "inscripciones">("crear");
+  const [vista, setVista] = useState<'crear' | 'listar'>('listar');
+  const [editar, setEditar] = useState<CarreraItem | undefined>(undefined);
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Panel de Administración</h1>
-      <aside className="mb-6">
-        <button onClick={() => setVista("crear")} className={`mr-4 ${vista==="crear"?"underline":""}`}>Crear/Editar Carreras</button>
-        <button onClick={() => setVista("listar")} className={`mr-4 ${vista==="listar"?"underline":""}`}>Listar Carreras</button>
-        <button onClick={() => setVista("inscripciones")} className={`${vista==="inscripciones"?"underline":""}`}>Ver Inscripciones</button>
-      </aside>
+    <ProtectedRoute>
+      <div className="max-w-5xl mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
+        <nav className="mb-6">
+          <button
+            className={`mr-4 ${vista === 'crear' ? 'font-semibold' : ''}`}
+            onClick={() => {
+              setEditar(undefined);
+              setVista('crear');
+            }}
+          >
+            Crear / Editar Carrera
+          </button>
+          <button
+            className={`${vista === 'listar' ? 'font-semibold' : ''}`}
+            onClick={() => setVista('listar')}
+          >
+            Listar Carreras
+          </button>
+        </nav>
 
-      {vista === "crear" && (
-        <AdminCarrerasForm onSuccess={() => setVista("listar")} />
-      )}
-      {vista === "listar" && (
-        <AdminCarrerasList onEdit={(c) => {
-          setVista("crear");
-          // pasas initialValues={c} al Formulario
-        }} />
-      )}
-      {vista === "inscripciones" && <AdminInscripcionesView />}
-    </div>
+        {vista === 'crear' && (
+          <AdminCarrerasForm
+            initialValues={editar}
+            onSuccess={() => setVista('listar')}
+          />
+        )}
+
+        {vista === 'listar' && (
+          <AdminCarrerasList
+            onEdit={(c: CarreraItem) => {
+              setEditar(c);
+              setVista('crear');
+            }}
+          />
+        )}
+      </div>
+    </ProtectedRoute>
   );
 }

@@ -1,49 +1,38 @@
-import { useEffect, useState } from 'react'
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import AdminCarrerasForm from './AdminCarrerasForm'
-import type { CarreraData, Categoria } from '@/types/carrera'
+// components/AdminCarrerasList.tsx
+import { useEffect, useState } from 'react';
+import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { CarreraData } from '@/types/carrera';
 
-interface CarreraDoc extends CarreraData {
-  id: string
+export interface CarreraItem extends CarreraData {
+  id: string;
 }
 
-export default function AdminCarrerasList({
-  onEdit,
-}: {
-  onEdit: (c: CarreraDoc) => void
-}) {
-  const [carreras, setCarreras] = useState<CarreraDoc[]>([])
+interface AdminCarrerasListProps {
+  onEdit: (c: CarreraItem) => void;
+}
+
+export default function AdminCarrerasList({ onEdit }: AdminCarrerasListProps) {
+  const [carreras, setCarreras] = useState<CarreraItem[]>([]);
 
   const loadCarreras = async () => {
-    const snap = await getDocs(collection(db, 'carreras'))
-    const list = snap.docs.map((d) => {
-      const data = d.data() as Partial<CarreraData>
-      return {
-        id: d.id,
-        // rellenamos con valores por defecto si faltan
-        titulo: data.titulo || '',
-        descripcion: data.descripcion || '',
-        ubicacion: data.ubicacion || '',
-        fecha: data.fecha || '',
-        hora: data.hora || '',
-        categorias: data.categorias || [],
-        imagenBase64: data.imagenBase64,
-        nombreArchivo: data.nombreArchivo,
-      }
-    })
-    setCarreras(list)
-  }
+    const snap = await getDocs(collection(db, 'carreras'));
+    const list = snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as CarreraData)
+    }));
+    setCarreras(list);
+  };
 
   useEffect(() => {
-    loadCarreras()
-  }, [])
+    loadCarreras();
+  }, []);
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta carrera?')) return
-    await deleteDoc(doc(db, 'carreras', id))
-    loadCarreras()
-  }
+    if (!confirm('¿Eliminar esta carrera?')) return;
+    await deleteDoc(doc(db, 'carreras', id));
+    loadCarreras();
+  };
 
   return (
     <div>
@@ -52,7 +41,7 @@ export default function AdminCarrerasList({
         <thead>
           <tr>
             <th className="border p-2">Título</th>
-            <th className="border p-2">Fecha / Hora</th>
+            <th className="border p-2">Fecha</th>
             <th className="border p-2">Acciones</th>
           </tr>
         </thead>
@@ -60,9 +49,7 @@ export default function AdminCarrerasList({
           {carreras.map((c) => (
             <tr key={c.id}>
               <td className="border p-2">{c.titulo}</td>
-              <td className="border p-2">
-                {new Date(`${c.fecha}T${c.hora}`).toLocaleString()}
-              </td>
+              <td className="border p-2">{new Date(c.fecha).toLocaleDateString()}</td>
               <td className="border p-2 space-x-2">
                 <button
                   className="text-blue-600 hover:underline"
@@ -82,5 +69,5 @@ export default function AdminCarrerasList({
         </tbody>
       </table>
     </div>
-  )
+  );
 }

@@ -18,7 +18,7 @@ export interface CarreraData {
   descripcion: string
   ubicacion: string
   fecha: string       // "YYYY-MM-DD"
-  hora: string        // "HH:mm"
+  horaSalida: string         // "HH:mm"
   categorias: Categoria[]
   imagenBase64?: string
   nombreArchivo?: string
