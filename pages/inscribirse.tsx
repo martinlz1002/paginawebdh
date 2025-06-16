@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { app, db } from "@/lib/firebase";
-import { getAuth } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -84,18 +84,28 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Carga del perfil principal + perfiles secundarios
-  const loadPerfiles = async () => {
-    const user = auth.currentUser;
-    if (!user) return;
+  // 2) Suscribirse al estado de auth y luego cargar perfiles
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      if (!user) {
+        router.push("/login");
+      } else {
+        loadPerfiles(user.uid);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  // Función para cargar perfiles de un uid dado
+  const loadPerfiles = async (uid: string) => {
+    const lista: Perfil[] = [];
 
     // a) Perfil principal
-    const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-    let lista: Perfil[] = [];
+    const userDoc = await getDoc(doc(db, "usuarios", uid));
     if (userDoc.exists()) {
       const d = userDoc.data() as any;
       lista.push({
-        id: user.uid,
+        id: uid,
         nombre: d.nombre,
         apellidoPaterno: d.apPaterno,
         apellidoMaterno: d.apMaterno,
@@ -110,11 +120,11 @@ export default function InscribirsePage() {
       });
     }
 
-    // b) Perfiles hijos
+    // b) Perfiles secundarios
     const snap = await getDocs(
-      collection(db, "usuarios", user.uid, "perfiles")
+      collection(db, "usuarios", uid, "perfiles")
     );
-    snap.docs.forEach((d) => {
+    snap.docs.forEach(d => {
       const p = d.data() as any;
       lista.push({
         id: d.id,
@@ -133,15 +143,11 @@ export default function InscribirsePage() {
     });
 
     setPerfiles(lista);
-    // Si aún no hay selección, seleccionamos el principal
+    // Seleccionar automáticamente el primero (principal) si no hay selección
     if (!perfilSeleccionado && lista.length > 0) {
       setPerfilSeleccionado(lista[0].id);
     }
   };
-
-  useEffect(() => {
-    if (auth.currentUser) loadPerfiles();
-  }, [auth.currentUser]);
 
   // 3) Scroll al formulario cuando se abre
   useEffect(() => {
@@ -164,17 +170,24 @@ export default function InscribirsePage() {
     e.preventDefault();
     const user = auth.currentUser;
     if (!user) return;
+
     const edad = calcEdad(nuevoPerfil.fechaNacimiento);
     await addDoc(collection(db, "usuarios", user.uid, "perfiles"), {
       ...nuevoPerfil,
       edad,
       creado: serverTimestamp(),
     });
-    // después de guardar, recarga todo de nuevo
+
+    // recargar la lista y seleccionar el último creado
+    const uid = user.uid;
+    await loadPerfiles(uid);
     setShowNewPerfilForm(false);
-    await loadPerfiles();
-    // selecciona el recién creado
-    setPerfilSeleccionado(perfiles[perfiles.length - 1].id);
+
+    // encontrar el último perfil (el recién añadido)
+    const listaActualizada = perfiles; // ya actualizado por loadPerfiles
+    if (listaActualizada.length > 1) {
+      setPerfilSeleccionado(listaActualizada[listaActualizada.length - 1].id);
+    }
   };
 
   // 5) Enviar inscripción
@@ -206,10 +219,10 @@ export default function InscribirsePage() {
           <select
             className="mt-1 border p-2 rounded w-full"
             value={perfilSeleccionado}
-            onChange={(e) => setPerfilSeleccionado(e.target.value)}
+            onChange={e => setPerfilSeleccionado(e.target.value)}
           >
             <option value="">-- Elige un perfil --</option>
-            {perfiles.map((p) => (
+            {perfiles.map(p => (
               <option key={p.id} value={p.id}>
                 {p.nombre} {p.apellidoPaterno} ({p.edad} años)
               </option>
@@ -217,14 +230,14 @@ export default function InscribirsePage() {
           </select>
           <button
             type="button"
-            onClick={() => setShowNewPerfilForm((v) => !v)}
+            onClick={() => setShowNewPerfilForm(v => !v)}
             className="mt-2 text-blue-600 hover:underline"
           >
             {showNewPerfilForm ? "Cancelar" : "+ Crear nuevo perfil"}
           </button>
         </div>
 
-        {/* Formulario completo de nuevo perfil */}
+        {/* Formulario de nuevo perfil */}
         {showNewPerfilForm && (
           <div ref={scrollToFormRef} className="border-t pt-4">
             <h2 className="font-semibold mb-2">Nuevo perfil</h2>
@@ -243,20 +256,17 @@ export default function InscribirsePage() {
                 { name: "ciudad", label: "Ciudad", type: "text" },
                 { name: "club", label: "Club (opcional)", type: "text", required: false },
                 { name: "fechaNacimiento", label: "Fecha de nacimiento", type: "date" },
-              ].map((f) => (
-                <div key={f.name}>
-                  <label className="block text-sm font-medium">{f.label}</label>
+              ].map(field => (
+                <div key={field.name}>
+                  <label className="block text-sm font-medium">{field.label}</label>
                   <input
-                    name={f.name}
-                    type={f.type as any}
-                    value={(nuevoPerfil as any)[f.name]}
-                    onChange={(e) =>
-                      setNuevoPerfil(prev => ({
-                        ...prev,
-                        [f.name]: e.target.value
-                      }))
+                    name={field.name}
+                    type={field.type}
+                    value={(nuevoPerfil as any)[field.name]}
+                    onChange={e =>
+                      setNuevoPerfil(prev => ({ ...prev, [field.name]: e.target.value }))
                     }
-                    required={f.required !== false}
+                    required={field.required !== false}
                     className="mt-1 block w-full border p-2 rounded"
                   />
                 </div>
@@ -275,7 +285,7 @@ export default function InscribirsePage() {
             <select
               className="mt-1 border p-2 rounded w-full"
               value={categoriaSeleccionada}
-              onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+              onChange={e => setCategoriaSeleccionada(e.target.value)}
             >
               <option value="">-- Elige categoría --</option>
               {carrera.categorias
@@ -298,7 +308,7 @@ export default function InscribirsePage() {
           </div>
         )}
 
-        {mensaje && <p className="mt-4 text-center">{mensaje}</p>}
+        {mensaje && <p className="mt-4 text-center text-green-700">{mensaje}</p>}
       </div>
     </ProtectedRoute>
   );
