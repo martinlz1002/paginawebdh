@@ -1,3 +1,4 @@
+// pages/index.tsx
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -25,6 +26,7 @@ export default function HomePage() {
           titulo: c.titulo,
           descripcion: c.descripcion,
           ubicacion: c.ubicacion,
+          // convertir Timestamp a fecha legible:
           fecha: c.fecha?.toDate().toLocaleDateString() || "",
           imagenUrl: c.imagenUrl || "",
         };
@@ -42,30 +44,35 @@ export default function HomePage() {
           <Link
             key={carrera.id}
             href={`/inscribirse?carreraId=${carrera.id}`}
-            className="group block border rounded-lg shadow hover:shadow-lg transition-shadow duration-200"
+            className="group block border rounded-lg shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden"
           >
-            {/* envolvemos en aspect-video para un ratio 16/9 */}
-            <div className="overflow-hidden rounded-t-lg aspect-video">
+            {/* Contenedor fijo para ratio 16:9 */}
+            <div className="w-full h-0 pb-[56.25%] relative bg-gray-100">
               {carrera.imagenUrl ? (
                 <img
                   src={carrera.imagenUrl}
                   alt={carrera.titulo}
-                  className="w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105"
+                  className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
-                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-gray-500">Sin imagen</span>
                 </div>
               )}
             </div>
 
-            <div className="p-4">
+            <div className="p-4 bg-white">
               <h2 className="text-lg font-semibold mb-1">{carrera.titulo}</h2>
-              <p className="text-sm text-gray-700 mb-2">{carrera.descripcion}</p>
-              <p className="text-sm text-gray-500">
-                📅 {carrera.fecha} · 📍 {carrera.ubicacion}
+              {carrera.descripcion && (
+                <p className="text-sm text-gray-700 mb-2">
+                  {carrera.descripcion}
+                </p>
+              )}
+              <p className="text-sm text-gray-500 mb-3">
+                📅 {carrera.fecha}
+                {carrera.ubicacion && <> · 📍 {carrera.ubicacion}</>}
               </p>
-              <button className="mt-3 inline-block bg-purple-600 text-white py-1 px-3 rounded hover:bg-purple-700 transition-colors duration-200">
+              <button className="inline-block bg-purple-600 text-white py-1 px-3 rounded hover:bg-purple-700 transition-colors duration-200">
                 Inscribirse
               </button>
             </div>
