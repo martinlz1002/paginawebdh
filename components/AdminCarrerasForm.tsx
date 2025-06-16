@@ -1,84 +1,172 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useRouter } from 'next/router';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app } from '@/lib/firebase';
 import type { CarreraData, Categoria } from '@/types/carrera';
 
-export interface AdminCarrerasFormProps {
+interface AdminCarrerasFormProps {
   initialValues?: CarreraData & { id: string };
   onSuccess?: () => void;
 }
 
 export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
-  const [titulo, setTitulo] = useState(initialValues?.titulo || '');
-  const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
-  const [ubicacion, setUbicacion] = useState(initialValues?.ubicacion || '');
-  const [fecha, setFecha] = useState(initialValues?.fecha?.slice(0,10) || '');
-  const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
-  const [imagenFile, setImagenFile] = useState<File|undefined>();
-  const [categorias, setCategorias] = useState<Categoria[]>(initialValues?.categorias || [{ nombre:'', minAge:0, maxAge:0 }]);
+  const router = useRouter();
+  const [titulo, setTitulo] = useState(initialValues?.titulo ?? '');
+  const [descripcion, setDescripcion] = useState(initialValues?.descripcion ?? '');
+  const [ubicacion, setUbicacion] = useState(initialValues?.ubicacion ?? '');
+  const [fecha, setFecha] = useState(initialValues?.fecha ?? '');
+  const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida ?? '');
+  const [categorias, setCategorias] = useState<Categoria[]>(
+    initialValues?.categorias ?? [{ nombre: '', minAge: 0, maxAge: 0 }]
+  );
   const [mensaje, setMensaje] = useState('');
 
-  useEffect(() => {
-    if (initialValues) {
-      setCategorias(initialValues.categorias);
-    }
-  }, [initialValues]);
-
-  const handleCategoriaChange = (i:number, f:keyof Categoria, v:string|number) => {
-    setCategorias(categorias.map((c,idx)=> idx===i?{ ...c, [f]: f==='nombre'?String(v):Number(v) }:c));
+  const handleCategoriaChange = (
+    index: number,
+    field: keyof Categoria,
+    value: string | number
+  ) => {
+    setCategorias(categorias.map((cat, i) => {
+      if (i !== index) return cat;
+      return { ...cat, [field]: field === 'nombre' ? String(value) : Number(value) };
+    }));
   };
-  const addCat = ()=> setCategorias([...categorias,{ nombre:'',minAge:0,maxAge:0 }]);
-  const remCat = (i:number)=> setCategorias(categorias.filter((_,idx)=>idx!==i));
 
-  const handleSubmit = async(e:React.FormEvent) =>{
+  const addCategoria = () => {
+    setCategorias([...categorias, { nombre: '', minAge: 0, maxAge: 0 }]);
+  };
+
+  const removeCategoria = (index: number) => {
+    setCategorias(categorias.filter((_, i) => i !== index));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try{
-      const fn = getFunctions(app);
-      const call = httpsCallable(fn,'crearCarrera');
-      // build payload
-      const payload: any = { titulo, descripcion, ubicacion, fecha, horaSalida, categorias };
-      if(imagenFile){
-        const data = await new Promise<string>((res,rej)=>{
-          const r = new FileReader();
-          r.onload = ()=>res((r.result as string).split(',')[1]);
-          r.onerror = rej;
-          r.readAsDataURL(imagenFile);
-        });
-        payload.imagenBase64 = data;
-        payload.nombreArchivo = imagenFile.name;
-      }
-      if(initialValues) payload.id = initialValues.id;
-      await call(payload);
-      setMensaje('Carrera guardada');
+    try {
+      // Especificamos la región para que httpsCallable funcione sin CORS
+      const functions = getFunctions(app, 'us-central1');
+      const crearCarrera = httpsCallable(functions, 'crearCarrera');
+      await crearCarrera({ titulo, descripcion, ubicacion, fecha, horaSalida, categorias });
+      setMensaje('Carrera guardada exitosamente');
       onSuccess?.();
-    }catch(err:any){
+      router.reload();
+    } catch (err: any) {
       console.error(err);
-      setMensaje('Error: '+err.message);
+      setMensaje('Error al guardar carrera');
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <h2 className="font-semibold">{initialValues?'Editar':'Crear'} Carrera</h2>
-      <div><label>Título</label><input type="text" value={titulo} onChange={e=>setTitulo(e.target.value)} required className="w-full"/></div>
-      <div><label>Descripción</label><textarea value={descripcion} onChange={e=>setDescripcion(e.target.value)} required className="w-full"/></div>
-      <div className="grid grid-cols-3 gap-4">
-        <div><label>Ubicación</label><input value={ubicacion} onChange={e=>setUbicacion(e.target.value)} required className="w-full"/></div>
-        <div><label>Fecha</label><input type="date" value={fecha} onChange={e=>setFecha(e.target.value)} required className="w-full"/></div>
-        <div><label>Hora</label><input type="time" value={horaSalida} onChange={e=>setHoraSalida(e.target.value)} required className="w-full"/></div>
+      {/* Título */}
+      <div>
+        <label className="block font-medium">Título</label>
+        <input
+          type="text"
+          value={titulo}
+          onChange={e => setTitulo(e.target.value)}
+          required
+          className="mt-1 block w-full border p-2 rounded"
+        />
       </div>
-      <div><label>Foto (opcional)</label><input type="file" accept="image/*" onChange={e=>setImagenFile(e.target.files?.[0]!)} /></div>
-      <div><label>Categorías</label>{categorias.map((c,i)=>(
-        <div key={i} className="flex gap-2 items-center">
-          <input placeholder="Nombre" value={c.nombre} onChange={e=>handleCategoriaChange(i,'nombre',e.target.value)} required/>
-          <input placeholder="Edad min" type="number" value={c.minAge} onChange={e=>handleCategoriaChange(i,'minAge',e.target.value)} required/>
-          <input placeholder="Edad max" type="number" value={c.maxAge} onChange={e=>handleCategoriaChange(i,'maxAge',e.target.value)} required/>
-          <button type="button" onClick={()=>remCat(i)}>✕</button>
+
+      {/* Descripción */}
+      <div>
+        <label className="block font-medium">Descripción</label>
+        <textarea
+          value={descripcion}
+          onChange={e => setDescripcion(e.target.value)}
+          required
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
+
+      {/* Ubicación + Fecha */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block font-medium">Ubicación</label>
+          <input
+            type="text"
+            value={ubicacion}
+            onChange={e => setUbicacion(e.target.value)}
+            required
+            className="mt-1 block w-full border p-2 rounded"
+          />
         </div>
-      ))}
-      <button type="button" onClick={addCat}>+ Agregar categoría</button></div>
-      <button type="submit" className="bg-blue-600 text-white rounded py-1 px-3">Guardar</button>
-      {mensaje && <p>{mensaje}</p>}
+        <div>
+          <label className="block font-medium">Fecha</label>
+          <input
+            type="date"
+            value={fecha}
+            onChange={e => setFecha(e.target.value)}
+            required
+            className="mt-1 block w-full border p-2 rounded"
+          />
+        </div>
+      </div>
+
+      {/* Hora de salida */}
+      <div>
+        <label className="block font-medium">Hora de Salida</label>
+        <input
+          type="time"
+          value={horaSalida}
+          onChange={e => setHoraSalida(e.target.value)}
+          className="mt-1 block w-full border p-2 rounded"
+        />
+      </div>
+
+      {/* Categorías */}
+      <div>
+        <label className="block font-medium">Categorías</label>
+        {categorias.map((cat, idx) => (
+          <div key={idx} className="grid grid-cols-4 gap-2 mb-2">
+            <input
+              type="text"
+              placeholder="Nombre"
+              value={cat.nombre}
+              onChange={e => handleCategoriaChange(idx, 'nombre', e.target.value)}
+              required
+              className="border p-1 rounded col-span-2"
+            />
+            <input
+              type="number"
+              placeholder="Edad min"
+              value={cat.minAge}
+              onChange={e => handleCategoriaChange(idx, 'minAge', e.target.value)}
+              required
+              className="border p-1 rounded"
+            />
+            <input
+              type="number"
+              placeholder="Edad max"
+              value={cat.maxAge}
+              onChange={e => handleCategoriaChange(idx, 'maxAge', e.target.value)}
+              required
+              className="border p-1 rounded"
+            />
+            <button
+              type="button"
+              onClick={() => removeCategoria(idx)}
+              className="text-red-600"
+            >
+              ✕
+            </button>
+          </div>
+        ))}
+        <button type="button" onClick={addCategoria} className="text-blue-600">
+          + Agregar categoría
+        </button>
+      </div>
+
+      {/* Submit */}
+      <button
+        type="submit"
+        className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700"
+      >
+        Guardar Carrera
+      </button>
+      {mensaje && <p className="mt-2 text-green-600">{mensaje}</p>}
     </form>
   );
 }
