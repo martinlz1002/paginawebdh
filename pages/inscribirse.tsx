@@ -1,4 +1,3 @@
-// pages/inscribirse.tsx
 import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -14,10 +13,16 @@ import {
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
 
+interface Categoria {
+  nombre: string;
+  minAge: number;
+  maxAge: number;
+}
+
 interface Carrera {
   id: string;
-  titulo: string; 
-  categorias: { nombre: string; minAge: number; maxAge: number }[];
+  titulo: string;
+  categorias: Categoria[];
 }
 
 interface Perfil {
@@ -44,7 +49,6 @@ export default function InscribirsePage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>("");
   const [showNewPerfilForm, setShowNewPerfilForm] = useState(false);
-
   const [nuevoPerfil, setNuevoPerfil] = useState({
     nombre: "",
     apellidoPaterno: "",
@@ -57,9 +61,10 @@ export default function InscribirsePage() {
     club: "",
     fechaNacimiento: "",
   });
-
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
   const [mensaje, setMensaje] = useState("");
+
+  const auth = getAuth(app);
 
   // 1) Carga de la carrera y sus categorías
   useEffect(() => {
@@ -79,23 +84,64 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Carga de perfiles del usuario
-  useEffect(() => {
-    const auth = getAuth(app);
+  // 2) Carga del perfil principal + perfiles secundarios
+  const loadPerfiles = async () => {
     const user = auth.currentUser;
     if (!user) return;
-    (async () => {
-      const snap = await getDocs(
-        collection(db, "usuarios", user.uid, "perfiles")
-      );
-      setPerfiles(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as any),
-        }))
-      );
-    })();
-  }, []);
+
+    // a) Perfil principal
+    const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+    let lista: Perfil[] = [];
+    if (userDoc.exists()) {
+      const d = userDoc.data() as any;
+      lista.push({
+        id: user.uid,
+        nombre: d.nombre,
+        apellidoPaterno: d.apPaterno,
+        apellidoMaterno: d.apMaterno,
+        email: d.email,
+        celular: d.celular,
+        pais: d.pais,
+        estado: d.estado,
+        ciudad: d.ciudad,
+        club: d.club,
+        fechaNacimiento: d.fechaNacimiento,
+        edad: d.edad,
+      });
+    }
+
+    // b) Perfiles hijos
+    const snap = await getDocs(
+      collection(db, "usuarios", user.uid, "perfiles")
+    );
+    snap.docs.forEach((d) => {
+      const p = d.data() as any;
+      lista.push({
+        id: d.id,
+        nombre: p.nombre,
+        apellidoPaterno: p.apellidoPaterno,
+        apellidoMaterno: p.apellidoMaterno,
+        email: p.email,
+        celular: p.celular,
+        pais: p.pais,
+        estado: p.estado,
+        ciudad: p.ciudad,
+        club: p.club,
+        fechaNacimiento: p.fechaNacimiento,
+        edad: p.edad,
+      });
+    });
+
+    setPerfiles(lista);
+    // Si aún no hay selección, seleccionamos el principal
+    if (!perfilSeleccionado && lista.length > 0) {
+      setPerfilSeleccionado(lista[0].id);
+    }
+  };
+
+  useEffect(() => {
+    if (auth.currentUser) loadPerfiles();
+  }, [auth.currentUser]);
 
   // 3) Scroll al formulario cuando se abre
   useEffect(() => {
@@ -116,7 +162,6 @@ export default function InscribirsePage() {
   // 4) Guardar nuevo perfil
   const handleNewPerfilSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const auth = getAuth(app);
     const user = auth.currentUser;
     if (!user) return;
     const edad = calcEdad(nuevoPerfil.fechaNacimiento);
@@ -125,17 +170,11 @@ export default function InscribirsePage() {
       edad,
       creado: serverTimestamp(),
     });
-    // recarga perfiles
-    const snap = await getDocs(
-      collection(db, "usuarios", user.uid, "perfiles")
-    );
-    const list = snap.docs.map((d) => ({
-      id: d.id,
-      ...(d.data() as any),
-    }));
-    setPerfiles(list);
+    // después de guardar, recarga todo de nuevo
     setShowNewPerfilForm(false);
-    setPerfilSeleccionado(list[list.length - 1].id);
+    await loadPerfiles();
+    // selecciona el recién creado
+    setPerfilSeleccionado(perfiles[perfiles.length - 1].id);
   };
 
   // 5) Enviar inscripción
@@ -193,116 +232,35 @@ export default function InscribirsePage() {
               onSubmit={handleNewPerfilSubmit}
               className="grid grid-cols-1 md:grid-cols-2 gap-4"
             >
-              <input
-                name="nombre"
-                placeholder="Nombre"
-                value={nuevoPerfil.nombre}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, nombre: e.target.value })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="apellidoPaterno"
-                placeholder="Apellido paterno"
-                value={nuevoPerfil.apellidoPaterno}
-                onChange={(e) =>
-                  setNuevoPerfil({
-                    ...nuevoPerfil,
-                    apellidoPaterno: e.target.value,
-                  })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="apellidoMaterno"
-                placeholder="Apellido materno"
-                value={nuevoPerfil.apellidoMaterno}
-                onChange={(e) =>
-                  setNuevoPerfil({
-                    ...nuevoPerfil,
-                    apellidoMaterno: e.target.value,
-                  })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="email"
-                type="email"
-                placeholder="Correo electrónico"
-                value={nuevoPerfil.email}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, email: e.target.value })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="celular"
-                type="tel"
-                placeholder="Celular"
-                value={nuevoPerfil.celular}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, celular: e.target.value })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="pais"
-                placeholder="País"
-                value={nuevoPerfil.pais}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, pais: e.target.value })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="estado"
-                placeholder="Estado"
-                value={nuevoPerfil.estado}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, estado: e.target.value })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="ciudad"
-                placeholder="Ciudad"
-                value={nuevoPerfil.ciudad}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, ciudad: e.target.value })
-                }
-                required
-                className="border p-2 rounded"
-              />
-              <input
-                name="club"
-                placeholder="Club (opcional)"
-                value={nuevoPerfil.club}
-                onChange={(e) =>
-                  setNuevoPerfil({ ...nuevoPerfil, club: e.target.value })
-                }
-                className="border p-2 rounded"
-              />
-              <input
-                name="fechaNacimiento"
-                type="date"
-                value={nuevoPerfil.fechaNacimiento}
-                onChange={(e) =>
-                  setNuevoPerfil({
-                    ...nuevoPerfil,
-                    fechaNacimiento: e.target.value,
-                  })
-                }
-                required
-                className="border p-2 rounded"
-              />
+              {[
+                { name: "nombre", label: "Nombre", type: "text" },
+                { name: "apellidoPaterno", label: "Apellido paterno", type: "text" },
+                { name: "apellidoMaterno", label: "Apellido materno", type: "text" },
+                { name: "email", label: "Correo electrónico", type: "email" },
+                { name: "celular", label: "Celular", type: "tel" },
+                { name: "pais", label: "País", type: "text" },
+                { name: "estado", label: "Estado", type: "text" },
+                { name: "ciudad", label: "Ciudad", type: "text" },
+                { name: "club", label: "Club (opcional)", type: "text", required: false },
+                { name: "fechaNacimiento", label: "Fecha de nacimiento", type: "date" },
+              ].map((f) => (
+                <div key={f.name}>
+                  <label className="block text-sm font-medium">{f.label}</label>
+                  <input
+                    name={f.name}
+                    type={f.type as any}
+                    value={(nuevoPerfil as any)[f.name]}
+                    onChange={(e) =>
+                      setNuevoPerfil(prev => ({
+                        ...prev,
+                        [f.name]: e.target.value
+                      }))
+                    }
+                    required={f.required !== false}
+                    className="mt-1 block w-full border p-2 rounded"
+                  />
+                </div>
+              ))}
               <button className="col-span-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
                 Guardar perfil
               </button>
@@ -321,11 +279,11 @@ export default function InscribirsePage() {
             >
               <option value="">-- Elige categoría --</option>
               {carrera.categorias
-                .filter((cat) => {
-                  const p = perfiles.find((x) => x.id === perfilSeleccionado)!;
+                .filter(cat => {
+                  const p = perfiles.find(x => x.id === perfilSeleccionado)!;
                   return p.edad >= cat.minAge && p.edad <= cat.maxAge;
                 })
-                .map((cat) => (
+                .map(cat => (
                   <option key={cat.nombre} value={cat.nombre}>
                     {cat.nombre} ({cat.minAge}–{cat.maxAge} años)
                   </option>
