@@ -1,48 +1,22 @@
-// pages/admin/index.tsx
-import { useState } from 'react';
+import React, { useState } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
 import AdminCarrerasList, { CarreraItem } from '@/components/AdminCarrerasList';
+import AdminInscripcionesView from '@/components/AdminInscripcionesView';
 
-export default function AdminPage() {
-  const [vista, setVista] = useState<'crear' | 'listar'>('listar');
-  const [editar, setEditar] = useState<CarreraItem | undefined>(undefined);
-
-  return (
-    <ProtectedRoute>
-      <div className="max-w-5xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
-        <nav className="mb-6">
-          <button
-            className={`mr-4 ${vista === 'crear' ? 'font-semibold' : ''}`}
-            onClick={() => { setEditar(undefined); setVista('crear'); }}
-          >
-            Crear / Editar Carrera
-          </button>
-          <button
-            className={`${vista === 'listar' ? 'font-semibold' : ''}`}
-            onClick={() => setVista('listar')}
-          >
-            Listar Carreras
-          </button>
-        </nav>
-
-        {vista === 'crear' && (
-          <AdminCarrerasForm
-            initialValues={editar}
-            onSuccess={() => setVista('listar')}
-          />
-        )}
-
-        {vista === 'listar' && (
-          <AdminCarrerasList
-            onEdit={(c) => {
-              setEditar(c);
-              setVista('crear');
-            }}
-          />
-        )}
-      </div>
-    </ProtectedRoute>
-  );
+export default function AdminPage(){
+  const [vista, setVista]=useState<'crear'|'editar'|'listar'|'inscripciones'>('listar');
+  const [editTarget, setEdit]=useState<CarreraItem|undefined>(undefined);
+  return <ProtectedRoute>
+    <nav className="flex gap-4 p-4 bg-gray-100">
+      <button onClick={()=>{setEdit(undefined);setVista('crear')}}>Crear</button>
+      <button onClick={()=>setVista('listar')}>Editar/Eliminar</button>
+      <button onClick={()=>setVista('inscripciones')}>Ver Inscripciones</button>
+    </nav>
+    <div className="p-4">
+      {vista==='crear'&&<AdminCarrerasForm onSuccess={()=>setVista('listar')}/>}      
+      {vista==='listar'&&<AdminCarrerasList onEdit={c=>{setEdit(c);setVista('crear');}}/>}
+      {vista==='inscripciones'&&<AdminInscripcionesView/>}
+    </div>
+  </ProtectedRoute>;
 }
