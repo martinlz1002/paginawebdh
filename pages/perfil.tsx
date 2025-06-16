@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import {
@@ -32,7 +32,10 @@ export default function PerfilPage() {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const formRef = useRef<HTMLDivElement>(null);
+
   const [nuevoPerfil, setNuevoPerfil] = useState({
     nombre: "",
     apellidoPaterno: "",
@@ -52,6 +55,14 @@ export default function PerfilPage() {
   const router = useRouter();
   const auth = getAuth(app);
 
+  // Cuando mostrarFormulario cambie a true, hacemos scroll al formulario
+  useEffect(() => {
+    if (mostrarFormulario && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [mostrarFormulario]);
+
+  // Carga datos de usuario y perfiles
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (usuario) => {
       if (usuario) {
@@ -64,10 +75,10 @@ export default function PerfilPage() {
           const perfilesSnapshot = await getDocs(
             collection(db, "usuarios", usuario.uid, "perfiles")
           );
-          const perfilesList = perfilesSnapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as UserData[];
+          const perfilesList = perfilesSnapshot.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as UserData),
+          }));
           setPerfiles(perfilesList);
         }
         setLoading(false);
@@ -77,7 +88,7 @@ export default function PerfilPage() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [auth, router]);
 
   const calcularEdad = (fecha: string) => {
     const hoy = new Date();
@@ -113,6 +124,7 @@ export default function PerfilPage() {
         alert("Perfil agregado correctamente");
       }
 
+      // Reset formulario y recarga lista
       setNuevoPerfil({
         nombre: "",
         apellidoPaterno: "",
@@ -125,16 +137,16 @@ export default function PerfilPage() {
         club: "",
         fechaNacimiento: "",
       });
+      setMostrarFormulario(false);
 
       const perfilesSnapshot = await getDocs(
         collection(db, "usuarios", user.uid, "perfiles")
       );
-      const perfilesList = perfilesSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as UserData[];
+      const perfilesList = perfilesSnapshot.docs.map((d) => ({
+        id: d.id,
+        ...(d.data() as UserData),
+      }));
       setPerfiles(perfilesList);
-      setMostrarFormulario(false);
     } catch (error) {
       console.error("Error al agregar/editar perfil:", error);
     }
@@ -159,9 +171,7 @@ export default function PerfilPage() {
 
   const handleEliminar = async (perfilId: string) => {
     if (!user) return;
-    const confirm = window.confirm("¿Seguro que deseas eliminar este perfil?");
-    if (!confirm) return;
-
+    if (!confirm("¿Seguro que deseas eliminar este perfil?")) return;
     await deleteDoc(doc(db, "usuarios", user.uid, "perfiles", perfilId));
     setPerfiles(perfiles.filter((p) => p.id !== perfilId));
     alert("Perfil eliminado");
@@ -183,31 +193,36 @@ export default function PerfilPage() {
   return (
     <ProtectedRoute>
       <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
+        {/* Selector de perfil */}
         <div className="mb-6">
           <label className="font-semibold mr-2">Ver perfil de:</label>
           <select
             className="border p-2 rounded"
             onChange={(e) => {
-              const seleccion = e.target.value;
-              if (seleccion === "titular") {
+              const val = e.target.value;
+              if (val === "titular") {
                 setPerfilSeleccionado(userData);
               } else {
-                const perfil = perfiles.find((p) => p.id === seleccion);
-                setPerfilSeleccionado(perfil || null);
+                const p = perfiles.find((x) => x.id === val);
+                setPerfilSeleccionado(p || null);
               }
             }}
           >
             <option value="titular">Titular: {userData.nombre}</option>
-            {perfiles.map((perfil) => (
-              <option key={perfil.id} value={perfil.id}>
-                {perfil.nombre} {perfil.apellidoPaterno} {perfil.apellidoMaterno}
+            {perfiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno}
               </option>
             ))}
           </select>
         </div>
+
+        {/* Datos del perfil seleccionado */}
         <h1 className="text-2xl font-bold mb-4">Perfil de usuario</h1>
         <p>
-          <strong>Nombre:</strong> {perfilSeleccionado?.nombre} {perfilSeleccionado?.apellidoPaterno} {perfilSeleccionado?.apellidoMaterno}
+          <strong>Nombre:</strong>{" "}
+          {perfilSeleccionado?.nombre} {perfilSeleccionado?.apellidoPaterno}{" "}
+          {perfilSeleccionado?.apellidoMaterno}
         </p>
         <p><strong>Email:</strong> {perfilSeleccionado?.email}</p>
         <p><strong>Celular:</strong> {perfilSeleccionado?.celular}</p>
@@ -226,10 +241,11 @@ export default function PerfilPage() {
         </button>
       </div>
 
+      {/* Botón y formulario de perfiles adicionales */}
       <div className="mt-10 border-t pt-6 max-w-xl mx-auto">
         <button
           onClick={() => {
-            setMostrarFormulario(!mostrarFormulario);
+            setMostrarFormulario((prev) => !prev);
             setEditandoPerfil(null);
           }}
           className="mb-4 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
@@ -238,92 +254,114 @@ export default function PerfilPage() {
         </button>
 
         {mostrarFormulario && (
-          <form onSubmit={handleAgregarPerfil} className="grid gap-3">
-            <input
-              type="text"
-              placeholder="Nombre"
-              value={nuevoPerfil.nombre}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, nombre: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="text"
-              placeholder="Apellido paterno"
-              value={nuevoPerfil.apellidoPaterno}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, apellidoPaterno: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="text"
-              placeholder="Apellido materno"
-              value={nuevoPerfil.apellidoMaterno}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, apellidoMaterno: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="email"
-              placeholder="Correo electrónico"
-              value={nuevoPerfil.email}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, email: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="tel"
-              placeholder="Celular"
-              value={nuevoPerfil.celular}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, celular: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="text"
-              placeholder="País"
-              value={nuevoPerfil.pais}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, pais: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="text"
-              placeholder="Estado"
-              value={nuevoPerfil.estado}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, estado: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="text"
-              placeholder="Ciudad"
-              value={nuevoPerfil.ciudad}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, ciudad: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <input
-              type="text"
-              placeholder="Club (opcional)"
-              value={nuevoPerfil.club}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, club: e.target.value })}
-              className="border p-2 rounded"
-            />
-            <input
-              type="date"
-              value={nuevoPerfil.fechaNacimiento}
-              onChange={(e) => setNuevoPerfil({ ...nuevoPerfil, fechaNacimiento: e.target.value })}
-              required
-              className="border p-2 rounded"
-            />
-            <button
-              type="submit"
-              className="bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
-            >
-              {editandoPerfil ? "Actualizar perfil" : "Guardar perfil"}
-            </button>
-          </form>
+          <div ref={formRef} className="grid gap-3">
+            <form onSubmit={handleAgregarPerfil} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Nombre"
+                value={nuevoPerfil.nombre}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, nombre: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="text"
+                placeholder="Apellido paterno"
+                value={nuevoPerfil.apellidoPaterno}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, apellidoPaterno: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="text"
+                placeholder="Apellido materno"
+                value={nuevoPerfil.apellidoMaterno}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, apellidoMaterno: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="email"
+                placeholder="Correo electrónico"
+                value={nuevoPerfil.email}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, email: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="tel"
+                placeholder="Celular"
+                value={nuevoPerfil.celular}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, celular: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="text"
+                placeholder="País"
+                value={nuevoPerfil.pais}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, pais: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="text"
+                placeholder="Estado"
+                value={nuevoPerfil.estado}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, estado: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="text"
+                placeholder="Ciudad"
+                value={nuevoPerfil.ciudad}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, ciudad: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="text"
+                placeholder="Club (opcional)"
+                value={nuevoPerfil.club}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, club: e.target.value })
+                }
+                className="border p-2 rounded w-full"
+              />
+              <input
+                type="date"
+                value={nuevoPerfil.fechaNacimiento}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, fechaNacimiento: e.target.value })
+                }
+                required
+                className="border p-2 rounded w-full"
+              />
+              <button
+                type="submit"
+                className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 w-full"
+              >
+                {editandoPerfil ? "Actualizar perfil" : "Guardar perfil"}
+              </button>
+            </form>
+          </div>
         )}
 
         {perfiles.length > 0 && (

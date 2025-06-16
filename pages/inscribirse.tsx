@@ -1,54 +1,51 @@
-import { useEffect, useState } from "react";
+// pages/inscribirse.tsx
 import { useRouter } from "next/router";
-import {
-  getAuth,
-  onAuthStateChanged,
-  User as FirebaseUser,
-} from "firebase/auth";
+import { useEffect, useRef, useState } from "react";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import { app, db } from "@/lib/firebase";
+import { getAuth } from "firebase/auth";
 import {
   doc,
   getDoc,
-  getDocs,
   collection,
+  getDocs,
   addDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { registrarInscripcion } from "@/lib/Inscripciones";
 
 interface Carrera {
   id: string;
-  titulo: string;
-  descripcion?: string;
-  ubicacion?: string;
-  fecha: Date;
-  imagenUrl?: string;
+  titulo: string; 
+  categorias: { nombre: string; minAge: number; maxAge: number }[];
 }
 
-interface PerfilData {
-  id: string; // id del doc en subcolección "perfiles", o "titular"
+interface Perfil {
+  id: string;
   nombre: string;
   apellidoPaterno: string;
   apellidoMaterno: string;
-  email?: string;
-  celular?: string;
-  pais?: string;
-  estado?: string;
-  ciudad?: string;
+  email: string;
+  celular: string;
+  pais: string;
+  estado: string;
+  ciudad: string;
   club?: string;
-  fechaNacimiento: string; // ISO
-  edad?: number;
+  fechaNacimiento: string;
+  edad: number;
 }
 
 export default function InscribirsePage() {
   const router = useRouter();
   const { carreraId } = router.query;
+  const scrollToFormRef = useRef<HTMLDivElement>(null);
+
   const [carrera, setCarrera] = useState<Carrera | null>(null);
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [perfiles, setPerfiles] = useState<PerfilData[]>([]);
-  const [perfilId, setPerfilId] = useState<string>(""); 
-  const [perfilSeleccionado, setPerfilSeleccionado] = useState<PerfilData | null>(null);
-  const [mostrarNuevo, setMostrarNuevo] = useState(false);
-  const [nuevoPerfil, setNuevoPerfil] = useState<Omit<PerfilData, "id">>({
+  const [perfiles, setPerfiles] = useState<Perfil[]>([]);
+  const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>("");
+  const [showNewPerfilForm, setShowNewPerfilForm] = useState(false);
+
+  const [nuevoPerfil, setNuevoPerfil] = useState({
     nombre: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
@@ -59,201 +56,292 @@ export default function InscribirsePage() {
     ciudad: "",
     club: "",
     fechaNacimiento: "",
-    edad: undefined,
   });
-  const [mensaje, setMensaje] = useState<string | null>(null);
 
-  // 1) Carga carrera
+  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
+  const [mensaje, setMensaje] = useState("");
+
+  // 1) Carga de la carrera y sus categorías
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
-      const docCar = await getDoc(doc(db, "carreras", String(carreraId)));
-      if (docCar.exists()) {
-        const d = docCar.data();
+      const dc = await getDoc(doc(db, "carreras", carreraId as string));
+      if (dc.exists()) {
+        const data = dc.data()!;
         setCarrera({
-          id: docCar.id,
-          titulo: d.titulo,
-          descripcion: d.descripcion,
-          ubicacion: d.ubicacion,
-          fecha: d.fecha.toDate(),
-          imagenUrl: d.imagenUrl,
+          id: dc.id,
+          titulo: data.titulo,
+          categorias: data.categorias || [],
         });
+      } else {
+        setMensaje("Carrera no encontrada");
       }
     })();
   }, [carreraId]);
 
-  // 2) Autenticación y carga de perfiles
+  // 2) Carga de perfiles del usuario
   useEffect(() => {
-    const auth = getAuth();
-    const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) return router.push("/login");
-      setUser(u);
-      // perfil titular
-      const userDoc = await getDoc(doc(db, "usuarios", u.uid));
-      if (userDoc.exists()) {
-        const data = userDoc.data() as any;
-        const titular: PerfilData = {
-          id: "titular",
-          ...data,
-        };
-        // subperfiles
-        const snap = await getDocs(
-          collection(db, "usuarios", u.uid, "perfiles")
-        );
-        const subs = snap.docs.map((d) => ({
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    if (!user) return;
+    (async () => {
+      const snap = await getDocs(
+        collection(db, "usuarios", user.uid, "perfiles")
+      );
+      setPerfiles(
+        snap.docs.map((d) => ({
           id: d.id,
           ...(d.data() as any),
-        })) as PerfilData[];
-        setPerfiles([titular, ...subs]);
-        setPerfilId("titular");
-        setPerfilSeleccionado(titular);
-      }
-    });
-    return () => unsub();
-  }, [router]);
+        }))
+      );
+    })();
+  }, []);
 
-  // Actualiza perfilSeleccionado según perfilId
+  // 3) Scroll al formulario cuando se abre
   useEffect(() => {
-    if (!perfilId) return;
-    const p = perfiles.find((x) => x.id === perfilId) || null;
-    setPerfilSeleccionado(p);
-    setMostrarNuevo(false);
-    setMensaje(null);
-  }, [perfilId, perfiles]);
+    if (showNewPerfilForm && scrollToFormRef.current) {
+      scrollToFormRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [showNewPerfilForm]);
 
-  // Handler para crear inscripción
-  const handleSubmit = async (e: React.FormEvent) => {
+  const calcEdad = (fecha: string) => {
+    const hoy = new Date();
+    const n = new Date(fecha);
+    let edad = hoy.getFullYear() - n.getFullYear();
+    const m = hoy.getMonth() - n.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < n.getDate())) edad--;
+    return edad;
+  };
+
+  // 4) Guardar nuevo perfil
+  const handleNewPerfilSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !carrera || !perfilSeleccionado) return;
+    const auth = getAuth(app);
+    const user = auth.currentUser;
+    if (!user) return;
+    const edad = calcEdad(nuevoPerfil.fechaNacimiento);
+    await addDoc(collection(db, "usuarios", user.uid, "perfiles"), {
+      ...nuevoPerfil,
+      edad,
+      creado: serverTimestamp(),
+    });
+    // recarga perfiles
+    const snap = await getDocs(
+      collection(db, "usuarios", user.uid, "perfiles")
+    );
+    const list = snap.docs.map((d) => ({
+      id: d.id,
+      ...(d.data() as any),
+    }));
+    setPerfiles(list);
+    setShowNewPerfilForm(false);
+    setPerfilSeleccionado(list[list.length - 1].id);
+  };
+
+  // 5) Enviar inscripción
+  const handleInscribir = async () => {
+    if (!perfilSeleccionado || !categoriaSeleccionada) {
+      setMensaje("Selecciona perfil y categoría");
+      return;
+    }
     try {
-      await addDoc(collection(db, "inscripciones"), {
-        carreraId: carrera.id,
-        perfilId: perfilSeleccionado.id,
-        ...perfilSeleccionado,
-        creado: serverTimestamp(),
+      await registrarInscripcion({
+        carreraId: carrera!.id,
+        perfilId: perfilSeleccionado,
+        categoria: categoriaSeleccionada,
       });
       setMensaje("¡Inscripción exitosa!");
-    } catch (err) {
-      console.error(err);
-      setMensaje("Error al inscribirse.");
+    } catch (err: any) {
+      setMensaje("Error al inscribir: " + err.message);
     }
   };
 
-  if (!carrera || !user || !perfilSeleccionado) {
-    return <p className="p-6 text-center">Cargando…</p>;
-  }
-
   return (
-    <div className="max-w-xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4">Inscribirse: {carrera.titulo}</h1>
+    <ProtectedRoute>
+      <div className="max-w-2xl mx-auto p-6 space-y-6">
+        <h1 className="text-2xl font-bold">{carrera?.titulo}</h1>
 
-      {/* Selección de perfil */}
-      <div className="mb-4">
-        <label className="block font-medium mb-1">Usar perfil:</label>
-        <select
-          className="w-full border p-2 rounded"
-          value={perfilId}
-          onChange={(e) => setPerfilId(e.target.value)}
-        >
-          {perfiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.id === "titular"
-                ? `Titular: ${p.nombre} ${p.apellidoPaterno}`
-                : `${p.nombre} ${p.apellidoPaterno}`}
-            </option>
-          ))}
-          <option value="__nuevo">Crear nuevo perfil…</option>
-        </select>
-      </div>
-
-      {/* Formulario para nuevo perfil */}
-      {perfilId === "__nuevo" && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!user) return;
-            // calcula edad
-            const edad = Math.floor(
-              (Date.now() -
-                new Date(nuevoPerfil.fechaNacimiento).getTime()) /
-                (1000 * 60 * 60 * 24 * 365)
-            );
-            const docRef = await addDoc(
-              collection(db, "usuarios", user.uid, "perfiles"),
-              { ...nuevoPerfil, edad }
-            );
-            setPerfiles((prev) => [
-              ...prev,
-              { id: docRef.id, ...nuevoPerfil, edad },
-            ]);
-            setPerfilId(docRef.id);
-          }}
-          className="mb-6 grid gap-3"
-        >
-          {[
-            { key: "nombre", label: "Nombre" },
-            { key: "apellidoPaterno", label: "Apellido paterno" },
-            { key: "apellidoMaterno", label: "Apellido materno" },
-            { key: "email", label: "Correo", type: "email" },
-            { key: "celular", label: "Celular", type: "tel" },
-            { key: "pais", label: "País" },
-            { key: "estado", label: "Estado" },
-            { key: "ciudad", label: "Ciudad" },
-            { key: "club", label: "Club (opcional)", required: false },
-            { key: "fechaNacimiento", label: "Fecha nacimiento", type: "date" },
-          ].map(({ key, label, type, required = true }) => (
-            <div key={key}>
-              <label className="block text-sm font-medium">{label}</label>
-              <input
-                type={type || "text"}
-                required={required}
-                className="mt-1 w-full border p-2 rounded"
-                value={(nuevoPerfil as any)[key]}
-                onChange={(e) =>
-                  setNuevoPerfil((p) => ({
-                    ...p,
-                    [key]: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          ))}
-          <button
-            type="submit"
-            className="bg-green-600 text-white py-2 rounded hover:bg-green-700 w-full"
+        {/* Selección de perfil */}
+        <div>
+          <label className="block font-medium">Selecciona tu perfil</label>
+          <select
+            className="mt-1 border p-2 rounded w-full"
+            value={perfilSeleccionado}
+            onChange={(e) => setPerfilSeleccionado(e.target.value)}
           >
-            Guardar nuevo perfil
+            <option value="">-- Elige un perfil --</option>
+            {perfiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} {p.apellidoPaterno} ({p.edad} años)
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => setShowNewPerfilForm((v) => !v)}
+            className="mt-2 text-blue-600 hover:underline"
+          >
+            {showNewPerfilForm ? "Cancelar" : "+ Crear nuevo perfil"}
           </button>
-        </form>
-      )}
+        </div>
 
-      {/* Vista previa del perfil seleccionado */}
-      <div className="mb-6 p-4 bg-gray-50 rounded">
-        <p>
-          <strong>Nombre:</strong> {perfilSeleccionado.nombre}{" "}
-          {perfilSeleccionado.apellidoPaterno}{" "}
-          {perfilSeleccionado.apellidoMaterno}
-        </p>
-        <p>
-          <strong>Email:</strong> {perfilSeleccionado.email}
-        </p>
-        <p>
-          <strong>Celular:</strong> {perfilSeleccionado.celular}
-        </p>
-        {/* …otros campos… */}
+        {/* Formulario completo de nuevo perfil */}
+        {showNewPerfilForm && (
+          <div ref={scrollToFormRef} className="border-t pt-4">
+            <h2 className="font-semibold mb-2">Nuevo perfil</h2>
+            <form
+              onSubmit={handleNewPerfilSubmit}
+              className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            >
+              <input
+                name="nombre"
+                placeholder="Nombre"
+                value={nuevoPerfil.nombre}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, nombre: e.target.value })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="apellidoPaterno"
+                placeholder="Apellido paterno"
+                value={nuevoPerfil.apellidoPaterno}
+                onChange={(e) =>
+                  setNuevoPerfil({
+                    ...nuevoPerfil,
+                    apellidoPaterno: e.target.value,
+                  })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="apellidoMaterno"
+                placeholder="Apellido materno"
+                value={nuevoPerfil.apellidoMaterno}
+                onChange={(e) =>
+                  setNuevoPerfil({
+                    ...nuevoPerfil,
+                    apellidoMaterno: e.target.value,
+                  })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="email"
+                type="email"
+                placeholder="Correo electrónico"
+                value={nuevoPerfil.email}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, email: e.target.value })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="celular"
+                type="tel"
+                placeholder="Celular"
+                value={nuevoPerfil.celular}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, celular: e.target.value })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="pais"
+                placeholder="País"
+                value={nuevoPerfil.pais}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, pais: e.target.value })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="estado"
+                placeholder="Estado"
+                value={nuevoPerfil.estado}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, estado: e.target.value })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="ciudad"
+                placeholder="Ciudad"
+                value={nuevoPerfil.ciudad}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, ciudad: e.target.value })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <input
+                name="club"
+                placeholder="Club (opcional)"
+                value={nuevoPerfil.club}
+                onChange={(e) =>
+                  setNuevoPerfil({ ...nuevoPerfil, club: e.target.value })
+                }
+                className="border p-2 rounded"
+              />
+              <input
+                name="fechaNacimiento"
+                type="date"
+                value={nuevoPerfil.fechaNacimiento}
+                onChange={(e) =>
+                  setNuevoPerfil({
+                    ...nuevoPerfil,
+                    fechaNacimiento: e.target.value,
+                  })
+                }
+                required
+                className="border p-2 rounded"
+              />
+              <button className="col-span-full bg-green-600 text-white py-2 rounded hover:bg-green-700">
+                Guardar perfil
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Selección de categoría e inscripción */}
+        {perfilSeleccionado && carrera && (
+          <div>
+            <label className="block font-medium">Selecciona categoría</label>
+            <select
+              className="mt-1 border p-2 rounded w-full"
+              value={categoriaSeleccionada}
+              onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+            >
+              <option value="">-- Elige categoría --</option>
+              {carrera.categorias
+                .filter((cat) => {
+                  const p = perfiles.find((x) => x.id === perfilSeleccionado)!;
+                  return p.edad >= cat.minAge && p.edad <= cat.maxAge;
+                })
+                .map((cat) => (
+                  <option key={cat.nombre} value={cat.nombre}>
+                    {cat.nombre} ({cat.minAge}–{cat.maxAge} años)
+                  </option>
+                ))}
+            </select>
+            <button
+              onClick={handleInscribir}
+              className="mt-4 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700"
+            >
+              Inscribirme
+            </button>
+          </div>
+        )}
+
+        {mensaje && <p className="mt-4 text-center">{mensaje}</p>}
       </div>
-
-      {/* Botón inscribirse */}
-      <button
-        onClick={handleSubmit}
-        className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 w-full"
-      >
-        Confirmar inscripción
-      </button>
-
-      {mensaje && (
-        <p className="mt-4 text-center text-green-600">{mensaje}</p>
-      )}
-    </div>
+    </ProtectedRoute>
   );
 }
