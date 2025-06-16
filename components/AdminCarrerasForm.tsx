@@ -1,64 +1,101 @@
 import React, { useState } from 'react';
-import { useRouter } from 'next/router';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { app } from '@/lib/firebase';
-import type { CarreraData, Categoria } from '@/types/carrera';
+import { db, storage } from '@/lib/firebase';
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  doc
+} from 'firebase/firestore';
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL
+} from 'firebase/storage';
+import { CarreraData, Categoria } from '@/types/carrera';
 
-interface AdminCarrerasFormProps {
+export interface AdminCarrerasFormProps {
   initialValues?: CarreraData & { id: string };
   onSuccess?: () => void;
 }
 
-export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
-  const router = useRouter();
-  const [titulo, setTitulo] = useState(initialValues?.titulo ?? '');
-  const [descripcion, setDescripcion] = useState(initialValues?.descripcion ?? '');
-  const [ubicacion, setUbicacion] = useState(initialValues?.ubicacion ?? '');
-  const [fecha, setFecha] = useState(initialValues?.fecha ?? '');
-  const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida ?? '');
+export default function AdminCarrerasForm({
+  initialValues,
+  onSuccess
+}: AdminCarrerasFormProps) {
+  const [titulo, setTitulo] = useState(initialValues?.titulo || '');
+  const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
+  const [lugar, setLugar] = useState(initialValues?.lugar || '');
+  const [fecha, setFecha] = useState(initialValues?.fecha || '');
+  const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
+  const [imagenFile, setImagenFile] = useState<File | null>(null);
+
+  // Aquí inicializas directamente con Categoria[], no con función que devuelva string[]
   const [categorias, setCategorias] = useState<Categoria[]>(
-    initialValues?.categorias ?? [{ nombre: '', minAge: 0, maxAge: 0 }]
+    initialValues?.categorias ?? []
   );
-  const [mensaje, setMensaje] = useState('');
 
-  const handleCategoriaChange = (
-    index: number,
-    field: keyof Categoria,
-    value: string | number
-  ) => {
-    setCategorias(categorias.map((cat, i) => {
-      if (i !== index) return cat;
-      return { ...cat, [field]: field === 'nombre' ? String(value) : Number(value) };
-    }));
-  };
+  const [nuevaCat, setNuevaCat] = useState<Categoria>({
+    nombre: '',
+    minAge: 0,
+    maxAge: 0
+  });
 
-  const addCategoria = () => {
-    setCategorias([...categorias, { nombre: '', minAge: 0, maxAge: 0 }]);
-  };
-
-  const removeCategoria = (index: number) => {
-    setCategorias(categorias.filter((_, i) => i !== index));
+  const handleAddCategoria = () => {
+    if (
+      nuevaCat.nombre.trim() &&
+      nuevaCat.minAge >= 0 &&
+      nuevaCat.maxAge >= nuevaCat.minAge
+    ) {
+      setCategorias(prev => [...prev, nuevaCat]);
+      setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      // Especificamos la región para que httpsCallable funcione sin CORS
-      const functions = getFunctions(app, 'us-central1');
-      const crearCarrera = httpsCallable(functions, 'crearCarrera');
-      await crearCarrera({ titulo, descripcion, ubicacion, fecha, horaSalida, categorias });
-      setMensaje('Carrera guardada exitosamente');
-      onSuccess?.();
-      router.reload();
-    } catch (err: any) {
-      console.error(err);
-      setMensaje('Error al guardar carrera');
+
+    // 1) Subida de imagen si hay
+    let imagenUrl = initialValues?.imagenUrl;
+    if (imagenFile) {
+      const storageRef = ref(
+        storage,
+        `carreras/${Date.now()}_${imagenFile.name}`
+      );
+      const snap = await uploadBytes(storageRef, imagenFile);
+      imagenUrl = await getDownloadURL(snap.ref);
     }
+
+    // 2) Payload
+    const payload: CarreraData = {
+      titulo,
+      descripcion,
+      lugar,
+      fecha,
+      horaSalida,
+      imagenUrl,
+      categorias
+    };
+
+    // 3) Crear o editar
+    if (initialValues?.id) {
+      await updateDoc(
+        doc(db, 'carreras', initialValues.id),
+        // workaround typing de Firestore
+        payload as any
+      );
+    } else {
+      await addDoc(collection(db, 'carreras'), payload as any);
+    }
+
+    onSuccess?.();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Título */}
+    <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
+      <h2 className="text-xl font-semibold">
+        {initialValues ? 'Editar Carrera' : 'Crear Nueva Carrera'}
+      </h2>
+
       <div>
         <label className="block font-medium">Título</label>
         <input
@@ -66,33 +103,32 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           value={titulo}
           onChange={e => setTitulo(e.target.value)}
           required
-          className="mt-1 block w-full border p-2 rounded"
+          className="mt-1 w-full border p-2 rounded"
         />
       </div>
 
-      {/* Descripción */}
       <div>
         <label className="block font-medium">Descripción</label>
         <textarea
           value={descripcion}
           onChange={e => setDescripcion(e.target.value)}
           required
-          className="mt-1 block w-full border p-2 rounded"
+          className="mt-1 w-full border p-2 rounded"
         />
       </div>
 
-      {/* Ubicación + Fecha */}
+      <div>
+        <label className="block font-medium">Lugar</label>
+        <input
+          type="text"
+          value={lugar}
+          onChange={e => setLugar(e.target.value)}
+          required
+          className="mt-1 w-full border p-2 rounded"
+        />
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block font-medium">Ubicación</label>
-          <input
-            type="text"
-            value={ubicacion}
-            onChange={e => setUbicacion(e.target.value)}
-            required
-            className="mt-1 block w-full border p-2 rounded"
-          />
-        </div>
         <div>
           <label className="block font-medium">Fecha</label>
           <input
@@ -100,73 +136,86 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
             value={fecha}
             onChange={e => setFecha(e.target.value)}
             required
-            className="mt-1 block w-full border p-2 rounded"
+            className="mt-1 w-full border p-2 rounded"
+          />
+        </div>
+        <div>
+          <label className="block font-medium">Hora de salida</label>
+          <input
+            type="time"
+            value={horaSalida}
+            onChange={e => setHoraSalida(e.target.value)}
+            required
+            className="mt-1 w-full border p-2 rounded"
           />
         </div>
       </div>
 
-      {/* Hora de salida */}
       <div>
-        <label className="block font-medium">Hora de Salida</label>
+        <label className="block font-medium">Foto (opcional)</label>
         <input
-          type="time"
-          value={horaSalida}
-          onChange={e => setHoraSalida(e.target.value)}
-          className="mt-1 block w-full border p-2 rounded"
+          type="file"
+          accept="image/*"
+          onChange={e => setImagenFile(e.target.files?.[0] ?? null)}
+          className="mt-1 w-full"
         />
       </div>
 
-      {/* Categorías */}
-      <div>
-        <label className="block font-medium">Categorías</label>
-        {categorias.map((cat, idx) => (
-          <div key={idx} className="grid grid-cols-4 gap-2 mb-2">
-            <input
-              type="text"
-              placeholder="Nombre"
-              value={cat.nombre}
-              onChange={e => handleCategoriaChange(idx, 'nombre', e.target.value)}
-              required
-              className="border p-1 rounded col-span-2"
-            />
-            <input
-              type="number"
-              placeholder="Edad min"
-              value={cat.minAge}
-              onChange={e => handleCategoriaChange(idx, 'minAge', e.target.value)}
-              required
-              className="border p-1 rounded"
-            />
-            <input
-              type="number"
-              placeholder="Edad max"
-              value={cat.maxAge}
-              onChange={e => handleCategoriaChange(idx, 'maxAge', e.target.value)}
-              required
-              className="border p-1 rounded"
-            />
-            <button
-              type="button"
-              onClick={() => removeCategoria(idx)}
-              className="text-red-600"
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        <button type="button" onClick={addCategoria} className="text-blue-600">
-          + Agregar categoría
-        </button>
+      <div className="border-t pt-4">
+        <h3 className="font-medium mb-2">Categorías</h3>
+        <ul className="mb-2">
+          {categorias.map((c, i) => (
+            <li key={i} className="text-sm">
+              • {c.nombre} ({c.minAge}–{c.maxAge} años)
+            </li>
+          ))}
+        </ul>
+        <div className="grid grid-cols-3 gap-2 items-end">
+          <input
+            type="text"
+            placeholder="Nombre categoría"
+            value={nuevaCat.nombre}
+            onChange={e =>
+              setNuevaCat(s => ({ ...s, nombre: e.target.value }))
+            }
+            className="border p-2 rounded"
+          />
+          <input
+            type="number"
+            placeholder="Mín edad"
+            value={nuevaCat.minAge}
+            onChange={e =>
+              setNuevaCat(s => ({ ...s, minAge: Number(e.target.value) }))
+            }
+            className="border p-2 rounded"
+          />
+          <input
+            type="number"
+            placeholder="Máx edad"
+            value={nuevaCat.maxAge}
+            onChange={e =>
+              setNuevaCat(s => ({ ...s, maxAge: Number(e.target.value) }))
+            }
+            className="border p-2 rounded"
+          />
+          <button
+            type="button"
+            onClick={handleAddCategoria}
+            className="col-span-3 mt-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          >
+            + Agregar categoría
+          </button>
+        </div>
       </div>
 
-      {/* Submit */}
-      <button
-        type="submit"
-        className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700"
-      >
-        Guardar Carrera
-      </button>
-      {mensaje && <p className="mt-2 text-green-600">{mensaje}</p>}
+      <div>
+        <button
+          type="submit"
+          className="w-full bg-green-600 text-white py-3 rounded hover:bg-green-700"
+        >
+          Guardar
+        </button>
+      </div>
     </form>
   );
 }

@@ -3,12 +3,10 @@ import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { CarreraData } from '@/types/carrera';
 
-// Extendemos CarreraData para incluir el ID
 interface CarreraItem extends CarreraData {
   id: string;
 }
 
-// Tipamos las inscripciones
 interface InscripcionItem {
   id: string;
   perfilId: string;
@@ -21,32 +19,28 @@ export default function AdminInscripcionesView() {
   const [selectedCarrera, setSelectedCarrera] = useState<string>('');
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
 
-  // Carga inicial de carreras
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, 'carreras'));
-      const lista = snap.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as CarreraData)
-      }));
-      setCarreras(lista);
+      setCarreras(snap.docs.map(d => ({
+        id: d.id,
+        ...(d.data() as CarreraData)
+      })));
     })();
   }, []);
 
-  // Carga inscripciones cuando cambia la carrera seleccionada
   useEffect(() => {
     if (!selectedCarrera) return;
     (async () => {
       const snap = await getDocs(
         collection(db, 'carreras', selectedCarrera, 'inscripciones')
       );
-      const lista = snap.docs.map(doc => ({
-        id: doc.id,
-        perfilId: doc.data().perfilId,
-        categoria: doc.data().categoria,
-        timestamp: doc.data().timestamp
-      }));
-      setInscripciones(lista);
+      setInscripciones(snap.docs.map(d => ({
+        id: d.id,
+        perfilId: d.data().perfilId,
+        categoria: d.data().categoria,
+        timestamp: d.data().timestamp
+      })));
     })();
   }, [selectedCarrera]);
 
@@ -62,13 +56,11 @@ export default function AdminInscripcionesView() {
         >
           <option value="">-- Elige una carrera --</option>
           {carreras.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.titulo}
-            </option>
+            <option key={c.id} value={c.id}>{c.titulo}</option>
           ))}
         </select>
       </div>
-      {inscripciones.length > 0 && (
+      {inscripciones.length > 0 ? (
         <table className="w-full table-auto border-collapse">
           <thead>
             <tr className="bg-gray-100">
@@ -78,20 +70,19 @@ export default function AdminInscripcionesView() {
             </tr>
           </thead>
           <tbody>
-            {inscripciones.map(ins => (
-              <tr key={ins.id}>
-                <td className="border p-2">{ins.perfilId}</td>
-                <td className="border p-2">{ins.categoria}</td>
+            {inscripciones.map(i => (
+              <tr key={i.id}>
+                <td className="border p-2">{i.perfilId}</td>
+                <td className="border p-2">{i.categoria}</td>
                 <td className="border p-2">
-                  {ins.timestamp?.toDate?.().toLocaleString() || '-'}
+                  {i.timestamp?.toDate?.().toLocaleString() || "-"}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
-      {selectedCarrera && inscripciones.length === 0 && (
-        <p className="mt-4 text-center">No hay inscripciones para esta carrera.</p>
+      ) : selectedCarrera && (
+        <p className="mt-4">No hay inscripciones para esta carrera.</p>
       )}
     </div>
   );

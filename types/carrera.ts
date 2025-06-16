@@ -8,18 +8,17 @@ export interface Carrera {
 }
 // types/carrera.ts
 export interface Categoria {
-  nombre: string
-  minAge: number
-  maxAge: number
+  nombre: string;
+  minAge: number;
+  maxAge: number;
 }
 
 export interface CarreraData {
-  titulo: string
-  descripcion: string
-  ubicacion: string
-  fecha: string       // "YYYY-MM-DD"
-  horaSalida: string         // "HH:mm"
-  categorias: Categoria[]
-  imagenBase64?: string
-  nombreArchivo?: string
+  titulo: string;
+  descripcion: string;
+  lugar: string;
+  fecha: string;        // ISO date YYYY-MM-DD
+  horaSalida: string;   // HH:MM
+  imagenUrl?: string;
+  categorias: Categoria[];  // <-- ahora es Categoria[]
 }
