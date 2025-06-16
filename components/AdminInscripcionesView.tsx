@@ -1,99 +1,98 @@
-import { useEffect, useState } from "react";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+// components/AdminInscripcionesView.tsx
+"use client";
 
-interface Carrera {
+import { useEffect, useState } from "react";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  DocumentData,
+  serverTimestamp,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import * as XLSX from "xlsx";
+
+interface CarreraOption {
   id: string;
   titulo: string;
 }
 
 interface Inscripcion {
-  id: string;
-  perfilNombre: string;
+  perfilId: string;
   categoria: string;
-  timestamp: Timestamp;
+  timestamp: any;
+  [key: string]: any; // para incluir cualquier otro campo que guardes
 }
 
 export default function AdminInscripcionesView() {
-  const [carreras, setCarreras] = useState<Carrera[]>([]);
-  const [carreraSeleccionada, setCarreraSeleccionada] = useState<string>("");
+  const [carreras, setCarreras] = useState<CarreraOption[]>([]);
+  const [selCarrera, setSelCarrera] = useState<string>("");
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  // 1) Cargo todas las carreras
+  // Carga las carreras disponibles
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "carreras"));
       setCarreras(
-        snap.docs.map((d) => ({ id: d.id, titulo: d.data().titulo }))
+        snap.docs.map((d) => ({
+          id: d.id,
+          titulo: d.data().titulo,
+        }))
       );
     })();
   }, []);
 
-  // 2) Cada que cambie carreraSeleccionada, cargo sus inscripciones
+  // Cada vez que cambie la carrera seleccionada, recarga las inscripciones
   useEffect(() => {
-    if (!carreraSeleccionada) {
+    if (!selCarrera) {
       setInscripciones([]);
       return;
     }
+    setLoading(true);
     (async () => {
       const q = query(
         collection(db, "inscripciones"),
-        where("carreraId", "==", carreraSeleccionada)
+        where("carreraId", "==", selCarrera)
       );
       const snap = await getDocs(q);
-      const list: Inscripcion[] = [];
-      for (const docSnap of snap.docs) {
-        const data = docSnap.data() as any;
-        // recuperar nombre del perfil en línea (podrías optimizar con subconsulta o embed)
-        const perfilDoc = await getDocs(
-          collection(db, "usuarios", data.perfilId, "perfiles")
-        );
-        const perfilData = perfilDoc.docs.find(
-          (p) => p.id === data.perfilId
-        )?.data() as any;
-        list.push({
-          id: docSnap.id,
-          perfilNombre: perfilData
-            ? `${perfilData.nombre} ${perfilData.apellidoPaterno}`
-            : data.perfilId,
-          categoria: data.categoria,
-          timestamp: data.timestamp,
-        });
-      }
-      setInscripciones(list);
+      const data = snap.docs.map((d) => ({
+        ...(d.data() as DocumentData),
+        timestamp: d.data().timestamp || serverTimestamp(),
+      })) as Inscripcion[];
+      setInscripciones(data);
+      setLoading(false);
     })();
-  }, [carreraSeleccionada]);
+  }, [selCarrera]);
 
-  // 3) Generar y descargar CSV
-  const descargarCSV = () => {
-    const header = ["Perfil", "Categoría", "Fecha Inscripción"];
-    const rows = inscripciones.map((i) => [
-      `"${i.perfilNombre}"`,
-      `"${i.categoria}"`,
-      `"${i.timestamp.toDate().toLocaleString()}"`,
-    ]);
-    const csvContent =
-      [header, ...rows].map((r) => r.join(",")).join("\r\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `inscripciones_${carreraSeleccionada}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Genera y dispara la descarga de Excel
+  const descargarExcel = () => {
+    if (inscripciones.length === 0) return alert("No hay inscripciones para exportar.");
+    // Prepara datos plano para Excel
+    const rows = inscripciones.map((ins) => ({
+      "Perfil ID": ins.perfilId,
+      "Categoría": ins.categoria,
+      Fecha: ins.timestamp?.toDate?.().toLocaleDateString() || "",
+      Hora: ins.timestamp?.toDate?.().toLocaleTimeString() || "",
+      // si tienes más campos, agrégalos aquí...
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inscripciones");
+    XLSX.writeFile(wb, `inscripciones_${selCarrera}.xlsx`);
   };
 
   return (
-    <div>
-      <h2 className="text-xl font-semibold mb-4">Ver Inscripciones</h2>
+    <div className="space-y-4">
+      <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
 
-      {/* Selector de carrera */}
-      <div className="mb-4">
-        <label className="block font-medium">Elige carrera:</label>
+      <div className="flex items-center gap-4">
+        <label className="font-medium">Carrera:</label>
         <select
-          className="mt-1 w-full border p-2 rounded"
-          value={carreraSeleccionada}
-          onChange={(e) => setCarreraSeleccionada(e.target.value)}
+          className="border p-2 rounded"
+          value={selCarrera}
+          onChange={(e) => setSelCarrera(e.target.value)}
         >
           <option value="">-- Selecciona --</option>
           {carreras.map((c) => (
@@ -102,43 +101,52 @@ export default function AdminInscripcionesView() {
             </option>
           ))}
         </select>
+        {inscripciones.length > 0 && (
+          <button
+            onClick={descargarExcel}
+            className="ml-auto bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Descargar Excel
+          </button>
+        )}
       </div>
 
-      {/* Tabla de inscripciones */}
-      {inscripciones.length > 0 && (
-        <>
-          <table className="w-full table-auto border-collapse mb-4">
+      {loading && <p>Cargando inscripciones…</p>}
+
+      {!loading && inscripciones.length > 0 && (
+        <div className="overflow-auto">
+          <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className="border p-2">Perfil</th>
+                <th className="border p-2">Perfil ID</th>
                 <th className="border p-2">Categoría</th>
-                <th className="border p-2">Fecha Inscripción</th>
+                <th className="border p-2">Fecha</th>
+                <th className="border p-2">Hora</th>
               </tr>
             </thead>
             <tbody>
-              {inscripciones.map((i) => (
-                <tr key={i.id}>
-                  <td className="border p-2">{i.perfilNombre}</td>
-                  <td className="border p-2">{i.categoria}</td>
-                  <td className="border p-2">
-                    {i.timestamp.toDate().toLocaleString()}
-                  </td>
-                </tr>
-              ))}
+              {inscripciones.map((ins, idx) => {
+                const dt = ins.timestamp?.toDate?.();
+                return (
+                  <tr key={idx}>
+                    <td className="border p-2">{ins.perfilId}</td>
+                    <td className="border p-2">{ins.categoria}</td>
+                    <td className="border p-2">
+                      {dt ? dt.toLocaleDateString() : ""}
+                    </td>
+                    <td className="border p-2">
+                      {dt ? dt.toLocaleTimeString() : ""}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
-
-          <button
-            onClick={descargarCSV}
-            className="bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
-          >
-            Descargar CSV
-          </button>
-        </>
+        </div>
       )}
 
-      {carreraSeleccionada && inscripciones.length === 0 && (
-        <p>No hay inscripciones aún para esta carrera.</p>
+      {!loading && selCarrera && inscripciones.length === 0 && (
+        <p>No hay inscripciones para esta carrera.</p>
       )}
     </div>
   );
