@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { app, db } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { query, where } from "firebase/firestore";
 import {
   doc,
   getDoc,
@@ -177,6 +178,17 @@ export default function InscribirsePage() {
       return;
     }
     try {
+      // 5.1) Verificar si ya existe inscripción para este perfil y carrera
+     const dupQuery = query(
+       collection(db, "inscripciones"),
+       where("carreraId", "==", carrera!.id),
+       where("perfilId", "==", perfilSeleccionado)
+     );
+     const dupSnap = await getDocs(dupQuery);
+     if (!dupSnap.empty) {
+       setMensaje("Ya estás inscrito en esta carrera.");
+       return;
+     }
       await addDoc(collection(db, "inscripciones"), {
         carreraId: carrera!.id,
         perfilId: perfilSeleccionado,
