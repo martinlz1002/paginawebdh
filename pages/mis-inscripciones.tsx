@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { useEffect, useState } from "react";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   collection,
-  getDocs,
   query,
   where,
-  DocumentSnapshot,
-  QueryDocumentSnapshot
-} from 'firebase/firestore';
-import { doc, getDoc, collectionGroup } from 'firebase/firestore';
-import { app, db } from '@/lib/firebase';
-import AuthGuard from '@/components/AuthGuard';
-import Link from 'next/link';
+  getDocs,
+  DocumentData,
+  QueryDocumentSnapshot,
+} from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
+import { app, db } from "@/lib/firebase";
+import AuthGuard from "@/components/AuthGuard";
+import Link from "next/link";
 
 interface InscRaw {
   carreraId: string;
@@ -20,109 +20,75 @@ interface InscRaw {
   timestamp: any;
 }
 
-interface InscripcionView {
+interface InscView {
   id: string;
   carreraId: string;
   categoria: string;
-  fechaInscripcion: string;
-  tituloCarrera: string;
-  fechaCarrera: string;
-  ubicacionCarrera?: string;
-  imagenCarrera?: string;
+  fechaIns: string;
+  titulo: string;
+  fechaCarr: string;
+  ubicacion?: string;
+  imagenUrl?: string;
 }
 
 export default function MisInscripcionesPage() {
-  const [inscripciones, setInscripciones] = useState<InscripcionView[]>([]);
+  const [list, setList] = useState<InscView[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const auth = getAuth(app);
-    const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
+    const unsub = onAuthStateChanged(auth, async (user: User | null) => {
       if (!user) {
-        setInscripciones([]);
         setLoading(false);
         return;
       }
 
-      // 1) Recopilar todos los perfilIds (principal + subperfiles)
-      const perfilIds: string[] = [];
+      // 1) obtenemos todos los perfiles (prin.+sec.)
+      const uids = [user.uid];
+      const snap = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
+      snap.forEach(d => uids.push(d.id));
 
-      // a) perfil principal
-      const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
-      if (userDoc.exists()) {
-        perfilIds.push(user.uid);
-      }
-
-      // b) subperfiles
-      const perfilesSnap = await getDocs(
-        collection(db, 'usuarios', user.uid, 'perfiles')
+      // 2) query raíz /inscripciones where perfilId in uids
+      const inscQuery = query(
+        collection(db, "inscripciones"),
+        where("perfilId", "in", uids)
       );
-      perfilesSnap.docs.forEach(d => {
-        perfilIds.push(d.id);
-      });
+      const inscSnap = await getDocs(inscQuery);
 
-      if (perfilIds.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      // 2) Consultar inscripciones para cualquiera de esos perfilIds
-      //    (Firestore 'in' admite hasta 10 elementos)
-      const insQuery = query(
-        collection(db, 'inscripciones'),
-        where('perfilId', 'in', perfilIds)
-      );
-      const insSnap = await getDocs(insQuery);
-
-      // 3) Para cada inscripción, obtener datos de la carrera
-      const lista: InscripcionView[] = await Promise.all(
-        insSnap.docs.map(async docSnap => {
-          const data = docSnap.data() as InscRaw;
-
-          // Referencia a la carrera padre
-          const carreraRef = doc(db, 'carreras', data.carreraId);
-          let tituloCarrera = '(desconocida)';
-          let fechaCarrera = '';
-          let ubicacionCarrera: string | undefined;
-          let imagenCarrera: string | undefined;
-
-          const cSnap: DocumentSnapshot = await getDoc(carreraRef);
-          if (cSnap.exists()) {
-            const c = cSnap.data() as any;
-            tituloCarrera = c.titulo;
-            fechaCarrera = c.fecha?.toDate
-              ? c.fecha.toDate().toLocaleDateString()
-              : String(c.fecha);
-            ubicacionCarrera = c.ubicacion;
-            imagenCarrera = c.imagenUrl;
-          }
-
+      // 3) montar vista
+      const v = await Promise.all(
+        inscSnap.docs.map(async (d: QueryDocumentSnapshot<DocumentData>) => {
+          const src = d.data() as InscRaw;
+          // fetch carrera
+          const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
+          const c = cDoc.exists() ? cDoc.data()! : {};
           return {
-            id: docSnap.id,
-            carreraId: data.carreraId,
-            categoria: data.categoria,
-            fechaInscripcion: data.timestamp?.toDate
-              ? data.timestamp.toDate().toLocaleString()
-              : '',
-            tituloCarrera,
-            fechaCarrera,
-            ubicacionCarrera,
-            imagenCarrera
+            id: d.id,
+            carreraId: src.carreraId,
+            categoria: src.categoria,
+            fechaIns: src.timestamp?.toDate
+              ? src.timestamp.toDate().toLocaleString()
+              : "",
+            titulo: c.titulo || "(sin título)",
+            fechaCarr: c.fecha?.toDate
+              ? c.fecha.toDate().toLocaleDateString()
+              : "",
+            ubicacion: (c as any).ubicacion,
+            imagenUrl: (c as any).imagenUrl,
           };
         })
       );
 
-      setInscripciones(lista);
+      setList(v);
       setLoading(false);
     });
-
-    return () => unsubscribe();
+    return unsub;
   }, []);
 
   if (loading) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10">Cargando tus inscripciones…</p>
+        <p className="text-center mt-10">Cargando inscripciones…</p>
       </AuthGuard>
     );
   }
@@ -131,54 +97,38 @@ export default function MisInscripcionesPage() {
     <AuthGuard>
       <div className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">Mis Inscripciones</h1>
-
-        {inscripciones.length === 0 ? (
-          <p className="text-center text-gray-600">
-            No tienes inscripciones registradas.
-          </p>
+        {list.length === 0 ? (
+          <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
           <ul className="space-y-6">
-            {inscripciones.map(insc => (
-              <li
-                key={insc.id}
-                className="border rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow"
-              >
-                <Link
-                  href={`/inscribirse?carreraId=${insc.carreraId}`}
-                  className="flex flex-col md:flex-row"
-                >
-                  {insc.imagenCarrera ? (
-                    <div className="w-full md:w-1/3 h-48 overflow-hidden">
-                      <img
-                        src={insc.imagenCarrera}
-                        alt={insc.tituloCarrera}
-                        className="w-full h-full object-cover"
-                      />
+            {list.map(i => (
+              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
+                <Link href={`/inscribirse?carreraId=${i.carreraId}`}>
+                  <a className="flex flex-col md:flex-row">
+                    {i.imagenUrl ? (
+                      <div className="md:w-1/3 h-48 overflow-hidden">
+                        <img
+                          src={i.imagenUrl}
+                          alt={i.titulo}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
+                        <span className="text-gray-500">Sin imagen</span>
+                      </div>
+                    )}
+                    <div className="p-4 flex-1">
+                      <h2 className="text-xl font-semibold">{i.titulo}</h2>
+                      <p className="text-sm text-gray-600 mb-1">
+                        📅 {i.fechaCarr} {i.ubicacion && <>· 📍 {i.ubicacion}</>}
+                      </p>
+                      <p><strong>Categoría:</strong> {i.categoria}</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Inscrito: {i.fechaIns}
+                      </p>
                     </div>
-                  ) : (
-                    <div className="w-full md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-500">Sin imagen</span>
-                    </div>
-                  )}
-
-                  <div className="p-4 flex-1">
-                    <h2 className="text-xl font-semibold">
-                      {insc.tituloCarrera}
-                    </h2>
-                    <p className="text-sm text-gray-600 mb-2">
-                      📅 {insc.fechaCarrera}{' '}
-                      {insc.ubicacionCarrera && <>· 📍 {insc.ubicacionCarrera}</>}
-                    </p>
-                    <p>
-                      <strong>Categoría:</strong> {insc.categoria}
-                    </p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Inscrito el {insc.fechaInscripcion}
-                    </p>
-                    <button className="mt-4 inline-block bg-purple-600 text-white py-1 px-3 rounded hover:bg-purple-700 transition-colors">
-                      Ver detalles
-                    </button>
-                  </div>
+                  </a>
                 </Link>
               </li>
             ))}
