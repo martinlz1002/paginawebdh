@@ -1,92 +1,119 @@
-import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
-import {
-  collection,
-  getDocs,
-  deleteDoc,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
+import { useState, useEffect } from 'react'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import { db } from '@/lib/firebase'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
-export default function AdminInscripciones() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [inscripciones, setInscripciones] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+interface Carrera {
+  id: string
+  titulo: string
+}
 
-  const fetchInscripciones = async () => {
-    const insSnap = await getDocs(collection(db, "inscripciones"));
-    setInscripciones(
-      insSnap.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-    );
-  };
+interface Inscripcion {
+  id: string
+  perfilId: string
+  categoria: string
+  timestamp: any
+}
 
-  const eliminarInscripcion = async (id: string) => {
-    if (confirm("¿Estás seguro de eliminar esta inscripción?")) {
-      await deleteDoc(doc(db, "inscripciones", id));
-      fetchInscripciones();
-    }
-  };
+export default function AdminInscripcionesPage() {
+  const [carreras, setCarreras] = useState<Carrera[]>([])
+  const [selectedCarrera, setSelectedCarrera] = useState<string>('')
+  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
 
-  const marcarComoPagado = async (id: string) => {
-    await updateDoc(doc(db, "inscripciones", id), {
-      estadoPago: "pagado",
-    });
-    fetchInscripciones();
-  };
-
+  // 1) Carga todas las carreras para el select
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user?.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
-        setUser(user);
-        fetchInscripciones();
-      } else {
-        router.push("/login");
-      }
-    });
+    const fetchCarreras = async () => {
+      const snap = await getDocs(collection(db, 'carreras'))
+      setCarreras(
+        snap.docs.map((d) => ({
+          id: d.id,
+          titulo: d.data().titulo,
+        }))
+      )
+    }
+    fetchCarreras()
+  }, [])
 
-    return () => unsubscribe();
-  }, [router]);
+  // 2) Cada vez que cambie la carrera seleccionada, cargo sus inscripciones
+  useEffect(() => {
+    if (!selectedCarrera) {
+      setInscripciones([])
+      return
+    }
+    const fetchInscripciones = async () => {
+      const q = query(
+        collection(db, 'inscripciones'),
+        where('carreraId', '==', selectedCarrera)
+      )
+      const snap = await getDocs(q)
+      setInscripciones(
+        snap.docs.map((doc) => {
+          const d = doc.data()
+          return {
+            id: doc.id,
+            perfilId: d.perfilId,
+            categoria: d.categoria,
+            timestamp: d.timestamp,
+          }
+        })
+      )
+    }
+    fetchInscripciones()
+  }, [selectedCarrera])
 
   return (
-    <div className="min-h-screen bg-white p-6">
-      <h1 className="text-2xl font-bold text-softPurple mb-4">Gestión de Inscripciones</h1>
-      <div className="space-y-4">
-        {inscripciones.map((i) => (
-          <div
-            key={i.id}
-            className="bg-gray-100 p-4 rounded shadow flex justify-between items-center"
+    <ProtectedRoute>
+      <div className="max-w-4xl mx-auto p-6">
+        <h1 className="text-2xl font-bold mb-6">Ver Inscripciones</h1>
+
+        <div className="mb-4">
+          <label className="block font-medium mb-1">Selecciona Carrera</label>
+          <select
+            value={selectedCarrera}
+            onChange={(e) => setSelectedCarrera(e.target.value)}
+            className="w-full border p-2 rounded"
           >
-            <div>
-              <p>
-                <strong>{i.nombre} {i.apellidoPaterno}</strong> - {i.carrera}
-              </p>
-              <p className="text-sm text-gray-600">Pago: {i.estadoPago}</p>
-            </div>
-            <div className="flex gap-2">
-              {i.estadoPago !== "pagado" && (
-                <button
-                  onClick={() => marcarComoPagado(i.id)}
-                  className="px-2 py-1 bg-green-500 text-white rounded"
-                >
-                  Marcar como pagado
-                </button>
+            <option value="">-- Elige una carrera --</option>
+            {carreras.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.titulo}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {selectedCarrera && (
+          <table className="w-full table-auto border-collapse">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border p-2 text-left">Perfil ID</th>
+                <th className="border p-2 text-left">Categoría</th>
+                <th className="border p-2 text-left">Fecha Inscripción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inscripciones.map((insc) => (
+                <tr key={insc.id} className="hover:bg-gray-50">
+                  <td className="border p-2">{insc.perfilId}</td>
+                  <td className="border p-2">{insc.categoria}</td>
+                  <td className="border p-2">
+                    {insc.timestamp?.toDate
+                      ? insc.timestamp.toDate().toLocaleString()
+                      : ''}
+                  </td>
+                </tr>
+              ))}
+              {inscripciones.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="text-center p-4 text-gray-500">
+                    No hay inscripciones para esta carrera.
+                  </td>
+                </tr>
               )}
-              <button
-                onClick={() => eliminarInscripcion(i.id)}
-                className="px-2 py-1 bg-red-500 text-white rounded"
-              >
-                Eliminar
-              </button>
-            </div>
-          </div>
-        ))}
+            </tbody>
+          </table>
+        )}
       </div>
-    </div>
-  );
+    </ProtectedRoute>
+  )
 }
