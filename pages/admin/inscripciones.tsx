@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { db } from '@/lib/firebase'
-import {
-  collection,
-  collectionGroup,
-  getDocs,
-  query,
-  where
-} from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
 interface Carrera {
   id: string
@@ -26,7 +20,7 @@ export default function AdminInscripcionesPage() {
   const [selectedCarrera, setSelectedCarrera] = useState<string>('')
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
 
-  // 1) Cargo todas las carreras para el <select>
+  // 1) Cargo todas las carreras
   useEffect(() => {
     getDocs(collection(db, 'carreras')).then(snap => {
       setCarreras(
@@ -38,54 +32,30 @@ export default function AdminInscripcionesPage() {
     })
   }, [])
 
-  // 2) Cuando cambie la carrera seleccionada, traigo inscripciones de:
-  //    • colección raíz /inscripciones
-  //    • subcolección /carreras/{id}/inscripciones
+  // 2) Cuando cambie la carrera seleccionada, traigo SOLO de la colección raíz /inscripciones
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([])
       return
     }
 
-    async function fetchInscripciones() {
-      const lista: Inscripcion[] = []
-
-      // a) de la colección raíz
+    ;(async () => {
       const raizQ = query(
         collection(db, 'inscripciones'),
         where('carreraId', '==', selectedCarrera)
       )
       const raizSnap = await getDocs(raizQ)
-      raizSnap.docs.forEach(doc => {
+      const lista = raizSnap.docs.map(doc => {
         const d = doc.data()
-        lista.push({
+        return {
           id: doc.id,
           perfilId: d.perfilId,
           categoria: d.categoria,
           timestamp: d.timestamp,
-        })
+        }
       })
-
-      // b) de la subcolección dentro de carreras
-      const nestedQ = query(
-        collection(db, 'carreras', selectedCarrera, 'inscripciones'),
-        where('carreraId', '==', selectedCarrera)
-      )
-      const nestedSnap = await getDocs(nestedQ)
-      nestedSnap.docs.forEach(doc => {
-        const d = doc.data()
-        lista.push({
-          id: doc.id,
-          perfilId: d.perfilId,
-          categoria: d.categoria,
-          timestamp: d.timestamp,
-        })
-      })
-
       setInscripciones(lista)
-    }
-
-    fetchInscripciones()
+    })()
   }, [selectedCarrera])
 
   return (
