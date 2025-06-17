@@ -12,6 +12,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
+import AuthGuard from "@/components/AuthGuard";
 
 interface Categoria {
   nombre: string;
@@ -210,6 +211,7 @@ export default function InscribirsePage() {
 
   return (
     <ProtectedRoute>
+      <AuthGuard>
       <div className="max-w-2xl mx-auto p-6 space-y-6">
         <h1 className="text-2xl font-bold">{carrera?.titulo}</h1>
 
@@ -310,6 +312,7 @@ export default function InscribirsePage() {
 
         {mensaje && <p className="mt-4 text-center text-green-700">{mensaje}</p>}
       </div>
+      </AuthGuard>
     </ProtectedRoute>
   );
 }
