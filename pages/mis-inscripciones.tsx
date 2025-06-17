@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import {
-  collectionGroup,
+  collection,
   query,
   where,
   getDocs,
   DocumentSnapshot,
-  QueryDocumentSnapshot
+  QueryDocumentSnapshot,
+  doc,
+  getDoc,
 } from 'firebase/firestore';
-import { doc, getDoc } from 'firebase/firestore';
 import { app, db } from '@/lib/firebase';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
@@ -45,38 +46,35 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      // 1) Consulta todas las inscripciones donde perfilId == user.uid
+      // 1) Consulta en la colección raíz 'inscripciones'
       const q = query(
-        collectionGroup(db, 'inscripciones'),
+        collection(db, 'inscripciones'),
         where('perfilId', '==', user.uid)
       );
       const snap = await getDocs(q);
 
       // 2) Por cada inscripción, obtenemos datos de la carrera padre
       const lista: InscripcionView[] = await Promise.all(
-  snap.docs.map(async (docSnap) => {
-          const data = docSnap.data();
-          // carrera padre:
-          // la ruta es .../carreras/{carreraId}/inscripciones/{inscId}
-          // docSnap.ref.parent.parent es el DocumentReference a la carrera
-          const carreraRef = docSnap.ref.parent.parent;
+        snap.docs.map(async (docSnap) => {
+          const data = docSnap.data() as InscRaw;
+
+          // referenciar carrera en /carreras/{carreraId}
+          const carreraRef = doc(db, 'carreras', data.carreraId);
+          const cSnap: DocumentSnapshot = await getDoc(carreraRef);
+
           let tituloCarrera = '(desconocido)';
           let fechaCarrera = '';
           let ubicacionCarrera: string | undefined;
           let imagenCarrera: string | undefined;
 
-          if (carreraRef) {
-            const cSnap: DocumentSnapshot = await getDoc(carreraRef);
-            if (cSnap.exists()) {
-              const c = cSnap.data() as any;
-              tituloCarrera = c.titulo;
-              // fecha en Timestamp de Firestore
-              fechaCarrera = c.fecha?.toDate
-                ? c.fecha.toDate().toLocaleDateString()
-                : String(c.fecha);
-              ubicacionCarrera = c.ubicacion;
-              imagenCarrera = c.imagenUrl;
-            }
+          if (cSnap.exists()) {
+            const c = cSnap.data() as any;
+            tituloCarrera = c.titulo;
+            fechaCarrera = c.fecha?.toDate
+              ? c.fecha.toDate().toLocaleDateString()
+              : String(c.fecha);
+            ubicacionCarrera = c.ubicacion;
+            imagenCarrera = c.imagenUrl;
           }
 
           return {
@@ -89,7 +87,7 @@ export default function MisInscripcionesPage() {
             tituloCarrera,
             fechaCarrera,
             ubicacionCarrera,
-            imagenCarrera
+            imagenCarrera,
           };
         })
       );
@@ -129,7 +127,6 @@ export default function MisInscripcionesPage() {
                   href={`/inscribirse?carreraId=${insc.carreraId}`}
                   className="flex flex-col md:flex-row"
                 >
-                  {/* Si la carrera tiene imagen, la mostramos */}
                   {insc.imagenCarrera ? (
                     <div className="w-full md:w-1/3 h-48 overflow-hidden">
                       <img
@@ -150,7 +147,9 @@ export default function MisInscripcionesPage() {
                     </h2>
                     <p className="text-sm text-gray-600 mb-2">
                       📅 {insc.fechaCarrera}{' '}
-                      {insc.ubicacionCarrera && <>· 📍 {insc.ubicacionCarrera}</>}
+                      {insc.ubicacionCarrera && (
+                        <>· 📍 {insc.ubicacionCarrera}</>
+                      )}
                     </p>
                     <p>
                       <strong>Categoría:</strong> {insc.categoria}

@@ -9,7 +9,7 @@ export interface InscripcionData {
 
 export async function registrarInscripcion(data: InscripcionData) {
   await addDoc(
-    collection(db, 'carreras', data.carreraId, 'inscripciones'),
+    collection(db, 'inscripciones'),
     {
       perfilId: data.perfilId,
       categoria: data.categoria,
