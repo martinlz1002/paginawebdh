@@ -26,7 +26,7 @@ export default function AdminInscripcionesPage() {
   const [selectedCarrera, setSelectedCarrera] = useState<string>('')
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
 
-  // 1) Cargar todas las carreras para el select
+  // 1) Carga todas las carreras para el select
   useEffect(() => {
     const fetchCarreras = async () => {
       const snap = await getDocs(collection(db, 'carreras'))
@@ -47,8 +47,7 @@ export default function AdminInscripcionesPage() {
       return
     }
     const fetchInscripciones = async () => {
-      // collectionGroup va a buscar en cualquier colección llamada "inscripciones"
-      // tanto en la raíz como en subcolecciones de carreras
+      // collectionGroup: todas las colecciones "inscripciones" (raíz y subcolecciones)
       const inscQ = query(
         collectionGroup(db, 'inscripciones'),
         where('carreraId', '==', selectedCarrera)
@@ -100,19 +99,19 @@ export default function AdminInscripcionesPage() {
               </tr>
             </thead>
             <tbody>
-              {inscripciones.map((insc) => (
-                <tr key={insc.id} className="hover:bg-gray-50">
-                  <td className="border p-2">{insc.perfilId}</td>
-                  <td className="border p-2">{insc.categoria}</td>
-                  <td className="border p-2">
-                    {insc.timestamp?.toDate
-                      ? insc.timestamp.toDate().toLocaleString()
-                      : ''}
-                  </td>
-                </tr>
-              ))}
-
-              {inscripciones.length === 0 && (
+              {inscripciones.length > 0 ? (
+                inscripciones.map((insc) => (
+                  <tr key={insc.id} className="hover:bg-gray-50">
+                    <td className="border p-2">{insc.perfilId}</td>
+                    <td className="border p-2">{insc.categoria}</td>
+                    <td className="border p-2">
+                      {insc.timestamp?.toDate
+                        ? insc.timestamp.toDate().toLocaleString()
+                        : ''}
+                    </td>
+                  </tr>
+                ))
+              ) : (
                 <tr>
                   <td colSpan={3} className="text-center p-4 text-gray-500">
                     No hay inscripciones para esta carrera.
