@@ -26,45 +26,65 @@ export default function AdminInscripcionesPage() {
   const [selectedCarrera, setSelectedCarrera] = useState<string>('')
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
 
-  // 1) Carga todas las carreras para el select
+  // 1) Cargo todas las carreras para el <select>
   useEffect(() => {
-    const fetchCarreras = async () => {
-      const snap = await getDocs(collection(db, 'carreras'))
+    getDocs(collection(db, 'carreras')).then(snap => {
       setCarreras(
-        snap.docs.map((d) => ({
+        snap.docs.map(d => ({
           id: d.id,
           titulo: d.data().titulo,
         }))
       )
-    }
-    fetchCarreras()
+    })
   }, [])
 
-  // 2) Cada vez que cambie la carrera seleccionada, cargo sus inscripciones
+  // 2) Cuando cambie la carrera seleccionada, traigo inscripciones de:
+  //    • colección raíz /inscripciones
+  //    • subcolección /carreras/{id}/inscripciones
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([])
       return
     }
-    const fetchInscripciones = async () => {
-      // collectionGroup: todas las colecciones "inscripciones" (raíz y subcolecciones)
-      const inscQ = query(
-        collectionGroup(db, 'inscripciones'),
+
+    async function fetchInscripciones() {
+      const lista: Inscripcion[] = []
+
+      // a) de la colección raíz
+      const raizQ = query(
+        collection(db, 'inscripciones'),
         where('carreraId', '==', selectedCarrera)
       )
-      const snap = await getDocs(inscQ)
-      setInscripciones(
-        snap.docs.map((doc) => {
-          const d = doc.data()
-          return {
-            id: doc.id,
-            perfilId: d.perfilId,
-            categoria: d.categoria,
-            timestamp: d.timestamp,
-          }
+      const raizSnap = await getDocs(raizQ)
+      raizSnap.docs.forEach(doc => {
+        const d = doc.data()
+        lista.push({
+          id: doc.id,
+          perfilId: d.perfilId,
+          categoria: d.categoria,
+          timestamp: d.timestamp,
         })
+      })
+
+      // b) de la subcolección dentro de carreras
+      const nestedQ = query(
+        collection(db, 'carreras', selectedCarrera, 'inscripciones'),
+        where('carreraId', '==', selectedCarrera)
       )
+      const nestedSnap = await getDocs(nestedQ)
+      nestedSnap.docs.forEach(doc => {
+        const d = doc.data()
+        lista.push({
+          id: doc.id,
+          perfilId: d.perfilId,
+          categoria: d.categoria,
+          timestamp: d.timestamp,
+        })
+      })
+
+      setInscripciones(lista)
     }
+
     fetchInscripciones()
   }, [selectedCarrera])
 
@@ -77,11 +97,11 @@ export default function AdminInscripcionesPage() {
           <label className="block font-medium mb-1">Selecciona Carrera</label>
           <select
             value={selectedCarrera}
-            onChange={(e) => setSelectedCarrera(e.target.value)}
+            onChange={e => setSelectedCarrera(e.target.value)}
             className="w-full border p-2 rounded"
           >
             <option value="">-- Elige una carrera --</option>
-            {carreras.map((c) => (
+            {carreras.map(c => (
               <option key={c.id} value={c.id}>
                 {c.titulo}
               </option>
@@ -100,7 +120,7 @@ export default function AdminInscripcionesPage() {
             </thead>
             <tbody>
               {inscripciones.length > 0 ? (
-                inscripciones.map((insc) => (
+                inscripciones.map(insc => (
                   <tr key={insc.id} className="hover:bg-gray-50">
                     <td className="border p-2">{insc.perfilId}</td>
                     <td className="border p-2">{insc.categoria}</td>
