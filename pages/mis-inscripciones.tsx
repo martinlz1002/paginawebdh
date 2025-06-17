@@ -2,14 +2,13 @@ import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import {
   collection,
+  getDocs,
   query,
   where,
-  getDocs,
   DocumentSnapshot,
-  QueryDocumentSnapshot,
-  doc,
-  getDoc,
+  QueryDocumentSnapshot
 } from 'firebase/firestore';
+import { doc, getDoc, collectionGroup } from 'firebase/firestore';
 import { app, db } from '@/lib/firebase';
 import AuthGuard from '@/components/AuthGuard';
 import Link from 'next/link';
@@ -26,7 +25,6 @@ interface InscripcionView {
   carreraId: string;
   categoria: string;
   fechaInscripcion: string;
-  // datos de la carrera padre:
   tituloCarrera: string;
   fechaCarrera: string;
   ubicacionCarrera?: string;
@@ -46,27 +44,49 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      // 1) Consulta en la colección raíz 'inscripciones'
-      const q = query(
-        collection(db, 'inscripciones'),
-        where('perfilId', '==', user.uid)
-      );
-      const snap = await getDocs(q);
+      // 1) Recopilar todos los perfilIds (principal + subperfiles)
+      const perfilIds: string[] = [];
 
-      // 2) Por cada inscripción, obtenemos datos de la carrera padre
+      // a) perfil principal
+      const userDoc = await getDoc(doc(db, 'usuarios', user.uid));
+      if (userDoc.exists()) {
+        perfilIds.push(user.uid);
+      }
+
+      // b) subperfiles
+      const perfilesSnap = await getDocs(
+        collection(db, 'usuarios', user.uid, 'perfiles')
+      );
+      perfilesSnap.docs.forEach(d => {
+        perfilIds.push(d.id);
+      });
+
+      if (perfilIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // 2) Consultar inscripciones para cualquiera de esos perfilIds
+      //    (Firestore 'in' admite hasta 10 elementos)
+      const insQuery = query(
+        collection(db, 'inscripciones'),
+        where('perfilId', 'in', perfilIds)
+      );
+      const insSnap = await getDocs(insQuery);
+
+      // 3) Para cada inscripción, obtener datos de la carrera
       const lista: InscripcionView[] = await Promise.all(
-        snap.docs.map(async (docSnap) => {
+        insSnap.docs.map(async docSnap => {
           const data = docSnap.data() as InscRaw;
 
-          // referenciar carrera en /carreras/{carreraId}
+          // Referencia a la carrera padre
           const carreraRef = doc(db, 'carreras', data.carreraId);
-          const cSnap: DocumentSnapshot = await getDoc(carreraRef);
-
-          let tituloCarrera = '(desconocido)';
+          let tituloCarrera = '(desconocida)';
           let fechaCarrera = '';
           let ubicacionCarrera: string | undefined;
           let imagenCarrera: string | undefined;
 
+          const cSnap: DocumentSnapshot = await getDoc(carreraRef);
           if (cSnap.exists()) {
             const c = cSnap.data() as any;
             tituloCarrera = c.titulo;
@@ -87,7 +107,7 @@ export default function MisInscripcionesPage() {
             tituloCarrera,
             fechaCarrera,
             ubicacionCarrera,
-            imagenCarrera,
+            imagenCarrera
           };
         })
       );
@@ -118,7 +138,7 @@ export default function MisInscripcionesPage() {
           </p>
         ) : (
           <ul className="space-y-6">
-            {inscripciones.map((insc) => (
+            {inscripciones.map(insc => (
               <li
                 key={insc.id}
                 className="border rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow"
@@ -147,9 +167,7 @@ export default function MisInscripcionesPage() {
                     </h2>
                     <p className="text-sm text-gray-600 mb-2">
                       📅 {insc.fechaCarrera}{' '}
-                      {insc.ubicacionCarrera && (
-                        <>· 📍 {insc.ubicacionCarrera}</>
-                      )}
+                      {insc.ubicacionCarrera && <>· 📍 {insc.ubicacionCarrera}</>}
                     </p>
                     <p>
                       <strong>Categoría:</strong> {insc.categoria}
