@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { db } from '@/lib/firebase'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import {
+  collection,
+  collectionGroup,
+  getDocs,
+  query,
+  where
+} from 'firebase/firestore'
 
 interface Carrera {
   id: string
@@ -20,7 +26,7 @@ export default function AdminInscripcionesPage() {
   const [selectedCarrera, setSelectedCarrera] = useState<string>('')
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([])
 
-  // 1) Carga todas las carreras para el select
+  // 1) Cargar todas las carreras para el select
   useEffect(() => {
     const fetchCarreras = async () => {
       const snap = await getDocs(collection(db, 'carreras'))
@@ -41,11 +47,13 @@ export default function AdminInscripcionesPage() {
       return
     }
     const fetchInscripciones = async () => {
-      const q = query(
-        collection(db, 'inscripciones'),
+      // collectionGroup va a buscar en cualquier colección llamada "inscripciones"
+      // tanto en la raíz como en subcolecciones de carreras
+      const inscQ = query(
+        collectionGroup(db, 'inscripciones'),
         where('carreraId', '==', selectedCarrera)
       )
-      const snap = await getDocs(q)
+      const snap = await getDocs(inscQ)
       setInscripciones(
         snap.docs.map((doc) => {
           const d = doc.data()
@@ -103,6 +111,7 @@ export default function AdminInscripcionesPage() {
                   </td>
                 </tr>
               ))}
+
               {inscripciones.length === 0 && (
                 <tr>
                   <td colSpan={3} className="text-center p-4 text-gray-500">
