@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { app, db } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { query, where } from "firebase/firestore";
 import {
   doc,
   getDoc,
@@ -11,6 +10,8 @@ import {
   getDocs,
   addDoc,
   serverTimestamp,
+  query,
+  where
 } from "firebase/firestore";
 
 interface Categoria {
@@ -59,10 +60,11 @@ export default function InscribirsePage() {
     estado: "",
     ciudad: "",
     club: "",
-    fechaNacimiento: "",
+    fechaNacimiento: ""
   });
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const auth = getAuth(app);
 
@@ -76,7 +78,7 @@ export default function InscribirsePage() {
         setCarrera({
           id: dc.id,
           titulo: d.titulo,
-          categorias: d.categorias || [],
+          categorias: d.categorias || []
         });
       } else {
         setMensaje("Carrera no encontrada");
@@ -95,7 +97,7 @@ export default function InscribirsePage() {
 
   async function loadPerfiles(uid: string) {
     const lista: Perfil[] = [];
-    // a) Perfil principal
+    // perfil principal
     const udoc = await getDoc(doc(db, "usuarios", uid));
     if (udoc.exists()) {
       const d: any = udoc.data();
@@ -111,10 +113,10 @@ export default function InscribirsePage() {
         ciudad: d.ciudad,
         club: d.club,
         fechaNacimiento: d.fechaNacimiento,
-        edad: d.edad,
+        edad: d.edad
       });
     }
-    // b) Perfiles secundarios
+    // perfiles secundarios
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
     snap.docs.forEach((d) => {
       const p: any = d.data();
@@ -130,7 +132,7 @@ export default function InscribirsePage() {
         ciudad: p.ciudad,
         club: p.club,
         fechaNacimiento: p.fechaNacimiento,
-        edad: p.edad,
+        edad: p.edad
       });
     });
     setPerfiles(lista);
@@ -164,7 +166,7 @@ export default function InscribirsePage() {
     await addDoc(collection(db, "usuarios", user.uid, "perfiles"), {
       ...nuevoPerfil,
       edad,
-      creado: serverTimestamp(),
+      creado: serverTimestamp()
     });
     await loadPerfiles(user.uid);
     setShowNewPerfilForm(false);
@@ -177,28 +179,32 @@ export default function InscribirsePage() {
       setMensaje("Selecciona perfil y categoría");
       return;
     }
+    setSubmitting(true);
     try {
-      // 5.1) Verificar si ya existe inscripción para este perfil y carrera
-     const dupQuery = query(
-       collection(db, "inscripciones"),
-       where("carreraId", "==", carrera!.id),
-       where("perfilId", "==", perfilSeleccionado)
-     );
-     const dupSnap = await getDocs(dupQuery);
-     if (!dupSnap.empty) {
-       setMensaje("Ya estás inscrito en esta carrera.");
-       return;
-     }
+      // Verificar duplicados
+      const dupQuery = query(
+        collection(db, "inscripciones"),
+        where("carreraId", "==", carrera!.id),
+        where("perfilId", "==", perfilSeleccionado)
+      );
+      const dupSnap = await getDocs(dupQuery);
+      if (!dupSnap.empty) {
+        setMensaje("Ya estás inscrito en esta carrera.");
+        setSubmitting(false);
+        return;
+      }
+      // Crear inscripción
       await addDoc(collection(db, "inscripciones"), {
         carreraId: carrera!.id,
         perfilId: perfilSeleccionado,
         categoria: categoriaSeleccionada,
-        timestamp: serverTimestamp(),
+        timestamp: serverTimestamp()
       });
       setMensaje("¡Inscripción exitosa!");
     } catch (err: any) {
       setMensaje("Error al inscribir: " + err.message);
     }
+    setSubmitting(false);
   };
 
   return (
@@ -243,17 +249,17 @@ export default function InscribirsePage() {
                 {
                   name: "apellidoPaterno",
                   label: "Apellido paterno",
-                  type: "text",
+                  type: "text"
                 },
                 {
                   name: "apellidoMaterno",
                   label: "Apellido materno",
-                  type: "text",
+                  type: "text"
                 },
                 {
                   name: "email",
                   label: "Correo electrónico",
-                  type: "email",
+                  type: "email"
                 },
                 { name: "celular", label: "Celular", type: "tel" },
                 { name: "pais", label: "País", type: "text" },
@@ -263,18 +269,16 @@ export default function InscribirsePage() {
                   name: "club",
                   label: "Club (opcional)",
                   type: "text",
-                  required: false,
+                  required: false
                 },
                 {
                   name: "fechaNacimiento",
                   label: "Fecha de nacimiento",
-                  type: "date",
-                },
+                  type: "date"
+                }
               ].map((f) => (
                 <div key={f.name}>
-                  <label className="block text-sm font-medium">
-                    {f.label}
-                  </label>
+                  <label className="block text-sm font-medium">{f.label}</label>
                   <input
                     name={f.name}
                     type={f.type}
@@ -282,7 +286,7 @@ export default function InscribirsePage() {
                     onChange={(e) =>
                       setNuevoPerfil((prev) => ({
                         ...prev,
-                        [f.name]: e.target.value,
+                        [f.name]: e.target.value
                       }))
                     }
                     required={f.required !== false}
@@ -320,16 +324,19 @@ export default function InscribirsePage() {
             </select>
             <button
               onClick={handleInscribir}
-              className="mt-4 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700"
+              disabled={submitting}
+              className={`mt-4 py-2 px-4 rounded w-full text-white ${
+                submitting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-purple-600 hover:bg-purple-700"
+              }`}
             >
-              Inscribirme
+              {submitting ? "Inscribiendo…" : "Inscribirme"}
             </button>
           </div>
         )}
 
-        {mensaje && (
-          <p className="mt-4 text-center text-green-700">{mensaje}</p>
-        )}
+        {mensaje && <p className="mt-4 text-center text-green-700">{mensaje}</p>}
       </div>
     </AuthGuard>
   );
