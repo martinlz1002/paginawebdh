@@ -189,7 +189,6 @@ export default function PerfilPage() {
 
   return (
     <AuthGuard>
-    <ProtectedRoute>
       <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
         {/* Selector de perfil */}
         <div className="mb-6">
@@ -391,7 +390,6 @@ export default function PerfilPage() {
           </div>
         )}
       </div>
-    </ProtectedRoute>
      </AuthGuard>
   );
 }

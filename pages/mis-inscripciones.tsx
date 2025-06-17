@@ -4,6 +4,7 @@ import { getAuth } from 'firebase/auth';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { db } from '@/lib/firebase';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function MisInscripciones() {
   const [inscripciones, setInscripciones] = useState<any[]>([]);
@@ -23,7 +24,7 @@ export default function MisInscripciones() {
   }, [auth.currentUser]);
 
   return (
-    <ProtectedRoute>
+    <AuthGuard>
       <div className="max-w-2xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">Mis Inscripciones</h1>
         <ul className="space-y-2">
@@ -35,6 +36,6 @@ export default function MisInscripciones() {
           ))}
         </ul>
       </div>
-    </ProtectedRoute>
+    </AuthGuard>
   );
 }
