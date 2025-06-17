@@ -1,19 +1,27 @@
+import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+interface AuthGuardProps {
+  children: ReactNode;
+}
+
+export default function AuthGuard({ children }: AuthGuardProps) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const auth = getAuth();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(getAuth(), user => {
-      if (!user) router.replace('/login');
-      else setLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
+      if (!user) {
+        router.replace('/login');
+      } else {
+        setLoading(false);
+      }
     });
-    return () => unsubscribe();
-  }, []);
+    return unsubscribe;
+  }, [auth, router]);
 
-  if (loading) return <p>Cargando...</p>;
+  if (loading) return <p className="text-center mt-10">Cargando…</p>;
   return <>{children}</>;
 }

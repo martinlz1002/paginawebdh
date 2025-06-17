@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import AuthGuard from '@/components/AuthGuard';
 
 interface UserData {
   id?: string;
@@ -183,15 +184,12 @@ export default function PerfilPage() {
   };
 
   if (loading || !userData) {
-    return (
-      <ProtectedRoute>
-        <p className="text-center mt-10">Cargando perfil...</p>
-      </ProtectedRoute>
-    );
+    return <p className="text-center mt-10">Cargando perfil...</p>;
   }
 
   return (
     <ProtectedRoute>
+      <AuthGuard>
       <div className="max-w-xl mx-auto mt-10 p-6 border rounded-2xl shadow">
         {/* Selector de perfil */}
         <div className="mb-6">
@@ -393,6 +391,7 @@ export default function PerfilPage() {
           </div>
         )}
       </div>
+       </AuthGuard>
     </ProtectedRoute>
   );
 }
