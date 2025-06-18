@@ -22,6 +22,7 @@ interface PerfilData {
   pais?: string
   estado?: string
   ciudad?: string
+  club?: string
   edad?: number
 }
 
@@ -54,7 +55,7 @@ export default function AdminInscripcionesView() {
     })()
   }, [])
 
-  // 2) Cuando cambia la carrera, traigo inscripciones + perfil correcto
+  // 2) Cuando cambia la carrera, traigo inscripciones + perfil completo
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([])
@@ -75,7 +76,7 @@ export default function AdminInscripcionesView() {
             const data = d.data()!
             let perfil: PerfilData | null = null
 
-            // 2a) Si es perfil principal
+            // 2a) Perfil principal
             if (data.perfilId === data.perfilOwner) {
               const mainRef = doc(db, 'usuarios', data.perfilOwner)
               const mainSnap = await getDoc(mainRef)
@@ -89,11 +90,12 @@ export default function AdminInscripcionesView() {
                   pais: m.pais,
                   estado: m.estado,
                   ciudad: m.ciudad,
+                  club: m.club,
                   edad: m.edad
                 }
               }
             } else {
-              // 2b) Si es subperfil
+              // 2b) Subperfil
               const subRef = doc(
                 db,
                 'usuarios',
@@ -112,6 +114,7 @@ export default function AdminInscripcionesView() {
                   pais: s.pais,
                   estado: s.estado,
                   ciudad: s.ciudad,
+                  club: s.club,
                   edad: s.edad
                 }
               }
@@ -174,6 +177,7 @@ export default function AdminInscripcionesView() {
                 <th className="border p-2">País</th>
                 <th className="border p-2">Estado</th>
                 <th className="border p-2">Ciudad</th>
+                <th className="border p-2">Club</th> {/* Nueva columna */}
                 <th className="border p-2">Categoría</th>
                 <th className="border p-2">Registrado</th>
               </tr>
@@ -191,6 +195,7 @@ export default function AdminInscripcionesView() {
                     <td className="border p-2">{p.pais ?? '-'}</td>
                     <td className="border p-2">{p.estado ?? '-'}</td>
                     <td className="border p-2">{p.ciudad ?? '-'}</td>
+                    <td className="border p-2">{p.club ?? ''}</td> {/* Mostramos club si existe */}
                     <td className="border p-2">{i.categoria}</td>
                     <td className="border p-2">
                       {i.timestamp?.toDate
