@@ -7,7 +7,7 @@ import {
   doc,
   getDoc,
   collectionGroup,
-  documentId,
+  documentId
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { CarreraData } from '@/types/carrera'
@@ -32,7 +32,8 @@ interface PerfilData {
 
 interface InscripcionItem {
   id: string
-  perfilOwner: string
+  perfilId: string        // ID del subperfil o del perfil principal
+  perfilOwner: string     // UID del dueño (igual a perfilId si es perfil principal)
   categoria: string
   timestamp: any
   perfil: PerfilData | null
@@ -68,38 +69,41 @@ export default function AdminInscripcionesView() {
     setError(null)
     ;(async () => {
       try {
-        // 2.1) traigo todas las inscripciones para la carrera
+        // 2.1) obtengo inscripciones de raíz
         const q = query(
           collection(db, 'inscripciones'),
           where('carreraId', '==', selectedCarrera)
         )
         const snap = await getDocs(q)
 
-        // 2.2) para cada inscripción cargo el perfil (principal o subperfil)
         const items: InscripcionItem[] = await Promise.all(
           snap.docs.map(async d => {
-            const data = d.data() as any
+            const data = d.data()!
             let perfil: PerfilData | null = null
 
-            // intenta perfil principal
-            const mainRef = doc(db, 'usuarios', data.perfilId)
+            // 2a) intento perfil principal
+            const mainRef = doc(db, 'usuarios', data.perfilOwner)
             const mainSnap = await getDoc(mainRef)
             if (mainSnap.exists()) {
               perfil = mainSnap.data() as PerfilData
             } else {
-              // si no existe, busca en cualquier subcolección 'perfiles'
-              const cg = query(
-                collectionGroup(db, 'perfiles'),
-                where(documentId(), '==', data.perfilId)
+              // 2b) si no existe como documento raíz, lo busco en la subcolección
+              const subRef = doc(
+                db,
+                'usuarios',
+                data.perfilOwner,
+                'perfiles',
+                data.perfilId
               )
-              const cgSnap = await getDocs(cg)
-              if (!cgSnap.empty) {
-                perfil = cgSnap.docs[0].data() as PerfilData
+              const subSnap = await getDoc(subRef)
+              if (subSnap.exists()) {
+                perfil = subSnap.data() as PerfilData
               }
             }
 
             return {
               id: d.id,
+              perfilId: data.perfilId,
               perfilOwner: data.perfilOwner,
               categoria: data.categoria,
               timestamp: data.timestamp,
