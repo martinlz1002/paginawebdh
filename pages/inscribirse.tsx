@@ -118,11 +118,15 @@ export default function InscribirsePage() {
     }
     try {
       // Evitar duplicados
-      const dupQ = query(
-        collection(db, "inscripciones"),
-        where("carreraId", "==", carrera!.id),
-        where("perfilId", "==", perfilSeleccionado)
-      );
+      const auth = getAuth(app);
+    const user = auth.currentUser!;
+    // 1) Query de duplicados ahora incluye perfilOwner
+    const dupQ = query(
+      collection(db, "inscripciones"),
+      where("carreraId", "==", carrera!.id),
+      where("perfilId", "==", perfilSeleccionado),
+      where("perfilOwner", "==", user.uid)
+    );
       const dupSnap = await getDocs(dupQ);
       if (!dupSnap.empty) {
         setMensaje("Ya estás inscrito con este perfil.");
