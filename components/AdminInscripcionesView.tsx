@@ -27,8 +27,8 @@ interface PerfilData {
 
 interface InscripcionItem {
   id: string
-  perfilId: string        // ID del subperfil o del perfil principal
-  perfilOwner: string     // UID del dueño
+  perfilId: string
+  perfilOwner: string
   categoria: string
   timestamp: any
   perfil: PerfilData | null
@@ -54,7 +54,7 @@ export default function AdminInscripcionesView() {
     })()
   }, [])
 
-  // 2) Cuando cambia la carrera, traigo inscripciones + perfil completo
+  // 2) Cuando cambia la carrera, traigo inscripciones + perfil correcto
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([])
@@ -64,7 +64,6 @@ export default function AdminInscripcionesView() {
     setError(null)
     ;(async () => {
       try {
-        // 2.1) obtengo inscripciones de la colección raíz
         const q = query(
           collection(db, 'inscripciones'),
           where('carreraId', '==', selectedCarrera)
@@ -76,23 +75,25 @@ export default function AdminInscripcionesView() {
             const data = d.data()!
             let perfil: PerfilData | null = null
 
-            // 2a) intento perfil principal
-            const mainRef = doc(db, 'usuarios', data.perfilOwner)
-            const mainSnap = await getDoc(mainRef)
-            if (mainSnap.exists()) {
-              const m = mainSnap.data() as any
-              perfil = {
-                nombre: m.nombre,
-                apellidoPaterno: m.apPaterno,    // si en tu root usas apPaterno
-                apellidoMaterno: m.apMaterno,    // o ajusta a apellidoPaterno/materno
-                celular: m.celular,
-                pais: m.pais,
-                estado: m.estado,
-                ciudad: m.ciudad,
-                edad: m.edad
+            // Si perfilId === perfilOwner, es el perfil principal
+            if (data.perfilId === data.perfilOwner) {
+              const mainRef = doc(db, 'usuarios', data.perfilOwner)
+              const mainSnap = await getDoc(mainRef)
+              if (mainSnap.exists()) {
+                const m = mainSnap.data() as any
+                perfil = {
+                  nombre: m.nombre,
+                  apellidoPaterno: m.apPaterno,    // o 'apellidoPaterno' si así lo nombras
+                  apellidoMaterno: m.apMaterno,     // o 'apellidoMaterno'
+                  celular: m.celular,
+                  pais: m.pais,
+                  estado: m.estado,
+                  ciudad: m.ciudad,
+                  edad: m.edad
+                }
               }
             } else {
-              // 2b) si no existe, lo busco en la subcolección perfiles
+              // Es un subperfil: lo busco en /usuarios/{owner}/perfiles/{perfilId}
               const subRef = doc(
                 db,
                 'usuarios',
