@@ -7,15 +7,16 @@ import {
   getDocs,
   DocumentData,
   QueryDocumentSnapshot,
+  doc,
+  getDoc
 } from "firebase/firestore";
-import { doc, getDoc } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import AuthGuard from "@/components/AuthGuard";
 import Link from "next/link";
 
 interface InscRaw {
   carreraId: string;
-  perfilId: string;
+  perfilOwner: string;  // ahora hay un campo perfilOwner en el doc
   categoria: string;
   timestamp: any;
 }
@@ -43,25 +44,21 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      // 1) obtenemos todos los perfiles (prin.+sec.)
-      const uids = [user.uid];
-      const snap = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
-      snap.forEach(d => uids.push(d.id));
-
-      // 2) query raíz /inscripciones where perfilId in uids
+      // 1) ahora filtramos por perfilOwner == usuario actual
       const inscQuery = query(
         collection(db, "inscripciones"),
-        where("perfilId", "in", uids)
+        where("perfilOwner", "==", user.uid)
       );
       const inscSnap = await getDocs(inscQuery);
 
-      // 3) montar vista
-      const v = await Promise.all(
+      // 2) montar la vista con datos de cada carrera
+      const v: InscView[] = await Promise.all(
         inscSnap.docs.map(async (d: QueryDocumentSnapshot<DocumentData>) => {
           const src = d.data() as InscRaw;
-          // fetch carrera
+          // fetch de la carrera
           const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
           const c = cDoc.exists() ? cDoc.data()! : {};
+
           return {
             id: d.id,
             carreraId: src.carreraId,
@@ -69,9 +66,9 @@ export default function MisInscripcionesPage() {
             fechaIns: src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "",
-            titulo: c.titulo || "(sin título)",
-            fechaCarr: c.fecha?.toDate
-              ? c.fecha.toDate().toLocaleDateString()
+            titulo: (c as any).titulo || "(sin título)",
+            fechaCarr: (c as any).fecha?.toDate
+              ? (c as any).fecha.toDate().toLocaleDateString()
               : "",
             ubicacion: (c as any).ubicacion,
             imagenUrl: (c as any).imagenUrl,
@@ -82,7 +79,8 @@ export default function MisInscripcionesPage() {
       setList(v);
       setLoading(false);
     });
-    return unsub;
+
+    return () => unsub();
   }, []);
 
   if (loading) {
@@ -102,7 +100,10 @@ export default function MisInscripcionesPage() {
         ) : (
           <ul className="space-y-6">
             {list.map(i => (
-              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
+              <li
+                key={i.id}
+                className="border rounded shadow hover:shadow-lg overflow-hidden"
+              >
                 <Link href={`/inscribirse?carreraId=${i.carreraId}`}>
                   <a className="flex flex-col md:flex-row">
                     {i.imagenUrl ? (
