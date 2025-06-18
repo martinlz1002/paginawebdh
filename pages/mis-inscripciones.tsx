@@ -16,7 +16,7 @@ import Link from "next/link";
 
 interface InscRaw {
   carreraId: string;
-  perfilOwner: string;  // ahora hay un campo perfilOwner en el doc
+  perfilOwner: string;
   categoria: string;
   timestamp: any;
 }
