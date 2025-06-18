@@ -8,7 +8,6 @@ import {
   getDoc,
   collectionGroup,
   documentId,
-  FirestoreError
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import type { CarreraData } from '@/types/carrera'
@@ -33,6 +32,7 @@ interface PerfilData {
 
 interface InscripcionItem {
   id: string
+  perfilOwner: string
   categoria: string
   timestamp: any
   perfil: PerfilData | null
@@ -68,24 +68,26 @@ export default function AdminInscripcionesView() {
     setError(null)
     ;(async () => {
       try {
+        // 2.1) traigo todas las inscripciones para la carrera
         const q = query(
           collection(db, 'inscripciones'),
           where('carreraId', '==', selectedCarrera)
         )
         const snap = await getDocs(q)
 
+        // 2.2) para cada inscripción cargo el perfil (principal o subperfil)
         const items: InscripcionItem[] = await Promise.all(
           snap.docs.map(async d => {
-            const data = d.data()
+            const data = d.data() as any
             let perfil: PerfilData | null = null
 
-            // 2a) Intento perfil principal
+            // intenta perfil principal
             const mainRef = doc(db, 'usuarios', data.perfilId)
             const mainSnap = await getDoc(mainRef)
             if (mainSnap.exists()) {
               perfil = mainSnap.data() as PerfilData
             } else {
-              // 2b) Si no existe, busco en cualquier subcolección 'perfiles'
+              // si no existe, busca en cualquier subcolección 'perfiles'
               const cg = query(
                 collectionGroup(db, 'perfiles'),
                 where(documentId(), '==', data.perfilId)
@@ -98,6 +100,7 @@ export default function AdminInscripcionesView() {
 
             return {
               id: d.id,
+              perfilOwner: data.perfilOwner,
               categoria: data.categoria,
               timestamp: data.timestamp,
               perfil,
