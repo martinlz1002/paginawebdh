@@ -2,14 +2,12 @@ import { useState } from 'react';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { db } from '@/lib/firebase';
-import { useRouter } from 'next/router';
 
 export default function InscripcionForm({ carreraId }: { carreraId: string }) {
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [celular, setCelular] = useState('');
   const [mensaje, setMensaje] = useState('');
-  const router = useRouter();
   const auth = getAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
