@@ -75,16 +75,16 @@ export default function AdminInscripcionesView() {
             const data = d.data()!
             let perfil: PerfilData | null = null
 
-            // Si perfilId === perfilOwner, es el perfil principal
+            // 2a) Si es perfil principal
             if (data.perfilId === data.perfilOwner) {
               const mainRef = doc(db, 'usuarios', data.perfilOwner)
               const mainSnap = await getDoc(mainRef)
               if (mainSnap.exists()) {
                 const m = mainSnap.data() as any
                 perfil = {
-                  nombre: m.nombre,
-                  apellidoPaterno: m.apPaterno,    // o 'apellidoPaterno' si así lo nombras
-                  apellidoMaterno: m.apMaterno,     // o 'apellidoMaterno'
+                  nombre: m.nombre || '',
+                  apellidoPaterno: m.apPaterno ?? m.apellidoPaterno ?? '',
+                  apellidoMaterno: m.apMaterno ?? m.apellidoMaterno ?? '',
                   celular: m.celular,
                   pais: m.pais,
                   estado: m.estado,
@@ -93,7 +93,7 @@ export default function AdminInscripcionesView() {
                 }
               }
             } else {
-              // Es un subperfil: lo busco en /usuarios/{owner}/perfiles/{perfilId}
+              // 2b) Si es subperfil
               const subRef = doc(
                 db,
                 'usuarios',
@@ -180,17 +180,17 @@ export default function AdminInscripcionesView() {
             </thead>
             <tbody>
               {inscripciones.map(i => {
-                const p = i.perfil
+                const p = i.perfil!
                 return (
                   <tr key={i.id} className="hover:bg-gray-50">
-                    <td className="border p-2">{p?.nombre || '-'}</td>
-                    <td className="border p-2">{p?.apellidoPaterno || '-'}</td>
-                    <td className="border p-2">{p?.apellidoMaterno || '-'}</td>
-                    <td className="border p-2">{p?.edad ?? '-'}</td>
-                    <td className="border p-2">{p?.celular || '-'}</td>
-                    <td className="border p-2">{p?.pais || '-'}</td>
-                    <td className="border p-2">{p?.estado || '-'}</td>
-                    <td className="border p-2">{p?.ciudad || '-'}</td>
+                    <td className="border p-2">{p.nombre}</td>
+                    <td className="border p-2">{p.apellidoPaterno}</td>
+                    <td className="border p-2">{p.apellidoMaterno}</td>
+                    <td className="border p-2">{p.edad ?? '-'}</td>
+                    <td className="border p-2">{p.celular ?? '-'}</td>
+                    <td className="border p-2">{p.pais ?? '-'}</td>
+                    <td className="border p-2">{p.estado ?? '-'}</td>
+                    <td className="border p-2">{p.ciudad ?? '-'}</td>
                     <td className="border p-2">{i.categoria}</td>
                     <td className="border p-2">
                       {i.timestamp?.toDate
