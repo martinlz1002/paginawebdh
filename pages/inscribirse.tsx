@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { app, db } from "@/lib/firebase";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
@@ -51,7 +51,7 @@ export default function InscribirsePage() {
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const auth = getAuth(app);
 
-  // 1) Cargar datos de la carrera (incluye bannerUrl)
+  // Carga de carrera...
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -66,9 +66,10 @@ export default function InscribirsePage() {
         titulo: data.titulo,
         descripcion: data.descripcion,
         lugar: data.lugar || data.ubicacion,
-        fecha: data.fecha instanceof Timestamp
-          ? data.fecha.toDate().toLocaleDateString()
-          : data.fecha,
+        fecha:
+          data.fecha instanceof Timestamp
+            ? data.fecha.toDate().toLocaleDateString()
+            : data.fecha,
         horaSalida: data.horaSalida,
         imagenUrl: data.imagenUrl,
         bannerUrl: data.bannerUrl,
@@ -77,7 +78,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Autenticación y carga de perfiles
+  // Carga de perfiles...
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -92,31 +93,19 @@ export default function InscribirsePage() {
     const udoc = await getDoc(doc(db, "usuarios", uid));
     if (udoc.exists()) {
       const d: any = udoc.data();
-      lista.push({
-        id: uid,
-        nombre: d.nombre,
-        apellidoPaterno: d.apPaterno,
-        apellidoMaterno: d.apMaterno,
-        edad: d.edad,
-      });
+      lista.push({ id: uid, nombre: d.nombre, apellidoPaterno: d.apPaterno, apellidoMaterno: d.apMaterno, edad: d.edad });
     }
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
     snap.docs.forEach(d => {
       const p: any = d.data();
-      lista.push({
-        id: d.id,
-        nombre: p.nombre,
-        apellidoPaterno: p.apellidoPaterno,
-        apellidoMaterno: p.apellidoMaterno,
-        edad: p.edad,
-      });
+      lista.push({ id: d.id, nombre: p.nombre, apellidoPaterno: p.apellidoPaterno, apellidoMaterno: p.apellidoMaterno, edad: p.edad });
     });
     setPerfiles(lista);
     if (lista.length) setPerfilSeleccionado(lista[0].id);
     setLoadingPerfiles(false);
   }
 
-  // 3) Manejar inscripción
+  // Inscripción...
   const handleInscribir = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -136,11 +125,7 @@ export default function InscribirsePage() {
         setMensaje("Ya estás inscrito con este perfil.");
         return;
       }
-      await registrarInscripcion({
-        carreraId: carrera!.id,
-        perfilId: perfilSeleccionado,
-        categoria: categoriaSeleccionada,
-      });
+      await registrarInscripcion({ carreraId: carrera!.id, perfilId: perfilSeleccionado, categoria: categoriaSeleccionada });
       setMensaje("¡Inscripción exitosa!");
     } catch (err: any) {
       setMensaje("Error al inscribir: " + err.message);
@@ -155,63 +140,60 @@ export default function InscribirsePage() {
     );
   }
 
+  // Perfil actual para filtrar categorías
+  const perfilActual = perfiles.find(p => p.id === perfilSeleccionado);
+  const categoriasPermitidas = carrera.categorias.filter(cat =>
+    perfilActual ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge : false
+  );
+
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
         {/* Banner */}
         {carrera.bannerUrl && (
-          <div
-            className="h-56 bg-cover bg-center"
-            style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
-          />
+          <div className="h-56 bg-cover bg-center" style={{ backgroundImage: `url(${carrera.bannerUrl})` }}/>
         )}
-
         <div className="p-6 space-y-6">
           {/* Título y descripción */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-          {carrera.descripcion && (
-            <p className="text-gray-700">{carrera.descripcion}</p>
-          )}
+          {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
 
-          {/* Meta datos */}
+          {/* Meta */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
-            {carrera.lugar && (
-              <div>📍 <span className="font-medium">{carrera.lugar}</span></div>
-            )}
-            {carrera.fecha && (
-              <div>📅 <span className="font-medium">{carrera.fecha}</span></div>
-            )}
-            {carrera.horaSalida && (
-              <div>⏰ <span className="font-medium">{carrera.horaSalida}</span></div>
-            )}
+            {carrera.lugar && <div>📍 <span className="font-medium">{carrera.lugar}</span></div>}
+            {carrera.fecha && <div>📅 <span className="font-medium">{carrera.fecha}</span></div>}
+            {carrera.horaSalida && <div>⏰ <span className="font-medium">{carrera.horaSalida}</span></div>}
           </div>
 
-          {/* Tabla de categorías */}
+          {/* Tabla de categorías permitidas */}
           <div>
-            <h2 className="text-xl font-semibold mb-2">Categorías</h2>
-            <table className="w-full table-auto border-collapse">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-4 py-2">Nombre</th>
-                  <th className="border px-4 py-2">Rango de edad</th>
-                </tr>
-              </thead>
-              <tbody>
-                {carrera.categorias.map(cat => (
-                  <tr key={cat.nombre} className="hover:bg-gray-50">
-                    <td className="border px-4 py-2">{cat.nombre}</td>
-                    <td className="border px-4 py-2">
-                      {cat.minAge}–{cat.maxAge} años
-                    </td>
+            <h2 className="text-xl font-semibold mb-2">Categorías disponibles</h2>
+            {categoriasPermitidas.length ? (
+              <table className="w-full table-auto border-collapse">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border px-4 py-2">Nombre</th>
+                    <th className="border px-4 py-2">Edad mínima</th>
+                    <th className="border px-4 py-2">Edad máxima</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {categoriasPermitidas.map(cat => (
+                    <tr key={cat.nombre} className="hover:bg-gray-50">
+                      <td className="border px-4 py-2">{cat.nombre}</td>
+                      <td className="border px-4 py-2">{cat.minAge}</td>
+                      <td className="border px-4 py-2">{cat.maxAge}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-red-600">No hay categorías disponibles para tu edad.</p>
+            )}
           </div>
 
           {/* Formulario de inscripción */}
           <div className="pt-4 border-t space-y-4">
-            {/* Selección de perfil */}
             <div>
               <label className="block font-medium mb-1">Tu perfil</label>
               {loadingPerfiles ? (
@@ -231,24 +213,21 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Selección de categoría */}
             <div>
               <label className="block font-medium mb-1">Categoría</label>
               <select
                 className="w-full border p-2 rounded"
                 value={categoriaSeleccionada}
                 onChange={e => setCategoriaSeleccionada(e.target.value)}
+                disabled={!categoriasPermitidas.length}
               >
                 <option value="">-- Selecciona categoría --</option>
-                {carrera.categorias.map(cat => (
-                  <option key={cat.nombre} value={cat.nombre}>
-                    {cat.nombre}
-                  </option>
+                {categoriasPermitidas.map(cat => (
+                  <option key={cat.nombre} value={cat.nombre}>{cat.nombre}</option>
                 ))}
               </select>
             </div>
 
-            {/* Botón */}
             <button
               onClick={handleInscribir}
               disabled={!perfilSeleccionado || !categoriaSeleccionada}
@@ -261,9 +240,7 @@ export default function InscribirsePage() {
               Inscribirme
             </button>
 
-            {mensaje && (
-              <p className="text-center text-red-600">{mensaje}</p>
-            )}
+            {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
           </div>
         </div>
       </div>
