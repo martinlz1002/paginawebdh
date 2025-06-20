@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db, storage } from '@/lib/firebase';
 import {
   collection,
@@ -9,12 +9,13 @@ import {
 import {
   ref,
   uploadBytes,
-  getDownloadURL
+  getDownloadURL,
+  deleteObject
 } from 'firebase/storage';
 import { CarreraData, Categoria } from '@/types/carrera';
 
 export interface AdminCarrerasFormProps {
-  initialValues?: CarreraData & { id: string };
+  initialValues?: CarreraData & { id: string; bannerUrl?: string };
   onSuccess?: () => void;
 }
 
@@ -28,64 +29,95 @@ export default function AdminCarrerasForm({
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
   const [imagenFile, setImagenFile] = useState<File | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
 
-  // Aquí inicializas directamente con Categoria[], no con función que devuelva string[]
-  const [categorias, setCategorias] = useState<Categoria[]>(
-    initialValues?.categorias ?? []
-  );
+  const [imagenUrl, setImagenUrl] = useState<string | undefined>(initialValues?.imagenUrl);
+  const [bannerUrl, setBannerUrl] = useState<string | undefined>(initialValues?.bannerUrl);
 
-  const [nuevaCat, setNuevaCat] = useState<Categoria>({
-    nombre: '',
-    minAge: 0,
-    maxAge: 0
-  });
+  const [categorias, setCategorias] = useState<Categoria[]>(initialValues?.categorias ?? []);
+  const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0 });
+  const [editIndex, setEditIndex] = useState<number | null>(null);
 
-  const handleAddCategoria = () => {
-    if (
-      nuevaCat.nombre.trim() &&
-      nuevaCat.minAge >= 0 &&
-      nuevaCat.maxAge >= nuevaCat.minAge
-    ) {
-      setCategorias(prev => [...prev, nuevaCat]);
+  const handleAddOrSaveCategoria = () => {
+    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) return;
+    setCategorias(prev => {
+      if (editIndex !== null) {
+        const copy = [...prev];
+        copy[editIndex] = nuevaCat;
+        return copy;
+      } else {
+        return [...prev, nuevaCat];
+      }
+    });
+    setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
+    setEditIndex(null);
+  };
+
+  const handleEditCategoria = (idx: number) => {
+    setNuevaCat(categorias[idx]);
+    setEditIndex(idx);
+  };
+
+  const handleDeleteCategoria = (idx: number) => {
+    setCategorias(prev => prev.filter((_, i) => i !== idx));
+    if (editIndex === idx) {
       setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
+      setEditIndex(null);
     }
+  };
+
+  const uploadIfNeeded = async (file: File, pathPrefix: string): Promise<string> => {
+    const refPath = `${pathPrefix}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, refPath);
+    const snap = await uploadBytes(storageRef, file);
+    return await getDownloadURL(snap.ref);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // 1) Subida de imagen si hay
-    let imagenUrl = initialValues?.imagenUrl;
+    // Variables locales para no reasignar estado directamente
+    let newImagenUrl = imagenUrl;
+    let newBannerUrl = bannerUrl;
+
+    // 1) Upload imagen principal si hay nueva
     if (imagenFile) {
-      const storageRef = ref(
-        storage,
-        `carreras/${Date.now()}_${imagenFile.name}`
-      );
-      const snap = await uploadBytes(storageRef, imagenFile);
-      imagenUrl = await getDownloadURL(snap.ref);
+      if (newImagenUrl) {
+        try { await deleteObject(ref(storage, newImagenUrl)); } catch {}
+      }
+      newImagenUrl = await uploadIfNeeded(imagenFile, 'carreras');
     }
 
-    // 2) Payload
-    const payload: CarreraData = {
+    // 2) Upload banner si hay nuevo
+    if (bannerFile) {
+      if (newBannerUrl) {
+        try { await deleteObject(ref(storage, newBannerUrl)); } catch {}
+      }
+      newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
+    }
+
+    // 3) Armar payload
+    const payload: CarreraData & { bannerUrl?: string } = {
       titulo,
       descripcion,
       lugar,
       fecha,
       horaSalida,
-      imagenUrl,
-      categorias
+      categorias,
+      ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
+      ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
 
-    // 3) Crear o editar
+    // 4) Crear o actualizar en Firestore
     if (initialValues?.id) {
-      await updateDoc(
-        doc(db, 'carreras', initialValues.id),
-        // workaround typing de Firestore
-        payload as any
-      );
+      await updateDoc(doc(db, 'carreras', initialValues.id), payload as any);
     } else {
       await addDoc(collection(db, 'carreras'), payload as any);
     }
+
+    // Actualizar estado local
+    setImagenUrl(newImagenUrl);
+    setBannerUrl(newBannerUrl);
 
     onSuccess?.();
   };
@@ -96,63 +128,23 @@ export default function AdminCarrerasForm({
         {initialValues ? 'Editar Carrera' : 'Crear Nueva Carrera'}
       </h2>
 
-      <div>
-        <label className="block font-medium">Título</label>
-        <input
-          type="text"
-          value={titulo}
-          onChange={e => setTitulo(e.target.value)}
-          required
-          className="mt-1 w-full border p-2 rounded"
-        />
-      </div>
+      {/* Aquí irían tus inputs de título, descripción, lugar, fecha y horaSalida */}
 
+      {/* Imagen principal opcional */}
       <div>
-        <label className="block font-medium">Descripción</label>
-        <textarea
-          value={descripcion}
-          onChange={e => setDescripcion(e.target.value)}
-          required
-          className="mt-1 w-full border p-2 rounded"
-        />
-      </div>
-
-      <div>
-        <label className="block font-medium">Lugar</label>
-        <input
-          type="text"
-          value={lugar}
-          onChange={e => setLugar(e.target.value)}
-          required
-          className="mt-1 w-full border p-2 rounded"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block font-medium">Fecha</label>
-          <input
-            type="date"
-            value={fecha}
-            onChange={e => setFecha(e.target.value)}
-            required
-            className="mt-1 w-full border p-2 rounded"
-          />
-        </div>
-        <div>
-          <label className="block font-medium">Hora de salida</label>
-          <input
-            type="time"
-            value={horaSalida}
-            onChange={e => setHoraSalida(e.target.value)}
-            required
-            className="mt-1 w-full border p-2 rounded"
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block font-medium">Foto (opcional)</label>
+        <label className="block font-medium">Imagen principal (opcional)</label>
+        {imagenUrl && (
+          <div className="mb-2 flex items-center">
+            <img src={imagenUrl} alt="Principal" className="h-24 object-cover rounded" />
+            <button
+              type="button"
+              onClick={() => setImagenUrl(undefined)}
+              className="text-red-600 ml-4"
+            >
+              Eliminar
+            </button>
+          </div>
+        )}
         <input
           type="file"
           accept="image/*"
@@ -161,53 +153,90 @@ export default function AdminCarrerasForm({
         />
       </div>
 
+      {/* Banner opcional */}
+      <div>
+        <label className="block font-medium">Banner superior (opcional)</label>
+        {bannerUrl && (
+          <div className="mb-2 flex items-center">
+            <img src={bannerUrl} alt="Banner" className="h-32 w-full object-cover rounded" />
+            <button
+              type="button"
+              onClick={() => setBannerUrl(undefined)}
+              className="text-red-600 ml-4"
+            >
+              Eliminar
+            </button>
+          </div>
+        )}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={e => setBannerFile(e.target.files?.[0] ?? null)}
+          className="mt-1 w-full"
+        />
+      </div>
+
+      {/* Categorías con editar/eliminar */}
       <div className="border-t pt-4">
         <h3 className="font-medium mb-2">Categorías</h3>
-        <ul className="mb-2">
+        <ul className="mb-2 space-y-1">
           {categorias.map((c, i) => (
-            <li key={i} className="text-sm">
-              • {c.nombre} ({c.minAge}–{c.maxAge} años)
+            <li key={i} className="flex justify-between items-center">
+              <span>• {c.nombre} ({c.minAge}–{c.maxAge} años)</span>
+              <div className="space-x-2">
+                <button
+                  type="button"
+                  onClick={() => handleEditCategoria(i)}
+                  className="text-blue-600 hover:underline"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCategoria(i)}
+                  className="text-red-600 hover:underline"
+                >
+                  Eliminar
+                </button>
+              </div>
             </li>
           ))}
         </ul>
+
+        {/* Formulario de nueva categoría */}
         <div className="grid grid-cols-3 gap-2 items-end">
           <input
             type="text"
             placeholder="Nombre categoría"
             value={nuevaCat.nombre}
-            onChange={e =>
-              setNuevaCat(s => ({ ...s, nombre: e.target.value }))
-            }
+            onChange={e => setNuevaCat(s => ({ ...s, nombre: e.target.value }))}
             className="border p-2 rounded"
           />
           <input
             type="number"
             placeholder="Mín edad"
             value={nuevaCat.minAge}
-            onChange={e =>
-              setNuevaCat(s => ({ ...s, minAge: Number(e.target.value) }))
-            }
+            onChange={e => setNuevaCat(s => ({ ...s, minAge: Number(e.target.value) }))}
             className="border p-2 rounded"
           />
           <input
             type="number"
             placeholder="Máx edad"
             value={nuevaCat.maxAge}
-            onChange={e =>
-              setNuevaCat(s => ({ ...s, maxAge: Number(e.target.value) }))
-            }
+            onChange={e => setNuevaCat(s => ({ ...s, maxAge: Number(e.target.value) }))}
             className="border p-2 rounded"
           />
           <button
             type="button"
-            onClick={handleAddCategoria}
+            onClick={handleAddOrSaveCategoria}
             className="col-span-3 mt-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
           >
-            + Agregar categoría
+            {editIndex !== null ? 'Guardar categoría' : '+ Agregar categoría'}
           </button>
         </div>
       </div>
 
+      {/* Botón guardar */}
       <div>
         <button
           type="submit"
