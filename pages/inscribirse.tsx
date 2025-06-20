@@ -37,7 +37,6 @@ export default function InscribirsePage() {
   const router = useRouter();
   const { carreraId } = router.query;
   const scrollToFormRef = useRef<HTMLDivElement>(null);
-
   const [carrera, setCarrera] = useState<Carrera | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>("");
