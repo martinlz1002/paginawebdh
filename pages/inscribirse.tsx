@@ -10,6 +10,7 @@ import {
   getDocs,
   query,
   where,
+  Timestamp,
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
 
@@ -22,6 +23,12 @@ interface Categoria {
 interface Carrera {
   id: string;
   titulo: string;
+  descripcion?: string;
+  lugar?: string;
+  fecha?: string;
+  horaSalida?: string;
+  imagenUrl?: string;
+  bannerUrl?: string;
   categorias: Categoria[];
 }
 
@@ -36,31 +43,37 @@ interface Perfil {
 export default function InscribirsePage() {
   const router = useRouter();
   const { carreraId } = router.query;
-  const scrollToFormRef = useRef<HTMLDivElement>(null);
   const [carrera, setCarrera] = useState<Carrera | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
-  const [perfilSeleccionado, setPerfilSeleccionado] = useState<string>("");
+  const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
-
   const auth = getAuth(app);
 
-  // 1) Cargar carrera
+  // 1) Cargar datos de la carrera (incluye bannerUrl)
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
-      const dc = await getDoc(doc(db, "carreras", carreraId as string));
-      if (dc.exists()) {
-        const d = dc.data()!;
-        setCarrera({
-          id: dc.id,
-          titulo: d.titulo,
-          categorias: d.categorias || [],
-        });
-      } else {
+      const snap = await getDoc(doc(db, "carreras", carreraId as string));
+      if (!snap.exists()) {
         setMensaje("Carrera no encontrada");
+        return;
       }
+      const data = snap.data() as any;
+      setCarrera({
+        id: snap.id,
+        titulo: data.titulo,
+        descripcion: data.descripcion,
+        lugar: data.lugar || data.ubicacion,
+        fecha: data.fecha instanceof Timestamp
+          ? data.fecha.toDate().toLocaleDateString()
+          : data.fecha,
+        horaSalida: data.horaSalida,
+        imagenUrl: data.imagenUrl,
+        bannerUrl: data.bannerUrl,
+        categorias: data.categorias || [],
+      });
     })();
   }, [carreraId]);
 
@@ -76,8 +89,6 @@ export default function InscribirsePage() {
   async function loadPerfiles(uid: string) {
     setLoadingPerfiles(true);
     const lista: Perfil[] = [];
-
-    // a) Perfil principal
     const udoc = await getDoc(doc(db, "usuarios", uid));
     if (udoc.exists()) {
       const d: any = udoc.data();
@@ -89,10 +100,8 @@ export default function InscribirsePage() {
         edad: d.edad,
       });
     }
-
-    // b) Subperfiles
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
-    snap.docs.forEach((d) => {
+    snap.docs.forEach(d => {
       const p: any = d.data();
       lista.push({
         id: d.id,
@@ -102,13 +111,12 @@ export default function InscribirsePage() {
         edad: p.edad,
       });
     });
-
     setPerfiles(lista);
-    if (lista.length > 0) setPerfilSeleccionado(lista[0].id);
+    if (lista.length) setPerfilSeleccionado(lista[0].id);
     setLoadingPerfiles(false);
   }
 
-  // 3) Inscribir
+  // 3) Manejar inscripción
   const handleInscribir = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -116,22 +124,18 @@ export default function InscribirsePage() {
       return;
     }
     try {
-      // Evitar duplicados
-      const auth = getAuth(app);
-    const user = auth.currentUser!;
-    // 1) Query de duplicados ahora incluye perfilOwner
-    const dupQ = query(
-      collection(db, "inscripciones"),
-      where("carreraId", "==", carrera!.id),
-      where("perfilId", "==", perfilSeleccionado),
-      where("perfilOwner", "==", user.uid)
-    );
+      const user = auth.currentUser!;
+      const dupQ = query(
+        collection(db, "inscripciones"),
+        where("carreraId", "==", carrera!.id),
+        where("perfilId", "==", perfilSeleccionado),
+        where("perfilOwner", "==", user.uid)
+      );
       const dupSnap = await getDocs(dupQ);
       if (!dupSnap.empty) {
         setMensaje("Ya estás inscrito con este perfil.");
         return;
       }
-      // Registrar la inscripción
       await registrarInscripcion({
         carreraId: carrera!.id,
         perfilId: perfilSeleccionado,
@@ -146,72 +150,122 @@ export default function InscribirsePage() {
   if (!carrera) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
+        <p className="text-center mt-10">{mensaje || "Cargando…"} </p>
       </AuthGuard>
     );
   }
 
   return (
     <AuthGuard>
-      <div className="max-w-2xl mx-auto p-6 space-y-6">
-        <h1 className="text-2xl font-bold">{carrera.titulo}</h1>
+      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Banner */}
+        {carrera.bannerUrl && (
+          <div
+            className="h-56 bg-cover bg-center"
+            style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
+          />
+        )}
 
-        {/* Perfiles */}
-        <div>
-          <label className="block font-medium">Selecciona tu perfil</label>
-          {loadingPerfiles ? (
-            <p>Cargando perfiles…</p>
-          ) : (
-            <select
-              className="mt-1 border p-2 rounded w-full"
-              value={perfilSeleccionado}
-              onChange={(e) => setPerfilSeleccionado(e.target.value)}
-            >
-              {perfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} {p.apellidoPaterno} ({p.edad} años)
-                </option>
-              ))}
-            </select>
+        <div className="p-6 space-y-6">
+          {/* Título y descripción */}
+          <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
+          {carrera.descripcion && (
+            <p className="text-gray-700">{carrera.descripcion}</p>
           )}
+
+          {/* Meta datos */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
+            {carrera.lugar && (
+              <div>📍 <span className="font-medium">{carrera.lugar}</span></div>
+            )}
+            {carrera.fecha && (
+              <div>📅 <span className="font-medium">{carrera.fecha}</span></div>
+            )}
+            {carrera.horaSalida && (
+              <div>⏰ <span className="font-medium">{carrera.horaSalida}</span></div>
+            )}
+          </div>
+
+          {/* Tabla de categorías */}
+          <div>
+            <h2 className="text-xl font-semibold mb-2">Categorías</h2>
+            <table className="w-full table-auto border-collapse">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border px-4 py-2">Nombre</th>
+                  <th className="border px-4 py-2">Rango de edad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {carrera.categorias.map(cat => (
+                  <tr key={cat.nombre} className="hover:bg-gray-50">
+                    <td className="border px-4 py-2">{cat.nombre}</td>
+                    <td className="border px-4 py-2">
+                      {cat.minAge}–{cat.maxAge} años
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Formulario de inscripción */}
+          <div className="pt-4 border-t space-y-4">
+            {/* Selección de perfil */}
+            <div>
+              <label className="block font-medium mb-1">Tu perfil</label>
+              {loadingPerfiles ? (
+                <p>Cargando perfiles…</p>
+              ) : (
+                <select
+                  className="w-full border p-2 rounded"
+                  value={perfilSeleccionado}
+                  onChange={e => setPerfilSeleccionado(e.target.value)}
+                >
+                  {perfiles.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} {p.apellidoPaterno} ({p.edad} años)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Selección de categoría */}
+            <div>
+              <label className="block font-medium mb-1">Categoría</label>
+              <select
+                className="w-full border p-2 rounded"
+                value={categoriaSeleccionada}
+                onChange={e => setCategoriaSeleccionada(e.target.value)}
+              >
+                <option value="">-- Selecciona categoría --</option>
+                {carrera.categorias.map(cat => (
+                  <option key={cat.nombre} value={cat.nombre}>
+                    {cat.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Botón */}
+            <button
+              onClick={handleInscribir}
+              disabled={!perfilSeleccionado || !categoriaSeleccionada}
+              className={`w-full py-3 rounded text-white transition ${
+                perfilSeleccionado && categoriaSeleccionada
+                  ? "bg-purple-600 hover:bg-purple-700"
+                  : "bg-gray-400 cursor-not-allowed"
+              }`}
+            >
+              Inscribirme
+            </button>
+
+            {mensaje && (
+              <p className="text-center text-red-600">{mensaje}</p>
+            )}
+          </div>
         </div>
-
-        {/* Categorías */}
-        <div>
-          <label className="block font-medium">Selecciona categoría</label>
-          <select
-            className="mt-1 border p-2 rounded w-full"
-            value={categoriaSeleccionada}
-            onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-          >
-            <option value="">-- Elige categoría --</option>
-            {carrera.categorias
-              .filter((cat) => {
-                const p = perfiles.find((x) => x.id === perfilSeleccionado);
-                return p ? p.edad >= cat.minAge && p.edad <= cat.maxAge : false;
-              })
-              .map((cat) => (
-                <option key={cat.nombre} value={cat.nombre}>
-                  {cat.nombre} ({cat.minAge}–{cat.maxAge} años)
-                </option>
-              ))}
-          </select>
-        </div>
-
-        {/* Botón Inscribir */}
-        <button
-          onClick={handleInscribir}
-          className={`w-full py-2 rounded text-white transition ${
-            perfilSeleccionado && categoriaSeleccionada
-              ? "bg-purple-600 hover:bg-purple-700"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-          disabled={!perfilSeleccionado || !categoriaSeleccionada}
-        >
-          Inscribirme
-        </button>
-
-        {mensaje && <p className="mt-4 text-center text-red-600">{mensaje}</p>}
       </div>
     </AuthGuard>
   );
