@@ -23,21 +23,25 @@ export default function AdminCarrerasForm({
   initialValues,
   onSuccess
 }: AdminCarrerasFormProps) {
+  // Campos básicos
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
+
+  // Imágenes opcionales
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
+  const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  const [imagenUrl, setImagenUrl] = useState<string | undefined>(initialValues?.imagenUrl);
-  const [bannerUrl, setBannerUrl] = useState<string | undefined>(initialValues?.bannerUrl);
-
+  // Categorías con edición y borrado
   const [categorias, setCategorias] = useState<Categoria[]>(initialValues?.categorias ?? []);
   const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0 });
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
+  // Añadir o guardar categoría
   const handleAddOrSaveCategoria = () => {
     if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) return;
     setCategorias(prev => {
@@ -45,9 +49,8 @@ export default function AdminCarrerasForm({
         const copy = [...prev];
         copy[editIndex] = nuevaCat;
         return copy;
-      } else {
-        return [...prev, nuevaCat];
       }
+      return [...prev, nuevaCat];
     });
     setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
     setEditIndex(null);
@@ -66,21 +69,21 @@ export default function AdminCarrerasForm({
     }
   };
 
-  const uploadIfNeeded = async (file: File, pathPrefix: string): Promise<string> => {
-    const refPath = `${pathPrefix}/${Date.now()}_${file.name}`;
-    const storageRef = ref(storage, refPath);
+  // Subida condicional de archivos
+  const uploadIfNeeded = async (file: File, prefix: string) => {
+    const path = `${prefix}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, path);
     const snap = await uploadBytes(storageRef, file);
-    return await getDownloadURL(snap.ref);
+    return getDownloadURL(snap.ref);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Variables locales para no reasignar estado directamente
     let newImagenUrl = imagenUrl;
     let newBannerUrl = bannerUrl;
 
-    // 1) Upload imagen principal si hay nueva
+    // Imagen principal
     if (imagenFile) {
       if (newImagenUrl) {
         try { await deleteObject(ref(storage, newImagenUrl)); } catch {}
@@ -88,7 +91,7 @@ export default function AdminCarrerasForm({
       newImagenUrl = await uploadIfNeeded(imagenFile, 'carreras');
     }
 
-    // 2) Upload banner si hay nuevo
+    // Banner superior
     if (bannerFile) {
       if (newBannerUrl) {
         try { await deleteObject(ref(storage, newBannerUrl)); } catch {}
@@ -96,7 +99,7 @@ export default function AdminCarrerasForm({
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // 3) Armar payload
+    // Armar payload
     const payload: CarreraData & { bannerUrl?: string } = {
       titulo,
       descripcion,
@@ -108,7 +111,7 @@ export default function AdminCarrerasForm({
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
 
-    // 4) Crear o actualizar en Firestore
+    // Crear o actualizar en Firestore
     if (initialValues?.id) {
       await updateDoc(doc(db, 'carreras', initialValues.id), payload as any);
     } else {
@@ -128,7 +131,64 @@ export default function AdminCarrerasForm({
         {initialValues ? 'Editar Carrera' : 'Crear Nueva Carrera'}
       </h2>
 
-      {/* Aquí irían tus inputs de título, descripción, lugar, fecha y horaSalida */}
+      {/* Título */}
+      <div>
+        <label className="block font-medium">Título</label>
+        <input
+          type="text"
+          value={titulo}
+          onChange={e => setTitulo(e.target.value)}
+          required
+          className="mt-1 w-full border p-2 rounded"
+        />
+      </div>
+
+      {/* Descripción */}
+      <div>
+        <label className="block font-medium">Descripción</label>
+        <textarea
+          value={descripcion}
+          onChange={e => setDescripcion(e.target.value)}
+          required
+          className="mt-1 w-full border p-2 rounded"
+        />
+      </div>
+
+      {/* Lugar */}
+      <div>
+        <label className="block font-medium">Lugar</label>
+        <input
+          type="text"
+          value={lugar}
+          onChange={e => setLugar(e.target.value)}
+          required
+          className="mt-1 w-full border p-2 rounded"
+        />
+      </div>
+
+      {/* Fecha y hora salida */}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block font-medium">Fecha</label>
+          <input
+            type="date"
+            value={fecha}
+            onChange={e => setFecha(e.target.value)}
+            required
+            className="mt-1 w-full border p-2 rounded"
+          />
+        </div>
+        <div>
+          <label className="block font-medium">Hora de salida</label>
+          <input
+            type="time"
+            value={horaSalida}
+            onChange={e => setHoraSalida(e.target.value)}
+            required
+            className="mt-1 w-full border p-2 rounded"
+          />
+        </div>
+      </div>
 
       {/* Imagen principal opcional */}
       <div>
@@ -153,7 +213,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Banner opcional */}
+      {/* Banner superior opcional */}
       <div>
         <label className="block font-medium">Banner superior (opcional)</label>
         {bannerUrl && (
@@ -182,7 +242,9 @@ export default function AdminCarrerasForm({
         <ul className="mb-2 space-y-1">
           {categorias.map((c, i) => (
             <li key={i} className="flex justify-between items-center">
-              <span>• {c.nombre} ({c.minAge}–{c.maxAge} años)</span>
+              <span>
+                • {c.nombre} ({c.minAge}–{c.maxAge} años)
+              </span>
               <div className="space-x-2">
                 <button
                   type="button"
@@ -202,8 +264,6 @@ export default function AdminCarrerasForm({
             </li>
           ))}
         </ul>
-
-        {/* Formulario de nueva categoría */}
         <div className="grid grid-cols-3 gap-2 items-end">
           <input
             type="text"
@@ -236,7 +296,7 @@ export default function AdminCarrerasForm({
         </div>
       </div>
 
-      {/* Botón guardar */}
+      {/* Guardar */}
       <div>
         <button
           type="submit"
