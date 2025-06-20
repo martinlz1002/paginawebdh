@@ -4,12 +4,30 @@ import { PlusCircleIcon, PencilIcon, ClipboardIcon } from '@heroicons/react/24/o
 interface SidebarProps {
   view: 'crear' | 'listar' | 'inscripciones';
   setView: (v: SidebarProps['view']) => void;
+  collapsed: boolean;
 }
 
-export default function AdminSidebar({ view, setView }: SidebarProps) {
+export default function AdminSidebar({ view, setView, collapsed }: SidebarProps) {
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
+  const sidebarBase = [
+    'bg-white',
+    'shadow-lg',
+    'rounded-lg',
+    'p-6',
+    'space-y-4',
+    'fixed',
+    'top-0',
+    'left-0',
+    'h-full',
+    'z-50',
+    'transform',
+    'transition-transform',
+    'w-64'
+  ].join(' ');
+  const hiddenClass = collapsed ? '-translate-x-full' : 'translate-x-0';
+
   return (
-    <aside className="w-64 bg-white shadow-lg rounded-lg p-6 space-y-4">
+    <aside className={`${sidebarBase} ${hiddenClass} md:relative md:transform-none`}>
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Panel Admin</h2>
       <button
         onClick={() => setView('crear')}
