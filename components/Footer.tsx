@@ -42,11 +42,6 @@ export default function Footer() {
               </Link>
             </li>
             <li>
-              <Link href="/carreras">
-                <a className="hover:text-white">Carreras</a>
-              </Link>
-            </li>
-            <li>
               <Link href="/mis-inscripciones">
                 <a className="hover:text-white">Mis Inscripciones</a>
               </Link>
