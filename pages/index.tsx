@@ -8,7 +8,7 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
-  fecha: string; // ya formateada
+  fecha: string;
   imagenUrl?: string;
 }
 
