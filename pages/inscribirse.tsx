@@ -13,6 +13,14 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
+import {
+  MapPinIcon,
+  CalendarIcon,
+  ClockIcon,
+  UserIcon,
+  ClipboardIcon,
+  CheckCircleIcon,
+} from "@heroicons/react/24/outline";
 
 interface Categoria {
   nombre: string;
@@ -51,15 +59,12 @@ export default function InscribirsePage() {
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera
+  // 1) Load carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
       const snap = await getDoc(doc(db, "carreras", carreraId as string));
-      if (!snap.exists()) {
-        setMensaje("Carrera no encontrada");
-        return;
-      }
+      if (!snap.exists()) return setMensaje("Carrera no encontrada");
       const data = snap.data() as any;
       setCarrera({
         id: snap.id,
@@ -78,7 +83,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Autenticación + carga de perfiles
+  // 2) Auth + perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -121,8 +126,7 @@ export default function InscribirsePage() {
   const handleInscribir = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
-      setMensaje("Selecciona perfil y categoría");
-      return;
+      return setMensaje("Selecciona perfil y categoría");
     }
     try {
       const user = auth.currentUser!;
@@ -134,8 +138,7 @@ export default function InscribirsePage() {
       );
       const dupSnap = await getDocs(dupQ);
       if (!dupSnap.empty) {
-        setMensaje("Ya estás inscrito con este perfil.");
-        return;
+        return setMensaje("Ya estás inscrito con este perfil.");
       }
       await registrarInscripcion({
         carreraId: carrera!.id,
@@ -156,7 +159,7 @@ export default function InscribirsePage() {
     );
   }
 
-  // Perfil actual para filtro
+  // filter by age
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
     perfilActual
@@ -175,29 +178,41 @@ export default function InscribirsePage() {
           />
         )}
         <div className="p-6 space-y-6">
-          {/* Título & descripción */}
+          {/* Title & description */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Datos: lugar, fecha, hora */}
+          {/* Info row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
-              <div>📍 <span className="font-medium">{carrera.lugar}</span></div>
+              <div className="flex items-center space-x-2">
+                <MapPinIcon className="w-5 h-5" />
+                <span className="font-medium">{carrera.lugar}</span>
+              </div>
             )}
             {carrera.fecha && (
-              <div>📅 <span className="font-medium">{carrera.fecha}</span></div>
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="w-5 h-5" />
+                <span className="font-medium">{carrera.fecha}</span>
+              </div>
             )}
             {carrera.horaSalida && (
-              <div>⏰ <span className="font-medium">{carrera.horaSalida}</span></div>
+              <div className="flex items-center space-x-2">
+                <ClockIcon className="w-5 h-5" />
+                <span className="font-medium">{carrera.horaSalida}</span>
+              </div>
             )}
           </div>
 
-          {/* Tabla de todas las categorías */}
+          {/* Categories table */}
           <div>
-            <h2 className="text-xl font-semibold mb-2">Categorías</h2>
-            <table className="w-full table-auto border-collapse">
+            <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
+              <ClipboardIcon className="w-6 h-6" />
+              <span>Categorías</span>
+            </h2>
+            <table className="w-full table-auto border-collapse text-gray-700">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border px-4 py-2">Nombre</th>
@@ -217,11 +232,14 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Formulario de inscripción */}
-          <div className="pt-4 border-t space-y-4">
-            {/* Selección de perfil */}
+          {/* Inscription form */}
+          <div className="pt-6 border-t space-y-4">
+            {/* profile select */}
             <div>
-              <label className="block font-medium mb-1">Tu perfil</label>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <UserIcon className="w-5 h-5" />
+                <span>Tu perfil</span>
+              </label>
               {loadingPerfiles ? (
                 <p>Cargando perfiles…</p>
               ) : (
@@ -239,11 +257,14 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Selección de categoría (solo permitidas) */}
+            {/* category select */}
             <div>
-              <label className="block font-medium mb-1">Categoría</label>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <ClipboardIcon className="w-5 h-5" />
+                <span>Categoría</span>
+              </label>
               <select
-                className="w-full border p-2 rounded"
+                className="w-full border p-2 rounded disabled:opacity-50"
                 value={categoriaSeleccionada}
                 onChange={(e) => setCategoriaSeleccionada(e.target.value)}
                 disabled={!categoriasPermitidas.length}
@@ -257,20 +278,23 @@ export default function InscribirsePage() {
               </select>
             </div>
 
-            {/* Botón */}
+            {/* submit */}
             <button
               onClick={handleInscribir}
               disabled={!perfilSeleccionado || !categoriaSeleccionada}
-              className={`w-full py-3 rounded text-white transition ${
+              className={`w-full flex justify-center items-center py-3 rounded text-white transition ${
                 perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-gray-400 cursor-not-allowed"
               }`}
             >
+              <CheckCircleIcon className="w-5 h-5 mr-2" />
               Inscribirme
             </button>
 
-            {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
+            {mensaje && (
+              <p className="text-center text-red-600">{mensaje}</p>
+            )}
           </div>
         </div>
       </div>

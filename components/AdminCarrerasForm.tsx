@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { db, storage } from '@/lib/firebase';
-import {
-  collection,
-  addDoc,
-  updateDoc,
-  doc
-} from 'firebase/firestore';
-import {
-  ref,
-  uploadBytes,
-  getDownloadURL,
-  deleteObject
-} from 'firebase/storage';
+import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { CarreraData, Categoria } from '@/types/carrera';
+import {
+  PencilIcon,
+  TrashIcon,
+  PhotoIcon,
+  CalendarIcon,
+  ClockIcon,
+  MapPinIcon,
+  PlusCircleIcon,
+} from "@heroicons/react/24/outline";
 
 export interface AdminCarrerasFormProps {
   initialValues?: CarreraData & { id: string; bannerUrl?: string };
@@ -23,27 +22,28 @@ export default function AdminCarrerasForm({
   initialValues,
   onSuccess
 }: AdminCarrerasFormProps) {
-  // Campos básicos
+  // basic fields
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
 
-  // Imágenes opcionales
+  // images
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  // Categorías con edición y borrado
+  // categories
   const [categorias, setCategorias] = useState<Categoria[]>(initialValues?.categorias ?? []);
   const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0 });
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
-  // Añadir o guardar categoría
   const handleAddOrSaveCategoria = () => {
-    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) return;
+    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) {
+      return;
+    }
     setCategorias(prev => {
       if (editIndex !== null) {
         const copy = [...prev];
@@ -69,7 +69,6 @@ export default function AdminCarrerasForm({
     }
   };
 
-  // Subida condicional de archivos
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -83,15 +82,12 @@ export default function AdminCarrerasForm({
     let newImagenUrl = imagenUrl;
     let newBannerUrl = bannerUrl;
 
-    // Imagen principal
     if (imagenFile) {
       if (newImagenUrl) {
         try { await deleteObject(ref(storage, newImagenUrl)); } catch {}
       }
       newImagenUrl = await uploadIfNeeded(imagenFile, 'carreras');
     }
-
-    // Banner superior
     if (bannerFile) {
       if (newBannerUrl) {
         try { await deleteObject(ref(storage, newBannerUrl)); } catch {}
@@ -99,7 +95,6 @@ export default function AdminCarrerasForm({
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // Armar payload
     const payload: CarreraData & { bannerUrl?: string } = {
       titulo,
       descripcion,
@@ -111,27 +106,24 @@ export default function AdminCarrerasForm({
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
 
-    // Crear o actualizar en Firestore
     if (initialValues?.id) {
       await updateDoc(doc(db, 'carreras', initialValues.id), payload as any);
     } else {
       await addDoc(collection(db, 'carreras'), payload as any);
     }
 
-    // Actualizar estado local
     setImagenUrl(newImagenUrl);
     setBannerUrl(newBannerUrl);
-
     onSuccess?.();
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
-      <h2 className="text-xl font-semibold">
-        {initialValues ? 'Editar Carrera' : 'Crear Nueva Carrera'}
+      <h2 className="text-xl font-semibold text-green-700">
+        {initialValues ? '✏️ Editar carrera' : '+ Crear carrera'}
       </h2>
 
-      {/* Título */}
+      {/* Title */}
       <div>
         <label className="block font-medium">Título</label>
         <input
@@ -139,69 +131,73 @@ export default function AdminCarrerasForm({
           value={titulo}
           onChange={e => setTitulo(e.target.value)}
           required
-          className="mt-1 w-full border p-2 rounded"
+          className="mt-1 w-full border p-2 rounded focus:ring-green-300"
         />
       </div>
 
-      {/* Descripción */}
+      {/* Description */}
       <div>
         <label className="block font-medium">Descripción</label>
         <textarea
           value={descripcion}
           onChange={e => setDescripcion(e.target.value)}
           required
-          className="mt-1 w-full border p-2 rounded"
+          className="mt-1 w-full border p-2 rounded focus:ring-green-300"
         />
       </div>
 
-      {/* Lugar */}
-      <div>
-        <label className="block font-medium">Lugar</label>
+      {/* Location */}
+      <div className="flex items-center space-x-2">
+        <MapPinIcon className="w-5 h-5 text-gray-500" />
         <input
           type="text"
           value={lugar}
           onChange={e => setLugar(e.target.value)}
+          placeholder="Lugar"
           required
-          className="mt-1 w-full border p-2 rounded"
+          className="flex-1 border p-2 rounded focus:ring-green-300"
         />
       </div>
 
-      {/* Fecha y hora salida */}
+      {/* Date & Time */}
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block font-medium">Fecha</label>
+        <div className="flex items-center space-x-2">
+          <CalendarIcon className="w-5 h-5 text-gray-500" />
           <input
             type="date"
             value={fecha}
             onChange={e => setFecha(e.target.value)}
             required
-            className="mt-1 w-full border p-2 rounded"
+            className="flex-1 border p-2 rounded focus:ring-green-300"
           />
         </div>
-        <div>
-          <label className="block font-medium">Hora de salida</label>
+        <div className="flex items-center space-x-2">
+          <ClockIcon className="w-5 h-5 text-gray-500" />
           <input
             type="time"
             value={horaSalida}
             onChange={e => setHoraSalida(e.target.value)}
             required
-            className="mt-1 w-full border p-2 rounded"
+            className="flex-1 border p-2 rounded focus:ring-green-300"
           />
         </div>
       </div>
 
-      {/* Imagen principal opcional */}
+      {/* Image */}
       <div>
-        <label className="block font-medium">Imagen principal (opcional)</label>
+        <label className="block font-medium flex items-center space-x-2">
+          <PhotoIcon className="w-5 h-5" />
+          <span>Imagen principal</span>
+        </label>
         {imagenUrl && (
-          <div className="mb-2 flex items-center">
-            <img src={imagenUrl} alt="Principal" className="h-24 object-cover rounded" />
+          <div className="mt-2 flex items-center space-x-4">
+            <img src={imagenUrl} alt="Principal" className="h-24 rounded" />
             <button
               type="button"
               onClick={() => setImagenUrl(undefined)}
-              className="text-red-600 ml-4"
+              className="text-red-600"
             >
-              Eliminar
+              <TrashIcon className="w-5 h-5" />
             </button>
           </div>
         )}
@@ -209,22 +205,25 @@ export default function AdminCarrerasForm({
           type="file"
           accept="image/*"
           onChange={e => setImagenFile(e.target.files?.[0] ?? null)}
-          className="mt-1 w-full"
+          className="mt-2"
         />
       </div>
 
-      {/* Banner superior opcional */}
+      {/* Banner */}
       <div>
-        <label className="block font-medium">Banner superior (opcional)</label>
+        <label className="block font-medium flex items-center space-x-2">
+          <PhotoIcon className="w-5 h-5" />
+          <span>Banner superior</span>
+        </label>
         {bannerUrl && (
-          <div className="mb-2 flex items-center">
-            <img src={bannerUrl} alt="Banner" className="h-32 w-full object-cover rounded" />
+          <div className="mt-2 flex items-center space-x-4">
+            <img src={bannerUrl} alt="Banner" className="h-32 rounded" />
             <button
               type="button"
               onClick={() => setBannerUrl(undefined)}
-              className="text-red-600 ml-4"
+              className="text-red-600"
             >
-              Eliminar
+              <TrashIcon className="w-5 h-5" />
             </button>
           </div>
         )}
@@ -232,39 +231,32 @@ export default function AdminCarrerasForm({
           type="file"
           accept="image/*"
           onChange={e => setBannerFile(e.target.files?.[0] ?? null)}
-          className="mt-1 w-full"
+          className="mt-2"
         />
       </div>
 
-      {/* Categorías con editar/eliminar */}
+      {/* Categories */}
       <div className="border-t pt-4">
-        <h3 className="font-medium mb-2">Categorías</h3>
-        <ul className="mb-2 space-y-1">
+        <h3 className="font-medium text-green-600 flex items-center space-x-2">
+          <PlusCircleIcon className="w-5 h-5" />
+          <span>Categorías</span>
+        </h3>
+        <ul className="mt-2 space-y-2">
           {categorias.map((c, i) => (
             <li key={i} className="flex justify-between items-center">
-              <span>
-                • {c.nombre} ({c.minAge}–{c.maxAge} años)
-              </span>
-              <div className="space-x-2">
-                <button
-                  type="button"
-                  onClick={() => handleEditCategoria(i)}
-                  className="text-blue-600 hover:underline"
-                >
-                  Editar
+              <span>{c.nombre} ({c.minAge}–{c.maxAge} años)</span>
+              <div className="flex space-x-2">
+                <button onClick={() => handleEditCategoria(i)}>
+                  <PencilIcon className="w-5 h-5 text-blue-600" />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteCategoria(i)}
-                  className="text-red-600 hover:underline"
-                >
-                  Eliminar
+                <button onClick={() => handleDeleteCategoria(i)}>
+                  <TrashIcon className="w-5 h-5 text-red-600" />
                 </button>
               </div>
             </li>
           ))}
         </ul>
-        <div className="grid grid-cols-3 gap-2 items-end">
+        <div className="grid grid-cols-3 gap-2 mt-4">
           <input
             type="text"
             placeholder="Nombre categoría"
@@ -276,35 +268,34 @@ export default function AdminCarrerasForm({
             type="number"
             placeholder="Mín edad"
             value={nuevaCat.minAge}
-            onChange={e => setNuevaCat(s => ({ ...s, minAge: Number(e.target.value) }))}
+            onChange={e => setNuevaCat(s => ({ ...s, minAge: +e.target.value }))}
             className="border p-2 rounded"
           />
           <input
             type="number"
             placeholder="Máx edad"
             value={nuevaCat.maxAge}
-            onChange={e => setNuevaCat(s => ({ ...s, maxAge: Number(e.target.value) }))}
+            onChange={e => setNuevaCat(s => ({ ...s, maxAge: +e.target.value }))}
             className="border p-2 rounded"
           />
-          <button
-            type="button"
-            onClick={handleAddOrSaveCategoria}
-            className="col-span-3 mt-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-          >
-            {editIndex !== null ? 'Guardar categoría' : '+ Agregar categoría'}
-          </button>
         </div>
-      </div>
-
-      {/* Guardar */}
-      <div>
         <button
-          type="submit"
-          className="w-full bg-green-600 text-white py-3 rounded hover:bg-green-700"
+          type="button"
+          onClick={handleAddOrSaveCategoria}
+          className="mt-2 w-full flex justify-center items-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
         >
-          Guardar
+          <PlusCircleIcon className="w-5 h-5 mr-1" />
+          {editIndex !== null ? "Guardar categoría" : "Agregar categoría"}
         </button>
       </div>
+
+      {/* Submit */}
+      <button
+        type="submit"
+        className="mt-4 w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition"
+      >
+        Guardar
+      </button>
     </form>
   );
 }
