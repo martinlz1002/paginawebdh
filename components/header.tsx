@@ -52,7 +52,7 @@ export default function Header() {
     <header className="flex justify-between items-center p-4 bg-white shadow sticky top-0 z-50">
       <Link href="/">
         <a className="flex items-center">
-          <Image src="/mi-logo.png" alt="Logo" width={48} height={48} />
+          <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
           <span className="ml-2 text-2xl font-bold text-green-800"></span>
         </a>
       </Link>
