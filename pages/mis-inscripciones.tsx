@@ -97,9 +97,9 @@ export default function MisInscripcionesPage() {
           let fechaCarr = "";
           if ((c as any).fecha instanceof Timestamp) {
             const dt: Date = (c as any).fecha.toDate();
-            const day = dt.getUTCDate().toString().padStart(2, "0");
-            const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
-            const year = dt.getUTCFullYear();
+            const day = dt.getDate().toString().padStart(2, "0");
+            const month = (dt.getMonth() + 1).toString().padStart(2, "0");
+            const year = dt.getFullYear();
             fechaCarr = `${day}/${month}/${year}`;
           } else if (typeof (c as any).fecha === "string") {
             fechaCarr = new Date((c as any).fecha).toLocaleDateString();
