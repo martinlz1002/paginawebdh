@@ -8,11 +8,11 @@ import AdminInscripcionesView from '@/components/AdminInscripcionesView';
 export default function AdminPage() {
   const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
   const [editItem, setEditItem] = useState<any>(undefined);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
 
-  // Cierra el sidebar si se hace clic fuera de él o del botón
+  // Cierra sidebar al hacer click fuera o en el toggle
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -31,7 +31,7 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute>
-      {/* Botón de toggle justo debajo del header */}
+      {/* Toggle justo debajo del header */}
       <button
         ref={toggleRef}
         className="fixed top-16 left-4 z-50 p-2 bg-white rounded-md shadow-md md:hidden"
@@ -52,20 +52,24 @@ export default function AdminPage() {
       </button>
 
       <div className="flex min-h-screen bg-gray-100">
-        {/* Sidebar */}
         <div ref={sidebarRef}>
-          <AdminSidebar view={view} setView={setView} collapsed={!sidebarOpen} />
+          <AdminSidebar
+            view={view}
+            setView={setView}
+            collapsed={!sidebarOpen}
+            onToggle={() => setSidebarOpen(o => !o)}
+          />
         </div>
 
-        {/* Main content */}
-        <main className="flex-1 p-6 md:ml-64">
+        {/* Ajuste dinámico de margen para que el formulario "encaje" */}
+        <main className={`flex-1 p-6 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
           {view === 'crear' && (
             <AdminCarrerasForm
               initialValues={editItem}
               onSuccess={() => {
                 setEditItem(undefined);
                 setView('listar');
-                setSidebarOpen(false);
+                setSidebarOpen(true);
               }}
             />
           )}
@@ -74,7 +78,7 @@ export default function AdminPage() {
               onEdit={(carrera) => {
                 setEditItem(carrera);
                 setView('crear');
-                setSidebarOpen(false);
+                setSidebarOpen(true);
               }}
             />
           )}

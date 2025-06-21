@@ -5,9 +5,10 @@ interface SidebarProps {
   view: 'crear' | 'listar' | 'inscripciones';
   setView: (v: SidebarProps['view']) => void;
   collapsed: boolean;
+  onToggle: () => void;
 }
 
-export default function AdminSidebar({ view, setView, collapsed }: SidebarProps) {
+export default function AdminSidebar({ view, setView, collapsed, onToggle }: SidebarProps) {
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
   const sidebarClasses = [
     'bg-white',
@@ -28,6 +29,18 @@ export default function AdminSidebar({ view, setView, collapsed }: SidebarProps)
 
   return (
     <aside className={`${sidebarClasses} ${hiddenClass} md:relative md:translate-x-0`}>
+      {/* Handle lateral para abrir/cerrar */}
+      {collapsed && (
+        <div
+          onClick={onToggle}
+          className="absolute top-1/2 right-[-1.5rem] transform -translate-y-1/2 bg-white p-2 rounded-l shadow cursor-pointer"
+        >
+          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4l8 8-8 8" />
+          </svg>
+        </div>
+      )}
+
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Panel Admin</h2>
 
       <button
