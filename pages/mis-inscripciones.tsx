@@ -8,7 +8,8 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
   doc,
-  getDoc
+  getDoc,
+  Timestamp
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import AuthGuard from "@/components/AuthGuard";
@@ -63,7 +64,7 @@ export default function MisInscripcionesPage() {
           const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
           const c = cDoc.exists() ? cDoc.data()! : {};
 
-          // fetch perfil/subperfil (igual que antes)...
+          // fetch perfil/subperfil...
           let perfilNombre = "";
           let perfilApPaterno = "";
           let perfilApMaterno = "";
@@ -92,10 +93,11 @@ export default function MisInscripcionesPage() {
             ? src.timestamp.toDate().toLocaleString()
             : "";
 
-          // format fechaCarr usando fecha.seconds para forzar UTC
+          // format fechaCarr con UTC
           let fechaCarr = "";
-          if ((c as any).fecha?.seconds) {
-            const dt = new Date((c as any).fecha.seconds * 1000);
+          if ((c as any).fecha instanceof Timestamp) {
+            const dt: Date = (c as any).fecha.toDate();
+            // use UTC getters to avoid timezone shift
             const day = dt.getUTCDate().toString().padStart(2, "0");
             const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
             const year = dt.getUTCFullYear();

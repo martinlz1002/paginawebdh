@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
 
@@ -8,7 +8,7 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
-  fecha: string;
+  fecha: string;        // ya formateada
   imagenUrl?: string;
 }
 
@@ -21,10 +21,10 @@ export default function HomePage() {
       const data = snapshot.docs.map(doc => {
         const c = doc.data() as any;
 
-        // Formatear fecha usando seconds para UTC
+        // Si es Timestamp, usamos getUTC* para la fecha exacta
         let fechaFormateada = "";
-        if (c.fecha?.seconds) {
-          const dt = new Date(c.fecha.seconds * 1000);
+        if (c.fecha instanceof Timestamp) {
+          const dt = c.fecha.toDate();
           const day = dt.getUTCDate().toString().padStart(2, "0");
           const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
           const year = dt.getUTCFullYear();
@@ -52,17 +52,17 @@ export default function HomePage() {
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-3xl font-bold mb-8 text-center">Próximas Carreras</h1>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {carreras.map(carrera => (
+        {carreras.map(c => (
           <Link
-            key={carrera.id}
-            href={`/inscribirse?carreraId=${carrera.id}`}
+            key={c.id}
+            href={`/inscribirse?carreraId=${c.id}`}
             className="group block border rounded-xl shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden bg-white"
           >
             <div className="relative pb-[56.25%] overflow-hidden">
-              {carrera.imagenUrl ? (
+              {c.imagenUrl ? (
                 <img
-                  src={carrera.imagenUrl}
-                  alt={carrera.titulo}
+                  src={c.imagenUrl}
+                  alt={c.titulo}
                   className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
@@ -72,12 +72,12 @@ export default function HomePage() {
               )}
             </div>
             <div className="p-5">
-              <h2 className="text-xl font-semibold mb-2">{carrera.titulo}</h2>
-              {carrera.descripcion && (
-                <p className="text-gray-700 mb-3 line-clamp-3">{carrera.descripcion}</p>
+              <h2 className="text-xl font-semibold mb-2">{c.titulo}</h2>
+              {c.descripcion && (
+                <p className="text-gray-700 mb-3 line-clamp-3">{c.descripcion}</p>
               )}
               <p className="text-sm text-gray-500 mb-4">
-                📅 {carrera.fecha} {carrera.ubicacion && <>· 📍 {carrera.ubicacion}</>}
+                📅 {c.fecha} {c.ubicacion && <>· 📍 {c.ubicacion}</>}
               </p>
               <button className="inline-block bg-purple-600 text-white font-medium py-2 px-4 rounded hover:bg-purple-700 transition-colors">
                 Inscribirse
