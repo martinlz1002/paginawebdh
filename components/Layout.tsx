@@ -7,7 +7,7 @@ export default function Layout({ children }: { children: ReactNode }) {
     <div>
       <Header />
       {/* reduce pt-16 a pt-8 para menos espacio bajo el header */}
-      <main className="pt-8 px-4">
+      <main className="pt-6 px-4">
         {children}
       </main>
       <Footer />
