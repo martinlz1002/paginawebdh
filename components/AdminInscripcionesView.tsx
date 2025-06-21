@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react';
 import {
   collection,
   getDocs,
@@ -6,82 +6,83 @@ import {
   where,
   doc,
   getDoc
-} from 'firebase/firestore'
-import { db } from '@/lib/firebase'
-import type { CarreraData } from '@/types/carrera'
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { CarreraData } from '@/types/carrera';
+import * as XLSX from 'xlsx';
 
 interface CarreraItem extends CarreraData {
-  id: string
+  id: string;
 }
 
 interface PerfilData {
-  nombre: string
-  apellidoPaterno: string
-  apellidoMaterno: string
-  celular?: string
-  pais?: string
-  estado?: string
-  ciudad?: string
-  club?: string
-  edad?: number
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  celular?: string;
+  pais?: string;
+  estado?: string;
+  ciudad?: string;
+  club?: string;
+  edad?: number;
 }
 
 interface InscripcionItem {
-  id: string
-  perfilId: string
-  perfilOwner: string
-  categoria: string
-  timestamp: any
-  perfil: PerfilData | null
+  id: string;
+  perfilId: string;
+  perfilOwner: string;
+  categoria: string;
+  timestamp: any;
+  perfil: PerfilData | null;
 }
 
 export default function AdminInscripcionesView() {
-  const [carreras, setCarreras] = useState<CarreraItem[]>([])
-  const [selectedCarrera, setSelectedCarrera] = useState<string>('')
-  const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [carreras, setCarreras] = useState<CarreraItem[]>([]);
+  const [selectedCarrera, setSelectedCarrera] = useState<string>('');
+  const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // 1) Cargo todas las carreras
   useEffect(() => {
-    ;(async () => {
-      const snap = await getDocs(collection(db, 'carreras'))
+    (async () => {
+      const snap = await getDocs(collection(db, 'carreras'));
       setCarreras(
         snap.docs.map(d => ({
           id: d.id,
           ...(d.data() as CarreraData),
         }))
-      )
-    })()
-  }, [])
+      );
+    })();
+  }, []);
 
   // 2) Cuando cambia la carrera, traigo inscripciones + perfil completo
   useEffect(() => {
     if (!selectedCarrera) {
-      setInscripciones([])
-      return
+      setInscripciones([]);
+      return;
     }
-    setLoading(true)
-    setError(null)
-    ;(async () => {
+    setLoading(true);
+    setError(null);
+    (async () => {
       try {
         const q = query(
           collection(db, 'inscripciones'),
           where('carreraId', '==', selectedCarrera)
-        )
-        const snap = await getDocs(q)
+        );
+        const snap = await getDocs(q);
 
         const items: InscripcionItem[] = await Promise.all(
           snap.docs.map(async d => {
-            const data = d.data()!
-            let perfil: PerfilData | null = null
+            const data = d.data()!;
+            let perfil: PerfilData | null = null;
 
-            // 2a) Perfil principal
+            // Perfil principal
             if (data.perfilId === data.perfilOwner) {
-              const mainRef = doc(db, 'usuarios', data.perfilOwner)
-              const mainSnap = await getDoc(mainRef)
+              const mainRef = doc(db, 'usuarios', data.perfilOwner);
+              const mainSnap = await getDoc(mainRef);
               if (mainSnap.exists()) {
-                const m = mainSnap.data() as any
+                const m = mainSnap.data() as any;
                 perfil = {
                   nombre: m.nombre || '',
                   apellidoPaterno: m.apPaterno ?? m.apellidoPaterno ?? '',
@@ -92,20 +93,20 @@ export default function AdminInscripcionesView() {
                   ciudad: m.ciudad,
                   club: m.club,
                   edad: m.edad
-                }
+                };
               }
             } else {
-              // 2b) Subperfil
+              // Subperfil
               const subRef = doc(
                 db,
                 'usuarios',
                 data.perfilOwner,
                 'perfiles',
                 data.perfilId
-              )
-              const subSnap = await getDoc(subRef)
+              );
+              const subSnap = await getDoc(subRef);
               if (subSnap.exists()) {
-                const s = subSnap.data() as any
+                const s = subSnap.data() as any;
                 perfil = {
                   nombre: s.nombre,
                   apellidoPaterno: s.apellidoPaterno,
@@ -116,7 +117,7 @@ export default function AdminInscripcionesView() {
                   ciudad: s.ciudad,
                   club: s.club,
                   edad: s.edad
-                }
+                };
               }
             }
 
@@ -127,19 +128,43 @@ export default function AdminInscripcionesView() {
               categoria: data.categoria,
               timestamp: data.timestamp,
               perfil,
-            }
+            };
           })
-        )
+        );
 
-        setInscripciones(items)
+        setInscripciones(items);
       } catch (err: any) {
-        console.error(err)
-        setError(err.message || 'Error al cargar inscripciones')
+        console.error(err);
+        setError(err.message || 'Error al cargar inscripciones');
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    })()
-  }, [selectedCarrera])
+    })();
+  }, [selectedCarrera]);
+
+  // Exportar a Excel
+  const exportExcel = () => {
+    // Mapear datos planos
+    const rows = inscripciones.map(i => ({
+      Nombre: i.perfil?.nombre,
+      ApellidoPaterno: i.perfil?.apellidoPaterno,
+      ApellidoMaterno: i.perfil?.apellidoMaterno,
+      Edad: i.perfil?.edad,
+      Celular: i.perfil?.celular,
+      País: i.perfil?.pais,
+      Estado: i.perfil?.estado,
+      Ciudad: i.perfil?.ciudad,
+      Club: i.perfil?.club,
+      Categoría: i.categoria,
+      Registrado: i.timestamp?.toDate
+        ? i.timestamp.toDate().toLocaleString()
+        : ''
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Inscripciones');
+    XLSX.writeFile(wb, `inscripciones_${selectedCarrera}.xlsx`);
+  };
 
   return (
     <div className="p-6">
@@ -164,8 +189,15 @@ export default function AdminInscripcionesView() {
       {loading && <p>Cargando inscripciones…</p>}
       {error && <p className="text-red-600">{error}</p>}
 
-      {selectedCarrera && !loading && !error && (
-        inscripciones.length > 0 ? (
+      {selectedCarrera && !loading && !error && inscripciones.length > 0 && (
+        <>
+          <button
+            onClick={exportExcel}
+            className="mb-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Descargar Excel
+          </button>
+
           <table className="w-full table-auto border-collapse">
             <thead>
               <tr className="bg-gray-100">
@@ -177,14 +209,14 @@ export default function AdminInscripcionesView() {
                 <th className="border p-2">País</th>
                 <th className="border p-2">Estado</th>
                 <th className="border p-2">Ciudad</th>
-                <th className="border p-2">Club</th> {/* Nueva columna */}
+                <th className="border p-2">Club</th>
                 <th className="border p-2">Categoría</th>
                 <th className="border p-2">Registrado</th>
               </tr>
             </thead>
             <tbody>
               {inscripciones.map(i => {
-                const p = i.perfil!
+                const p = i.perfil!;
                 return (
                   <tr key={i.id} className="hover:bg-gray-50">
                     <td className="border p-2">{p.nombre}</td>
@@ -195,7 +227,7 @@ export default function AdminInscripcionesView() {
                     <td className="border p-2">{p.pais ?? '-'}</td>
                     <td className="border p-2">{p.estado ?? '-'}</td>
                     <td className="border p-2">{p.ciudad ?? '-'}</td>
-                    <td className="border p-2">{p.club ?? ''}</td> {/* Mostramos club si existe */}
+                    <td className="border p-2">{p.club ?? '-'}</td>
                     <td className="border p-2">{i.categoria}</td>
                     <td className="border p-2">
                       {i.timestamp?.toDate
@@ -203,16 +235,16 @@ export default function AdminInscripcionesView() {
                         : '-'}
                     </td>
                   </tr>
-                )
+                );
               })}
             </tbody>
           </table>
-        ) : (
-          <p className="mt-4 text-gray-500">
-            No hay inscripciones para esta carrera.
-          </p>
-        )
+        </>
+      )}
+
+      {selectedCarrera && !loading && !error && inscripciones.length === 0 && (
+        <p className="mt-4 text-gray-500">No hay inscripciones para esta carrera.</p>
       )}
     </div>
-  )
+  );
 }
