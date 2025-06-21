@@ -8,7 +8,7 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
-  fecha: string;        // ya formateada como cadena
+  fecha: string;
   imagenUrl?: string;
 }
 
@@ -20,24 +20,19 @@ export default function HomePage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
 
   useEffect(() => {
-    const fetchCarreras = async () => {
+    (async () => {
       const snapshot = await getDocs(collection(db, "carreras"));
       const data = snapshot.docs.map(doc => {
         const c = doc.data() as any;
-
-        // Formatear fecha: si es Timestamp usa toDate(), si es string lo parsea
         let fechaFormateada = "";
         if (c.fecha instanceof Timestamp) {
-          // corregir offset: convertir a milisegundos y ajustar
           const dt = c.fecha.toDate();
           const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
+          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
         } else if (typeof c.fecha === "string") {
-          // parse manual YYYY-MM-DD como local
           const [y, m, d] = c.fecha.split("-");
           fechaFormateada = `${d}/${m}/${y}`;
         }
-
         return {
           id: doc.id,
           titulo: c.titulo,
@@ -48,9 +43,7 @@ export default function HomePage() {
         };
       });
       setCarreras(data);
-    };
-
-    fetchCarreras();
+    })();
   }, []);
 
   return (
@@ -63,17 +56,16 @@ export default function HomePage() {
             href={`/inscribirse?carreraId=${c.id}`}
             className="group block border rounded-xl shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden bg-white"
           >
-            <div className="relative pb-[56.25%] overflow-hidden">
+            {/* ratio 16:9 con el plugin */}
+            <div className="aspect-video bg-gray-100 flex items-center justify-center">
               {c.imagenUrl ? (
                 <img
                   src={c.imagenUrl}
                   alt={c.titulo}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="w-full h-full object-contain"
                 />
               ) : (
-                <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-500">Sin imagen</span>
-                </div>
+                <span className="text-gray-500">Sin imagen</span>
               )}
             </div>
             <div className="p-5">
