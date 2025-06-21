@@ -57,67 +57,69 @@ export default function MisInscripcionesPage() {
       const inscSnap = await getDocs(inscQuery);
 
       const v: InscView[] = await Promise.all(
-        inscSnap.docs.map(
-          async (d: QueryDocumentSnapshot<DocumentData>) => {
-            const src = d.data() as InscRaw;
+        inscSnap.docs.map(async (d: QueryDocumentSnapshot<DocumentData>) => {
+          const src = d.data() as InscRaw;
 
-            // fetch carrera
-            const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-            const c = cDoc.exists() ? cDoc.data()! : {};
+          // fetch carrera
+          const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
+          const c = cDoc.exists() ? cDoc.data()! : {};
 
-            // fetch perfil/subperfil
-            let perfilNombre = "";
-            let perfilApPaterno = "";
-            let perfilApMaterno = "";
-            if (src.perfilId === src.perfilOwner) {
-              const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
-              if (uDoc.exists()) {
-                const ud = uDoc.data() as any;
-                perfilNombre = ud.nombre;
-                perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
-                perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
-              }
-            } else {
-              const subDoc = await getDoc(
-                doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
-              );
-              if (subDoc.exists()) {
-                const sd = subDoc.data() as any;
-                perfilNombre = sd.nombre;
-                perfilApPaterno = sd.apellidoPaterno;
-                perfilApMaterno = sd.apellidoMaterno;
-              }
+          // fetch perfil/subperfil
+          let perfilNombre = "";
+          let perfilApPaterno = "";
+          let perfilApMaterno = "";
+          if (src.perfilId === src.perfilOwner) {
+            const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
+            if (uDoc.exists()) {
+              const ud = uDoc.data() as any;
+              perfilNombre = ud.nombre;
+              perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
+              perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
             }
-
-            // format fechaIns
-            const fechaIns = src.timestamp?.toDate
-              ? src.timestamp.toDate().toLocaleString()
-              : "";
-
-            // format fechaCarr
-            let fechaCarr = "";
-            if ((c as any).fecha instanceof Timestamp) {
-              fechaCarr = (c as any).fecha.toDate().toLocaleDateString();
-            } else if (typeof (c as any).fecha === "string") {
-              fechaCarr = new Date((c as any).fecha).toLocaleDateString();
+          } else {
+            const subDoc = await getDoc(
+              doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
+            );
+            if (subDoc.exists()) {
+              const sd = subDoc.data() as any;
+              perfilNombre = sd.nombre;
+              perfilApPaterno = sd.apellidoPaterno;
+              perfilApMaterno = sd.apellidoMaterno;
             }
-
-            return {
-              id: d.id,
-              perfilNombre,
-              perfilApPaterno,
-              perfilApMaterno,
-              carreraId: src.carreraId,
-              categoria: src.categoria,
-              fechaIns,
-              titulo: (c as any).titulo || "(sin título)",
-              fechaCarr,
-              horaSalida: (c as any).horaSalida,
-              ubicacion: (c as any).lugar || (c as any).ubicacion,
-              imagenUrl: (c as any).imagenUrl,
-            };
           }
-        )
+
+          // format fechaIns
+          const fechaIns = src.timestamp?.toDate
+            ? src.timestamp.toDate().toLocaleString()
+            : "";
+
+          // format fechaCarr using UTC to avoid timezone shift
+          let fechaCarr = "";
+          if ((c as any).fecha instanceof Timestamp) {
+            const dt: Date = (c as any).fecha.toDate();
+            const day = dt.getUTCDate().toString().padStart(2, "0");
+            const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
+            const year = dt.getUTCFullYear();
+            fechaCarr = `${day}/${month}/${year}`;
+          } else if (typeof (c as any).fecha === "string") {
+            fechaCarr = new Date((c as any).fecha).toLocaleDateString();
+          }
+
+          return {
+            id: d.id,
+            perfilNombre,
+            perfilApPaterno,
+            perfilApMaterno,
+            carreraId: src.carreraId,
+            categoria: src.categoria,
+            fechaIns,
+            titulo: (c as any).titulo || "(sin título)",
+            fechaCarr,
+            horaSalida: (c as any).horaSalida,
+            ubicacion: (c as any).lugar || (c as any).ubicacion,
+            imagenUrl: (c as any).imagenUrl,
+          };
+        })
       );
 
       setList(v);
@@ -165,7 +167,8 @@ export default function MisInscripcionesPage() {
                     <div className="p-4 flex-1 space-y-2">
                       <h2 className="text-xl font-semibold">{i.titulo}</h2>
                       <p className="text-sm text-gray-600">
-                        📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
+                        📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰{" "}
+                        {i.horaSalida || "-"}
                       </p>
                       <p>
                         <strong>Inscrito como:</strong> {i.perfilNombre}{" "}
