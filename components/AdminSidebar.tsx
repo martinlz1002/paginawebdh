@@ -9,7 +9,7 @@ interface SidebarProps {
 
 export default function AdminSidebar({ view, setView, collapsed }: SidebarProps) {
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
-  const sidebarBase = [
+  const sidebarClasses = [
     'bg-white',
     'shadow-lg',
     'rounded-lg',
@@ -19,7 +19,7 @@ export default function AdminSidebar({ view, setView, collapsed }: SidebarProps)
     'top-0',
     'left-0',
     'h-full',
-    'z-50',
+    'z-40',
     'transform',
     'transition-transform',
     'w-64'
@@ -27,8 +27,9 @@ export default function AdminSidebar({ view, setView, collapsed }: SidebarProps)
   const hiddenClass = collapsed ? '-translate-x-full' : 'translate-x-0';
 
   return (
-    <aside className={`${sidebarBase} ${hiddenClass} md:relative md:transform-none`}>
+    <aside className={`${sidebarClasses} ${hiddenClass} md:relative md:translate-x-0`}>
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Panel Admin</h2>
+
       <button
         onClick={() => setView('crear')}
         className={`${btnBase} ${
@@ -40,6 +41,7 @@ export default function AdminSidebar({ view, setView, collapsed }: SidebarProps)
         <PlusCircleIcon className="h-5 w-5 mr-3" />
         Crear Carrera
       </button>
+
       <button
         onClick={() => setView('listar')}
         className={`${btnBase} ${
@@ -51,6 +53,7 @@ export default function AdminSidebar({ view, setView, collapsed }: SidebarProps)
         <PencilIcon className="h-5 w-5 mr-3" />
         Editar / Eliminar
       </button>
+
       <button
         onClick={() => setView('inscripciones')}
         className={`${btnBase} ${
@@ -63,5 +66,5 @@ export default function AdminSidebar({ view, setView, collapsed }: SidebarProps)
         Ver Inscripciones
       </button>
     </aside>
-  );
+);
 }
