@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import Header from "./header";
+import Footer from "./Footer";
 
 export default function Layout({ children }: { children: ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <main className="pt-8 px-4">
         {children}
       </main>
+      <Footer />
     </div>
   );
 }
