@@ -8,8 +8,12 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
-  fecha: string;        // ya formateada
+  fecha: string; // ya formateada
   imagenUrl?: string;
+}
+
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
 }
 
 export default function HomePage() {
@@ -21,16 +25,16 @@ export default function HomePage() {
       const data = snapshot.docs.map(doc => {
         const c = doc.data() as any;
 
-        // Si es Timestamp, usamos getUTC* para la fecha exacta
         let fechaFormateada = "";
         if (c.fecha instanceof Timestamp) {
+          // corregir offset: convertir a milisegundos y ajustar
           const dt = c.fecha.toDate();
-          const day = dt.getUTCDate().toString().padStart(2, "0");
-          const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
-          const year = dt.getUTCFullYear();
-          fechaFormateada = `${day}/${month}/${year}`;
+          const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
+          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
         } else if (typeof c.fecha === "string") {
-          fechaFormateada = new Date(c.fecha).toLocaleDateString();
+          // parse manual YYYY-MM-DD como local
+          const [y, m, d] = c.fecha.split("-");
+          fechaFormateada = `${d}/${m}/${y}`;
         }
 
         return {
@@ -63,7 +67,7 @@ export default function HomePage() {
                 <img
                   src={c.imagenUrl}
                   alt={c.titulo}
-                  className="absolute inset-0 w-full h-full object-cover transform transition-transform duration-300 group-hover:scale-105"
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
                 <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
@@ -79,7 +83,7 @@ export default function HomePage() {
               <p className="text-sm text-gray-500 mb-4">
                 📅 {c.fecha} {c.ubicacion && <>· 📍 {c.ubicacion}</>}
               </p>
-              <button className="inline-block bg-purple-600 text-white font-medium py-2 px-4 rounded hover:bg-purple-700 transition-colors">
+              <button className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">
                 Inscribirse
               </button>
             </div>

@@ -5,8 +5,6 @@ import {
   query,
   where,
   getDocs,
-  DocumentData,
-  QueryDocumentSnapshot,
   doc,
   getDoc,
   Timestamp
@@ -38,6 +36,10 @@ interface InscView {
   imagenUrl?: string;
 }
 
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
 export default function MisInscripcionesPage() {
   const [list, setList] = useState<InscView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,24 +52,21 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      const inscQuery = query(
-        collection(db, "inscripciones"),
-        where("perfilOwner", "==", user.uid)
+      const inscSnap = await getDocs(
+        query(
+          collection(db, "inscripciones"),
+          where("perfilOwner", "==", user.uid)
+        )
       );
-      const inscSnap = await getDocs(inscQuery);
 
-      const v: InscView[] = await Promise.all(
-        inscSnap.docs.map(async (d: QueryDocumentSnapshot<DocumentData>) => {
+      const v = await Promise.all(
+        inscSnap.docs.map(async d => {
           const src = d.data() as InscRaw;
-
-          // fetch carrera
           const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
           const c = cDoc.exists() ? cDoc.data()! : {};
 
-          // fetch perfil/subperfil...
-          let perfilNombre = "";
-          let perfilApPaterno = "";
-          let perfilApMaterno = "";
+          // Perfil
+          let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
           if (src.perfilId === src.perfilOwner) {
             const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
             if (uDoc.exists()) {
@@ -88,22 +87,20 @@ export default function MisInscripcionesPage() {
             }
           }
 
-          // format fechaIns
+          // fechaIns
           const fechaIns = src.timestamp?.toDate
             ? src.timestamp.toDate().toLocaleString()
             : "";
 
-          // format fechaCarr con UTC
+          // fechaCarr sin desfase
           let fechaCarr = "";
           if ((c as any).fecha instanceof Timestamp) {
-            const dt: Date = (c as any).fecha.toDate();
-            // use UTC getters to avoid timezone shift
-            const day = dt.getUTCDate().toString().padStart(2, "0");
-            const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
-            const year = dt.getUTCFullYear();
-            fechaCarr = `${day}/${month}/${year}`;
+            const dt = (c as any).fecha.toDate();
+            const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
+            fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
           } else if (typeof (c as any).fecha === "string") {
-            fechaCarr = new Date((c as any).fecha).toLocaleDateString();
+            const [y,m,d] = (c as any).fecha.split("-");
+            fechaCarr = `${d}/${m}/${y}`;
           }
 
           return {
@@ -146,19 +143,12 @@ export default function MisInscripcionesPage() {
         ) : (
           <ul className="space-y-6">
             {list.map(i => (
-              <li
-                key={i.id}
-                className="border rounded shadow hover:shadow-lg overflow-hidden"
-              >
+              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
                 <Link href={`/inscribirse?carreraId=${i.carreraId}`}>
                   <a className="flex flex-col md:flex-row">
                     {i.imagenUrl ? (
                       <div className="md:w-1/3 h-48 overflow-hidden">
-                        <img
-                          src={i.imagenUrl}
-                          alt={i.titulo}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
                       </div>
                     ) : (
                       <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
@@ -168,19 +158,11 @@ export default function MisInscripcionesPage() {
                     <div className="p-4 flex-1 space-y-2">
                       <h2 className="text-xl font-semibold">{i.titulo}</h2>
                       <p className="text-sm text-gray-600">
-                        📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰{" "}
-                        {i.horaSalida || "-"}
+                        📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
                       </p>
-                      <p>
-                        <strong>Inscrito como:</strong> {i.perfilNombre}{" "}
-                        {i.perfilApPaterno} {i.perfilApMaterno}
-                      </p>
-                      <p>
-                        <strong>Categoría:</strong> {i.categoria}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Inscripción: {i.fechaIns}
-                      </p>
+                      <p><strong>Inscrito como:</strong> {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}</p>
+                      <p><strong>Categoría:</strong> {i.categoria}</p>
+                      <p className="text-sm text-gray-500">Inscripción: {i.fechaIns}</p>
                     </div>
                   </a>
                 </Link>
