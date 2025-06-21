@@ -5,7 +5,7 @@ export default function NosotrosPage() {
     <div className="max-w-3xl mx-auto py-16 px-4 space-y-8">
       <h1 className="text-4xl font-bold text-green-800">Sobre Nosotros</h1>
       <p className="text-gray-700">
-        En <strong>Tu Empresa</strong> organizamos carreras deportivas con la máxima calidad y seguridad. 
+        En <strong>DHTime</strong> organizamos carreras deportivas con la máxima calidad y seguridad. 
         Nuestro objetivo es fomentar la salud y el deporte en la comunidad.
       </p>
       <h2 className="text-2xl font-semibold text-purple-700">Nuestra Misión</h2>
