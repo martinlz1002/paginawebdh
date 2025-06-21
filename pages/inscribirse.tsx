@@ -188,19 +188,19 @@ export default function InscribirsePage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
-                <MapPinIcon className="w-5 h-5" />
+                <MapPinIcon className="w-5 h-5 text-gray-500" />
                 <span className="font-medium">{carrera.lugar}</span>
               </div>
             )}
             {carrera.fecha && (
               <div className="flex items-center space-x-2">
-                <CalendarIcon className="w-5 h-5" />
+                <CalendarIcon className="w-5 h-5 text-purple-600" />
                 <span className="font-medium">{carrera.fecha}</span>
               </div>
             )}
             {carrera.horaSalida && (
               <div className="flex items-center space-x-2">
-                <ClockIcon className="w-5 h-5" />
+                <ClockIcon className="w-5 h-5 text-purple-600" />
                 <span className="font-medium">{carrera.horaSalida}</span>
               </div>
             )}
@@ -209,7 +209,7 @@ export default function InscribirsePage() {
           {/* Categories table */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
-              <ClipboardIcon className="w-6 h-6" />
+              <ClipboardIcon className="w-6 h-6 text-green-700" />
               <span>Categorías</span>
             </h2>
             <table className="w-full table-auto border-collapse text-gray-700">
@@ -237,7 +237,7 @@ export default function InscribirsePage() {
             {/* profile select */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
-                <UserIcon className="w-5 h-5" />
+                <UserIcon className="w-5 h-5 text-green-600" />
                 <span>Tu perfil</span>
               </label>
               {loadingPerfiles ? (
@@ -260,7 +260,7 @@ export default function InscribirsePage() {
             {/* category select */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
-                <ClipboardIcon className="w-5 h-5" />
+                <ClipboardIcon className="w-5 h-5 text-purple-700" />
                 <span>Categoría</span>
               </label>
               <select
@@ -288,7 +288,7 @@ export default function InscribirsePage() {
                   : "bg-gray-400 cursor-not-allowed"
               }`}
             >
-              <CheckCircleIcon className="w-5 h-5 mr-2" />
+              <CheckCircleIcon className="w-5 h-5 mr-2 text-green-300" />
               Inscribirme
             </button>
 

@@ -123,7 +123,7 @@ export default function AdminCarrerasForm({
         {initialValues ? '✏️ Editar carrera' : '+ Crear carrera'}
       </h2>
 
-      {/* Title */}
+      {/* Título */}
       <div>
         <label className="block font-medium">Título</label>
         <input
@@ -135,7 +135,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Description */}
+      {/* Descripción */}
       <div>
         <label className="block font-medium">Descripción</label>
         <textarea
@@ -146,7 +146,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Location */}
+      {/* Lugar */}
       <div className="flex items-center space-x-2">
         <MapPinIcon className="w-5 h-5 text-gray-500" />
         <input
@@ -159,10 +159,10 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Date & Time */}
+      {/* Fecha & Hora */}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex items-center space-x-2">
-          <CalendarIcon className="w-5 h-5 text-gray-500" />
+          <CalendarIcon className="w-5 h-5 text-purple-600" />
           <input
             type="date"
             value={fecha}
@@ -172,7 +172,7 @@ export default function AdminCarrerasForm({
           />
         </div>
         <div className="flex items-center space-x-2">
-          <ClockIcon className="w-5 h-5 text-gray-500" />
+          <ClockIcon className="w-5 h-5 text-purple-600" />
           <input
             type="time"
             value={horaSalida}
@@ -183,11 +183,11 @@ export default function AdminCarrerasForm({
         </div>
       </div>
 
-      {/* Image */}
+      {/* Imagen principal */}
       <div>
         <label className="block font-medium flex items-center space-x-2">
-          <PhotoIcon className="w-5 h-5" />
-          <span>Imagen principal</span>
+          <PhotoIcon className="w-5 h-5 text-green-600" />
+          <span>Imagen principal (opcional)</span>
         </label>
         {imagenUrl && (
           <div className="mt-2 flex items-center space-x-4">
@@ -209,15 +209,15 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Banner */}
+      {/* Banner superior */}
       <div>
         <label className="block font-medium flex items-center space-x-2">
-          <PhotoIcon className="w-5 h-5" />
-          <span>Banner superior</span>
+          <PhotoIcon className="w-5 h-5 text-green-600" />
+          <span>Banner superior (opcional)</span>
         </label>
         {bannerUrl && (
           <div className="mt-2 flex items-center space-x-4">
-            <img src={bannerUrl} alt="Banner" className="h-32 rounded" />
+            <img src={bannerUrl} alt="Banner" className="h-32 rounded w-full object-cover" />
             <button
               type="button"
               onClick={() => setBannerUrl(undefined)}
@@ -235,7 +235,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Categories */}
+      {/* Categorías */}
       <div className="border-t pt-4">
         <h3 className="font-medium text-green-600 flex items-center space-x-2">
           <PlusCircleIcon className="w-5 h-5" />
@@ -244,7 +244,7 @@ export default function AdminCarrerasForm({
         <ul className="mt-2 space-y-2">
           {categorias.map((c, i) => (
             <li key={i} className="flex justify-between items-center">
-              <span>{c.nombre} ({c.minAge}–{c.maxAge} años)</span>
+              <span>• {c.nombre} ({c.minAge}–{c.maxAge} años)</span>
               <div className="flex space-x-2">
                 <button onClick={() => handleEditCategoria(i)}>
                   <PencilIcon className="w-5 h-5 text-blue-600" />
@@ -289,7 +289,7 @@ export default function AdminCarrerasForm({
         </button>
       </div>
 
-      {/* Submit */}
+      {/* Enviar */}
       <button
         type="submit"
         className="mt-4 w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition"
@@ -297,5 +297,5 @@ export default function AdminCarrerasForm({
         Guardar
       </button>
     </form>
-  );
+);
 }
