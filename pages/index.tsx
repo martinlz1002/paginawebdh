@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
 
@@ -8,7 +8,7 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
-  fecha: string;        // ya formateada como cadena
+  fecha: string;
   imagenUrl?: string;
 }
 
@@ -21,10 +21,14 @@ export default function HomePage() {
       const data = snapshot.docs.map(doc => {
         const c = doc.data() as any;
 
-        // Formatear fecha: si es Timestamp usa toDate(), si es string lo parsea
+        // Formatear fecha usando seconds para UTC
         let fechaFormateada = "";
-        if (c.fecha instanceof Timestamp) {
-          fechaFormateada = c.fecha.toDate().toLocaleDateString();
+        if (c.fecha?.seconds) {
+          const dt = new Date(c.fecha.seconds * 1000);
+          const day = dt.getUTCDate().toString().padStart(2, "0");
+          const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
+          const year = dt.getUTCFullYear();
+          fechaFormateada = `${day}/${month}/${year}`;
         } else if (typeof c.fecha === "string") {
           fechaFormateada = new Date(c.fecha).toLocaleDateString();
         }
@@ -54,7 +58,6 @@ export default function HomePage() {
             href={`/inscribirse?carreraId=${carrera.id}`}
             className="group block border rounded-xl shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden bg-white"
           >
-            {/* ratio 16:9 */}
             <div className="relative pb-[56.25%] overflow-hidden">
               {carrera.imagenUrl ? (
                 <img

@@ -8,8 +8,7 @@ import {
   DocumentData,
   QueryDocumentSnapshot,
   doc,
-  getDoc,
-  Timestamp
+  getDoc
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import AuthGuard from "@/components/AuthGuard";
@@ -64,7 +63,7 @@ export default function MisInscripcionesPage() {
           const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
           const c = cDoc.exists() ? cDoc.data()! : {};
 
-          // fetch perfil/subperfil
+          // fetch perfil/subperfil (igual que antes)...
           let perfilNombre = "";
           let perfilApPaterno = "";
           let perfilApMaterno = "";
@@ -93,13 +92,13 @@ export default function MisInscripcionesPage() {
             ? src.timestamp.toDate().toLocaleString()
             : "";
 
-          // format fechaCarr using UTC to avoid timezone shift
+          // format fechaCarr usando fecha.seconds para forzar UTC
           let fechaCarr = "";
-          if ((c as any).fecha instanceof Timestamp) {
-            const dt: Date = (c as any).fecha.toDate();
-            const day = dt.getDate().toString().padStart(2, "0");
-            const month = (dt.getMonth() + 1).toString().padStart(2, "0");
-            const year = dt.getFullYear();
+          if ((c as any).fecha?.seconds) {
+            const dt = new Date((c as any).fecha.seconds * 1000);
+            const day = dt.getUTCDate().toString().padStart(2, "0");
+            const month = (dt.getUTCMonth() + 1).toString().padStart(2, "0");
+            const year = dt.getUTCFullYear();
             fechaCarr = `${day}/${month}/${year}`;
           } else if (typeof (c as any).fecha === "string") {
             fechaCarr = new Date((c as any).fecha).toLocaleDateString();
