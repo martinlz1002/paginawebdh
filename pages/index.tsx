@@ -1,84 +1,96 @@
 import { useEffect, useState } from "react";
-import { useRouter } from "next/router";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import Link from "next/link";
 
-type Carrera = {
+interface Carrera {
   id: string;
-  nombre: string;
-  fecha: string;
-  lugar: string;
-  descripcion: string;
-};
+  titulo: string;
+  descripcion?: string;
+  ubicacion?: string;
+  fecha: string;        // ya formateada como cadena
+  imagenUrl?: string;
+}
 
 function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-export default function CarrerasPage() {
+export default function HomePage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
-  const router = useRouter();
 
   useEffect(() => {
-    (async () => {
-      const snap = await getDocs(collection(db, "carreras"));
-      const datos: Carrera[] = snap.docs.map(d => {
-        const x = d.data() as any;
-        let fecha = "";
-        if (x.fecha instanceof Timestamp) {
-          const dt = x.fecha.toDate();
+    const fetchCarreras = async () => {
+      const snapshot = await getDocs(collection(db, "carreras"));
+      const data = snapshot.docs.map(doc => {
+        const c = doc.data() as any;
+
+        // Formatear fecha: si es Timestamp usa toDate(), si es string lo parsea
+        let fechaFormateada = "";
+        if (c.fecha instanceof Timestamp) {
+          // corregir offset: convertir a milisegundos y ajustar
+          const dt = c.fecha.toDate();
           const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fecha = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
-        } else if (typeof x.fecha === "string") {
-          const [y, m, dd] = x.fecha.split("-");
-          fecha = `${dd}/${m}/${y}`;
+          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
+        } else if (typeof c.fecha === "string") {
+          // parse manual YYYY-MM-DD como local
+          const [y, m, d] = c.fecha.split("-");
+          fechaFormateada = `${d}/${m}/${y}`;
         }
+
         return {
-          id: d.id,
-          nombre: x.nombre,
-          fecha,
-          lugar: x.ubicacion,
-          descripcion: x.descripcion,
+          id: doc.id,
+          titulo: c.titulo,
+          descripcion: c.descripcion,
+          ubicacion: c.ubicacion,
+          fecha: fechaFormateada,
+          imagenUrl: c.imagenUrl,
         };
       });
-      setCarreras(datos);
-    })();
+      setCarreras(data);
+    };
+
+    fetchCarreras();
   }, []);
 
-  const handleInscripcion = (id: string) => {
-    router.push(`/inscribirse?id=${id}`);
-  };
-
   return (
-    <section className="py-12 bg-white">
-      <div className="max-w-5xl mx-auto px-4">
-        <h1 className="text-3xl font-bold text-center text-purple-600 mb-8">
-          Próximas Carreras
-        </h1>
-        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {carreras.map(c => (
-            <div
-              key={c.id}
-              className="flex flex-col justify-between bg-green-50 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="space-y-2">
-                <h2 className="text-2xl font-semibold text-green-700">
-                  {c.nombre}
-                </h2>
-                <p className="text-gray-700">📅 {c.fecha}</p>
-                <p className="text-gray-700">📍 {c.lugar}</p>
-                <p className="text-gray-600 mt-2">{c.descripcion}</p>
-              </div>
-              <button
-                onClick={() => handleInscripcion(c.id)}
-                className="mt-6 bg-gradient-to-r from-purple-500 to-green-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-green-600 transition-colors"
-              >
+    <div className="max-w-6xl mx-auto p-6">
+      <h1 className="text-3xl font-bold mb-8 text-center">Próximas Carreras</h1>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {carreras.map(c => (
+          <Link
+            key={c.id}
+            href={`/inscribirse?carreraId=${c.id}`}
+            className="group block border rounded-xl shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden bg-white"
+          >
+            <div className="relative pb-[56.25%] overflow-hidden">
+              {c.imagenUrl ? (
+                <img
+                  src={c.imagenUrl}
+                  alt={c.titulo}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-500">Sin imagen</span>
+                </div>
+              )}
+            </div>
+            <div className="p-5">
+              <h2 className="text-xl font-semibold mb-2">{c.titulo}</h2>
+              {c.descripcion && (
+                <p className="text-gray-700 mb-3 line-clamp-3">{c.descripcion}</p>
+              )}
+              <p className="text-sm text-gray-500 mb-4">
+                📅 {c.fecha} {c.ubicacion && <>· 📍 {c.ubicacion}</>}
+              </p>
+              <button className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">
                 Inscribirse
               </button>
             </div>
-          ))}
-        </div>
+          </Link>
+        ))}
       </div>
-    </section>
+    </div>
   );
 }
