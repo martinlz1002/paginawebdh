@@ -53,7 +53,7 @@ export default function Header() {
       <Link href="/">
         <a className="flex items-center">
           <Image src="/mi-logo.png" alt="Logo" width={48} height={48} />
-          <span className="ml-2 text-2xl font-bold text-green-800">MiMarca</span>
+          <span className="ml-2 text-2xl font-bold text-green-800"></span>
         </a>
       </Link>
 
