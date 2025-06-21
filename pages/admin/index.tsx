@@ -10,17 +10,14 @@ export default function AdminPage() {
   const [editItem, setEditItem] = useState<any>(undefined);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const toggleRef = useRef<HTMLButtonElement>(null);
 
-  // Cierra sidebar al hacer click fuera o en el toggle
+  // Cierra el sidebar si se hace click fuera de él
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
         sidebarOpen &&
         sidebarRef.current &&
-        !sidebarRef.current.contains(event.target as Node) &&
-        toggleRef.current &&
-        !toggleRef.current.contains(event.target as Node)
+        !sidebarRef.current.contains(event.target as Node)
       ) {
         setSidebarOpen(false);
       }
@@ -31,26 +28,6 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute>
-      {/* Toggle justo debajo del header */}
-      <button
-        ref={toggleRef}
-        className="fixed top-16 left-4 z-50 p-2 bg-white rounded-md shadow-md md:hidden"
-        onClick={() => setSidebarOpen(open => !open)}
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d={
-              sidebarOpen
-                ? 'M6 18L18 6M6 6l12 12'
-                : 'M4 6h16M4 12h16M4 18h16'
-            }
-          />
-        </svg>
-      </button>
-
       <div className="flex min-h-screen bg-gray-100">
         <div ref={sidebarRef}>
           <AdminSidebar
@@ -61,8 +38,12 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* Ajuste dinámico de margen para que el formulario "encaje" */}
-        <main className={`flex-1 p-6 transition-all duration-300 ${sidebarOpen ? 'md:ml-64' : 'md:ml-0'}`}>
+        {/* Ajuste de margen tanto en móvil como en desktop */}
+        <main
+          className={`flex-1 p-6 transition-all duration-300 ${
+            sidebarOpen ? 'md:ml-64' : 'md:ml-0'
+          }`}
+        >
           {view === 'crear' && (
             <AdminCarrerasForm
               initialValues={editItem}
@@ -75,7 +56,7 @@ export default function AdminPage() {
           )}
           {view === 'listar' && (
             <AdminCarrerasList
-              onEdit={(carrera) => {
+              onEdit={carrera => {
                 setEditItem(carrera);
                 setView('crear');
                 setSidebarOpen(true);

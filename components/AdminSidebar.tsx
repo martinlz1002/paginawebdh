@@ -29,17 +29,20 @@ export default function AdminSidebar({ view, setView, collapsed, onToggle }: Sid
 
   return (
     <aside className={`${sidebarClasses} ${hiddenClass} md:relative md:translate-x-0`}>
-      {/* Handle lateral para abrir/cerrar */}
-      {collapsed && (
-        <div
-          onClick={onToggle}
-          className="absolute top-1/2 right-[-1.5rem] transform -translate-y-1/2 bg-white p-2 rounded-l shadow cursor-pointer"
-        >
-          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4l8 8-8 8" />
-          </svg>
-        </div>
-      )}
+      {/* Pestaña lateral siempre visible */}
+      <div
+        onClick={onToggle}
+        className="absolute top-1/2 right-[-1.5rem] transform -translate-y-1/2 bg-white p-2 rounded-l shadow cursor-pointer"
+      >
+        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d={collapsed ? 'M8 4l8 8-8 8' : 'M16 4l-8 8 8 8'}
+          />
+        </svg>
+      </div>
 
       <h2 className="text-2xl font-bold text-gray-800 mb-4">Panel Admin</h2>
 
@@ -79,5 +82,5 @@ export default function AdminSidebar({ view, setView, collapsed, onToggle }: Sid
         Ver Inscripciones
       </button>
     </aside>
-);
+  );
 }
