@@ -14,10 +14,8 @@ export default function Header() {
   const [nombre, setNombre] = useState("");
   const [esAdmin, setEsAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Escuchar cambios de auth y cargar datos de usuario
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
@@ -35,7 +33,6 @@ export default function Header() {
     return unsub;
   }, [auth]);
 
-  // Cerrar menú al hacer clic fuera
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -53,23 +50,20 @@ export default function Header() {
 
   return (
     <header className="flex justify-between items-center p-4 bg-white shadow sticky top-0 z-50">
-      {/* Logo + título */}
       <Link href="/">
         <a className="flex items-center">
-          <Image src="/mi-logo.png" alt="Logo" width={100} height={100} />
-          <span className="ml-2 text-2xl font-bold text-green-800"></span>
+          <Image src="/mi-logo.png" alt="Logo" width={48} height={48} />
+          <span className="ml-2 text-2xl font-bold text-green-800">MiMarca</span>
         </a>
       </Link>
 
-      {/* Área de navegación */}
       {user ? (
         <div className="relative" ref={menuRef}>
-          {/* Botón que abre/cierra el menú */}
           <button
-            onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200"
+            onClick={() => setMenuOpen(o => !o)}
+            className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 transition"
           >
-            <span>{nombre}</span>
+            <span className="font-medium">{nombre}</span>
             <svg
               className="w-4 h-4"
               fill="none"
@@ -85,7 +79,6 @@ export default function Header() {
             </svg>
           </button>
 
-          {/* Menú desplegable */}
           {menuOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md py-2">
               <Link href="/mis-inscripciones">
@@ -109,9 +102,16 @@ export default function Header() {
           )}
         </div>
       ) : (
-        <Link href="/login">
-          <a className="text-gray-700 hover:text-green-700">Iniciar sesión</a>
-        </Link>
+        <div className="flex items-center space-x-6">
+          <Link href="/login">
+            <a className="text-gray-700 hover:text-green-700 transition">Iniciar sesión</a>
+          </Link>
+          <Link href="/signup">
+            <a className="text-green-700 font-medium hover:underline transition">
+              Registrarse
+            </a>
+          </Link>
+        </div>
       )}
     </header>
   );
