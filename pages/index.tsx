@@ -1,96 +1,84 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import Link from "next/link";
 
-interface Carrera {
+type Carrera = {
   id: string;
-  titulo: string;
-  descripcion?: string;
-  ubicacion?: string;
+  nombre: string;
   fecha: string;
-  imagenUrl?: string;
-}
+  lugar: string;
+  descripcion: string;
+};
 
 function pad(n: number) {
   return n.toString().padStart(2, "0");
 }
 
-export default function HomePage() {
+export default function CarrerasPage() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
+  const router = useRouter();
 
   useEffect(() => {
-    const fetchCarreras = async () => {
-      const snapshot = await getDocs(collection(db, "carreras"));
-      const data = snapshot.docs.map(doc => {
-        const c = doc.data() as any;
-        let fechaFormateada = "";
-        if (c.fecha instanceof Timestamp) {
-          const dt = c.fecha.toDate();
+    (async () => {
+      const snap = await getDocs(collection(db, "carreras"));
+      const datos: Carrera[] = snap.docs.map(d => {
+        const x = d.data() as any;
+        let fecha = "";
+        if (x.fecha instanceof Timestamp) {
+          const dt = x.fecha.toDate();
           const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
-        } else if (typeof c.fecha === "string") {
-          const [y, m, d] = c.fecha.split("-");
-          fechaFormateada = `${d}/${m}/${y}`;
+          fecha = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
+        } else if (typeof x.fecha === "string") {
+          const [y, m, dd] = x.fecha.split("-");
+          fecha = `${dd}/${m}/${y}`;
         }
         return {
-          id: doc.id,
-          titulo: c.titulo,
-          descripcion: c.descripcion,
-          ubicacion: c.ubicacion,
-          fecha: fechaFormateada,
-          imagenUrl: c.imagenUrl,
+          id: d.id,
+          nombre: x.nombre,
+          fecha,
+          lugar: x.ubicacion,
+          descripcion: x.descripcion,
         };
       });
-      setCarreras(data);
-    };
-    fetchCarreras();
+      setCarreras(datos);
+    })();
   }, []);
 
+  const handleInscripcion = (id: string) => {
+    router.push(`/inscribirse?id=${id}`);
+  };
+
   return (
-    <main className="max-w-7xl mx-auto px-4 py-12">
-      <h1 className="text-4xl sm:text-5xl font-extrabold text-center mb-12">
-        Próximas Carreras
-      </h1>
-      <div className="grid gap-y-10 gap-x-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {carreras.map(c => (
-          <Link
-            key={c.id}
-            href={`/inscribirse?carreraId=${c.id}`}
-            className="group block bg-white rounded-2xl shadow-lg overflow-hidden transform hover:scale-[1.02] transition"
-          >
-            <div className="aspect-video bg-gray-100">
-              {c.imagenUrl ? (
-                <img
-                  src={c.imagenUrl}
-                  alt={c.titulo}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  Sin imagen
-                </div>
-              )}
-            </div>
-            <div className="p-6">
-              <h2 className="text-xl font-semibold mb-2 text-gray-800 group-hover:text-purple-600">
-                {c.titulo}
-              </h2>
-              {c.descripcion && (
-                <p className="text-gray-600 mb-4 line-clamp-3">
-                  {c.descripcion}
-                </p>
-              )}
-              <p className="text-sm text-gray-500 mb-6">
-                📅 {c.fecha} {c.ubicacion && <>· 📍 {c.ubicacion}</>}
-              </p>
-              <button className="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
+    <section className="py-12 bg-white">
+      <div className="max-w-5xl mx-auto px-4">
+        <h1 className="text-3xl font-bold text-center text-purple-600 mb-8">
+          Próximas Carreras
+        </h1>
+        <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+          {carreras.map(c => (
+            <div
+              key={c.id}
+              className="flex flex-col justify-between bg-green-50 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="space-y-2">
+                <h2 className="text-2xl font-semibold text-green-700">
+                  {c.nombre}
+                </h2>
+                <p className="text-gray-700">📅 {c.fecha}</p>
+                <p className="text-gray-700">📍 {c.lugar}</p>
+                <p className="text-gray-600 mt-2">{c.descripcion}</p>
+              </div>
+              <button
+                onClick={() => handleInscripcion(c.id)}
+                className="mt-6 bg-gradient-to-r from-purple-500 to-green-500 text-white py-2 rounded-lg hover:from-purple-600 hover:to-green-600 transition-colors"
+              >
                 Inscribirse
               </button>
             </div>
-          </Link>
-        ))}
+          ))}
+        </div>
       </div>
-    </main>
+    </section>
   );
 }
