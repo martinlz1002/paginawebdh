@@ -24,19 +24,15 @@ export default function HomePage() {
       const snapshot = await getDocs(collection(db, "carreras"));
       const data = snapshot.docs.map(doc => {
         const c = doc.data() as any;
-
         let fechaFormateada = "";
         if (c.fecha instanceof Timestamp) {
-          // corregir offset: convertir a milisegundos y ajustar
           const dt = c.fecha.toDate();
           const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
+          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
         } else if (typeof c.fecha === "string") {
-          // parse manual YYYY-MM-DD como local
           const [y, m, d] = c.fecha.split("-");
           fechaFormateada = `${d}/${m}/${y}`;
         }
-
         return {
           id: doc.id,
           titulo: c.titulo,
@@ -48,48 +44,53 @@ export default function HomePage() {
       });
       setCarreras(data);
     };
-
     fetchCarreras();
   }, []);
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-8 text-center">Próximas Carreras</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+    <main className="max-w-7xl mx-auto px-4 py-12">
+      <h1 className="text-4xl sm:text-5xl font-extrabold text-center mb-12">
+        Próximas Carreras
+      </h1>
+      <div className="grid gap-y-10 gap-x-8 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         {carreras.map(c => (
           <Link
             key={c.id}
             href={`/inscribirse?carreraId=${c.id}`}
-            className="group block border rounded-xl shadow hover:shadow-lg transition-shadow duration-200 overflow-hidden bg-white"
+            className="group block bg-white rounded-2xl shadow-lg overflow-hidden transform hover:scale-[1.02] transition"
           >
-            <div className="relative pb-[56.25%] overflow-hidden">
+            <div className="aspect-video bg-gray-100">
               {c.imagenUrl ? (
                 <img
                   src={c.imagenUrl}
                   alt={c.titulo}
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="absolute inset-0 bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-500">Sin imagen</span>
+                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                  Sin imagen
                 </div>
               )}
             </div>
-            <div className="p-5">
-              <h2 className="text-xl font-semibold mb-2">{c.titulo}</h2>
+            <div className="p-6">
+              <h2 className="text-xl font-semibold mb-2 text-gray-800 group-hover:text-purple-600">
+                {c.titulo}
+              </h2>
               {c.descripcion && (
-                <p className="text-gray-700 mb-3 line-clamp-3">{c.descripcion}</p>
+                <p className="text-gray-600 mb-4 line-clamp-3">
+                  {c.descripcion}
+                </p>
               )}
-              <p className="text-sm text-gray-500 mb-4">
+              <p className="text-sm text-gray-500 mb-6">
                 📅 {c.fecha} {c.ubicacion && <>· 📍 {c.ubicacion}</>}
               </p>
-              <button className="bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700">
+              <button className="bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 transition">
                 Inscribirse
               </button>
             </div>
           </Link>
         ))}
       </div>
-    </div>
+    </main>
   );
 }
