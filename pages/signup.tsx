@@ -3,6 +3,15 @@ import { registrarUsuario, Usuario } from "@/lib/usuarios";
 import { useRouter } from "next/router";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { app } from "@/lib/firebase";
+import {
+  UserIcon,
+  EnvelopeIcon,
+  LockClosedIcon,
+  PhoneIcon,
+  GlobeAltIcon,
+  CalendarIcon,
+  BuildingOffice2Icon,
+} from "@heroicons/react/24/outline";
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
@@ -35,33 +44,23 @@ export default function RegistroUsuarioPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
-
-    // Validaciones de contraseña
     if (formData.password.length < 6) {
-      setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
-      return;
+      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
     }
     if (formData.password !== formData.confirmPassword) {
-      setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
-      return;
+      return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
-
     try {
       const auth = getAuth(app);
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
-      const uid = userCredential.user.uid;
+      const userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const uid = userCred.user.uid;
       const edad = calcularEdad(formData.fechaNacimiento);
-
       const usuario: Usuario = {
         uid,
         nombre: formData.nombre,
@@ -76,192 +75,176 @@ export default function RegistroUsuarioPage() {
         fechaNacimiento: formData.fechaNacimiento,
         edad,
       };
-
       await registrarUsuario(usuario);
       setMensaje({ type: "success", text: "Registro exitoso. Redirigiendo..." });
       setTimeout(() => router.push("/perfil"), 2000);
-    } catch (error: any) {
-      setMensaje({ type: "error", text: "Error: " + error.message });
+    } catch (err: any) {
+      setMensaje({ type: "error", text: "Error: " + err.message });
     }
   };
 
   return (
-    <div className="max-w-lg mx-auto mt-12 p-8 bg-white rounded-xl shadow-md">
-      <h1 className="text-3xl font-bold mb-6 text-center">Crear Cuenta</h1>
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-5">
+    <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
+      <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
-        <div>
-          <label htmlFor="nombre" className="block text-sm font-medium">Nombre</label>
+        <div className="relative">
+          <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
-            id="nombre"
             name="nombre"
-            type="text"
+            placeholder="Nombre"
             value={formData.nombre}
             onChange={handleChange}
             required
-            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-
         {/* Apellidos */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="apellidoPaterno" className="block text-sm font-medium">Apellido Paterno</label>
+          <div className="relative">
+            <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              id="apellidoPaterno"
               name="apellidoPaterno"
-              type="text"
+              placeholder="Apellido Paterno"
               value={formData.apellidoPaterno}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
-          <div>
-            <label htmlFor="apellidoMaterno" className="block text-sm font-medium">Apellido Materno</label>
+          <div className="relative">
+            <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              id="apellidoMaterno"
               name="apellidoMaterno"
-              type="text"
+              placeholder="Apellido Materno"
               value={formData.apellidoMaterno}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
         </div>
-
-        {/* Email y celular */}
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium">Correo Electrónico</label>
+        {/* Email */}
+        <div className="relative">
+          <EnvelopeIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
-            id="email"
             name="email"
             type="email"
+            placeholder="Correo Electrónico"
             value={formData.email}
             onChange={handleChange}
             required
-            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-        <div>
-          <label htmlFor="celular" className="block text-sm font-medium">Celular</label>
+        {/* Contraseña */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="relative">
+            <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              name="password"
+              type="password"
+              placeholder="Contraseña"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+          </div>
+          <div className="relative">
+            <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              name="confirmPassword"
+              type="password"
+              placeholder="Confirmar Contraseña"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              required
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+          </div>
+        </div>
+        {/* Celular */}
+        <div className="relative">
+          <PhoneIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
-            id="celular"
             name="celular"
             type="tel"
+            placeholder="Celular"
             value={formData.celular}
             onChange={handleChange}
             required
-            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-
-        {/* Contraseña */}
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium">Contraseña</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            value={formData.password}
-            onChange={handleChange}
-            minLength={6}
-            required
-            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
-          />
-        </div>
-        <div>
-          <label htmlFor="confirmPassword" className="block text-sm font-medium">Confirmar Contraseña</label>
-          <input
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            required
-            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
-          />
-        </div>
-
         {/* Ubicación */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="pais" className="block text-sm font-medium">País</label>
+          <div className="relative">
+            <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              id="pais"
               name="pais"
-              type="text"
+              placeholder="País"
               value={formData.pais}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
-          <div>
-            <label htmlFor="estado" className="block text-sm font-medium">Estado</label>
+          <div className="relative">
+            <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              id="estado"
               name="estado"
-              type="text"
+              placeholder="Estado"
               value={formData.estado}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="ciudad" className="block text-sm font-medium">Ciudad</label>
+          <div className="relative">
+            <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              id="ciudad"
               name="ciudad"
-              type="text"
+              placeholder="Ciudad"
               value={formData.ciudad}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
-          <div>
-            <label htmlFor="club" className="block text-sm font-medium">Club (opcional)</label>
+          <div className="relative">
+            <BuildingOffice2Icon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
-              id="club"
               name="club"
-              type="text"
+              placeholder="Club (opcional)"
               value={formData.club}
               onChange={handleChange}
-              className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
         </div>
-
         {/* Fecha de nacimiento */}
-        <div>
-          <label htmlFor="fechaNacimiento" className="block text-sm font-medium">Fecha de Nacimiento</label>
+        <div className="relative">
+          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
-            id="fechaNacimiento"
             name="fechaNacimiento"
             type="date"
             value={formData.fechaNacimiento}
             onChange={handleChange}
             required
-            className="mt-1 block w-full border p-2 rounded focus:ring focus:border-blue-300"
+            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-
+        {/* Botón */}
         <button
           type="submit"
-          className="mt-4 bg-purple-600 text-white py-2 px-4 rounded hover:bg-purple-700 transition"
+          className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
         >
           Registrarse
         </button>
       </form>
-
       {mensaje && (
-        <p className={`mt-4 text-sm ${mensaje.type === "error" ? "text-red-600" : "text-green-600"}`}>
+        <p className={`mt-4 text-center text-sm ${mensaje.type === "error" ? "text-red-600" : "text-green-600"}`}>
           {mensaje.text}
         </p>
       )}
