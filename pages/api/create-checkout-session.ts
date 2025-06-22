@@ -1,43 +1,59 @@
-import { NextApiRequest, NextApiResponse } from 'next';
-import Stripe from 'stripe';
-import { getDoc, doc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import type { NextApiRequest, NextApiResponse } from "next";
+import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2022-11-15',
+  apiVersion: "2022-11-15",
 });
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).end();
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  // Solo POST
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).end(`Método ${req.method} No Permitido`);
+  }
 
-  const { userId, carreraId } = req.body;
-  // Opcional: leer precio desde Firestore
-  const carreraSnap = await getDoc(doc(db, 'carreras', carreraId));
-  if (!carreraSnap.exists()) return res.status(404).json({ error: 'Carrera no encontrada' });
-  const data = carreraSnap.data() as any;
-  const amount = Math.round((data.precio || 0) * 100); // en centavos
+  const { carreraId, perfilId, categoria, precio } = req.body as {
+    carreraId: string;
+    perfilId: string;
+    categoria: string;
+    precio: number;
+  };
 
   try {
+    const origin = req.headers.origin || "";
+
+    // Crea sesión de Checkout
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'mxn',
-          product_data: {
-            name: data.titulo,
+      payment_method_types: ["card"],
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency: "mxn",
+            product_data: {
+              name: `Inscripción: ${categoria}`,
+              metadata: { carreraId, perfilId },
+            },
+            unit_amount: Math.round(precio * 100),
           },
-          unit_amount: amount,
+          quantity: 1,
         },
-        quantity: 1,
-      }],
-      mode: 'payment',
-      success_url: `${req.headers.origin}/mis-inscripciones?pagado=true`,
-      cancel_url: `${req.headers.origin}/inscribirse?carreraId=${carreraId}&cancelado=true`,
-      metadata: { userId, carreraId },
+      ],
+      success_url: `${origin}/mis-inscripciones?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/inscribirse?carreraId=${carreraId}`,
+      metadata: {
+        carreraId,
+        perfilId,
+        categoria,
+      },
     });
-    res.status(200).json({ id: session.id });
+
+    return res.status(200).json({ url: session.url });
   } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Stripe error:", err);
+    return res.status(500).json({ error: err.message || "Error interno" });
   }
 }
