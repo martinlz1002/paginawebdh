@@ -6,12 +6,11 @@ import AdminSidebar from './AdminSidebar';
 
 export default function AdminPanel() {
   const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
-  const [editItem, setEditItem] = useState<CarreraItem|undefined>();
+  const [editItem, setEditItem] = useState<CarreraItem>();
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="relative flex flex-col min-h-[calc(100vh-4rem)]">
-      {/* Contenedor del layout */}
       <div className="flex flex-1">
         <AdminSidebar
           view={view}

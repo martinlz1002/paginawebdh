@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
@@ -7,11 +7,11 @@ import AdminInscripcionesView from '@/components/AdminInscripcionesView';
 
 export default function AdminPage() {
   const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
-  const [editItem, setEditItem] = useState<any>(undefined);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [editItem, setEditItem] = useState<any>();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Cierra el sidebar si se hace click fuera de él
+  // Cerrar el sidebar al click fuera
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
@@ -38,7 +38,6 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* Ajuste de margen tanto en móvil como en desktop */}
         <main
           className={`flex-1 p-6 transition-all duration-300 ${
             sidebarOpen ? 'md:ml-64' : 'md:ml-0'
