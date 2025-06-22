@@ -4,6 +4,7 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
 import AdminCarrerasList from '@/components/AdminCarrerasList';
 import AdminInscripcionesView from '@/components/AdminInscripcionesView';
+import { ChevronRightIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 export default function AdminPage() {
   const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
@@ -11,13 +12,12 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // cerrar sidebar al click fuera
   useEffect(() => {
-    function handleClickOutside(ev: MouseEvent) {
+    function handleClickOutside(event: MouseEvent) {
       if (
         sidebarOpen &&
         sidebarRef.current &&
-        !sidebarRef.current.contains(ev.target as Node)
+        !sidebarRef.current.contains(event.target as Node)
       ) {
         setSidebarOpen(false);
       }
@@ -28,8 +28,7 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute>
-      <div className="relative flex min-h-screen bg-gray-100">
-        {/* Sidebar + toggle */}
+      <div className="flex min-h-screen bg-gray-100">
         <div ref={sidebarRef}>
           <AdminSidebar
             view={view}
@@ -39,10 +38,23 @@ export default function AdminPage() {
           />
         </div>
 
-        {/* Contenido principal */}
-        <main className="flex-1 p-6">
+        {/* Contenido */}
+        <main className="relative flex-1 p-6">
+          {/* Toggle dentro de contenido, justo debajo del header */}
+          <button
+            onClick={() => setSidebarOpen(o => !o)}
+            className="absolute top-6 left-6 z-30 bg-green-600 hover:bg-green-700 text-white p-2 rounded-full focus:outline-none"
+            aria-label={sidebarOpen ? 'Ocultar menú' : 'Mostrar menú'}
+          >
+            {sidebarOpen
+              ? <ChevronLeftIcon className="w-5 h-5" />
+              : <ChevronRightIcon className="w-5 h-5" />}
+          </button>
+
+          {/* Header del Admin */}
           <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
+          {/* Vistas */}
           {view === 'crear' && (
             <AdminCarrerasForm
               initialValues={editItem}

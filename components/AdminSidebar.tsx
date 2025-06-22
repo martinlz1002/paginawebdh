@@ -17,7 +17,6 @@ interface SidebarProps {
 export default function AdminSidebar({ view, setView, open, onToggle }: SidebarProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Cerrar al click fuera
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (open && menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -32,17 +31,6 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
 
   return (
     <>
-      {/* Toggle siempre fixed */}
-      <button
-        onClick={onToggle}
-        className="fixed top-4 left-4 z-50 bg-green-600 hover:bg-green-700 text-white p-2 rounded-full focus:outline-none"
-        aria-label={open ? 'Ocultar menú' : 'Mostrar menú'}
-      >
-        {open
-          ? <ChevronLeftIcon className="w-5 h-5" />
-          : <ChevronRightIcon className="w-5 h-5" />}
-      </button>
-
       {/* Sidebar */}
       <div
         ref={menuRef}
