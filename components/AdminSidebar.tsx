@@ -16,15 +16,16 @@ interface SidebarProps {
 
 export default function AdminSidebar({ view, setView, collapsed, onToggle }: SidebarProps) {
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
+
   return (
-    <div className="relative flex-shrink-0">
-      {/* Pestaña toggle siempre visible */}
+    <div className="relative">
+      {/* Toggle interno */}
       <button
         onClick={onToggle}
         className={`
-          fixed left-0 top-0 h-full z-50 flex items-center justify-center
+          absolute left-0 top-4 z-20 flex items-center justify-center
           bg-green-600 hover:bg-green-700 text-white
-          w-6 md:w-8
+          p-2 rounded-tr-lg rounded-br-lg
           transition-colors
         `}
         aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
@@ -34,12 +35,13 @@ export default function AdminSidebar({ view, setView, collapsed, onToggle }: Sid
           : <ChevronLeftIcon className="w-5 h-5" />}
       </button>
 
-      {/* Sidebar */}
+      {/* Sidebar superpuesto */}
       <aside
         className={`
-          bg-white shadow-lg p-6 pt-16 space-y-6
+          absolute left-0 top-0 h-full bg-white shadow-lg
+          pt-16 px-6 space-y-6
           transition-all duration-300
-          ${collapsed ? 'w-0 p-0 opacity-0' : 'w-64 opacity-100'}
+          ${collapsed ? 'w-0 opacity-0' : 'w-64 opacity-100'}
           overflow-hidden
         `}
       >
