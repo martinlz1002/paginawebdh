@@ -11,6 +11,7 @@ import {
   ClockIcon,
   MapPinIcon,
   PlusCircleIcon,
+  CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 
 export interface AdminCarrerasFormProps {
@@ -22,7 +23,7 @@ export default function AdminCarrerasForm({
   initialValues,
   onSuccess
 }: AdminCarrerasFormProps) {
-  // basic fields
+  // campos básicos
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
@@ -30,21 +31,27 @@ export default function AdminCarrerasForm({
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
   const [precio, setPrecio] = useState(initialValues?.precio?.toString() || '');
 
-  // images
+  // imágenes
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  // categories
+  // categorías
   const [categorias, setCategorias] = useState<Categoria[]>(initialValues?.categorias ?? []);
   const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0 });
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
+  // helpers…
+  const uploadIfNeeded = async (file: File, prefix: string) => {
+    const path = `${prefix}/${Date.now()}_${file.name}`;
+    const storageRef = ref(storage, path);
+    const snap = await uploadBytes(storageRef, file);
+    return getDownloadURL(snap.ref);
+  };
+
   const handleAddOrSaveCategoria = () => {
-    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) {
-      return;
-    }
+    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) return;
     setCategorias(prev => {
       if (editIndex !== null) {
         const copy = [...prev];
@@ -61,20 +68,12 @@ export default function AdminCarrerasForm({
     setNuevaCat(categorias[idx]);
     setEditIndex(idx);
   };
-
   const handleDeleteCategoria = (idx: number) => {
     setCategorias(prev => prev.filter((_, i) => i !== idx));
     if (editIndex === idx) {
       setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
       setEditIndex(null);
     }
-  };
-
-  const uploadIfNeeded = async (file: File, prefix: string) => {
-    const path = `${prefix}/${Date.now()}_${file.name}`;
-    const storageRef = ref(storage, path);
-    const snap = await uploadBytes(storageRef, file);
-    return getDownloadURL(snap.ref);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -84,18 +83,15 @@ export default function AdminCarrerasForm({
     let newBannerUrl = bannerUrl;
 
     if (imagenFile) {
-      if (newImagenUrl) {
-        try { await deleteObject(ref(storage, newImagenUrl)); } catch {}
-      }
+      if (newImagenUrl) try { await deleteObject(ref(storage, newImagenUrl)); } catch {}
       newImagenUrl = await uploadIfNeeded(imagenFile, 'carreras');
     }
     if (bannerFile) {
-      if (newBannerUrl) {
-        try { await deleteObject(ref(storage, newBannerUrl)); } catch {}
-      }
+      if (newBannerUrl) try { await deleteObject(ref(storage, newBannerUrl)); } catch {}
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
+    // armar payload, incluyendo precio parseado
     const payload: CarreraData & { bannerUrl?: string } = {
       titulo,
       descripcion,
@@ -145,6 +141,20 @@ export default function AdminCarrerasForm({
           onChange={e => setDescripcion(e.target.value)}
           required
           className="mt-1 w-full border p-2 rounded focus:ring-green-300"
+        />
+      </div>
+
+      {/* Precio */}
+      <div className="flex items-center space-x-2">
+        <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
+        <input
+          type="number"
+          step="0.01"
+          value={precio}
+          onChange={e => setPrecio(e.target.value)}
+          placeholder="Precio"
+          required
+          className="flex-1 border p-2 rounded focus:ring-green-300"
         />
       </div>
 
@@ -299,5 +309,5 @@ export default function AdminCarrerasForm({
         Guardar
       </button>
     </form>
-);
+  );
 }
