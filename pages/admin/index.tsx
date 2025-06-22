@@ -52,7 +52,7 @@ export default function AdminPage() {
           </button>
 
           {/* Header del Admin */}
-          <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
+          <h1 className="text-2xl font-bold mb-6">    Panel de Administración</h1>
 
           {/* Vistas */}
           {view === 'crear' && (
