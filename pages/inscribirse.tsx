@@ -12,6 +12,7 @@ import {
   where,
   Timestamp,
 } from "firebase/firestore";
+import { loadStripe } from "@stripe/stripe-js";
 import {
   MapPinIcon,
   CalendarIcon,
@@ -20,7 +21,6 @@ import {
   ClipboardIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
-import { loadStripe } from "@stripe/stripe-js";
 
 interface Categoria {
   nombre: string;
@@ -35,10 +35,10 @@ interface Carrera {
   lugar?: string;
   fecha?: string;
   horaSalida?: string;
+  precio: number;
   imagenUrl?: string;
   bannerUrl?: string;
   categorias: Categoria[];
-  precio: number;
 }
 
 interface Perfil {
@@ -60,7 +60,7 @@ export default function InscribirsePage() {
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera, incluyendo el campo precio
+  // 1) Carga de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -80,10 +80,10 @@ export default function InscribirsePage() {
             ? data.fecha.toDate().toLocaleDateString()
             : data.fecha,
         horaSalida: data.horaSalida,
+        precio: data.precio ?? 0,
         imagenUrl: data.imagenUrl,
         bannerUrl: data.bannerUrl,
         categorias: data.categorias || [],
-        precio: data.precio || 0,
       });
     })();
   }, [carreraId]);
@@ -127,7 +127,7 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Función que inicia el pago en Stripe
+  // 3) Redirigir al checkout de Stripe
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -140,7 +140,6 @@ export default function InscribirsePage() {
     }
 
     try {
-      // Llamada a tu API Next.js que crea la sesión de Checkout
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -151,26 +150,29 @@ export default function InscribirsePage() {
           precio: carrera.precio,
         }),
       });
-      if (!resp.ok) {
-        const text = await resp.text();
-        throw new Error(text || resp.statusText);
-      }
-      const { sessionId } = await resp.json();
 
-      // Redirigir al Checkout de Stripe
+      if (!resp.ok) {
+        let bodyText = "";
+        try {
+          bodyText = await resp.text();
+        } catch {}
+        throw new Error(`HTTP ${resp.status} — ${bodyText}`);
+      }
+
+      const { sessionId } = await resp.json();
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
       if (!stripe) throw new Error("Stripe no cargó correctamente");
       await stripe.redirectToCheckout({ sessionId });
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
-      setMensaje("Error al iniciar pago: " + err.message);
+      setMensaje(`Error al iniciar pago: ${err.message}`);
     }
   };
 
   if (!carrera) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
+        <p className="text-center mt-10">{mensaje || "Cargando…"} </p>
       </AuthGuard>
     );
   }
@@ -194,13 +196,13 @@ export default function InscribirsePage() {
           />
         )}
         <div className="p-6 space-y-6">
-          {/* Título y descripción */}
+          {/* Título & descripción */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Datos: lugar, fecha, hora, precio */}
+          {/* Info de lugar, fecha, hora y precio */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -222,7 +224,7 @@ export default function InscribirsePage() {
             )}
             <div className="flex items-center space-x-2">
               <ClipboardIcon className="w-5 h-5 text-green-700" />
-              <span className="font-medium">Precio: ${carrera.precio.toFixed(2)}</span>
+              <span className="font-medium">${carrera.precio.toFixed(2)}</span>
             </div>
           </div>
 
@@ -298,7 +300,7 @@ export default function InscribirsePage() {
               </select>
             </div>
 
-            {/* Botón Pagar */}
+            {/* Botón de pago */}
             <button
               onClick={handlePagar}
               disabled={!perfilSeleccionado || !categoriaSeleccionada}
@@ -309,10 +311,12 @@ export default function InscribirsePage() {
               }`}
             >
               <CheckCircleIcon className="w-5 h-5 mr-2 text-green-300" />
-              Pagar e Inscribirme
+              Pagar e inscribirme
             </button>
 
-            {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
+            {mensaje && (
+              <p className="text-center text-red-600">{mensaje}</p>
+            )}
           </div>
         </div>
       </div>
