@@ -11,13 +11,13 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Cerrar el sidebar al click fuera
+  // cerrar sidebar al click fuera
   useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
+    function handleClickOutside(ev: MouseEvent) {
       if (
         sidebarOpen &&
         sidebarRef.current &&
-        !sidebarRef.current.contains(event.target as Node)
+        !sidebarRef.current.contains(ev.target as Node)
       ) {
         setSidebarOpen(false);
       }
@@ -28,7 +28,8 @@ export default function AdminPage() {
 
   return (
     <ProtectedRoute>
-      <div className="flex min-h-screen bg-gray-100">
+      <div className="relative flex min-h-screen bg-gray-100">
+        {/* Sidebar + toggle */}
         <div ref={sidebarRef}>
           <AdminSidebar
             view={view}
@@ -38,11 +39,10 @@ export default function AdminPage() {
           />
         </div>
 
-        <main
-          className={`flex-1 p-6 transition-all duration-300 ${
-            sidebarOpen ? 'md:ml-64' : 'md:ml-0'
-          }`}
-        >
+        {/* Contenido principal */}
+        <main className="flex-1 p-6">
+          <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
+
           {view === 'crear' && (
             <AdminCarrerasForm
               initialValues={editItem}
