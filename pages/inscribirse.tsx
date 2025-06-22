@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
+import { loadStripe } from "@stripe/stripe-js";
 import {
   MapPinIcon,
   CalendarIcon,
@@ -21,6 +22,8 @@ import {
   ClipboardIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface Categoria {
   nombre: string;
@@ -38,6 +41,7 @@ interface Carrera {
   imagenUrl?: string;
   bannerUrl?: string;
   categorias: Categoria[];
+  precio: number;
 }
 
 interface Perfil {
@@ -50,21 +54,26 @@ interface Perfil {
 
 export default function InscribirsePage() {
   const router = useRouter();
-  const { carreraId } = router.query;
+  const { carreraId, success, canceled } = router.query;
   const [carrera, setCarrera] = useState<Carrera | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
+  const [procesando, setProcesando] = useState(false);
+
   const auth = getAuth(app);
 
-  // 1) Load carrera
+  // 1) Carga de la carrera (incluye precio)
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
       const snap = await getDoc(doc(db, "carreras", carreraId as string));
-      if (!snap.exists()) return setMensaje("Carrera no encontrada");
+      if (!snap.exists()) {
+        setMensaje("Carrera no encontrada");
+        return;
+      }
       const data = snap.data() as any;
       setCarrera({
         id: snap.id,
@@ -79,11 +88,12 @@ export default function InscribirsePage() {
         imagenUrl: data.imagenUrl,
         bannerUrl: data.bannerUrl,
         categorias: data.categorias || [],
+        precio: data.precio || 0,
       });
     })();
   }, [carreraId]);
 
-  // 2) Auth + perfiles
+  // 2) Autenticación + carga de perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -101,8 +111,8 @@ export default function InscribirsePage() {
       lista.push({
         id: uid,
         nombre: d.nombre,
-        apellidoPaterno: d.apPaterno,
-        apellidoMaterno: d.apMaterno,
+        apellidoPaterno: d.apPaterno || d.apellidoPaterno,
+        apellidoMaterno: d.apMaterno || d.apellidoMaterno,
         edad: d.edad,
       });
     }
@@ -122,32 +132,55 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Inscribir
-  const handleInscribir = async () => {
+  // 3) Tras volver de Stripe con success=true, registrar inscripción
+  useEffect(() => {
+    if (success === "true" && carrera && perfilSeleccionado && categoriaSeleccionada) {
+      (async () => {
+        try {
+          setProcesando(true);
+          await registrarInscripcion({
+            carreraId: carrera.id,
+            perfilId: perfilSeleccionado,
+            categoria: categoriaSeleccionada,
+          });
+          setMensaje("🎉 ¡Pago recibido e inscripción exitosa!");
+        } catch (err: any) {
+          setMensaje("Error al registrar inscripción: " + err.message);
+        } finally {
+          setProcesando(false);
+        }
+      })();
+    } else if (canceled === "true") {
+      setMensaje("Pago cancelado, no se registró la inscripción.");
+    }
+  }, [success, canceled, carrera, perfilSeleccionado, categoriaSeleccionada]);
+
+  // 4) Crear sesión de Stripe y redirigir
+  const iniciarPago = async () => {
     setMensaje("");
-    if (!perfilSeleccionado || !categoriaSeleccionada) {
-      return setMensaje("Selecciona perfil y categoría");
+    if (!perfilSeleccionado || !categoriaSeleccionada || !carrera) {
+      setMensaje("Selecciona perfil y categoría");
+      return;
     }
     try {
-      const user = auth.currentUser!;
-      const dupQ = query(
-        collection(db, "inscripciones"),
-        where("carreraId", "==", carrera!.id),
-        where("perfilId", "==", perfilSeleccionado),
-        where("perfilOwner", "==", user.uid)
-      );
-      const dupSnap = await getDocs(dupQ);
-      if (!dupSnap.empty) {
-        return setMensaje("Ya estás inscrito con este perfil.");
-      }
-      await registrarInscripcion({
-        carreraId: carrera!.id,
-        perfilId: perfilSeleccionado,
-        categoria: categoriaSeleccionada,
+      setProcesando(true);
+      const res = await fetch("/api/checkout_sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          carreraId: carrera.id,
+          perfilId: perfilSeleccionado,
+          categoria: categoriaSeleccionada,
+          precio: carrera.precio,
+        }),
       });
-      setMensaje("¡Inscripción exitosa!");
+      const { url, error } = await res.json();
+      if (error) throw new Error(error);
+      window.location.href = url;
     } catch (err: any) {
-      setMensaje("Error al inscribir: " + err.message);
+      console.error(err);
+      setMensaje("Error al iniciar pago: " + err.message);
+      setProcesando(false);
     }
   };
 
@@ -159,7 +192,7 @@ export default function InscribirsePage() {
     );
   }
 
-  // filter by age
+  // filtro categorías por edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
     perfilActual
@@ -178,7 +211,7 @@ export default function InscribirsePage() {
           />
         )}
         <div className="p-6 space-y-6">
-          {/* Title & description */}
+          {/* Título & descripción */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
@@ -206,7 +239,7 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Categories table */}
+          {/* Tabla de categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -232,9 +265,9 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Inscription form */}
+          {/* Formulario */}
           <div className="pt-6 border-t space-y-4">
-            {/* profile select */}
+            {/* Selección perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -257,7 +290,7 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* category select */}
+            {/* Selección categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -278,18 +311,18 @@ export default function InscribirsePage() {
               </select>
             </div>
 
-            {/* submit */}
+            {/* Botón de pago */}
             <button
-              onClick={handleInscribir}
-              disabled={!perfilSeleccionado || !categoriaSeleccionada}
+              onClick={iniciarPago}
+              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesando}
               className={`w-full flex justify-center items-center py-3 rounded text-white transition ${
-                perfilSeleccionado && categoriaSeleccionada
+                perfilSeleccionado && categoriaSeleccionada && !procesando
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-gray-400 cursor-not-allowed"
               }`}
             >
               <CheckCircleIcon className="w-5 h-5 mr-2 text-green-300" />
-              Inscribirme
+              {procesando ? "Procesando…" : "Inscribirme y Pagar"}
             </button>
 
             {mensaje && (
