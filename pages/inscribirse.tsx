@@ -37,7 +37,7 @@ interface Carrera {
   imagenUrl?: string;
   bannerUrl?: string;
   categorias: Categoria[];
-  precio?: number; // nuevo campo precio
+  precio?: number;
 }
 
 interface Perfil {
@@ -59,13 +59,13 @@ export default function InscribirsePage() {
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const auth = getAuth(app);
 
-  // Mostrar mensajes de estado tras volver de Stripe
+  // Mensajes tras volver de Stripe
   useEffect(() => {
     if (success) setMensaje("Pago exitoso. Tu inscripción está confirmada.");
     if (canceled) setMensaje("Pago cancelado. No se realizó la inscripción.");
   }, [success, canceled]);
 
-  // 1) Carga de la carrera
+  // Carga carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -93,7 +93,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Autenticación + carga de perfiles
+  // Auth + perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) return router.replace("/login");
@@ -132,7 +132,7 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Redirigir a Stripe Checkout
+  // Iniciar Checkout de Stripe
   const handlePago = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -153,17 +153,19 @@ export default function InscribirsePage() {
           precio: carrera.precio,
         }),
       });
-      // leer JSON con fallback
+
+      const text = await resp.text();
+      console.log("Raw response text:", text);
       let data: any;
       try {
-        data = await resp.json();
-      } catch {
-        throw new Error("Respuesta inesperada del servidor");
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error("Respuesta inesperada del servidor: " + text);
       }
+
       if (!resp.ok) {
         throw new Error(data.error || "Error al iniciar pago");
       }
-      // redirigir
       window.location.href = data.url;
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
@@ -179,7 +181,7 @@ export default function InscribirsePage() {
     );
   }
 
-  // Filtrar categorías según edad
+  // Filtrar categorías por edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
     perfilActual
@@ -190,7 +192,6 @@ export default function InscribirsePage() {
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-        {/* Banner */}
         {carrera.bannerUrl && (
           <div
             className="h-56 bg-cover bg-center"
@@ -198,13 +199,11 @@ export default function InscribirsePage() {
           />
         )}
         <div className="p-6 space-y-6">
-          {/* Título & descripción */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Info row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -226,13 +225,11 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Precio */}
           <div className="flex items-center space-x-2 text-xl font-semibold">
             <CreditCardIcon className="w-6 h-6 text-green-600" />
             <span>${carrera.precio?.toFixed(2)} MXN</span>
           </div>
 
-          {/* Tabla de categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -258,7 +255,6 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Formulario inscripción */}
           <div className="pt-6 border-t space-y-4">
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
