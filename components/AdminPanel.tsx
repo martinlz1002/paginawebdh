@@ -2,47 +2,52 @@ import { useState } from 'react';
 import AdminCarrerasForm from './AdminCarrerasForm';
 import AdminCarrerasList, { CarreraItem } from './AdminCarrerasList';
 import AdminInscripcionesView from './AdminInscripcionesView';
+import AdminSidebar from './AdminSidebar';
 
 export default function AdminPanel() {
-  const [vista, setVista] = useState<'crear' | 'listar' | 'insc'>('crear');
-  const [editar, setEditar] = useState<CarreraItem | undefined>(undefined);
+  const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
+  const [editItem, setEditItem] = useState<CarreraItem | undefined>();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Panel de Administración</h1>
-      <nav className="flex gap-4 mb-6">
-        <button
-          className={vista === 'crear' ? 'font-semibold' : ''}
-          onClick={() => { setEditar(undefined); setVista('crear'); }}
-        >
-          Crear / Editar Carrera
-        </button>
-        <button
-          className={vista === 'listar' ? 'font-semibold' : ''}
-          onClick={() => setVista('listar')}
-        >
-          Listar Carreras
-        </button>
-        <button
-          className={vista === 'insc' ? 'font-semibold' : ''}
-          onClick={() => setVista('insc')}
-        >
-          Ver Inscripciones
-        </button>
-      </nav>
+    <div className="flex h-full min-h-screen bg-gray-100">
+      <AdminSidebar
+        view={view}
+        setView={setView}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+      />
 
-      {vista === 'crear' && (
-        <AdminCarrerasForm
-          initialValues={editar}
-          onSuccess={() => setVista('listar')}
-        />
-      )}
-      {vista === 'listar' && (
-        <AdminCarrerasList
-          onEdit={(c) => { setEditar(c); setVista('crear'); }}
-        />
-      )}
-      {vista === 'insc' && <AdminInscripcionesView />}
+      <main
+        className={`
+          flex-1 transition-all duration-300
+          ${collapsed ? 'pl-4' : 'pl-72'}
+          pt-6 pr-6 pb-6
+        `}
+      >
+        <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
+
+        {view === 'crear' && (
+          <AdminCarrerasForm
+            initialValues={editItem}
+            onSuccess={() => {
+              setEditItem(undefined);
+              setView('listar');
+            }}
+          />
+        )}
+
+        {view === 'listar' && (
+          <AdminCarrerasList
+            onEdit={(c) => {
+              setEditItem(c);
+              setView('crear');
+            }}
+          />
+        )}
+
+        {view === 'inscripciones' && <AdminInscripcionesView />}
+      </main>
     </div>
   );
 }

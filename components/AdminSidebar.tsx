@@ -17,9 +17,14 @@ interface SidebarProps {
 export default function AdminSidebar({ view, setView, collapsed, onToggle }: SidebarProps) {
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
   return (
-    <aside className={`flex flex-col bg-white shadow-lg rounded-lg overflow-hidden
-                       fixed top-0 left-0 h-full z-40 transform transition-transform
-                       ${collapsed ? '-translate-x-64' : 'translate-x-0'} md:relative md:translate-x-0`}>
+    <aside
+      className={`
+        flex flex-col bg-white shadow-lg
+        transition-all duration-300
+        ${collapsed ? 'w-0 p-0 opacity-0' : 'w-64 p-6 opacity-100'}
+        overflow-hidden
+      `}
+    >
       {/* Toggle */}
       <div
         onClick={onToggle}
@@ -30,7 +35,7 @@ export default function AdminSidebar({ view, setView, collapsed, onToggle }: Sid
           : <ChevronLeftIcon className="w-5 h-5 text-gray-600" />}
       </div>
 
-      <nav className="mt-8 space-y-2">
+      <nav className="mt-8 space-y-4">
         <button
           onClick={() => setView('crear')}
           className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
