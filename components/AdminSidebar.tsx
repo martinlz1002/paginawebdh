@@ -17,44 +17,53 @@ interface SidebarProps {
 export default function AdminSidebar({ view, setView, collapsed, onToggle }: SidebarProps) {
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
   return (
-    <aside
-      className={`
-        flex flex-col bg-white shadow-lg
-        transition-all duration-300
-        ${collapsed ? 'w-0 p-0 opacity-0' : 'w-64 p-6 opacity-100'}
-        overflow-hidden
-      `}
-    >
-      {/* Toggle */}
-      <div
+    <div className="relative flex-shrink-0">
+      {/* Pestaña toggle siempre visible */}
+      <button
         onClick={onToggle}
-        className="absolute top-4 right-[-1.5rem] bg-white p-2 rounded-full shadow cursor-pointer"
+        className={`
+          fixed left-0 top-0 h-full z-50 flex items-center justify-center
+          bg-green-600 hover:bg-green-700 text-white
+          w-6 md:w-8
+          transition-colors
+        `}
+        aria-label={collapsed ? 'Mostrar menú' : 'Ocultar menú'}
       >
         {collapsed
-          ? <ChevronRightIcon className="w-5 h-5 text-gray-600" />
-          : <ChevronLeftIcon className="w-5 h-5 text-gray-600" />}
-      </div>
+          ? <ChevronRightIcon className="w-5 h-5" />
+          : <ChevronLeftIcon className="w-5 h-5" />}
+      </button>
 
-      <nav className="mt-8 space-y-4">
-        <button
-          onClick={() => setView('crear')}
-          className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-        >
-          <PlusCircleIcon className="w-5 h-5 mr-2" /> Crear
-        </button>
-        <button
-          onClick={() => setView('listar')}
-          className={`${btnBase} ${view === 'listar' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-        >
-          <PencilIcon className="w-5 h-5 mr-2" /> Listar
-        </button>
-        <button
-          onClick={() => setView('inscripciones')}
-          className={`${btnBase} ${view === 'inscripciones' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-        >
-          <ClipboardIcon className="w-5 h-5 mr-2" /> Inscripciones
-        </button>
-      </nav>
-    </aside>
+      {/* Sidebar */}
+      <aside
+        className={`
+          bg-white shadow-lg p-6 pt-16 space-y-6
+          transition-all duration-300
+          ${collapsed ? 'w-0 p-0 opacity-0' : 'w-64 opacity-100'}
+          overflow-hidden
+        `}
+      >
+        <nav className="space-y-4">
+          <button
+            onClick={() => setView('crear')}
+            className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <PlusCircleIcon className="w-5 h-5 mr-2" /> Crear
+          </button>
+          <button
+            onClick={() => setView('listar')}
+            className={`${btnBase} ${view === 'listar' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <PencilIcon className="w-5 h-5 mr-2" /> Listar
+          </button>
+          <button
+            onClick={() => setView('inscripciones')}
+            className={`${btnBase} ${view === 'inscripciones' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <ClipboardIcon className="w-5 h-5 mr-2" /> Inscripciones
+          </button>
+        </nav>
+      </aside>
+    </div>
   );
 }

@@ -10,7 +10,8 @@ export default function AdminPanel() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex h-full min-h-screen bg-gray-100">
+    <div className="flex min-h-screen bg-gray-100">
+      {/* Sidebar + toggle */}
       <AdminSidebar
         view={view}
         setView={setView}
@@ -18,10 +19,11 @@ export default function AdminPanel() {
         onToggle={() => setCollapsed(c => !c)}
       />
 
+      {/* Contenido principal */}
       <main
         className={`
           flex-1 transition-all duration-300
-          ${collapsed ? 'pl-4' : 'pl-72'}
+          ${collapsed ? 'pl-6' : 'pl-72'}
           pt-6 pr-6 pb-6
         `}
       >
