@@ -6,7 +6,7 @@ export default function Pago() {
   const router = useRouter();
 
   const handleCheckout = async () => {
-    const res = await fetch("/api/create-checkout-session", { method: "POST" });
+    const res = await fetch("/api/checkout-sessions", { method: "POST" });
     const data = await res.json();
 
     if (data.id) {

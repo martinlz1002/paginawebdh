@@ -23,9 +23,8 @@ export default async function handler(
   };
 
   try {
-    const origin = req.headers.origin || "";
+    const origin = req.headers.origin ?? "";
 
-    // Crea sesión de Checkout
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
@@ -44,11 +43,7 @@ export default async function handler(
       ],
       success_url: `${origin}/mis-inscripciones?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/inscribirse?carreraId=${carreraId}`,
-      metadata: {
-        carreraId,
-        perfilId,
-        categoria,
-      },
+      metadata: { carreraId, perfilId, categoria },
     });
 
     return res.status(200).json({ url: session.url });
