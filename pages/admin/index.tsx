@@ -33,7 +33,7 @@ export default function AdminPage() {
           <AdminSidebar
             view={view}
             setView={setView}
-            collapsed={!sidebarOpen}
+            open={sidebarOpen}
             onToggle={() => setSidebarOpen(o => !o)}
           />
         </div>
