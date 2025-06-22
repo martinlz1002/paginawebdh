@@ -10,8 +10,8 @@ export default function AdminPanel() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="relative flex-1">
-      {/* Aquí el sidebar está sobre el contenido, sin mover nada fuera */}
+    <div className="flex bg-gray-100 min-h-[calc(100vh-4rem)]">
+      {/* Solo ocupa el contenido, no tapa footer */}
       <AdminSidebar
         view={view}
         setView={setView}
@@ -19,9 +19,14 @@ export default function AdminPanel() {
         onToggle={() => setCollapsed(c => !c)}
       />
 
-      {/* Contenido que NO se mueve */}
-      <div className="pl-0 md:pl-0">
-        <h1 className="text-2xl font-bold mb-6 pt-4">Panel de Administración</h1>
+      <main
+        className={`
+          flex-1 transition-all duration-300
+          ${collapsed ? 'ml-4' : 'ml-72'}
+          p-6
+        `}
+      >
+        <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
         {view === 'crear' && (
           <AdminCarrerasForm
@@ -43,7 +48,7 @@ export default function AdminPanel() {
         )}
 
         {view === 'inscripciones' && <AdminInscripcionesView />}
-      </div>
+      </main>
     </div>
   );
 }
