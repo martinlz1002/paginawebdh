@@ -9,13 +9,21 @@ export default function CrearCarrera() {
   const [fecha, setFecha] = useState("");
   const [imagenUrl, setImagenUrl] = useState("");
   const [mensaje, setMensaje] = useState("");
+  const [precio, setPrecio] = useState("");
 
   const handleCrearCarrera = async () => {
     try {
       const functions = getFunctions(app);
       const crearCarrera = httpsCallable(functions, "crearCarrera");
 
-      await crearCarrera({ titulo, descripcion, ubicacion, fecha, imagenUrl });
+      await crearCarrera({
+       titulo,
+       descripcion,
+       ubicacion,
+       fecha,
+       imagenUrl,
+       precio: parseFloat(precio) || 0, // <-- enviamos precio
+     });
 
       setMensaje("Carrera creada exitosamente.");
     } catch (error) {
@@ -55,6 +63,13 @@ export default function CrearCarrera() {
         onChange={(e) => setImagenUrl(e.target.value)}
         placeholder="URL de la imagen"
       />
+      <input
+       type="number"
+       value={precio}
+       onChange={(e) => setPrecio(e.target.value)}
+       placeholder="Precio (MXN)"
+       step="0.01"
+     />
       <button onClick={handleCrearCarrera}>Crear Carrera</button>
       <p>{mensaje}</p>
     </div>

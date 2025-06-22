@@ -28,6 +28,7 @@ export default function AdminCarrerasForm({
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
+  const [precio, setPrecio] = useState(initialValues?.precio?.toString() || '');
 
   // images
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -102,6 +103,7 @@ export default function AdminCarrerasForm({
       fecha,
       horaSalida,
       categorias,
+      precio: parseFloat(precio) || 0,
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };

@@ -20,5 +20,6 @@ export interface CarreraData {
   fecha: string;        // ISO date YYYY-MM-DD
   horaSalida: string;   // HH:MM
   imagenUrl?: string;
-  categorias: Categoria[];  // <-- ahora es Categoria[]
+  categorias: Categoria[];
+  precio: number;  // <-- ahora es Categoria[]
 }
