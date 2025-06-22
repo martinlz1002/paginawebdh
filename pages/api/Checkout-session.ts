@@ -23,22 +23,19 @@ export default async function handler(
         .json({ error: 'Faltan parámetros obligatorios' })
     }
 
-    // crea un Checkout Session de Stripe
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'mxn',
-            product_data: {
-              name: `Inscripción: ${categoria}`,
-              metadata: { carreraId, perfilId, categoria },
-            },
-            unit_amount: Math.round(precio * 100),
+      line_items: [{
+        price_data: {
+          currency: 'mxn',
+          product_data: {
+            name: `Inscripción: ${categoria}`,
+            metadata: { carreraId, perfilId, categoria },
           },
-          quantity: 1,
+          unit_amount: Math.round(precio * 100),
         },
-      ],
+        quantity: 1,
+      }],
       mode: 'payment',
       success_url: `${req.headers.origin}/inscripcion-exitosa?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.headers.origin}/inscripcion-cancelada`,

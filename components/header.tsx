@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
+import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
 
 export default function Header() {
@@ -35,13 +36,13 @@ export default function Header() {
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, []);
+  }, [menuOpen]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -50,46 +51,40 @@ export default function Header() {
 
   return (
     <header className="flex justify-between items-center p-4 bg-white shadow sticky top-0 z-50">
-      <Link href="/">
-        <a className="flex items-center">
-          <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
-          <span className="ml-2 text-2xl font-bold text-green-800"></span>
-        </a>
+      {/* Logo */}
+      <Link href="/" className="flex items-center">
+        <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
+        <span className="ml-2 text-2xl font-bold text-green-800">
+          DHTime
+        </span>
       </Link>
 
+      {/* Menú usuario */}
       {user ? (
         <div className="relative" ref={menuRef}>
           <button
-            onClick={() => setMenuOpen(o => !o)}
+            onClick={() => setMenuOpen((o) => !o)}
             className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 transition"
           >
             <span className="font-medium">{nombre}</span>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+            {menuOpen ? (
+              <XMarkIcon className="w-4 h-4" />
+            ) : (
+              <ChevronDownIcon className="w-4 h-4" />
+            )}
           </button>
 
           {menuOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md py-2">
-              <Link href="/mis-inscripciones">
-                <a className="block px-4 py-2 hover:bg-gray-100">Mis inscripciones</a>
+              <Link href="/mis-inscripciones" className="block px-4 py-2 hover:bg-gray-100">
+                Mis inscripciones
               </Link>
-              <Link href="/perfil">
-                <a className="block px-4 py-2 hover:bg-gray-100">Perfil</a>
+              <Link href="/perfil" className="block px-4 py-2 hover:bg-gray-100">
+                Perfil
               </Link>
               {esAdmin && (
-                <Link href="/admin">
-                  <a className="block px-4 py-2 hover:bg-gray-100">Admin</a>
+                <Link href="/admin" className="block px-4 py-2 hover:bg-gray-100">
+                  Admin
                 </Link>
               )}
               <button
@@ -103,13 +98,11 @@ export default function Header() {
         </div>
       ) : (
         <div className="flex items-center space-x-6">
-          <Link href="/login">
-            <a className="text-gray-700 hover:text-green-700 transition">Iniciar sesión</a>
+          <Link href="/login" className="text-gray-700 hover:text-green-700 transition">
+            Iniciar sesión
           </Link>
-          <Link href="/signup">
-            <a className="text-green-700 font-medium hover:underline transition">
-              Registrarse
-            </a>
+          <Link href="/signup" className="text-green-700 font-medium hover:underline transition">
+            Registrarse
           </Link>
         </div>
       )}
