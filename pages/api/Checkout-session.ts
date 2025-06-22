@@ -1,51 +1,30 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
-import Stripe from 'stripe'
+import { NextApiRequest, NextApiResponse } from "next";
+import Stripe from "stripe";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2022-11-15',
-})
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2022-11-15" });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST')
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
-
+  if (req.method !== "POST") return res.status(405).end();
+  const { carreraId, perfilId, categoria, precio } = req.body;
   try {
-    const { carreraId, perfilId, categoria, precio } = req.body as {
-      carreraId: string
-      perfilId: string
-      categoria: string
-      precio: number
-    }
-
-    // URL base para volver tras el pago
-    const origin = req.headers.origin || ''
-
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'mxn',
-            product_data: {
-              name: `Inscripción Carrera ${carreraId}`,
-              description: `Perfil ${perfilId} – Categoría ${categoria}`,
-            },
-            unit_amount: Math.round(precio * 100), // pesos → centavos
-          },
-          quantity: 1,
+      payment_method_types: ["card"],
+      line_items: [{
+        price_data: {
+          currency: "mxn",
+          product_data: { name: `Inscripción ${categoria}` },
+          unit_amount: Math.round(precio * 100),
         },
-      ],
-      mode: 'payment',
-      // URLs a donde vuelve el cliente
-      success_url: `${origin}/inscribirse?carreraId=${carreraId}&success=true`,
-      cancel_url: `${origin}/inscribirse?carreraId=${carreraId}&canceled=true`,
-    })
-
-    return res.status(200).json({ url: session.url })
+        quantity: 1,
+      }],
+      metadata: { carreraId, perfilId, categoria },
+      mode: "payment",
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/inscripcion-exitosa?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/inscripcion-cancelada`,
+    });
+    res.status(200).json({ sessionId: session.id });
   } catch (err: any) {
-    console.error('Stripe error:', err)
-    return res.status(500).json({ error: err.message })
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 }

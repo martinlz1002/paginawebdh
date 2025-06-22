@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { app, db } from "@/lib/firebase";
-import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -18,8 +18,9 @@ import {
   ClockIcon,
   UserIcon,
   ClipboardIcon,
-  CreditCardIcon,
+  CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+import { loadStripe } from "@stripe/stripe-js";
 
 interface Categoria {
   nombre: string;
@@ -37,7 +38,7 @@ interface Carrera {
   imagenUrl?: string;
   bannerUrl?: string;
   categorias: Categoria[];
-  precio?: number;
+  precio: number;
 }
 
 interface Perfil {
@@ -50,7 +51,7 @@ interface Perfil {
 
 export default function InscribirsePage() {
   const router = useRouter();
-  const { carreraId, success, canceled } = router.query;
+  const { carreraId } = router.query;
   const [carrera, setCarrera] = useState<Carrera | null>(null);
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
@@ -59,13 +60,7 @@ export default function InscribirsePage() {
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const auth = getAuth(app);
 
-  // Mensajes tras volver de Stripe
-  useEffect(() => {
-    if (success) setMensaje("Pago exitoso. Tu inscripción está confirmada.");
-    if (canceled) setMensaje("Pago cancelado. No se realizó la inscripción.");
-  }, [success, canceled]);
-
-  // Carga carrera
+  // 1) Carga de la carrera, incluyendo el campo precio
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -88,14 +83,14 @@ export default function InscribirsePage() {
         imagenUrl: data.imagenUrl,
         bannerUrl: data.bannerUrl,
         categorias: data.categorias || [],
-        precio: typeof data.precio === "number" ? data.precio : 0,
+        precio: data.precio || 0,
       });
     })();
   }, [carreraId]);
 
-  // Auth + perfiles
+  // 2) Autenticación + carga de perfiles
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user: User | null) => {
+    const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
       loadPerfiles(user.uid);
     });
@@ -132,17 +127,20 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // Iniciar Checkout de Stripe
-  const handlePago = async () => {
+  // 3) Función que inicia el pago en Stripe
+  const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
-      return setMensaje("Selecciona perfil y categoría");
+      setMensaje("Selecciona perfil y categoría");
+      return;
     }
-    if (!carrera?.precio) {
-      return setMensaje("No se ha establecido precio para esta carrera.");
+    if (!carrera) {
+      setMensaje("Carrera no cargada");
+      return;
     }
 
     try {
+      // Llamada a tu API Next.js que crea la sesión de Checkout
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -153,20 +151,16 @@ export default function InscribirsePage() {
           precio: carrera.precio,
         }),
       });
-
-      const text = await resp.text();
-      console.log("Raw response text:", text);
-      let data: any;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error("Respuesta inesperada del servidor: " + text);
-      }
-
       if (!resp.ok) {
-        throw new Error(data.error || "Error al iniciar pago");
+        const text = await resp.text();
+        throw new Error(text || resp.statusText);
       }
-      window.location.href = data.url;
+      const { sessionId } = await resp.json();
+
+      // Redirigir al Checkout de Stripe
+      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+      if (!stripe) throw new Error("Stripe no cargó correctamente");
+      await stripe.redirectToCheckout({ sessionId });
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
       setMensaje("Error al iniciar pago: " + err.message);
@@ -176,7 +170,7 @@ export default function InscribirsePage() {
   if (!carrera) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10">{mensaje || "Cargando…"} </p>
+        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
       </AuthGuard>
     );
   }
@@ -192,6 +186,7 @@ export default function InscribirsePage() {
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Banner */}
         {carrera.bannerUrl && (
           <div
             className="h-56 bg-cover bg-center"
@@ -199,12 +194,14 @@ export default function InscribirsePage() {
           />
         )}
         <div className="p-6 space-y-6">
+          {/* Título y descripción */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
+          {/* Datos: lugar, fecha, hora, precio */}
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
                 <MapPinIcon className="w-5 h-5 text-gray-500" />
@@ -223,13 +220,13 @@ export default function InscribirsePage() {
                 <span className="font-medium">{carrera.horaSalida}</span>
               </div>
             )}
+            <div className="flex items-center space-x-2">
+              <ClipboardIcon className="w-5 h-5 text-green-700" />
+              <span className="font-medium">Precio: ${carrera.precio.toFixed(2)}</span>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-2 text-xl font-semibold">
-            <CreditCardIcon className="w-6 h-6 text-green-600" />
-            <span>${carrera.precio?.toFixed(2)} MXN</span>
-          </div>
-
+          {/* Tabla de categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -255,7 +252,9 @@ export default function InscribirsePage() {
             </table>
           </div>
 
+          {/* Formulario de inscripción */}
           <div className="pt-6 border-t space-y-4">
+            {/* Selección de perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -278,6 +277,7 @@ export default function InscribirsePage() {
               )}
             </div>
 
+            {/* Selección de categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -298,27 +298,21 @@ export default function InscribirsePage() {
               </select>
             </div>
 
+            {/* Botón Pagar */}
             <button
-              onClick={handlePago}
-              disabled={
-                !perfilSeleccionado ||
-                !categoriaSeleccionada ||
-                carrera.precio === undefined ||
-                carrera.precio <= 0
-              }
+              onClick={handlePagar}
+              disabled={!perfilSeleccionado || !categoriaSeleccionada}
               className={`w-full flex justify-center items-center py-3 rounded text-white transition ${
                 perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-gray-400 cursor-not-allowed"
               }`}
             >
-              <CreditCardIcon className="w-5 h-5 mr-2 text-green-300" />
-              Pagar e inscribirme
+              <CheckCircleIcon className="w-5 h-5 mr-2 text-green-300" />
+              Pagar e Inscribirme
             </button>
 
-            {mensaje && (
-              <p className="text-center text-red-600">{mensaje}</p>
-            )}
+            {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
           </div>
         </div>
       </div>
