@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import AuthGuard from "@/components/AuthGuard";
 import { app, db } from "@/lib/firebase";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -12,18 +12,14 @@ import {
   where,
   Timestamp,
 } from "firebase/firestore";
-import { registrarInscripcion } from "@/lib/Inscripciones";
-import { loadStripe } from "@stripe/stripe-js";
 import {
   MapPinIcon,
   CalendarIcon,
   ClockIcon,
   UserIcon,
   ClipboardIcon,
-  CheckCircleIcon,
+  CreditCardIcon,
 } from "@heroicons/react/24/outline";
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface Categoria {
   nombre: string;
@@ -41,7 +37,7 @@ interface Carrera {
   imagenUrl?: string;
   bannerUrl?: string;
   categorias: Categoria[];
-  precio: number;
+  precio?: number; // nuevo campo precio
 }
 
 interface Perfil {
@@ -61,11 +57,15 @@ export default function InscribirsePage() {
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
-  const [procesando, setProcesando] = useState(false);
-
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera (incluye precio)
+  // Mostrar mensajes de estado tras volver de Stripe
+  useEffect(() => {
+    if (success) setMensaje("Pago exitoso. Tu inscripción está confirmada.");
+    if (canceled) setMensaje("Pago cancelado. No se realizó la inscripción.");
+  }, [success, canceled]);
+
+  // 1) Carga de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -88,14 +88,14 @@ export default function InscribirsePage() {
         imagenUrl: data.imagenUrl,
         bannerUrl: data.bannerUrl,
         categorias: data.categorias || [],
-        precio: data.precio || 0,
+        precio: typeof data.precio === "number" ? data.precio : 0,
       });
     })();
   }, [carreraId]);
 
   // 2) Autenticación + carga de perfiles
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) return router.replace("/login");
       loadPerfiles(user.uid);
     });
@@ -111,8 +111,8 @@ export default function InscribirsePage() {
       lista.push({
         id: uid,
         nombre: d.nombre,
-        apellidoPaterno: d.apPaterno || d.apellidoPaterno,
-        apellidoMaterno: d.apMaterno || d.apellidoMaterno,
+        apellidoPaterno: d.apPaterno,
+        apellidoMaterno: d.apMaterno,
         edad: d.edad,
       });
     }
@@ -132,39 +132,18 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Tras volver de Stripe con success=true, registrar inscripción
-  useEffect(() => {
-    if (success === "true" && carrera && perfilSeleccionado && categoriaSeleccionada) {
-      (async () => {
-        try {
-          setProcesando(true);
-          await registrarInscripcion({
-            carreraId: carrera.id,
-            perfilId: perfilSeleccionado,
-            categoria: categoriaSeleccionada,
-          });
-          setMensaje("🎉 ¡Pago recibido e inscripción exitosa!");
-        } catch (err: any) {
-          setMensaje("Error al registrar inscripción: " + err.message);
-        } finally {
-          setProcesando(false);
-        }
-      })();
-    } else if (canceled === "true") {
-      setMensaje("Pago cancelado, no se registró la inscripción.");
-    }
-  }, [success, canceled, carrera, perfilSeleccionado, categoriaSeleccionada]);
-
-  // 4) Crear sesión de Stripe y redirigir
-  const iniciarPago = async () => {
+  // 3) Redirigir a Stripe Checkout
+  const handlePago = async () => {
     setMensaje("");
-    if (!perfilSeleccionado || !categoriaSeleccionada || !carrera) {
-      setMensaje("Selecciona perfil y categoría");
-      return;
+    if (!perfilSeleccionado || !categoriaSeleccionada) {
+      return setMensaje("Selecciona perfil y categoría");
     }
+    if (!carrera?.precio) {
+      return setMensaje("No se ha establecido precio para esta carrera.");
+    }
+
     try {
-      setProcesando(true);
-      const res = await fetch("/api/checkout_sessions", {
+      const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -174,13 +153,21 @@ export default function InscribirsePage() {
           precio: carrera.precio,
         }),
       });
-      const { url, error } = await res.json();
-      if (error) throw new Error(error);
-      window.location.href = url;
+      // leer JSON con fallback
+      let data: any;
+      try {
+        data = await resp.json();
+      } catch {
+        throw new Error("Respuesta inesperada del servidor");
+      }
+      if (!resp.ok) {
+        throw new Error(data.error || "Error al iniciar pago");
+      }
+      // redirigir
+      window.location.href = data.url;
     } catch (err: any) {
-      console.error(err);
+      console.error("Error al iniciar pago:", err);
       setMensaje("Error al iniciar pago: " + err.message);
-      setProcesando(false);
     }
   };
 
@@ -192,7 +179,7 @@ export default function InscribirsePage() {
     );
   }
 
-  // filtro categorías por edad
+  // Filtrar categorías según edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
     perfilActual
@@ -239,6 +226,12 @@ export default function InscribirsePage() {
             )}
           </div>
 
+          {/* Precio */}
+          <div className="flex items-center space-x-2 text-xl font-semibold">
+            <CreditCardIcon className="w-6 h-6 text-green-600" />
+            <span>${carrera.precio?.toFixed(2)} MXN</span>
+          </div>
+
           {/* Tabla de categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
@@ -265,9 +258,8 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Formulario */}
+          {/* Formulario inscripción */}
           <div className="pt-6 border-t space-y-4">
-            {/* Selección perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -290,7 +282,6 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Selección categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -311,18 +302,22 @@ export default function InscribirsePage() {
               </select>
             </div>
 
-            {/* Botón de pago */}
             <button
-              onClick={iniciarPago}
-              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesando}
+              onClick={handlePago}
+              disabled={
+                !perfilSeleccionado ||
+                !categoriaSeleccionada ||
+                carrera.precio === undefined ||
+                carrera.precio <= 0
+              }
               className={`w-full flex justify-center items-center py-3 rounded text-white transition ${
-                perfilSeleccionado && categoriaSeleccionada && !procesando
+                perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-gray-400 cursor-not-allowed"
               }`}
             >
-              <CheckCircleIcon className="w-5 h-5 mr-2 text-green-300" />
-              {procesando ? "Procesando…" : "Inscribirme y Pagar"}
+              <CreditCardIcon className="w-5 h-5 mr-2 text-green-300" />
+              Pagar e inscribirme
             </button>
 
             {mensaje && (
