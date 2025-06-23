@@ -54,9 +54,6 @@ export default function Header() {
       {/* Logo */}
       <Link href="/" className="flex items-center">
         <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
-        <span className="ml-2 text-2xl font-bold text-green-800">
-          DHTime
-        </span>
       </Link>
 
       {/* Menú usuario */}

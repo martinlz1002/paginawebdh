@@ -125,7 +125,7 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Iniciar pago con Stripe
+  // 3) Iniciar pago con Stripe (previo check de inscripción)
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -134,6 +134,22 @@ export default function InscribirsePage() {
     }
     if (!carrera) return;
 
+    // Validar si ya existe inscripción
+    const user = auth.currentUser;
+    if (!user) return;
+    const dupQuery = query(
+      collection(db, "inscripciones"),
+      where("carreraId", "==", carrera.id),
+      where("perfilId", "==", perfilSeleccionado),
+      where("perfilOwner", "==", user.uid)
+    );
+    const dupSnap = await getDocs(dupQuery);
+    if (!dupSnap.empty) {
+      setMensaje("Ya estás inscrito en esta carrera con el perfil seleccionado.");
+      return;
+    }
+
+    // Continuar con el pago
     setProcesandoPago(true);
     try {
       const res = await fetch("/api/checkout_sessions", {
@@ -146,7 +162,6 @@ export default function InscribirsePage() {
           precio: carrera.precio,
         }),
       });
-
       if (res.status === 405) {
         throw new Error("Método no permitido (405)");
       }
@@ -154,7 +169,6 @@ export default function InscribirsePage() {
         const text = await res.text();
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
-
       const { url } = await res.json();
       window.location.href = url;
     } catch (err: any) {
@@ -174,32 +188,27 @@ export default function InscribirsePage() {
 
   // Filtrar categorías por edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
-  const categoriasPermitidas = carrera.categorias.filter(
-    (cat) =>
-      perfilActual
-        ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
-        : false
+  const categoriasPermitidas = carrera.categorias.filter((cat) =>
+    perfilActual
+      ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
+      : false
   );
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
-        {/* Banner */}
         {carrera.bannerUrl && (
           <div
             className="h-56 bg-cover bg-center"
             style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
           />
         )}
-
         <div className="p-6 space-y-6">
-          {/* Título */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Datos */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -221,13 +230,11 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Precio */}
           <div className="text-2xl font-semibold">
             <CreditCardIcon className="inline w-6 h-6 text-green-600 mr-2" />
             Precio: ${carrera.precio.toFixed(2)}
           </div>
 
-          {/* Categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -253,9 +260,7 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Formulario inscripción + pago */}
           <div className="pt-6 border-t space-y-4">
-            {/* Perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -271,14 +276,13 @@ export default function InscribirsePage() {
                 >
                   {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.nombre} {p.apellidoPaterno} ({p.edad} años)
+                      {p.nombre} {p.apellidoPaterno} ({p.edad} años)  
                     </option>
                   ))}
                 </select>
               )}
             </div>
 
-            {/* Categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -299,7 +303,6 @@ export default function InscribirsePage() {
               </select>
             </div>
 
-            {/* Botón pago */}
             <button
               onClick={handlePagar}
               disabled={
