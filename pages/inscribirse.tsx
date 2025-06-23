@@ -170,13 +170,14 @@ export default function InscribirsePage() {
         const text = await res.text();
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
-      const { url } = await res.json();
+      const { url, sessionId } = await res.json();
 
       // 4) Registrar inscripción en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
         categoria: categoriaSeleccionada,
+        sessionId,
       });
 
       // Redirigir al Checkout Stripe

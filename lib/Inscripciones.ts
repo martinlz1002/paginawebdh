@@ -6,6 +6,7 @@ export interface InscripcionData {
   carreraId: string;
   perfilId: string;
   categoria: string;
+  sessionId: string;
 }
 
 export async function registrarInscripcion(data: InscripcionData, sessionId?: string) {
@@ -21,7 +22,7 @@ export async function registrarInscripcion(data: InscripcionData, sessionId?: st
       perfilOwner: user.uid,
       categoria: data.categoria,
       timestamp: serverTimestamp(),
-      sessionId: sessionId || null,
+      sessionId: data.sessionId,
     }
   );
 
