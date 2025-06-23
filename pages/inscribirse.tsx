@@ -20,6 +20,7 @@ import {
   ClipboardIcon,
   CreditCardIcon,
 } from "@heroicons/react/24/outline";
+import { registrarInscripcion } from "@/lib/Inscripciones"; // importación corregida
 
 interface Categoria {
   nombre: string;
@@ -152,7 +153,7 @@ export default function InscribirsePage() {
     // Continuar con el pago
     setProcesandoPago(true);
     try {
-      const res = await fetch("/api/checkout_sessions", {
+      const res = await fetch("/api/checkout-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -170,6 +171,15 @@ export default function InscribirsePage() {
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
       const { url } = await res.json();
+
+      // 4) Registro de la inscripción en Firestore **antes** de redirigir
+      await registrarInscripcion({
+        carreraId: carrera.id,
+        perfilId: perfilSeleccionado,
+        categoria: categoriaSeleccionada,
+      });
+
+      // Redirigir al Checkout de Stripe
       window.location.href = url;
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
@@ -188,27 +198,32 @@ export default function InscribirsePage() {
 
   // Filtrar categorías por edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
-  const categoriasPermitidas = carrera.categorias.filter((cat) =>
-    perfilActual
-      ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
-      : false
+  const categoriasPermitidas = carrera.categorias.filter(
+    (cat) =>
+      perfilActual
+        ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
+        : false
   );
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Banner */}
         {carrera.bannerUrl && (
           <div
             className="h-56 bg-cover bg-center"
             style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
           />
         )}
+
         <div className="p-6 space-y-6">
+          {/* Título */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
+          {/* Info row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -230,11 +245,13 @@ export default function InscribirsePage() {
             )}
           </div>
 
+          {/* Precio */}
           <div className="text-2xl font-semibold">
             <CreditCardIcon className="inline w-6 h-6 text-green-600 mr-2" />
             Precio: ${carrera.precio.toFixed(2)}
           </div>
 
+          {/* Categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -260,7 +277,9 @@ export default function InscribirsePage() {
             </table>
           </div>
 
+          {/* Formulario inscripción + pago */}
           <div className="pt-6 border-t space-y-4">
+            {/* Perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -276,13 +295,14 @@ export default function InscribirsePage() {
                 >
                   {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.nombre} {p.apellidoPaterno} ({p.edad} años)  
+                      {p.nombre} {p.apellidoPaterno} ({p.edad} años)
                     </option>
                   ))}
                 </select>
               )}
             </div>
 
+            {/* Categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -303,6 +323,7 @@ export default function InscribirsePage() {
               </select>
             </div>
 
+            {/* Botón pago */}
             <button
               onClick={handlePagar}
               disabled={
