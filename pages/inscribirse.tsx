@@ -20,7 +20,7 @@ import {
   ClipboardIcon,
   CreditCardIcon,
 } from "@heroicons/react/24/outline";
-import { registrarInscripcion } from "@/lib/Inscripciones"; // importación corregida
+import { registrarInscripcion } from "@/lib/Inscripciones";
 
 interface Categoria {
   nombre: string;
@@ -60,7 +60,7 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera (incluye precio)
+  // 1) Carga de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -153,7 +153,7 @@ export default function InscribirsePage() {
     // Continuar con el pago
     setProcesandoPago(true);
     try {
-      const res = await fetch("/api/checkout-sessions", {
+      const res = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -172,14 +172,14 @@ export default function InscribirsePage() {
       }
       const { url } = await res.json();
 
-      // 4) Registro de la inscripción en Firestore **antes** de redirigir
+      // 4) Registrar inscripción en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
         categoria: categoriaSeleccionada,
       });
 
-      // Redirigir al Checkout de Stripe
+      // Redirigir al Checkout Stripe
       window.location.href = url;
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
@@ -270,7 +270,7 @@ export default function InscribirsePage() {
                   <tr key={cat.nombre} className="hover:bg-gray-50">
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
-                    <td className="border px-4 py-2">{cat.maxAge}</td>
+                    <td className="border px_4 py-2">{cat.maxAge}</td>
                   </tr>
                 ))}
               </tbody>
