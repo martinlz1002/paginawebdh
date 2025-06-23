@@ -29,6 +29,8 @@ interface InscripcionItem {
   perfil: PerfilData | null;
   categoria: string;
   timestamp: any;
+  sessionId?: string;            // <— debe venir guardado en Firestore
+  payment_status?: string;       // <— lo rellenamos abajo
 }
 
 export default function AdminInscripcionesView() {
@@ -37,7 +39,7 @@ export default function AdminInscripcionesView() {
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Carga de carreras
+  // 1) Cargo carreras
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, 'carreras'));
@@ -45,7 +47,7 @@ export default function AdminInscripcionesView() {
     })();
   }, []);
 
-  // Carga de inscripciones cuando cambia la selección
+  // 2) Cargo inscripciones + perfil + sessionId
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
@@ -62,18 +64,16 @@ export default function AdminInscripcionesView() {
       const items: InscripcionItem[] = await Promise.all(
         snap.docs.map(async d => {
           const data = d.data()!;
+          // → cargar perfil idéntico a antes…
           let perfil: PerfilData | null = null;
-
           if (data.perfilId === data.perfilOwner) {
-            // Perfil principal
-            const mainRef = doc(db, 'usuarios', data.perfilOwner);
-            const mainSnap = await getDoc(mainRef);
-            if (mainSnap.exists()) {
-              const m = mainSnap.data() as any;
+            const main = await getDoc(doc(db, 'usuarios', data.perfilOwner));
+            if (main.exists()) {
+              const m = main.data() as any;
               perfil = {
-                nombre: m.nombre || '',
-                apellidoPaterno: m.apPaterno ?? m.apellidoPaterno ?? '',
-                apellidoMaterno: m.apMaterno ?? m.apellidoMaterno ?? '',
+                nombre: m.nombre,
+                apellidoPaterno: m.apPaterno || m.apellidoPaterno,
+                apellidoMaterno: m.apMaterno || m.apellidoMaterno,
                 celular: m.celular,
                 pais: m.pais,
                 estado: m.estado,
@@ -83,17 +83,11 @@ export default function AdminInscripcionesView() {
               };
             }
           } else {
-            // Subperfil
-            const subRef = doc(
-              db,
-              'usuarios',
-              data.perfilOwner,
-              'perfiles',
-              data.perfilId
+            const sub = await getDoc(
+              doc(db, 'usuarios', data.perfilOwner, 'perfiles', data.perfilId)
             );
-            const subSnap = await getDoc(subRef);
-            if (subSnap.exists()) {
-              const s = subSnap.data() as any;
+            if (sub.exists()) {
+              const s = sub.data() as any;
               perfil = {
                 nombre: s.nombre,
                 apellidoPaterno: s.apellidoPaterno,
@@ -112,29 +106,44 @@ export default function AdminInscripcionesView() {
             id: d.id,
             perfil,
             categoria: data.categoria,
-            timestamp: data.timestamp
+            timestamp: data.timestamp,
+            sessionId: (data as any).sessionId  // <— aquí el campo
           };
         })
       );
 
-      setInscripciones(items);
+      // 3) Consultar Stripe para cada sessionId
+      const withStatus = await Promise.all(
+        items.map(async item => {
+          if (!item.sessionId) return item;
+          try {
+            const res = await fetch(`/api/get-session?session_id=${item.sessionId}`);
+            if (res.ok) {
+              const json = await res.json();
+              return { ...item, payment_status: json.payment_status };
+            }
+          } catch {
+            // silenciar errores individuales
+          }
+          return item;
+        })
+      );
+
+      setInscripciones(withStatus);
       setLoading(false);
     })();
   }, [selectedCarrera]);
 
-  // Exportar a Excel
+  // 4) Exportar Excel incluyendo estado de pago
   const exportExcel = () => {
     const rows = inscripciones.map(i => ({
       Nombre: i.perfil?.nombre,
-      ApellidoPaterno: i.perfil?.apellidoPaterno,
-      ApellidoMaterno: i.perfil?.apellidoMaterno,
+      ApellidoP: i.perfil?.apellidoPaterno,
+      ApellidoM: i.perfil?.apellidoMaterno,
       Edad: i.perfil?.edad,
       Celular: i.perfil?.celular,
-      País: i.perfil?.pais,
-      Estado: i.perfil?.estado,
-      Ciudad: i.perfil?.ciudad,
-      Club: i.perfil?.club,
       Categoría: i.categoria,
+      EstadoPago: i.payment_status ?? 'desconocido',
       Registrado: i.timestamp?.toDate
         ? i.timestamp.toDate().toLocaleString()
         : ''
@@ -147,6 +156,7 @@ export default function AdminInscripcionesView() {
 
   return (
     <div className="p-6">
+      {/* Header y botón export */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
         <button
@@ -159,6 +169,7 @@ export default function AdminInscripcionesView() {
         </button>
       </div>
 
+      {/* Selector de carrera */}
       <select
         value={selectedCarrera}
         onChange={e => setSelectedCarrera(e.target.value)}
@@ -185,6 +196,7 @@ export default function AdminInscripcionesView() {
                 <th className="p-2 text-left">Edad</th>
                 <th className="p-2 text-left">Celular</th>
                 <th className="p-2 text-left">Categoría</th>
+                <th className="p-2 text-left">Estado Pago</th>
                 <th className="p-2 text-left">Registrado</th>
               </tr>
             </thead>
@@ -197,6 +209,7 @@ export default function AdminInscripcionesView() {
                   <td className="p-2">{i.perfil?.edad}</td>
                   <td className="p-2">{i.perfil?.celular}</td>
                   <td className="p-2">{i.categoria}</td>
+                  <td className="p-2 capitalize">{i.payment_status || '-'}</td>
                   <td className="p-2">
                     {i.timestamp?.toDate
                       ? i.timestamp.toDate().toLocaleString()

@@ -1,5 +1,6 @@
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
+import Stripe from 'stripe';
 
 export interface InscripcionData {
   carreraId: string;
@@ -7,15 +8,12 @@ export interface InscripcionData {
   categoria: string;
 }
 
-export async function registrarInscripcion(data: InscripcionData) {
-  // 1) Asegurarnos de que el usuario está autenticado
+export async function registrarInscripcion(data: InscripcionData, sessionId?: string) {
   const user = auth.currentUser;
-  if (!user) {
-    throw new Error("No estás autenticado");
-  }
+  if (!user) throw new Error("No estás autenticado");
 
-  // 2) Hacer la inscripción, incluyendo perfilOwner
-  await addDoc(
+  // 1) Creamos el documento (sin sessionId aún)
+  const ref = await addDoc(
     collection(db, 'inscripciones'),
     {
       carreraId: data.carreraId,
@@ -23,6 +21,15 @@ export async function registrarInscripcion(data: InscripcionData) {
       perfilOwner: user.uid,
       categoria: data.categoria,
       timestamp: serverTimestamp(),
+      sessionId: sessionId || null,
     }
   );
+
+  // 2) Si ya tienes sessionId (por ejemplo, tras llamar a Stripe),
+  //    actualiza el documento para inyectarlo
+  if (sessionId) {
+    await updateDoc(doc(db, 'inscripciones', ref.id), { sessionId });
+  }
+
+  return ref.id;
 }
