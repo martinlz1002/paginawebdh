@@ -167,10 +167,12 @@ export default function InscribirsePage() {
       const { url, sessionId } = await res.json();
 
       // ← aquí: pasamos sessionId como segundo argumento
-      await registrarInscripcion(
-        { carreraId: carrera.id, perfilId: perfilSeleccionado, categoria: categoriaSeleccionada },
-        sessionId
-      );
+      await registrarInscripcion({
+  carreraId: carrera.id,
+  perfilId: perfilSeleccionado,
+  categoria: categoriaSeleccionada,
+  sessionId,
+});
 
       // abrimos Stripe y volvemos
       const win = window.open(url, "_blank");
