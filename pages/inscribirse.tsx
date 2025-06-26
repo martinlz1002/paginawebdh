@@ -26,7 +26,7 @@ interface Categoria {
   nombre: string;
   minAge: number;
   maxAge: number;
-  precio: number;      // nuevo campo precio por categoría
+  precio: number;      // precio por categoría
 }
 
 interface Carrera {
@@ -85,7 +85,7 @@ export default function InscribirsePage() {
           nombre: cat.nombre,
           minAge: cat.minAge,
           maxAge: cat.maxAge,
-          precio: cat.precio,   // asumimos que Firestore ya guardó precio por categoría
+          precio: cat.precio,   // esperamos que Firestore guarde este campo
         })),
       });
     })();
@@ -146,7 +146,8 @@ export default function InscribirsePage() {
       collection(db, "inscripciones"),
       where("carreraId", "==", carrera.id),
       where("perfilId", "==", perfilSeleccionado),
-      where("perfilOwner", "==", user.uid)
+      where("perfilOwner", "==", user.uid),
+      where("categoria", "==", categoriaSeleccionada)
     );
     const dupSnap = await getDocs(dupQuery);
     if (!dupSnap.empty) {
@@ -284,7 +285,9 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${cat.precio.toFixed(2)}</td>
+                    <td className="border px-4 py-2">
+                      ${cat.precio.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
