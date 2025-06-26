@@ -96,30 +96,30 @@ export default function Footer() {
             </a>
           </p>
           <div className="flex space-x-4 text-2xl">
-            <Link
+            <a
               href="https://facebook.com/tuempresa"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white"
             >
               <FacebookIcon />
-            </Link>
-            <Link
+            </a>
+            <a
               href="https://instagram.com/tuempresa"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white"
             >
               <InstagramIcon />
-            </Link>
-            <Link
+            </a>
+            <a
               href="https://twitter.com/tuempresa"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white"
             >
               <TwitterIcon />
-            </Link>
+            </a>
           </div>
         </div>
       </div>
