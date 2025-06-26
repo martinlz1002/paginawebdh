@@ -4,9 +4,9 @@ import {
   collection,
   query,
   where,
-  getDocs,
   doc,
   getDoc,
+  onSnapshot,
   Timestamp,
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
@@ -42,7 +42,7 @@ interface InscView {
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
-  price: number;
+  precio: number;
   sessionId?: string;
   paymentStatus?: string;
 }
@@ -57,117 +57,123 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user: User | null) => {
+    // Listen for auth changes
+    const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
-
-      const inscSnap = await getDocs(
-        query(
-          collection(db, "inscripciones"),
-          where("perfilOwner", "==", user.uid)
-        )
+      // Real-time listener on "inscripciones" for this user
+      const q = query(
+        collection(db, "inscripciones"),
+        where("perfilOwner", "==", user.uid)
       );
+      const unsubSnap = onSnapshot(q, async (snap) => {
+        const views: InscView[] = await Promise.all(
+          snap.docs.map(async (d) => {
+            const src = d.data() as InscRaw;
 
-      const views: InscView[] = [];
-      for (const d of inscSnap.docs) {
-        const src = d.data() as InscRaw;
+            // 1) Leer datos de carrera
+            const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
+            const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
 
-        // 1) Leer datos de carrera
-        const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-        const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
+            // 2) Obtener precio de la categoría
+            const categoriaObj = Array.isArray(cdata.categorias)
+              ? (cdata.categorias as any[]).find(
+                  (cat) => cat.nombre === src.categoria
+                )
+              : null;
+            const precio: number = categoriaObj?.price ?? 0;
 
-        // 2) Obtener price de la categoría
-        const categoriaObj = Array.isArray(cdata.categorias)
-          ? (cdata.categorias as any[]).find(
-              (cat) => cat.nombre === src.categoria
-            )
-          : null;
-        const price: number = categoriaObj?.price ?? 0;
-
-        // 3) Leer perfil
-        let perfilNombre = "",
-          perfilApPaterno = "",
-          perfilApMaterno = "";
-        if (src.perfilId === src.perfilOwner) {
-          const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
-          if (uDoc.exists()) {
-            const ud = uDoc.data() as any;
-            perfilNombre = ud.nombre;
-            perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
-            perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
-          }
-        } else {
-          const subDoc = await getDoc(
-            doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
-          );
-          if (subDoc.exists()) {
-            const sd = subDoc.data() as any;
-            perfilNombre = sd.nombre;
-            perfilApPaterno = sd.apellidoPaterno;
-            perfilApMaterno = sd.apellidoMaterno;
-          }
-        }
-
-        // 4) Formatear fechas
-        const fechaIns = src.timestamp?.toDate
-          ? src.timestamp.toDate().toLocaleString()
-          : "";
-
-        let fechaCarr = "";
-        if (cdata.fecha instanceof Timestamp) {
-          const dt = (cdata.fecha as Timestamp).toDate();
-          const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fechaCarr = `${pad(local.getDate())}/${pad(
-            local.getMonth() + 1
-          )}/${local.getFullYear()}`;
-        } else if (typeof cdata.fecha === "string") {
-          const [y, m, d] = (cdata.fecha as string).split("-");
-          fechaCarr = `${d}/${m}/${y}`;
-        }
-
-        // 5) Obtener estado de pago
-        let paymentStatus: string | undefined;
-        if (src.sessionId) {
-          try {
-            const res = await fetch(
-              `/api/get-session?session_id=${src.sessionId}`
-            );
-            if (res.ok) {
-              const json = await res.json();
-              paymentStatus = json.payment_status;
+            // 3) Leer perfil
+            let perfilNombre = "",
+              perfilApPaterno = "",
+              perfilApMaterno = "";
+            if (src.perfilId === src.perfilOwner) {
+              const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
+              if (uDoc.exists()) {
+                const ud = uDoc.data() as any;
+                perfilNombre = ud.nombre;
+                perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
+                perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
+              }
+            } else {
+              const subDoc = await getDoc(
+                doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
+              );
+              if (subDoc.exists()) {
+                const sd = subDoc.data() as any;
+                perfilNombre = sd.nombre;
+                perfilApPaterno = sd.apellidoPaterno;
+                perfilApMaterno = sd.apellidoMaterno;
+              }
             }
-          } catch {
-            paymentStatus = "desconocido";
-          }
-        }
 
-        views.push({
-          id: d.id,
-          perfilNombre,
-          perfilApPaterno,
-          perfilApMaterno,
-          carreraId: src.carreraId,
-          perfilId: src.perfilId,
-          categoria: src.categoria,
-          fechaIns,
-          titulo: cdata.titulo || "(sin título)",
-          fechaCarr,
-          horaSalida: cdata.horaSalida,
-          ubicacion: cdata.lugar || cdata.ubicacion,
-          imagenUrl: cdata.imagenUrl,
-          price,
-          sessionId: src.sessionId,
-          paymentStatus,
-        });
-      }
+            // 4) Formatear fechas
+            const fechaIns = src.timestamp?.toDate
+              ? src.timestamp.toDate().toLocaleString()
+              : "";
 
-      setList(views);
-      setLoading(false);
+            let fechaCarr = "";
+            if (cdata.fecha instanceof Timestamp) {
+              const dt = (cdata.fecha as Timestamp).toDate();
+              const local = new Date(
+                dt.getTime() + dt.getTimezoneOffset() * 60000
+              );
+              fechaCarr = `${pad(local.getDate())}/${pad(
+                local.getMonth() + 1
+              )}/${local.getFullYear()}`;
+            } else if (typeof cdata.fecha === "string") {
+              const [y, m, d] = (cdata.fecha as string).split("-");
+              fechaCarr = `${d}/${m}/${y}`;
+            }
+
+            // 5) Obtener estado de pago
+            let paymentStatus: string | undefined;
+            if (src.sessionId) {
+              try {
+                const res = await fetch(
+                  `/api/get-session?session_id=${src.sessionId}`
+                );
+                if (res.ok) {
+                  const json = await res.json();
+                  paymentStatus = json.payment_status;
+                }
+              } catch {
+                paymentStatus = "desconocido";
+              }
+            }
+
+            return {
+              id: d.id,
+              perfilNombre,
+              perfilApPaterno,
+              perfilApMaterno,
+              carreraId: src.carreraId,
+              perfilId: src.perfilId,
+              categoria: src.categoria,
+              fechaIns,
+              titulo: cdata.titulo || "(sin título)",
+              fechaCarr,
+              horaSalida: cdata.horaSalida,
+              ubicacion: cdata.lugar || cdata.ubicacion,
+              imagenUrl: cdata.imagenUrl,
+              precio,
+              sessionId: src.sessionId,
+              paymentStatus,
+            };
+          })
+        );
+        setList(views);
+        setLoading(false);
+      });
+
+      // Cleanup snapshot listener on unmount or user change
+      return () => unsubSnap();
     });
 
-    return () => unsub();
+    // Cleanup auth listener
+    return () => unsubAuth();
   }, []);
 
   // Reintentar pago: lanza un nuevo Checkout
@@ -179,7 +185,7 @@ export default function MisInscripcionesPage() {
         carreraId: item.carreraId,
         perfilId: item.perfilId,
         categoria: item.categoria,
-        price: item.price,
+        precio: item.precio,
       }),
     });
     const { url } = await res.json();
@@ -235,7 +241,7 @@ export default function MisInscripcionesPage() {
                     </p>
                     <p>
                       <strong>Categoría:</strong> {i.categoria} ($
-                      {i.price.toFixed(2)})
+                      {i.precio.toFixed(2)})
                     </p>
                     <p className="text-sm text-gray-500">
                       Inscripción: {i.fechaIns}
