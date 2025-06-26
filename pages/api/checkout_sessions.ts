@@ -23,7 +23,6 @@ export default async function handler(
 
   try {
     const origin = req.headers.origin ?? "";
-    // Ahora expandimos el payment_intent dentro de los params
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card", "oxxo"],
       mode: "payment",
@@ -43,16 +42,13 @@ export default async function handler(
       expand: ["payment_intent"],
     });
 
-    // session.url puede venir undefined (ej. OXXO), así que obtenemos fallback desde next_action
     const intent = session.payment_intent as Stripe.PaymentIntent | undefined;
     const redirectUrl =
       session.url ||
       intent?.next_action?.oxxo_display_details?.hosted_voucher_url ||
       "";
 
-    if (!redirectUrl) {
-      throw new Error("No se pudo generar la URL de pago");
-    }
+    if (!redirectUrl) throw new Error("No se pudo generar la URL de pago");
 
     return res.status(200).json({
       url: redirectUrl,

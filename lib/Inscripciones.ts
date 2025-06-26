@@ -12,6 +12,7 @@ export async function registrarInscripcion(data: InscripcionData) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
+  // Creamos el doc UNA sola vez, con el sessionId incluido
   await addDoc(collection(db, "inscripciones"), {
     carreraId: data.carreraId,
     perfilId: data.perfilId,

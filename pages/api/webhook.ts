@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 
-// Inicializa Admin SDK
+// Inicializa Admin SDK sólo UNA vez
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!);
   admin.initializeApp({
@@ -19,7 +19,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 export const config = { api: { bodyParser: false } };
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end("Method Not Allowed");
@@ -39,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const sessionId = session.id;
-    const paymentStatus = session.payment_status; // paid | unpaid
+    const paymentStatus = session.payment_status; // 'paid' | 'unpaid'
 
     try {
       const snap = await firestore
@@ -51,11 +54,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus }));
       await batch.commit();
 
-      console.log(`✅ Actualizado paymentStatus="${paymentStatus}" en ${snap.size} docs.`);
+      console.log(
+        `✅ Actualizado paymentStatus="${paymentStatus}" en ${snap.size} doc(s).`
+      );
     } catch (dbErr) {
       console.error("🔴 Error al actualizar Firestore:", dbErr);
     }
   }
 
+  // Respondo 200 para que Stripe no reintente
   res.status(200).json({ received: true });
 }
