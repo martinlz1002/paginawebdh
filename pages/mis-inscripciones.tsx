@@ -17,7 +17,6 @@ import {
   ClockIcon,
   ClipboardIcon,
 } from "@heroicons/react/24/outline";
-import Link from "next/link";
 
 interface InscRaw {
   carreraId: string;
@@ -57,11 +56,13 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
+    // 1) Escuchar cambios de auth
     const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
+      // 2) Listener en tiempo real de inscripciones de este usuario
       const q = query(
         collection(db, "inscripciones"),
         where("perfilOwner", "==", user.uid)
@@ -71,11 +72,11 @@ export default function MisInscripcionesPage() {
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
 
-            // 1) Leer datos de carrera
+            // Obtener carrera
             const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
 
-            // 2) Obtener precio de la categoría (campo price en Firestore)
+            // Obtener precio según categoría (campo price en Firestore)
             const categoriaObj = Array.isArray(cdata.categorias)
               ? (cdata.categorias as any[]).find(
                   (cat) => cat.nombre === src.categoria
@@ -83,7 +84,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // 3) Leer perfil del usuario
+            // Leer perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "";
@@ -107,7 +108,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // 4) Formatear fechas
+            // Formatear fechas
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -125,7 +126,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // 5) Obtener estado de pago desde Stripe
+            // Obtener estado de pago desde Stripe
             let paymentStatus: string | undefined;
             if (src.sessionId) {
               try {
@@ -165,14 +166,16 @@ export default function MisInscripcionesPage() {
         setLoading(false);
       });
 
+      // Cleanup snapshot
       return () => unsubSnap();
     });
 
+    // Cleanup auth
     return () => unsubAuth();
   }, []);
 
+  // Reintentar pago: llama correctamente a /api/checkout_sessions
   const reintentarPago = async (item: InscView) => {
-    // Aquí usamos la ruta correcta "checkout-sessions"
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
