@@ -26,7 +26,7 @@ interface Categoria {
   nombre: string;
   minAge: number;
   maxAge: number;
-  precio: number;
+  precio: number; // precio por categoría
 }
 
 interface Carrera {
@@ -60,12 +60,11 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera (con categorías y precios)
+  // 1) Carga de la carrera (incluye categorías con precio)
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
-      const carreraRef = doc(db, "carreras", carreraId as string);
-      const snap = await getDoc(carreraRef);
+      const snap = await getDoc(doc(db, "carreras", carreraId as string));
       if (!snap.exists()) {
         setMensaje("Carrera no encontrada");
         return;
@@ -86,7 +85,7 @@ export default function InscribirsePage() {
           nombre: cat.nombre,
           minAge: cat.minAge,
           maxAge: cat.maxAge,
-          precio: cat.precio,
+          precio: typeof cat.precio === "number" ? cat.precio : 0,
         })),
       });
     })();
@@ -131,7 +130,7 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Pago Stripe usando precio de la categoría
+  // 3) Iniciar pago con Stripe (previo check y usando precio de la categoría)
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -140,27 +139,24 @@ export default function InscribirsePage() {
     }
     if (!carrera) return;
 
-    // Evitar duplicados
+    // Validar si ya existe inscripción
     const user = auth.currentUser;
     if (!user) return;
-    const dupSnap = await getDocs(
-      query(
-        collection(db, "inscripciones"),
-        where("carreraId", "==", carrera.id),
-        where("perfilId", "==", perfilSeleccionado),
-        where("perfilOwner", "==", user.uid),
-        where("categoria", "==", categoriaSeleccionada)
-      )
+    const dupQuery = query(
+      collection(db, "inscripciones"),
+      where("carreraId", "==", carrera.id),
+      where("perfilId", "==", perfilSeleccionado),
+      where("perfilOwner", "==", user.uid),
+      where("categoria", "==", categoriaSeleccionada)
     );
+    const dupSnap = await getDocs(dupQuery);
     if (!dupSnap.empty) {
       setMensaje("Ya estás inscrito con este perfil y categoría.");
       return;
     }
 
-    // Precio por categoría
-    const cat = carrera.categorias.find(
-      (c) => c.nombre === categoriaSeleccionada
-    );
+    // Encontrar precio de la categoría
+    const cat = carrera.categorias.find(c => c.nombre === categoriaSeleccionada);
     if (!cat) {
       setMensaje("Categoría inválida.");
       return;
@@ -175,16 +171,19 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          precio: cat.precio,
+          precio: cat.precio, // enviamos el precio específico
         }),
       });
+      if (res.status === 405) {
+        throw new Error("Método no permitido (405)");
+      }
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
       const { url, sessionId } = await res.json();
 
-      // Registrar inscripción con sessionId
+      // Registrar la inscripción con sessionId
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
@@ -192,7 +191,7 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Abrir Stripe en nueva pestaña y redirigir aquí
+      // Abrir Stripe en una pestaña nueva y redirigir esta a "Mis inscripciones"
       const win = window.open(url, "_blank");
       if (win) win.focus();
       router.push("/mis-inscripciones");
@@ -219,13 +218,16 @@ export default function InscribirsePage() {
         ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
         : false
   );
+
+  // Precio de la categoría seleccionada
   const precioSeleccionado =
-    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
+    categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)
       ?.precio ?? 0;
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Banner */}
         {carrera.bannerUrl && (
           <div
             className="h-56 bg-cover bg-center"
@@ -234,12 +236,13 @@ export default function InscribirsePage() {
         )}
 
         <div className="p-6 space-y-6">
+          {/* Título */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Info */}
+          {/* Info row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -261,7 +264,7 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Tabla categorías */}
+          {/* Tabla de categorías con precio */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -283,7 +286,7 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
                     <td className="border px-4 py-2">
-                      ${cat.precio.toFixed(2)}
+                      ${(cat.precio ?? 0).toFixed(2)}
                     </td>
                   </tr>
                 ))}
@@ -291,8 +294,9 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Formulario */}
+          {/* Formulario inscripción + pago */}
           <div className="pt-6 border-t space-y-4">
+            {/* Perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -315,6 +319,7 @@ export default function InscribirsePage() {
               )}
             </div>
 
+            {/* Categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -335,12 +340,14 @@ export default function InscribirsePage() {
               </select>
             </div>
 
+            {/* Mostrar precio seleccionado */}
             {categoriaSeleccionada && (
               <div className="text-lg font-medium">
                 Precio seleccionado: ${precioSeleccionado.toFixed(2)}
               </div>
             )}
 
+            {/* Botón pago */}
             <button
               onClick={handlePagar}
               disabled={
