@@ -19,6 +19,8 @@ interface InscRaw {
   perfilId: string;
   categoria: string;
   timestamp: any;
+  sessionId?: string;
+  paymentStatus?: string;
 }
 
 interface InscView {
@@ -34,6 +36,7 @@ interface InscView {
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
+  paymentStatus: string;
 }
 
 function pad(n: number) {
@@ -52,6 +55,7 @@ export default function MisInscripcionesPage() {
         return;
       }
 
+      // 1) Traer todas las inscripciones del usuario
       const inscSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -62,18 +66,19 @@ export default function MisInscripcionesPage() {
       const v = await Promise.all(
         inscSnap.docs.map(async d => {
           const src = d.data() as InscRaw;
+          // 2) Información de la carrera
           const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
           const c = cDoc.exists() ? cDoc.data()! : {};
 
-          // Perfil
+          // 3) Información del perfil
           let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
           if (src.perfilId === src.perfilOwner) {
             const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
             if (uDoc.exists()) {
               const ud = uDoc.data() as any;
-              perfilNombre = ud.nombre;
-              perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
-              perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
+              perfilNombre    = ud.nombre;
+              perfilApPaterno = ud.apPaterno  || ud.apellidoPaterno;
+              perfilApMaterno = ud.apMaterno  || ud.apellidoMaterno;
             }
           } else {
             const subDoc = await getDoc(
@@ -81,18 +86,17 @@ export default function MisInscripcionesPage() {
             );
             if (subDoc.exists()) {
               const sd = subDoc.data() as any;
-              perfilNombre = sd.nombre;
+              perfilNombre    = sd.nombre;
               perfilApPaterno = sd.apellidoPaterno;
               perfilApMaterno = sd.apellidoMaterno;
             }
           }
 
-          // fechaIns
+          // 4) Formatear fechas
           const fechaIns = src.timestamp?.toDate
             ? src.timestamp.toDate().toLocaleString()
             : "";
 
-          // fechaCarr sin desfase
           let fechaCarr = "";
           if ((c as any).fecha instanceof Timestamp) {
             const dt = (c as any).fecha.toDate();
@@ -103,19 +107,23 @@ export default function MisInscripcionesPage() {
             fechaCarr = `${d}/${m}/${y}`;
           }
 
+          // 5) Estado de pago (viene de Firestore, actualizado por tu webhook)
+          const paymentStatus = src.paymentStatus || "pending";
+
           return {
-            id: d.id,
+            id            : d.id,
             perfilNombre,
             perfilApPaterno,
             perfilApMaterno,
-            carreraId: src.carreraId,
-            categoria: src.categoria,
+            carreraId     : src.carreraId,
+            categoria     : src.categoria,
             fechaIns,
-            titulo: (c as any).titulo || "(sin título)",
+            titulo        : (c as any).titulo || "(sin título)",
             fechaCarr,
-            horaSalida: (c as any).horaSalida,
-            ubicacion: (c as any).lugar || (c as any).ubicacion,
-            imagenUrl: (c as any).imagenUrl,
+            horaSalida    : (c as any).horaSalida,
+            ubicacion     : (c as any).lugar || (c as any).ubicacion,
+            imagenUrl     : (c as any).imagenUrl,
+            paymentStatus
           };
         })
       );
@@ -163,6 +171,16 @@ export default function MisInscripcionesPage() {
                       <p><strong>Inscrito como:</strong> {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}</p>
                       <p><strong>Categoría:</strong> {i.categoria}</p>
                       <p className="text-sm text-gray-500">Inscripción: {i.fechaIns}</p>
+                      <p>
+                        <strong>Pago:</strong>{" "}
+                        <span className={`font-medium capitalize ${
+                          i.paymentStatus === "paid"      ? "text-green-600" :
+                          i.paymentStatus === "pending"   ? "text-yellow-600" :
+                          i.paymentStatus === "unpaid"    ? "text-red-600" : ""
+                        }`}>
+                          {i.paymentStatus}
+                        </span>
+                      </p>
                     </div>
                   </a>
                 </Link>
