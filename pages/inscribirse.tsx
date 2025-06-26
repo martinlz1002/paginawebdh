@@ -117,6 +117,9 @@ export default function InscribirsePage() {
     if (lista.length) setPerfilSeleccionado(lista[0].id);
     setLoadingPerfiles(false);
   }
+  useEffect(() => {
+    setCategoriaSeleccionada("");
+  }, [perfilSeleccionado]);
 
   // 3) Crear Checkout y registrar inscripción
   const handlePagar = async () => {
