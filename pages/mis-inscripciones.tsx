@@ -177,18 +177,22 @@ export default function MisInscripcionesPage() {
   // Reintentar pago: llama correctamente a /api/checkout_sessions
   const reintentarPago = async (item: InscView) => {
   const res = await fetch("/api/checkout_sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        carreraId: item.carreraId,
-        perfilId: item.perfilId,
-        categoria: item.categoria,
-        precio: item.precio,
-      }),
-    });
-    const { url } = await res.json();
-    window.location.href = url;
-  };
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      carreraId: item.carreraId,
+      perfilId: item.perfilId,
+      categoria: item.categoria,
+      price: item.precio,
+    }),
+  });
+  if (!res.ok) {
+    console.error("Error reintentando pago:", await res.text());
+    return;
+  }
+  const { url } = await res.json();
+  window.location.href = url;
+};
 
   if (loading) {
     return (

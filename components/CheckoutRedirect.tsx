@@ -12,7 +12,7 @@ export default function CheckoutRedirect({ userId, carreraId }: Props) {
   useEffect(() => {
     const redirectToCheckout = async () => {
       const stripe = await stripePromise;
-      const res = await fetch("/api/checkout-sessions", {
+      const res = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, carreraId }),
