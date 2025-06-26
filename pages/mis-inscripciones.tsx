@@ -26,23 +26,28 @@ interface InscRaw {
   categoria: string;
   timestamp: any;
   sessionId?: string;
+  paymentStatus?: string;
 }
 
 interface InscView {
   id: string;
+  // Datos de perfil
   perfilNombre: string;
   perfilApPaterno: string;
   perfilApMaterno: string;
-  carreraId: string;
+  perfilClub?: string;
   perfilId: string;
-  categoria: string;
-  fechaIns: string;
+  // Datos de carrera
+  carreraId: string;
   titulo: string;
   fechaCarr: string;
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
   precio: number;
+  categoria: string;  
+  // Inscripción
+  fechaIns: string;
   sessionId?: string;
   paymentStatus?: string;
 }
@@ -70,27 +75,32 @@ export default function MisInscripcionesPage() {
         const views: InscView[] = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
-            // → obtener carrera
+
+            // --- obtener datos de carrera ---
             const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-            const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
-            // → precio según categoría
+            const cdata = cDoc.exists() ? cDoc.data() as any : {};
             const categoriaObj = Array.isArray(cdata.categorias)
-              ? (cdata.categorias as any[]).find(
-                  (cat) => cat.nombre === src.categoria
-                )
+              ? cdata.categorias.find((cat: any) => cat.nombre === src.categoria)
               : null;
             const precio: number = categoriaObj?.price ?? 0;
-            // → perfil
-            let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
+
+            // --- obtener datos de perfil ---
+            let perfilNombre = "",
+              perfilApPaterno = "",
+              perfilApMaterno = "",
+              perfilClub: string | undefined;
             if (src.perfilId === src.perfilOwner) {
+              // perfil principal en colección "usuarios"
               const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
               if (uDoc.exists()) {
                 const ud = uDoc.data() as any;
                 perfilNombre = ud.nombre;
                 perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
                 perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
+                perfilClub = ud.club; 
               }
             } else {
+              // perfil secundario en subcolección /usuarios/{uid}/perfiles/
               const sub = await getDoc(
                 doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
               );
@@ -99,55 +109,54 @@ export default function MisInscripcionesPage() {
                 perfilNombre = sd.nombre;
                 perfilApPaterno = sd.apellidoPaterno;
                 perfilApMaterno = sd.apellidoMaterno;
+                perfilClub = sd.club;
               }
             }
-            // → formatear fechas
+
+            // --- formatear fechas ---
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
             let fechaCarr = "";
             if (cdata.fecha instanceof Timestamp) {
               const dt = (cdata.fecha as Timestamp).toDate();
-              const local = new Date(
-                dt.getTime() + dt.getTimezoneOffset() * 60000
-              );
-              fechaCarr = `${pad(local.getDate())}/${pad(
-                local.getMonth() + 1
-              )}/${local.getFullYear()}`;
+              const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
+              fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
             } else if (typeof cdata.fecha === "string") {
               const [y, m, d] = (cdata.fecha as string).split("-");
               fechaCarr = `${d}/${m}/${y}`;
             }
-            // → estado Stripe
-            let paymentStatus: string | undefined;
+
+            // --- estado Stripe en vivo ---
+            let paymentStatus: string | undefined = src.paymentStatus;
             if (src.sessionId) {
               try {
-                const res = await fetch(
-                  `/api/get-session?session_id=${src.sessionId}`
-                );
+                const res = await fetch(`/api/get-session?session_id=${src.sessionId}`);
                 if (res.ok) {
                   const json = await res.json();
                   paymentStatus = json.payment_status;
                 }
               } catch {
-                paymentStatus = "desconocido";
+                paymentStatus = paymentStatus ?? "desconocido";
               }
             }
+
             return {
               id: d.id,
               perfilNombre,
               perfilApPaterno,
               perfilApMaterno,
-              carreraId: src.carreraId,
+              perfilClub,
               perfilId: src.perfilId,
-              categoria: src.categoria,
-              fechaIns,
+              carreraId: src.carreraId,
               titulo: cdata.titulo || "(sin título)",
               fechaCarr,
               horaSalida: cdata.horaSalida,
               ubicacion: cdata.lugar || cdata.ubicacion,
               imagenUrl: cdata.imagenUrl,
               precio,
+              categoria: src.categoria,
+              fechaIns,
               sessionId: src.sessionId,
               paymentStatus,
             };
@@ -161,7 +170,7 @@ export default function MisInscripcionesPage() {
     return () => unsubAuth();
   }, []);
 
-  // **Reintentar pago**: guarda el nuevo sessionId en Firestore
+  // Reintentar pago
   const reintentarPago = async (item: InscView) => {
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
@@ -178,12 +187,11 @@ export default function MisInscripcionesPage() {
       return;
     }
     const { url, sessionId } = await res.json();
-    // —> ACTUALIZO EL sessionId Y RESETEO paymentStatus
-    const inscRef = doc(db, "inscripciones", item.id);
-    await updateDoc(inscRef, { sessionId, paymentStatus: "pending" });
-    // redirijo al checkout
-    const win = window.open(url, "_blank");
-    if (win) win.focus();
+    await updateDoc(doc(db, "inscripciones", item.id), {
+      sessionId,
+      paymentStatus: "pending",
+    });
+    window.open(url, "_blank")?.focus();
   };
 
   if (loading) {
@@ -203,11 +211,18 @@ export default function MisInscripcionesPage() {
         ) : (
           <ul className="space-y-6">
             {list.map((i) => (
-              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
+              <li
+                key={i.id}
+                className="border rounded shadow hover:shadow-lg overflow-hidden"
+              >
                 <div className="flex flex-col md:flex-row">
                   {i.imagenUrl ? (
                     <div className="md:w-1/3 h-48 overflow-hidden">
-                      <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
+                      <img
+                        src={i.imagenUrl}
+                        alt={i.titulo}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   ) : (
                     <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
@@ -217,10 +232,25 @@ export default function MisInscripcionesPage() {
                   <div className="p-4 flex-1 space-y-2">
                     <h2 className="text-xl font-semibold">{i.titulo}</h2>
                     <p className="text-sm text-gray-600">
-                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
+                      <ClipboardIcon className="inline-block w-4 h-4 mr-1" />
+                      {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
+                      {i.perfilClub && (
+                        <span className="ml-2 text-gray-500">
+                          • Club: {i.perfilClub}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <MapPinIcon className="inline-block w-4 h-4 mr-1" />
+                      {i.ubicacion || "-"} ·{" "}
+                      <CalendarIcon className="inline-block w-4 h-4 mr-1" />
+                      {i.fechaCarr} ·{" "}
+                      <ClockIcon className="inline-block w-4 h-4 mr-1" />
+                      {i.horaSalida || "-"}
                     </p>
                     <p>
-                      <strong>Categoría:</strong> {i.categoria} (${i.precio.toFixed(2)})
+                      <strong>Categoría:</strong> {i.categoria} ($
+                      {i.precio.toFixed(2)})
                     </p>
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs ${
