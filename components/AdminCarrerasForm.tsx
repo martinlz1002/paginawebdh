@@ -14,13 +14,11 @@ import {
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 
-// Extend imported Categoria to include price locally
-interface Categoria extends BaseCategoria {
-  price: number;
-}
+// Extend BaseCategoria to include price locally
+type Categoria = BaseCategoria & { price: number };
 
 export interface AdminCarrerasFormProps {
-  initialValues?: CarreraData & { id: string; bannerUrl?: string };
+  initialValues?: CarreraData & { id: string; bannerUrl?: string; imagenUrl?: string };
   onSuccess?: () => void;
 }
 
@@ -28,32 +26,32 @@ export default function AdminCarrerasForm({
   initialValues,
   onSuccess
 }: AdminCarrerasFormProps) {
-  // campos básicos
+  // Basic fields
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
 
-  // imágenes
+  // Images
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  // categorías con precio
+  // Categories with price
   const [categorias, setCategorias] = useState<Categoria[]>(
-    (initialValues?.categorias ?? []).map(c => ({ ...c as BaseCategoria, price: 0 }))
+    (initialValues?.categorias ?? []).map((c: any) => ({
+      nombre: c.nombre,
+      minAge: c.minAge,
+      maxAge: c.maxAge,
+      price: c.price ?? 0,
+    }))
   );
-  const [nuevaCat, setNuevaCat] = useState<Categoria>({
-    nombre: '',
-    minAge: 0,
-    maxAge: 0,
-    price: 0
-  });
+  const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
-  // helper para subir imágenes
+  // Upload helper
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -102,23 +100,22 @@ export default function AdminCarrerasForm({
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // armar payload, categorías incluyen price
-    const payload: CarreraData & { bannerUrl?: string } = {
+    // Build payload including categorias with price
+    const payload = {
       titulo,
       descripcion,
       lugar,
       fecha,
       horaSalida,
-      categorias,
-      price: 0,
+      categorias, // each has nombre, minAge, maxAge, price
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
-    };
+    } as any;
 
     if (initialValues?.id) {
-      await updateDoc(doc(db, 'carreras', initialValues.id), payload as any);
+      await updateDoc(doc(db, 'carreras', initialValues.id), payload);
     } else {
-      await addDoc(collection(db, 'carreras'), payload as any);
+      await addDoc(collection(db, 'carreras'), payload);
     }
 
     setImagenUrl(newImagenUrl);
@@ -253,9 +250,7 @@ export default function AdminCarrerasForm({
         <ul className="mt-2 space-y-2">
           {categorias.map((c, i) => (
             <li key={i} className="flex justify-between items-center">
-              <span>
-                • {c.nombre} ({c.minAge}–{c.maxAge} años) — ${c.price.toFixed(2)}
-              </span>
+              <span>• {c.nombre} ({c.minAge}–{c.maxAge} años) — ${c.price.toFixed(2)}</span>
               <div className="flex space-x-2">
                 <button onClick={() => handleEditCategoria(i)}>
                   <PencilIcon className="w-5 h-5 text-blue-600" />
@@ -304,6 +299,7 @@ export default function AdminCarrerasForm({
         <button
           type="button"
           onClick={handleAddOrSaveCategoria}
+
           className="mt-2 w-full flex justify-center items-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
         >
           <PlusCircleIcon className="w-5 h-5 mr-1" />
