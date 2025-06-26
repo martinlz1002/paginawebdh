@@ -7,7 +7,7 @@ import {
   getDocs,
   doc,
   getDoc,
-  Timestamp
+  Timestamp,
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import AuthGuard from "@/components/AuthGuard";
@@ -20,7 +20,6 @@ interface InscRaw {
   categoria: string;
   timestamp: any;
   sessionId?: string;
-  paymentStatus?: string;
 }
 
 interface InscView {
@@ -36,7 +35,7 @@ interface InscView {
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
-  paymentStatus: string;
+  paymentStatus?: string;
 }
 
 function pad(n: number) {
@@ -55,7 +54,7 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      // 1) Traer todas las inscripciones del usuario
+      // 1) Traer inscripciones
       const inscSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -63,72 +62,83 @@ export default function MisInscripcionesPage() {
         )
       );
 
-      const v = await Promise.all(
-        inscSnap.docs.map(async d => {
-          const src = d.data() as InscRaw;
-          // 2) Información de la carrera
-          const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-          const c = cDoc.exists() ? cDoc.data()! : {};
+      const views: InscView[] = [];
+      for (const d of inscSnap.docs) {
+        const src = d.data() as InscRaw;
+        // carrera
+        const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
+        const c = cDoc.exists() ? cDoc.data()! : {};
 
-          // 3) Información del perfil
-          let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
-          if (src.perfilId === src.perfilOwner) {
-            const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
-            if (uDoc.exists()) {
-              const ud = uDoc.data() as any;
-              perfilNombre    = ud.nombre;
-              perfilApPaterno = ud.apPaterno  || ud.apellidoPaterno;
-              perfilApMaterno = ud.apMaterno  || ud.apellidoMaterno;
-            }
-          } else {
-            const subDoc = await getDoc(
-              doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
-            );
-            if (subDoc.exists()) {
-              const sd = subDoc.data() as any;
-              perfilNombre    = sd.nombre;
-              perfilApPaterno = sd.apellidoPaterno;
-              perfilApMaterno = sd.apellidoMaterno;
-            }
+        // perfil
+        let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
+        if (src.perfilId === src.perfilOwner) {
+          const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
+          if (uDoc.exists()) {
+            const ud = uDoc.data() as any;
+            perfilNombre = ud.nombre;
+            perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
+            perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
           }
-
-          // 4) Formatear fechas
-          const fechaIns = src.timestamp?.toDate
-            ? src.timestamp.toDate().toLocaleString()
-            : "";
-
-          let fechaCarr = "";
-          if ((c as any).fecha instanceof Timestamp) {
-            const dt = (c as any).fecha.toDate();
-            const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-            fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
-          } else if (typeof (c as any).fecha === "string") {
-            const [y,m,d] = (c as any).fecha.split("-");
-            fechaCarr = `${d}/${m}/${y}`;
+        } else {
+          const subDoc = await getDoc(
+            doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
+          );
+          if (subDoc.exists()) {
+            const sd = subDoc.data() as any;
+            perfilNombre = sd.nombre;
+            perfilApPaterno = sd.apellidoPaterno;
+            perfilApMaterno = sd.apellidoMaterno;
           }
+        }
 
-          // 5) Estado de pago (viene de Firestore, actualizado por tu webhook)
-          const paymentStatus = src.paymentStatus || "pending";
+        // formato fecha inscripción
+        const fechaIns = src.timestamp?.toDate
+          ? src.timestamp.toDate().toLocaleString()
+          : "";
 
-          return {
-            id            : d.id,
-            perfilNombre,
-            perfilApPaterno,
-            perfilApMaterno,
-            carreraId     : src.carreraId,
-            categoria     : src.categoria,
-            fechaIns,
-            titulo        : (c as any).titulo || "(sin título)",
-            fechaCarr,
-            horaSalida    : (c as any).horaSalida,
-            ubicacion     : (c as any).lugar || (c as any).ubicacion,
-            imagenUrl     : (c as any).imagenUrl,
-            paymentStatus
-          };
-        })
-      );
+        // fecha carrera
+        let fechaCarr = "";
+        if ((c as any).fecha instanceof Timestamp) {
+          const dt = (c as any).fecha.toDate();
+          const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
+          fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
+        } else if (typeof (c as any).fecha === "string") {
+          const [y, m, d] = (c as any).fecha.split("-");
+          fechaCarr = `${d}/${m}/${y}`;
+        }
 
-      setList(v);
+        // 2) obtener estado de pago
+        let paymentStatus: string|undefined;
+        if (src.sessionId) {
+          try {
+            const res = await fetch(`/api/get-session?session_id=${src.sessionId}`);
+            if (res.ok) {
+              const json = await res.json();
+              paymentStatus = json.payment_status;
+            }
+          } catch {
+            paymentStatus = "desconocido";
+          }
+        }
+
+        views.push({
+          id: d.id,
+          perfilNombre,
+          perfilApPaterno,
+          perfilApMaterno,
+          carreraId: src.carreraId,
+          categoria: src.categoria,
+          fechaIns,
+          titulo: (c as any).titulo || "(sin título)",
+          fechaCarr,
+          horaSalida: (c as any).horaSalida,
+          ubicacion: (c as any).lugar || (c as any).ubicacion,
+          imagenUrl: (c as any).imagenUrl,
+          paymentStatus,
+        });
+      }
+
+      setList(views);
       setLoading(false);
     });
     return () => unsub();
@@ -146,6 +156,7 @@ export default function MisInscripcionesPage() {
     <AuthGuard>
       <div className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">Mis Inscripciones</h1>
+
         {list.length === 0 ? (
           <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
@@ -171,15 +182,14 @@ export default function MisInscripcionesPage() {
                       <p><strong>Inscrito como:</strong> {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}</p>
                       <p><strong>Categoría:</strong> {i.categoria}</p>
                       <p className="text-sm text-gray-500">Inscripción: {i.fechaIns}</p>
-                      <p>
-                        <strong>Pago:</strong>{" "}
-                        <span className={`font-medium capitalize ${
-                          i.paymentStatus === "paid"      ? "text-green-600" :
-                          i.paymentStatus === "pending"   ? "text-yellow-600" :
-                          i.paymentStatus === "unpaid"    ? "text-red-600" : ""
-                        }`}>
-                          {i.paymentStatus}
-                        </span>
+                      <p className={`inline-block px-2 py-1 rounded text-xs ${
+                        i.paymentStatus === "paid"
+                          ? "bg-green-100 text-green-800"
+                          : i.paymentStatus === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }`}>
+                        {i.paymentStatus || "desconocido"}
                       </p>
                     </div>
                   </a>
