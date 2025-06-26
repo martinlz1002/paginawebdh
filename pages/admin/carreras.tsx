@@ -9,7 +9,7 @@ export default function CrearCarrera() {
   const [fecha, setFecha] = useState("");
   const [imagenUrl, setImagenUrl] = useState("");
   const [mensaje, setMensaje] = useState("");
-  const [precio, setPrecio] = useState("");
+  const [price, setPrecio] = useState("");
 
   const handleCrearCarrera = async () => {
     try {
@@ -22,7 +22,7 @@ export default function CrearCarrera() {
        ubicacion,
        fecha,
        imagenUrl,
-       precio: parseFloat(precio) || 0, // <-- enviamos precio
+       price: parseFloat(price) || 0, // <-- enviamos precio
      });
 
       setMensaje("Carrera creada exitosamente.");
@@ -65,7 +65,7 @@ export default function CrearCarrera() {
       />
       <input
        type="number"
-       value={precio}
+       value={price}
        onChange={(e) => setPrecio(e.target.value)}
        placeholder="Precio (MXN)"
        step="0.01"

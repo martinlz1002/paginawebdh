@@ -42,7 +42,7 @@ interface InscView {
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
-  precio: number;
+  price: number;
   sessionId?: string;
   paymentStatus?: string;
 }
@@ -78,13 +78,13 @@ export default function MisInscripcionesPage() {
         const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
         const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
 
-        // 2) Obtener precio de la categoría
+        // 2) Obtener price de la categoría
         const categoriaObj = Array.isArray(cdata.categorias)
           ? (cdata.categorias as any[]).find(
               (cat) => cat.nombre === src.categoria
             )
           : null;
-        const precio: number = categoriaObj?.precio ?? 0;
+        const price: number = categoriaObj?.price ?? 0;
 
         // 3) Leer perfil
         let perfilNombre = "",
@@ -157,7 +157,7 @@ export default function MisInscripcionesPage() {
           horaSalida: cdata.horaSalida,
           ubicacion: cdata.lugar || cdata.ubicacion,
           imagenUrl: cdata.imagenUrl,
-          precio,
+          price,
           sessionId: src.sessionId,
           paymentStatus,
         });
@@ -179,7 +179,7 @@ export default function MisInscripcionesPage() {
         carreraId: item.carreraId,
         perfilId: item.perfilId,
         categoria: item.categoria,
-        precio: item.precio,
+        price: item.price,
       }),
     });
     const { url } = await res.json();
@@ -235,7 +235,7 @@ export default function MisInscripcionesPage() {
                     </p>
                     <p>
                       <strong>Categoría:</strong> {i.categoria} ($
-                      {i.precio.toFixed(2)})
+                      {i.price.toFixed(2)})
                     </p>
                     <p className="text-sm text-gray-500">
                       Inscripción: {i.fechaIns}

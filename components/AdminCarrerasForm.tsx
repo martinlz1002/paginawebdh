@@ -110,7 +110,7 @@ export default function AdminCarrerasForm({
       fecha,
       horaSalida,
       categorias,
-      precio: 0,
+      price: 0,
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };

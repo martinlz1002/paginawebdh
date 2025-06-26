@@ -21,5 +21,5 @@ export interface CarreraData {
   horaSalida: string;   // HH:MM
   imagenUrl?: string;
   categorias: Categoria[];
-  precio: number;  // <-- ahora es Categoria[]
+  price: number;  // <-- ahora es Categoria[]
 }

@@ -14,11 +14,11 @@ export default async function handler(
     return res.status(405).end(`Método ${req.method} No Permitido`);
   }
 
-  const { carreraId, perfilId, categoria, precio } = req.body as {
+  const { carreraId, perfilId, categoria, price } = req.body as {
     carreraId: string;
     perfilId: string;
     categoria: string;
-    precio: number;
+    price: number;
   };
 
   try {
@@ -30,7 +30,7 @@ export default async function handler(
         price_data: {
           currency: "mxn",
           product_data: { name: `Inscripción: ${categoria}` },
-          unit_amount: Math.round(precio * 100),
+          unit_amount: Math.round(price * 100),
         },
         quantity: 1,
       }],

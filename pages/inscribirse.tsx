@@ -170,7 +170,7 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          precio: cat.price, // envío el price correcto
+          price: cat.price, // envío el price correcto
         }),
       });
       if (res.status === 405) throw new Error("Método no permitido (405)");
