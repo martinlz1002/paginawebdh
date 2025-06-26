@@ -29,8 +29,8 @@ interface InscripcionItem {
   perfil: PerfilData | null;
   categoria: string;
   timestamp: any;
-  sessionId?: string;            // <— debe venir guardado en Firestore
-  payment_status?: string;       // <— lo rellenamos abajo
+  sessionId?: string;      // viene de Firestore
+  payment_status?: string; // lo rellenamos más abajo
 }
 
 export default function AdminInscripcionesView() {
@@ -39,7 +39,7 @@ export default function AdminInscripcionesView() {
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 1) Cargo carreras
+  // 1) Cargo las carreras
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, 'carreras'));
@@ -54,6 +54,7 @@ export default function AdminInscripcionesView() {
       return;
     }
     setLoading(true);
+
     (async () => {
       const q = query(
         collection(db, 'inscripciones'),
@@ -61,11 +62,13 @@ export default function AdminInscripcionesView() {
       );
       const snap = await getDocs(q);
 
+      // Primero obtengo perfil y sessionId
       const items: InscripcionItem[] = await Promise.all(
         snap.docs.map(async d => {
           const data = d.data()!;
-          // → cargar perfil idéntico a antes…
           let perfil: PerfilData | null = null;
+
+          // Perfil principal vs subperfil
           if (data.perfilId === data.perfilOwner) {
             const main = await getDoc(doc(db, 'usuarios', data.perfilOwner));
             if (main.exists()) {
@@ -107,12 +110,12 @@ export default function AdminInscripcionesView() {
             perfil,
             categoria: data.categoria,
             timestamp: data.timestamp,
-            sessionId: (data as any).sessionId  // <— aquí el campo
+            sessionId: (data as any).sessionId
           };
         })
       );
 
-      // 3) Consultar Stripe para cada sessionId
+      // 3) Para cada inscripción con sessionId, consulto Stripe
       const withStatus = await Promise.all(
         items.map(async item => {
           if (!item.sessionId) return item;
@@ -123,7 +126,7 @@ export default function AdminInscripcionesView() {
               return { ...item, payment_status: json.payment_status };
             }
           } catch {
-            // silenciar errores individuales
+            // ignoro errores individuales
           }
           return item;
         })
@@ -134,7 +137,7 @@ export default function AdminInscripcionesView() {
     })();
   }, [selectedCarrera]);
 
-  // 4) Exportar Excel incluyendo estado de pago
+  // 4) Exportar a Excel incluyendo el estado de pago
   const exportExcel = () => {
     const rows = inscripciones.map(i => ({
       Nombre: i.perfil?.nombre,
@@ -156,7 +159,7 @@ export default function AdminInscripcionesView() {
 
   return (
     <div className="p-6">
-      {/* Header y botón export */}
+      {/* Header con botón de exportar */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
         <button

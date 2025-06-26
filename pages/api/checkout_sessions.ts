@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
+import { registrarInscripcion } from "@/lib/Inscripciones";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2022-11-15",
@@ -23,7 +24,7 @@ export default async function handler(
   try {
     const origin = req.headers.origin ?? "";
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+      payment_method_types: ["card", "oxxo"],
       mode: "payment",
       line_items: [{
         price_data: {
@@ -38,7 +39,13 @@ export default async function handler(
       metadata: { carreraId, perfilId, categoria },
     });
 
-    // ahora devolvemos también el ID de la sesión
+    await registrarInscripcion({
+      carreraId,
+      perfilId,
+      categoria,
+      sessionId: session.id
+    });
+
     return res.status(200).json({
       url: session.url,
       sessionId: session.id

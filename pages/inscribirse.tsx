@@ -60,7 +60,7 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera
+  // 1) Carga de la carrera (incluye precio)
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -170,9 +170,10 @@ export default function InscribirsePage() {
         const text = await res.text();
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
+
       const { url, sessionId } = await res.json();
 
-      // 4) Registrar inscripción en Firestore
+      // 4) Registrar inscripción en Firestore con estado 'pending'
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
@@ -271,7 +272,7 @@ export default function InscribirsePage() {
                   <tr key={cat.nombre} className="hover:bg-gray-50">
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
-                    <td className="border px_4 py-2">{cat.maxAge}</td>
+                    <td className="border px-4 py-2">{cat.maxAge}</td>
                   </tr>
                 ))}
               </tbody>

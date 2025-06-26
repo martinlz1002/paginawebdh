@@ -1,6 +1,5 @@
 import { collection, addDoc, serverTimestamp, doc, updateDoc } from 'firebase/firestore';
 import { db, auth } from './firebase';
-import Stripe from 'stripe';
 
 export interface InscripcionData {
   carreraId: string;
@@ -22,12 +21,12 @@ export async function registrarInscripcion(data: InscripcionData, sessionId?: st
       perfilOwner: user.uid,
       categoria: data.categoria,
       timestamp: serverTimestamp(),
+      paymentStatus: 'pending',
       sessionId: data.sessionId,
     }
   );
 
-  // 2) Si ya tienes sessionId (por ejemplo, tras llamar a Stripe),
-  //    actualiza el documento para inyectarlo
+  // 2) Si ya tienes sessionId, actualiza el documento para inyectarlo
   if (sessionId) {
     await updateDoc(doc(db, 'inscripciones', ref.id), { sessionId });
   }
