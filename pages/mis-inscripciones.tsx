@@ -17,7 +17,6 @@ import {
   ClockIcon,
   ClipboardIcon,
 } from "@heroicons/react/24/outline";
-import Link from "next/link";
 
 interface InscRaw {
   carreraId: string;
@@ -73,13 +72,12 @@ export default function MisInscripcionesPage() {
       const views: InscView[] = [];
       for (const d of inscSnap.docs) {
         const src = d.data() as InscRaw;
-
-        // 1) datos de la carrera
+        // Obtener carrera
         const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
         const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
         const precio: number = cdata.precio ?? 0;
 
-        // 2) perfil
+        // Obtener perfil
         let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
         if (src.perfilId === src.perfilOwner) {
           const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
@@ -101,10 +99,11 @@ export default function MisInscripcionesPage() {
           }
         }
 
-        // 3) fechas
+        // Formatear fechas
         const fechaIns = src.timestamp?.toDate
           ? src.timestamp.toDate().toLocaleString()
           : "";
+
         let fechaCarr = "";
         if (cdata.fecha instanceof Timestamp) {
           const dt = (cdata.fecha as Timestamp).toDate();
@@ -115,13 +114,11 @@ export default function MisInscripcionesPage() {
           fechaCarr = `${d}/${m}/${y}`;
         }
 
-        // 4) estado de pago
+        // Obtener estado de pago desde Stripe
         let paymentStatus: string|undefined;
         if (src.sessionId) {
           try {
-            const res = await fetch(
-              `/api/get-session?session_id=${src.sessionId}`
-            );
+            const res = await fetch(`/api/get-session?session_id=${src.sessionId}`);
             if (res.ok) {
               const json = await res.json();
               paymentStatus = json.payment_status;
@@ -168,24 +165,17 @@ export default function MisInscripcionesPage() {
           carreraId: item.carreraId,
           perfilId: item.perfilId,
           categoria: item.categoria,
-          precio: item.precio,
+          precio: item.precio,  // aseguramos pasar el precio correcto
         }),
       });
-
-      if (res.status === 404) {
-        console.error("Ruta API no encontrada (/api/checkout_sessions)");
-        return;
-      }
       if (!res.ok) {
         const txt = await res.text();
-        console.error(`HTTP ${res.status}: ${txt}`);
-        return;
+        throw new Error(`HTTP ${res.status} — ${txt}`);
       }
-
       const { url } = await res.json();
       window.location.href = url;
-    } catch (err) {
-      console.error("Error reintentando pago:", err);
+    } catch (err: any) {
+      alert(`Error reintentando pago: ${err.message}`);
     }
   };
 
@@ -229,14 +219,16 @@ export default function MisInscripcionesPage() {
                   <div className="p-4 flex-1 space-y-2">
                     <h2 className="text-xl font-semibold">{i.titulo}</h2>
                     <p className="text-sm text-gray-600">
-                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
+                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰{" "}
+                      {i.horaSalida || "-"}
                     </p>
                     <p>
                       <strong>Inscrito como:</strong> {i.perfilNombre}{" "}
                       {i.perfilApPaterno} {i.perfilApMaterno}
                     </p>
                     <p>
-                      <strong>Categoría:</strong> {i.categoria} — ${i.precio.toFixed(2)}
+                      <strong>Categoría:</strong> {i.categoria} ($
+                      {i.precio.toFixed(2)})
                     </p>
                     <p className="text-sm text-gray-500">
                       Inscripción: {i.fechaIns}
