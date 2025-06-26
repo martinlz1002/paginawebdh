@@ -26,23 +26,24 @@ export default async function handler(
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card", "oxxo"],
       mode: "payment",
-      line_items: [{
-        price_data: {
-          currency: "mxn",
-          product_data: { name: `Inscripción: ${categoria}` },
-          unit_amount: Math.round(price * 100),
+      line_items: [
+        {
+          price_data: {
+            currency: "mxn",
+            product_data: { name: `Inscripción: ${categoria}` },
+            unit_amount: Math.round(price * 100),
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+      ],
       success_url: `${origin}/mis-inscripciones?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/inscribirse?carreraId=${carreraId}`,
       metadata: { carreraId, perfilId, categoria },
     });
 
-    // Devuelvo URL y sessionId, sin tocar Firestore
     return res.status(200).json({
       url: session.url,
-      sessionId: session.id
+      sessionId: session.id,
     });
   } catch (err: any) {
     console.error("Stripe error:", err);

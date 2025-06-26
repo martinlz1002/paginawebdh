@@ -176,7 +176,7 @@ export default function MisInscripcionesPage() {
 
   // Reintentar pago: llama correctamente a /api/checkout_sessions
   const reintentarPago = async (item: InscView) => {
-    const res = await fetch("/api/checkout_sessions", {
+  const res = await fetch("/api/checkout_sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
