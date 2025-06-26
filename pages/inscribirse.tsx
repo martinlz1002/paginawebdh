@@ -26,7 +26,7 @@ interface Categoria {
   nombre: string;
   minAge: number;
   maxAge: number;
-  price: number;      // ← Ahora cada categoría trae su precio
+  precio: number;      // nuevo campo precio por categoría
 }
 
 interface Carrera {
@@ -55,13 +55,12 @@ export default function InscribirsePage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
-  const [precioSeleccionado, setPrecioSeleccionado] = useState(0);
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Cargo la carrera y sus categorías (con precios)
+  // 1) Carga de la carrera (incluye categorías con precio)
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -82,12 +81,17 @@ export default function InscribirsePage() {
             : data.fecha,
         horaSalida: data.horaSalida,
         bannerUrl: data.bannerUrl,
-        categorias: data.categorias || [],  // se espera que cada item tenga { nombre, minAge, maxAge, price }
+        categorias: (data.categorias || []).map((cat: any) => ({
+          nombre: cat.nombre,
+          minAge: cat.minAge,
+          maxAge: cat.maxAge,
+          precio: cat.precio,   // asumimos que Firestore ya guardó precio por categoría
+        })),
       });
     })();
   }, [carreraId]);
 
-  // 2) Autenticación y carga de perfiles
+  // 2) Autenticación + perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -105,8 +109,8 @@ export default function InscribirsePage() {
       lista.push({
         id: uid,
         nombre: d.nombre,
-        apellidoPaterno: d.apPaterno || d.apellidoPaterno,
-        apellidoMaterno: d.apMaterno || d.apellidoMaterno,
+        apellidoPaterno: d.apPaterno,
+        apellidoMaterno: d.apMaterno,
         edad: d.edad,
       });
     }
@@ -126,14 +130,7 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Cuando cambia la categoría seleccionada, actualizo el precio
-  useEffect(() => {
-    if (!carrera) return;
-    const cat = carrera.categorias.find(c => c.nombre === categoriaSeleccionada);
-    setPrecioSeleccionado(cat ? cat.price : 0);
-  }, [categoriaSeleccionada, carrera]);
-
-  // 4) Iniciar pago Stripe + registro en Firestore
+  // 3) Iniciar pago con Stripe (previo check y usando precio de la categoría)
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -142,17 +139,25 @@ export default function InscribirsePage() {
     }
     if (!carrera) return;
 
-    // Prevengo duplicados
-    const user = auth.currentUser!;
-    const dupQ = query(
+    // Validar si ya existe inscripción
+    const user = auth.currentUser;
+    if (!user) return;
+    const dupQuery = query(
       collection(db, "inscripciones"),
       where("carreraId", "==", carrera.id),
       where("perfilId", "==", perfilSeleccionado),
       where("perfilOwner", "==", user.uid)
     );
-    const dupSnap = await getDocs(dupQ);
+    const dupSnap = await getDocs(dupQuery);
     if (!dupSnap.empty) {
-      setMensaje("Ya estás inscrito con ese perfil.");
+      setMensaje("Ya estás inscrito con este perfil y categoría.");
+      return;
+    }
+
+    // Encontrar precio de la categoría
+    const cat = carrera.categorias.find(c => c.nombre === categoriaSeleccionada);
+    if (!cat) {
+      setMensaje("Categoría inválida.");
       return;
     }
 
@@ -165,16 +170,19 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          precio: precioSeleccionado,
+          precio: cat.precio,   // enviamos el precio específico
         }),
       });
+      if (res.status === 405) {
+        throw new Error("Método no permitido (405)");
+      }
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
       const { url, sessionId } = await res.json();
 
-      // Registro la inscripción con sessionId y estado pending
+      // Registrar la inscripción con sessionId
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
@@ -182,8 +190,9 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Abro Stripe en pestaña nueva y redirijo actual a mis-inscripciones
-      window.open(url, "_blank")?.focus();
+      // Abrir Stripe en una pestaña nueva y redirigir esta a "Mis inscripciones"
+      const win = window.open(url, "_blank");
+      if (win) win.focus();
       router.push("/mis-inscripciones");
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
@@ -195,35 +204,44 @@ export default function InscribirsePage() {
   if (!carrera) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
+        <p className="text-center mt-10">{mensaje || "Cargando…"} </p>
       </AuthGuard>
     );
   }
 
-  // Filtro categorías según edad del perfil
-  const perfilActual = perfiles.find(p => p.id === perfilSeleccionado);
-  const categoriasPermitidas = carrera.categorias.filter(cat =>
-    perfilActual
-      ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
-      : false
+  // Filtrar categorías por edad
+  const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
+  const categoriasPermitidas = carrera.categorias.filter(
+    (cat) =>
+      perfilActual
+        ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
+        : false
   );
+
+  // Precio de la categoría seleccionada
+  const precioSeleccionado =
+    categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)
+      ?.precio ?? 0;
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Banner */}
         {carrera.bannerUrl && (
           <div
             className="h-56 bg-cover bg-center"
             style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
           />
         )}
+
         <div className="p-6 space-y-6">
+          {/* Título */}
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Info básica */}
+          {/* Info row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -245,11 +263,11 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Tabla de categorías con precios */}
+          {/* Tabla de categorías con precio */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
-              <span>Categorías y Precios</span>
+              <span>Categorías y precios</span>
             </h2>
             <table className="w-full table-auto border-collapse text-gray-700">
               <thead className="bg-gray-100">
@@ -261,21 +279,21 @@ export default function InscribirsePage() {
                 </tr>
               </thead>
               <tbody>
-                {carrera.categorias.map(cat => (
+                {carrera.categorias.map((cat) => (
                   <tr key={cat.nombre} className="hover:bg-gray-50">
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
+                    <td className="border px-4 py-2">${cat.precio.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Formulario de inscripción */}
+          {/* Formulario inscripción + pago */}
           <div className="pt-6 border-t space-y-4">
-            {/* Selección de perfil */}
+            {/* Perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -287,9 +305,9 @@ export default function InscribirsePage() {
                 <select
                   className="w-full border p-2 rounded"
                   value={perfilSeleccionado}
-                  onChange={e => setPerfilSeleccionado(e.target.value)}
+                  onChange={(e) => setPerfilSeleccionado(e.target.value)}
                 >
-                  {perfiles.map(p => (
+                  {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nombre} {p.apellidoPaterno} ({p.edad} años)
                     </option>
@@ -298,7 +316,7 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Selección de categoría */}
+            {/* Categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -307,23 +325,22 @@ export default function InscribirsePage() {
               <select
                 className="w-full border p-2 rounded disabled:opacity-50"
                 value={categoriaSeleccionada}
-                onChange={e => setCategoriaSeleccionada(e.target.value)}
+                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
                 disabled={!categoriasPermitidas.length}
               >
                 <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map(cat => (
+                {categoriasPermitidas.map((cat) => (
                   <option key={cat.nombre} value={cat.nombre}>
-                    {cat.nombre} — ${cat.price.toFixed(2)}
+                    {cat.nombre}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Precio elegido */}
+            {/* Mostrar precio seleccionado */}
             {categoriaSeleccionada && (
-              <div className="text-2xl font-semibold flex items-center space-x-2">
-                <CreditCardIcon className="w-6 h-6 text-green-600" />
-                <span>Precio: ${precioSeleccionado.toFixed(2)}</span>
+              <div className="text-lg font-medium">
+                Precio seleccionado: ${precioSeleccionado.toFixed(2)}
               </div>
             )}
 
