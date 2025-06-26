@@ -11,6 +11,12 @@ import {
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import AuthGuard from "@/components/AuthGuard";
+import {
+  MapPinIcon,
+  CalendarIcon,
+  ClockIcon,
+  ClipboardIcon,
+} from "@heroicons/react/24/outline";
 import Link from "next/link";
 
 interface InscRaw {
@@ -28,6 +34,7 @@ interface InscView {
   perfilApPaterno: string;
   perfilApMaterno: string;
   carreraId: string;
+  perfilId: string;
   categoria: string;
   fechaIns: string;
   titulo: string;
@@ -35,6 +42,8 @@ interface InscView {
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
+  precio: number;
+  sessionId?: string;
   paymentStatus?: string;
 }
 
@@ -45,16 +54,15 @@ function pad(n: number) {
 export default function MisInscripcionesPage() {
   const [list, setList] = useState<InscView[]>([]);
   const [loading, setLoading] = useState(true);
+  const auth = getAuth(app);
 
   useEffect(() => {
-    const auth = getAuth(app);
     const unsub = onAuthStateChanged(auth, async (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
 
-      // 1) Traer inscripciones
       const inscSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -65,11 +73,12 @@ export default function MisInscripcionesPage() {
       const views: InscView[] = [];
       for (const d of inscSnap.docs) {
         const src = d.data() as InscRaw;
-        // carrera
+        // Obtener carrera
         const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-        const c = cDoc.exists() ? cDoc.data()! : {};
+        const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
+        const precio: number = cdata.precio ?? 0;
 
-        // perfil
+        // Obtener perfil
         let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
         if (src.perfilId === src.perfilOwner) {
           const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
@@ -91,23 +100,22 @@ export default function MisInscripcionesPage() {
           }
         }
 
-        // formato fecha inscripción
+        // Formatear fechas
         const fechaIns = src.timestamp?.toDate
           ? src.timestamp.toDate().toLocaleString()
           : "";
 
-        // fecha carrera
         let fechaCarr = "";
-        if ((c as any).fecha instanceof Timestamp) {
-          const dt = (c as any).fecha.toDate();
+        if (cdata.fecha instanceof Timestamp) {
+          const dt = (cdata.fecha as Timestamp).toDate();
           const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
           fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
-        } else if (typeof (c as any).fecha === "string") {
-          const [y, m, d] = (c as any).fecha.split("-");
+        } else if (typeof cdata.fecha === "string") {
+          const [y, m, d] = (cdata.fecha as string).split("-");
           fechaCarr = `${d}/${m}/${y}`;
         }
 
-        // 2) obtener estado de pago
+        // Obtener estado de pago desde Stripe
         let paymentStatus: string|undefined;
         if (src.sessionId) {
           try {
@@ -127,13 +135,16 @@ export default function MisInscripcionesPage() {
           perfilApPaterno,
           perfilApMaterno,
           carreraId: src.carreraId,
+          perfilId: src.perfilId,
           categoria: src.categoria,
           fechaIns,
-          titulo: (c as any).titulo || "(sin título)",
+          titulo: cdata.titulo || "(sin título)",
           fechaCarr,
-          horaSalida: (c as any).horaSalida,
-          ubicacion: (c as any).lugar || (c as any).ubicacion,
-          imagenUrl: (c as any).imagenUrl,
+          horaSalida: cdata.horaSalida,
+          ubicacion: cdata.lugar || cdata.ubicacion,
+          imagenUrl: cdata.imagenUrl,
+          precio,
+          sessionId: src.sessionId,
           paymentStatus,
         });
       }
@@ -141,8 +152,26 @@ export default function MisInscripcionesPage() {
       setList(views);
       setLoading(false);
     });
+
     return () => unsub();
   }, []);
+
+  // Reintentar pago: lanza un nuevo Checkout
+  const reintentarPago = async (item: InscView) => {
+    // Redirigir a tu API para crear nueva sesión
+    const res = await fetch("/api/checkout_sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        carreraId: item.carreraId,
+        perfilId: item.perfilId,
+        categoria: item.categoria,
+        precio: item.precio,
+      }),
+    });
+    const { url } = await res.json();
+    window.location.href = url;
+  };
 
   if (loading) {
     return (
@@ -162,38 +191,63 @@ export default function MisInscripcionesPage() {
         ) : (
           <ul className="space-y-6">
             {list.map(i => (
-              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
-                <Link href={`/inscribirse?carreraId=${i.carreraId}`}>
-                  <a className="flex flex-col md:flex-row">
-                    {i.imagenUrl ? (
-                      <div className="md:w-1/3 h-48 overflow-hidden">
-                        <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
-                        <span className="text-gray-500">Sin imagen</span>
-                      </div>
-                    )}
-                    <div className="p-4 flex-1 space-y-2">
-                      <h2 className="text-xl font-semibold">{i.titulo}</h2>
-                      <p className="text-sm text-gray-600">
-                        📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
-                      </p>
-                      <p><strong>Inscrito como:</strong> {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}</p>
-                      <p><strong>Categoría:</strong> {i.categoria}</p>
-                      <p className="text-sm text-gray-500">Inscripción: {i.fechaIns}</p>
-                      <p className={`inline-block px-2 py-1 rounded text-xs ${
+              <li
+                key={i.id}
+                className="border rounded shadow hover:shadow-lg overflow-hidden"
+              >
+                <div className="flex flex-col md:flex-row">
+                  {i.imagenUrl ? (
+                    <div className="md:w-1/3 h-48 overflow-hidden">
+                      <img
+                        src={i.imagenUrl}
+                        alt={i.titulo}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-500">Sin imagen</span>
+                    </div>
+                  )}
+
+                  <div className="p-4 flex-1 space-y-2">
+                    <h2 className="text-xl font-semibold">{i.titulo}</h2>
+                    <p className="text-sm text-gray-600">
+                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰{" "}
+                      {i.horaSalida || "-"}
+                    </p>
+                    <p>
+                      <strong>Inscrito como:</strong> {i.perfilNombre}{" "}
+                      {i.perfilApPaterno} {i.perfilApMaterno}
+                    </p>
+                    <p>
+                      <strong>Categoría:</strong> {i.categoria}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      Inscripción: {i.fechaIns}
+                    </p>
+                    <p
+                      className={`inline-block px-2 py-1 rounded text-xs ${
                         i.paymentStatus === "paid"
                           ? "bg-green-100 text-green-800"
                           : i.paymentStatus === "pending"
                           ? "bg-yellow-100 text-yellow-800"
                           : "bg-red-100 text-red-800"
-                      }`}>
-                        {i.paymentStatus || "desconocido"}
-                      </p>
-                    </div>
-                  </a>
-                </Link>
+                      }`}
+                    >
+                      {i.paymentStatus || "desconocido"}
+                    </p>
+
+                    {i.paymentStatus !== "paid" && (
+                      <button
+                        onClick={() => reintentarPago(i)}
+                        className="mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+                      >
+                        Reintentar pago
+                      </button>
+                    )}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
