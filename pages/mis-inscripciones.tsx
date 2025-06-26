@@ -173,7 +173,7 @@ export default function MisInscripcionesPage() {
 
   const reintentarPago = async (item: InscView) => {
     // Aquí usamos la ruta correcta "checkout-sessions"
-    const res = await fetch("/api/checkout-sessions", {
+    const res = await fetch("/api/checkout_sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
