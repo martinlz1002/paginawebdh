@@ -3,11 +3,13 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 
-// Inicializa Admin SDK sólo UNA vez
+// Inicializa Admin SDK sólo una vez
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!);
+  // Parsea el JSON de la clave y convierte los "\n" literales en saltos de línea
+  const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY!);
+  sa.private_key = sa.private_key.replace(/\\n/g, "\n");
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert(sa),
   });
 }
 const firestore = admin.firestore();
@@ -30,19 +32,19 @@ export default async function handler(
 
   const buf = await buffer(req);
   const sig = req.headers["stripe-signature"]!;
-
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(buf, sig as string, webhookSecret);
   } catch (err: any) {
-    console.error("⚠️ Webhook signature verification failed.", err.message);
+    console.error("⚠️  Webhook signature failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as Stripe.Checkout.Session;
     const sessionId = session.id;
-    const paymentStatus = session.payment_status; // 'paid' | 'unpaid'
+    const paymentStatus = session.payment_status;
 
     try {
       const snap = await firestore
@@ -55,13 +57,12 @@ export default async function handler(
       await batch.commit();
 
       console.log(
-        `✅ Actualizado paymentStatus="${paymentStatus}" en ${snap.size} doc(s).`
+        `✅ Actualizado paymentStatus="${paymentStatus}" en ${snap.size} inscripciones.`
       );
     } catch (dbErr) {
       console.error("🔴 Error al actualizar Firestore:", dbErr);
     }
   }
 
-  // Respondo 200 para que Stripe no reintente
   res.status(200).json({ received: true });
 }
