@@ -173,7 +173,7 @@ export default function InscribirsePage() {
 
       const { url, sessionId } = await res.json();
 
-      // 4) Registrar inscripción en Firestore con estado 'pending'
+      // 4) Registrar inscripción en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
@@ -181,8 +181,11 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Redirigir al Checkout Stripe
-      window.location.href = url;
+      // Abrir checkout en pestaña nueva...
+      const win = window.open(url, "_blank");
+      if (win) win.focus();
+      // ...y redirigir esta pestaña a mis-inscripciones
+      router.push("/mis-inscripciones");
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
       setMensaje(`Error al iniciar pago: ${err.message}`);
