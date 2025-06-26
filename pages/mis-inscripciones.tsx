@@ -17,6 +17,7 @@ import {
   ClockIcon,
   ClipboardIcon,
 } from "@heroicons/react/24/outline";
+import Link from "next/link";
 
 interface InscRaw {
   carreraId: string;
@@ -72,13 +73,23 @@ export default function MisInscripcionesPage() {
       const views: InscView[] = [];
       for (const d of inscSnap.docs) {
         const src = d.data() as InscRaw;
-        // Obtener carrera
+
+        // 1) Leer datos de carrera
         const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
         const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
-        const precio: number = cdata.precio ?? 0;
 
-        // Obtener perfil
-        let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
+        // 2) Obtener precio de la categoría
+        const categoriaObj = Array.isArray(cdata.categorias)
+          ? (cdata.categorias as any[]).find(
+              (cat) => cat.nombre === src.categoria
+            )
+          : null;
+        const precio: number = categoriaObj?.precio ?? 0;
+
+        // 3) Leer perfil
+        let perfilNombre = "",
+          perfilApPaterno = "",
+          perfilApMaterno = "";
         if (src.perfilId === src.perfilOwner) {
           const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
           if (uDoc.exists()) {
@@ -99,7 +110,7 @@ export default function MisInscripcionesPage() {
           }
         }
 
-        // Formatear fechas
+        // 4) Formatear fechas
         const fechaIns = src.timestamp?.toDate
           ? src.timestamp.toDate().toLocaleString()
           : "";
@@ -108,17 +119,21 @@ export default function MisInscripcionesPage() {
         if (cdata.fecha instanceof Timestamp) {
           const dt = (cdata.fecha as Timestamp).toDate();
           const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth()+1)}/${local.getFullYear()}`;
+          fechaCarr = `${pad(local.getDate())}/${pad(
+            local.getMonth() + 1
+          )}/${local.getFullYear()}`;
         } else if (typeof cdata.fecha === "string") {
           const [y, m, d] = (cdata.fecha as string).split("-");
           fechaCarr = `${d}/${m}/${y}`;
         }
 
-        // Obtener estado de pago desde Stripe
-        let paymentStatus: string|undefined;
+        // 5) Obtener estado de pago
+        let paymentStatus: string | undefined;
         if (src.sessionId) {
           try {
-            const res = await fetch(`/api/get-session?session_id=${src.sessionId}`);
+            const res = await fetch(
+              `/api/get-session?session_id=${src.sessionId}`
+            );
             if (res.ok) {
               const json = await res.json();
               paymentStatus = json.payment_status;
@@ -157,26 +172,18 @@ export default function MisInscripcionesPage() {
 
   // Reintentar pago: lanza un nuevo Checkout
   const reintentarPago = async (item: InscView) => {
-    try {
-      const res = await fetch("/api/checkout_sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          carreraId: item.carreraId,
-          perfilId: item.perfilId,
-          categoria: item.categoria,
-          precio: item.precio,  // aseguramos pasar el precio correcto
-        }),
-      });
-      if (!res.ok) {
-        const txt = await res.text();
-        throw new Error(`HTTP ${res.status} — ${txt}`);
-      }
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch (err: any) {
-      alert(`Error reintentando pago: ${err.message}`);
-    }
+    const res = await fetch("/api/checkout_sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        carreraId: item.carreraId,
+        perfilId: item.perfilId,
+        categoria: item.categoria,
+        precio: item.precio,
+      }),
+    });
+    const { url } = await res.json();
+    window.location.href = url;
   };
 
   if (loading) {
@@ -196,7 +203,7 @@ export default function MisInscripcionesPage() {
           <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
           <ul className="space-y-6">
-            {list.map(i => (
+            {list.map((i) => (
               <li
                 key={i.id}
                 className="border rounded shadow hover:shadow-lg overflow-hidden"
@@ -233,7 +240,7 @@ export default function MisInscripcionesPage() {
                     <p className="text-sm text-gray-500">
                       Inscripción: {i.fechaIns}
                     </p>
-                    <p
+                    <span
                       className={`inline-block px-2 py-1 rounded text-xs ${
                         i.paymentStatus === "paid"
                           ? "bg-green-100 text-green-800"
@@ -243,7 +250,7 @@ export default function MisInscripcionesPage() {
                       }`}
                     >
                       {i.paymentStatus || "desconocido"}
-                    </p>
+                    </span>
 
                     {i.paymentStatus !== "paid" && (
                       <button
