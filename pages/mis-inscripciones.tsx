@@ -7,6 +7,7 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  updateDoc,
   Timestamp,
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
@@ -56,13 +57,11 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    // 1) Escuchar cambios de auth
     const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
-      // 2) Listener en tiempo real de inscripciones de este usuario
       const q = query(
         collection(db, "inscripciones"),
         where("perfilOwner", "==", user.uid)
@@ -71,23 +70,18 @@ export default function MisInscripcionesPage() {
         const views: InscView[] = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
-
-            // Obtener carrera
+            // → obtener carrera
             const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
-
-            // Obtener precio según categoría (campo price en Firestore)
+            // → precio según categoría
             const categoriaObj = Array.isArray(cdata.categorias)
               ? (cdata.categorias as any[]).find(
                   (cat) => cat.nombre === src.categoria
                 )
               : null;
             const precio: number = categoriaObj?.price ?? 0;
-
-            // Leer perfil
-            let perfilNombre = "",
-              perfilApPaterno = "",
-              perfilApMaterno = "";
+            // → perfil
+            let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
             if (src.perfilId === src.perfilOwner) {
               const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
               if (uDoc.exists()) {
@@ -97,18 +91,17 @@ export default function MisInscripcionesPage() {
                 perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
               }
             } else {
-              const subDoc = await getDoc(
+              const sub = await getDoc(
                 doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
               );
-              if (subDoc.exists()) {
-                const sd = subDoc.data() as any;
+              if (sub.exists()) {
+                const sd = sub.data() as any;
                 perfilNombre = sd.nombre;
                 perfilApPaterno = sd.apellidoPaterno;
                 perfilApMaterno = sd.apellidoMaterno;
               }
             }
-
-            // Formatear fechas
+            // → formatear fechas
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -125,8 +118,7 @@ export default function MisInscripcionesPage() {
               const [y, m, d] = (cdata.fecha as string).split("-");
               fechaCarr = `${d}/${m}/${y}`;
             }
-
-            // Obtener estado de pago desde Stripe
+            // → estado Stripe
             let paymentStatus: string | undefined;
             if (src.sessionId) {
               try {
@@ -141,7 +133,6 @@ export default function MisInscripcionesPage() {
                 paymentStatus = "desconocido";
               }
             }
-
             return {
               id: d.id,
               perfilNombre,
@@ -165,34 +156,35 @@ export default function MisInscripcionesPage() {
         setList(views);
         setLoading(false);
       });
-
-      // Cleanup snapshot
       return () => unsubSnap();
     });
-
-    // Cleanup auth
     return () => unsubAuth();
   }, []);
 
-  // Reintentar pago: llama correctamente a /api/checkout_sessions
+  // **Reintentar pago**: guarda el nuevo sessionId en Firestore
   const reintentarPago = async (item: InscView) => {
-  const res = await fetch("/api/checkout_sessions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      carreraId: item.carreraId,
-      perfilId: item.perfilId,
-      categoria: item.categoria,
-      price: item.precio,
-    }),
-  });
-  if (!res.ok) {
-    console.error("Error reintentando pago:", await res.text());
-    return;
-  }
-  const { url } = await res.json();
-  window.location.href = url;
-};
+    const res = await fetch("/api/checkout_sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        carreraId: item.carreraId,
+        perfilId: item.perfilId,
+        categoria: item.categoria,
+        price: item.precio,
+      }),
+    });
+    if (!res.ok) {
+      console.error("Error reintentando pago:", await res.text());
+      return;
+    }
+    const { url, sessionId } = await res.json();
+    // —> ACTUALIZO EL sessionId Y RESETEO paymentStatus
+    const inscRef = doc(db, "inscripciones", item.id);
+    await updateDoc(inscRef, { sessionId, paymentStatus: "pending" });
+    // redirijo al checkout
+    const win = window.open(url, "_blank");
+    if (win) win.focus();
+  };
 
   if (loading) {
     return (
@@ -206,47 +198,29 @@ export default function MisInscripcionesPage() {
     <AuthGuard>
       <div className="max-w-4xl mx-auto p-6">
         <h1 className="text-2xl font-bold mb-4">Mis Inscripciones</h1>
-
         {list.length === 0 ? (
           <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
           <ul className="space-y-6">
             {list.map((i) => (
-              <li
-                key={i.id}
-                className="border rounded shadow hover:shadow-lg overflow-hidden"
-              >
+              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
                 <div className="flex flex-col md:flex-row">
                   {i.imagenUrl ? (
                     <div className="md:w-1/3 h-48 overflow-hidden">
-                      <img
-                        src={i.imagenUrl}
-                        alt={i.titulo}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
                       <span className="text-gray-500">Sin imagen</span>
                     </div>
                   )}
-
                   <div className="p-4 flex-1 space-y-2">
                     <h2 className="text-xl font-semibold">{i.titulo}</h2>
                     <p className="text-sm text-gray-600">
-                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰{" "}
-                      {i.horaSalida || "-"}
+                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
                     </p>
                     <p>
-                      <strong>Inscrito como:</strong> {i.perfilNombre}{" "}
-                      {i.perfilApPaterno} {i.perfilApMaterno}
-                    </p>
-                    <p>
-                      <strong>Categoría:</strong> {i.categoria} ($
-                      {i.precio.toFixed(2)})
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Inscripción: {i.fechaIns}
+                      <strong>Categoría:</strong> {i.categoria} (${i.precio.toFixed(2)})
                     </p>
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs ${
@@ -259,7 +233,6 @@ export default function MisInscripcionesPage() {
                     >
                       {i.paymentStatus || "desconocido"}
                     </span>
-
                     {i.paymentStatus !== "paid" && (
                       <button
                         onClick={() => reintentarPago(i)}

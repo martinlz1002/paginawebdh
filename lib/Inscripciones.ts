@@ -5,15 +5,23 @@ export interface InscripcionData {
   carreraId: string;
   perfilId: string;
   categoria: string;
-  sessionId: string;
+  // NO incluimos sessionId aquí: lo pasamos opcionalmente después
 }
 
-export async function registrarInscripcion(data: InscripcionData, sessionId?: string) {
+/**
+ * Crea una nueva inscripción con estado "pending".
+ * Si recibes el sessionId justo después de crear la sesión de Stripe,
+ * pásalo como segundo parámetro para actualizar el doc.
+ */
+export async function registrarInscripcion(
+  data: InscripcionData,
+  sessionId?: string
+) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
-  // 1) Creamos el documento (sin sessionId aún)
-  const ref = await addDoc(
+  // 1) Creamos el documento con paymentStatus: 'pending'
+  const docRef = await addDoc(
     collection(db, 'inscripciones'),
     {
       carreraId: data.carreraId,
@@ -21,15 +29,15 @@ export async function registrarInscripcion(data: InscripcionData, sessionId?: st
       perfilOwner: user.uid,
       categoria: data.categoria,
       timestamp: serverTimestamp(),
-      paymentStatus: 'pending',
-      sessionId: data.sessionId,
+      paymentStatus: 'pending'
     }
   );
 
-  // 2) Si ya tienes sessionId, actualiza el documento para inyectarlo
+  // 2) Si ya tienes sessionId (p. ej. tras crear la sesión Stripe),
+  //    lo inyectas aquí.
   if (sessionId) {
-    await updateDoc(doc(db, 'inscripciones', ref.id), { sessionId });
+    await updateDoc(doc(db, 'inscripciones', docRef.id), { sessionId });
   }
 
-  return ref.id;
+  return docRef.id;
 }
