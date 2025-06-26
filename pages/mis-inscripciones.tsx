@@ -73,12 +73,13 @@ export default function MisInscripcionesPage() {
       const views: InscView[] = [];
       for (const d of inscSnap.docs) {
         const src = d.data() as InscRaw;
-        // Obtener carrera
+
+        // 1) datos de la carrera
         const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
         const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
         const precio: number = cdata.precio ?? 0;
 
-        // Obtener perfil
+        // 2) perfil
         let perfilNombre = "", perfilApPaterno = "", perfilApMaterno = "";
         if (src.perfilId === src.perfilOwner) {
           const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
@@ -100,11 +101,10 @@ export default function MisInscripcionesPage() {
           }
         }
 
-        // Formatear fechas
+        // 3) fechas
         const fechaIns = src.timestamp?.toDate
           ? src.timestamp.toDate().toLocaleString()
           : "";
-
         let fechaCarr = "";
         if (cdata.fecha instanceof Timestamp) {
           const dt = (cdata.fecha as Timestamp).toDate();
@@ -115,11 +115,13 @@ export default function MisInscripcionesPage() {
           fechaCarr = `${d}/${m}/${y}`;
         }
 
-        // Obtener estado de pago desde Stripe
+        // 4) estado de pago
         let paymentStatus: string|undefined;
         if (src.sessionId) {
           try {
-            const res = await fetch(`/api/get-session?session_id=${src.sessionId}`);
+            const res = await fetch(
+              `/api/get-session?session_id=${src.sessionId}`
+            );
             if (res.ok) {
               const json = await res.json();
               paymentStatus = json.payment_status;
@@ -158,19 +160,33 @@ export default function MisInscripcionesPage() {
 
   // Reintentar pago: lanza un nuevo Checkout
   const reintentarPago = async (item: InscView) => {
-    // Redirigir a tu API para crear nueva sesión
-    const res = await fetch("/api/checkout_sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        carreraId: item.carreraId,
-        perfilId: item.perfilId,
-        categoria: item.categoria,
-        precio: item.precio,
-      }),
-    });
-    const { url } = await res.json();
-    window.location.href = url;
+    try {
+      const res = await fetch("/api/checkout_sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          carreraId: item.carreraId,
+          perfilId: item.perfilId,
+          categoria: item.categoria,
+          precio: item.precio,
+        }),
+      });
+
+      if (res.status === 404) {
+        console.error("Ruta API no encontrada (/api/checkout_sessions)");
+        return;
+      }
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error(`HTTP ${res.status}: ${txt}`);
+        return;
+      }
+
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch (err) {
+      console.error("Error reintentando pago:", err);
+    }
   };
 
   if (loading) {
@@ -213,15 +229,14 @@ export default function MisInscripcionesPage() {
                   <div className="p-4 flex-1 space-y-2">
                     <h2 className="text-xl font-semibold">{i.titulo}</h2>
                     <p className="text-sm text-gray-600">
-                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰{" "}
-                      {i.horaSalida || "-"}
+                      📍 {i.ubicacion || "-"} · 📅 {i.fechaCarr} · ⏰ {i.horaSalida || "-"}
                     </p>
                     <p>
                       <strong>Inscrito como:</strong> {i.perfilNombre}{" "}
                       {i.perfilApPaterno} {i.perfilApMaterno}
                     </p>
                     <p>
-                      <strong>Categoría:</strong> {i.categoria}
+                      <strong>Categoría:</strong> {i.categoria} — ${i.precio.toFixed(2)}
                     </p>
                     <p className="text-sm text-gray-500">
                       Inscripción: {i.fechaIns}
