@@ -25,10 +25,11 @@ export default function Footer() {
             Conoce más sobre nuestra misión, visión y los valores que nos
             impulsan a organizar las mejores carreras.
           </p>
-          <Link href="/nosotros">
-            <a className="mt-2 inline-block text-purple-400 hover:underline text-sm">
-              Leer más →
-            </a>
+          <Link
+            href="/nosotros"
+            className="mt-2 inline-block text-purple-400 hover:underline text-sm"
+          >
+            Leer más →
           </Link>
         </div>
 
@@ -37,18 +38,18 @@ export default function Footer() {
           <h3 className="text-white font-semibold mb-3">Enlaces</h3>
           <ul className="space-y-2 text-sm">
             <li>
-              <Link href="/">
-                <a className="hover:text-white">Inicio</a>
+              <Link href="/" className="hover:text-white">
+                Inicio
               </Link>
             </li>
             <li>
-              <Link href="/mis-inscripciones">
-                <a className="hover:text-white">Mis Inscripciones</a>
+              <Link href="/mis-inscripciones" className="hover:text-white">
+                Mis Inscripciones
               </Link>
             </li>
             <li>
-              <Link href="/perfil">
-                <a className="hover:text-white">Perfil</a>
+              <Link href="/perfil" className="hover:text-white">
+                Perfil
               </Link>
             </li>
           </ul>
@@ -60,14 +61,17 @@ export default function Footer() {
           <ul className="space-y-2 text-sm">
             <li className="flex items-center space-x-2">
               <DocumentTextIcon className="w-5 h-5" />
-              <Link href="/aviso-privacidad">
-                <a className="hover:text-white">Aviso de privacidad</a>
+              <Link href="/aviso-privacidad" className="hover:text-white">
+                Aviso de privacidad
               </Link>
             </li>
             <li className="flex items-center space-x-2">
               <DocumentTextIcon className="w-5 h-5" />
-              <Link href="/politicas-cancelacion">
-                <a className="hover:text-white">Políticas de cancelación</a>
+              <Link
+                href="/politicas-cancelacion"
+                className="hover:text-white"
+              >
+                Políticas de cancelación
               </Link>
             </li>
           </ul>
@@ -92,20 +96,29 @@ export default function Footer() {
             </a>
           </p>
           <div className="flex space-x-4 text-2xl">
-            <Link href="https://facebook.com/tuempresa">
-              <a target="_blank" className="hover:text-white">
-                <FacebookIcon />
-              </a>
+            <Link
+              href="https://facebook.com/tuempresa"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white"
+            >
+              <FacebookIcon />
             </Link>
-            <Link href="https://instagram.com/tuempresa">
-              <a target="_blank" className="hover:text-white">
-                <InstagramIcon />
-              </a>
+            <Link
+              href="https://instagram.com/tuempresa"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white"
+            >
+              <InstagramIcon />
             </Link>
-            <Link href="https://twitter.com/tuempresa">
-              <a target="_blank" className="hover:text-white">
-                <TwitterIcon />
-              </a>
+            <Link
+              href="https://twitter.com/tuempresa"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-white"
+            >
+              <TwitterIcon />
             </Link>
           </div>
         </div>

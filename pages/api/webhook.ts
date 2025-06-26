@@ -1,7 +1,7 @@
-import Stripe from "stripe";
+import type StripeType from "stripe";
 import { buffer } from "micro";
 import type { NextApiRequest, NextApiResponse } from "next";
-import { stripe } from "@/lib/stripe"; // tu instancia exportada de Stripe
+import { stripe } from "@/lib/stripe";      // tu instancia de Stripe
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -9,12 +9,12 @@ import {
   where,
   getDocs,
   doc,
-  updateDoc
+  updateDoc,
 } from "firebase/firestore";
 
 export const config = {
   api: {
-    bodyParser: false,
+    bodyParser: false,    // must keep raw body
   },
 };
 
@@ -29,40 +29,46 @@ export default async function handler(
     return res.status(405).end("Method Not Allowed");
   }
 
+  // 1) Leer raw body
   const buf = await buffer(req);
-  const sig = req.headers["stripe-signature"]!;
-  let event: Stripe.Event;
 
+  // 2) Validar cabecera
+  const sig = req.headers["stripe-signature"];
+  if (!sig || Array.isArray(sig)) {
+    console.error("❌ Missing stripe-signature header");
+    return res.status(400).send("Missing stripe-signature header");
+  }
+
+  let event: StripeType.Event;
   try {
-    event = stripe.webhooks.constructEvent(
-      buf,
-      sig as string,
-      webhookSecret
-    ) as Stripe.Event;
+    // 3) Construir evento a partir del raw body + secreto
+    event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
   } catch (err: any) {
     console.error("⚠️  Webhook signature verification failed.", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // 4) Manejar sólo el checkout.session.completed
   if (event.type === "checkout.session.completed") {
-    const session = event.data.object as Stripe.Checkout.Session;
+    const session = event.data.object as StripeType.Checkout.Session;
     const sessionId = session.id;
-    const paymentStatus = session.payment_status; // 'paid', 'unpaid', etc.
+    const paymentStatus = session.payment_status; // 'paid' | 'unpaid' | 'no_payment_required'
 
-    // 1) Encuentra la(s) inscripción(es) con este sessionId
+    // 5) Buscar inscripciones con ese sessionId
     const inscQ = query(
       collection(db, "inscripciones"),
       where("sessionId", "==", sessionId)
     );
     const snap = await getDocs(inscQ);
 
-    // 2) Actualiza el campo paymentStatus en cada documento
-    const updates = snap.docs.map(d =>
-      updateDoc(doc(db, "inscripciones", d.id), { paymentStatus })
+    // 6) Actualizar el campo paymentStatus en cada doc
+    await Promise.all(
+      snap.docs.map((d) =>
+        updateDoc(doc(db, "inscripciones", d.id), { paymentStatus })
+      )
     );
-    await Promise.all(updates);
   }
 
-  // Siempre responder 200 para que Stripe no reintente el webhook
+  // 7) Responder 200 para que Stripe no reintente
   res.status(200).json({ received: true });
 }

@@ -19,10 +19,11 @@ export default function NosotrosPage() {
         <li>Respeto al medio ambiente</li>
         <li>Compromiso con la comunidad</li>
       </ul>
-      <Link href="/">
-        <a className="inline-block bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700">
+      <Link 
+      href="/" 
+      className="inline-block bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700"
+      >
           Volver al inicio
-        </a>
       </Link>
     </div>
   );
