@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
-import { registrarInscripcion } from "@/lib/Inscripciones";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2022-11-15",
@@ -14,6 +13,7 @@ export default async function handler(
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end(`Método ${req.method} No Permitido`);
   }
+
   const { carreraId, perfilId, categoria, precio } = req.body as {
     carreraId: string;
     perfilId: string;
@@ -39,13 +39,7 @@ export default async function handler(
       metadata: { carreraId, perfilId, categoria },
     });
 
-    await registrarInscripcion({
-      carreraId,
-      perfilId,
-      categoria,
-      sessionId: session.id
-    });
-
+    // Devuelvo URL y sessionId, sin tocar Firestore
     return res.status(200).json({
       url: session.url,
       sessionId: session.id
