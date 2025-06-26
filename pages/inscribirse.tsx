@@ -26,6 +26,7 @@ interface Categoria {
   nombre: string;
   minAge: number;
   maxAge: number;
+  price: number;              // <-- ahora cada categoría lleva precio
 }
 
 interface Carrera {
@@ -37,7 +38,6 @@ interface Carrera {
   horaSalida?: string;
   bannerUrl?: string;
   categorias: Categoria[];
-  precio: number;
 }
 
 interface Perfil {
@@ -55,12 +55,13 @@ export default function InscribirsePage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
+  const [precioSeleccionado, setPrecioSeleccionado] = useState(0);
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera (incluye precio)
+  // 1) Carga de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -82,7 +83,6 @@ export default function InscribirsePage() {
         horaSalida: data.horaSalida,
         bannerUrl: data.bannerUrl,
         categorias: data.categorias || [],
-        precio: data.precio ?? 0,
       });
     })();
   }, [carreraId]);
@@ -105,8 +105,8 @@ export default function InscribirsePage() {
       lista.push({
         id: uid,
         nombre: d.nombre,
-        apellidoPaterno: d.apPaterno,
-        apellidoMaterno: d.apMaterno,
+        apellidoPaterno: d.apPaterno || d.apellidoPaterno,
+        apellidoMaterno: d.apMaterno || d.apellidoMaterno,
         edad: d.edad,
       });
     }
@@ -126,7 +126,14 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // 3) Iniciar pago con Stripe (previo check de inscripción)
+  // 3) Manejar cambio de categoría para actualizar precio
+  useEffect(() => {
+    if (!carrera) return;
+    const cat = carrera.categorias.find(c => c.nombre === categoriaSeleccionada);
+    setPrecioSeleccionado(cat ? cat.price : 0);
+  }, [categoriaSeleccionada, carrera]);
+
+  // 4) Iniciar pago con Stripe (previo check de inscripción)
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -160,7 +167,7 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          precio: carrera.precio,
+          precio: precioSeleccionado,
         }),
       });
       if (res.status === 405) {
@@ -170,10 +177,9 @@ export default function InscribirsePage() {
         const text = await res.text();
         throw new Error(`HTTP ${res.status} — ${text}`);
       }
-
       const { url, sessionId } = await res.json();
 
-      // 4) Registrar inscripción en Firestore
+      // Registrar inscripción antes de redirigir
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
@@ -181,11 +187,8 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Abrir checkout en pestaña nueva...
-      const win = window.open(url, "_blank");
-      if (win) win.focus();
-      // ...y redirigir esta pestaña a mis-inscripciones
-      router.push("/mis-inscripciones");
+      // Redirigir al Checkout Stripe
+      window.location.href = url;
     } catch (err: any) {
       console.error("Error al iniciar pago:", err);
       setMensaje(`Error al iniciar pago: ${err.message}`);
@@ -228,7 +231,7 @@ export default function InscribirsePage() {
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Info row */}
+          {/* Datos */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
               <div className="flex items-center space-x-2">
@@ -250,41 +253,37 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Precio */}
-          <div className="text-2xl font-semibold">
-            <CreditCardIcon className="inline w-6 h-6 text-green-600 mr-2" />
-            Precio: ${carrera.precio.toFixed(2)}
-          </div>
-
-          {/* Categorías */}
-          <div>
-            <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
-              <ClipboardIcon className="w-6 h-6 text-green-700" />
-              <span>Categorías</span>
-            </h2>
-            <table className="w-full table-auto border-collapse text-gray-700">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-4 py-2">Nombre</th>
-                  <th className="border px-4 py-2">Edad mínima</th>
-                  <th className="border px-4 py-2">Edad máxima</th>
-                </tr>
-              </thead>
-              <tbody>
-                {carrera.categorias.map((cat) => (
-                  <tr key={cat.nombre} className="hover:bg-gray-50">
-                    <td className="border px-4 py-2">{cat.nombre}</td>
-                    <td className="border px-4 py-2">{cat.minAge}</td>
-                    <td className="border px-4 py-2">{cat.maxAge}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Formulario inscripción + pago */}
+          {/* Selección de categoría + precio */}
           <div className="pt-6 border-t space-y-4">
-            {/* Perfil */}
+            <div>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <ClipboardIcon className="w-5 h-5 text-purple-700" />
+                <span>Categoría</span>
+              </label>
+              <select
+                className="w-full border p-2 rounded disabled:opacity-50"
+                value={categoriaSeleccionada}
+                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+                disabled={!categoriasPermitidas.length}
+              >
+                <option value="">-- Selecciona categoría --</option>
+                {categoriasPermitidas.map((cat) => (
+                  <option key={cat.nombre} value={cat.nombre}>
+                    {cat.nombre} — ${cat.price.toFixed(2)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Mostrar precio seleccionado */}
+            {categoriaSeleccionada && (
+              <div className="text-2xl font-semibold flex items-center space-x-2">
+                <CreditCardIcon className="w-6 h-6 text-green-600" />
+                <span>Precio: ${precioSeleccionado.toFixed(2)}</span>
+              </div>
+            )}
+
+            {/* Selección de perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -307,28 +306,7 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Categoría */}
-            <div>
-              <label className="block font-medium mb-1 flex items-center space-x-1">
-                <ClipboardIcon className="w-5 h-5 text-purple-700" />
-                <span>Categoría</span>
-              </label>
-              <select
-                className="w-full border p-2 rounded disabled:opacity-50"
-                value={categoriaSeleccionada}
-                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-                disabled={!categoriasPermitidas.length}
-              >
-                <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map((cat) => (
-                  <option key={cat.nombre} value={cat.nombre}>
-                    {cat.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Botón pago */}
+            {/* Botón de pago */}
             <button
               onClick={handlePagar}
               disabled={
