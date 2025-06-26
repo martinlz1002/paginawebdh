@@ -141,6 +141,8 @@ export default function InscribirsePage() {
 
     const user = auth.currentUser;
     if (!user) return;
+
+    // Validación duplicado + estado de pago
     const dupSnap = await getDocs(
       query(
         collection(db, "inscripciones"),
@@ -151,11 +153,19 @@ export default function InscribirsePage() {
       )
     );
     if (!dupSnap.empty) {
-      setMensaje("Ya estás inscrito con este perfil y categoría.");
+      const data = dupSnap.docs[0].data() as any;
+      const status = data.paymentStatus as string | undefined;
+      if (status === "pending" || status === "unpaid") {
+        setMensaje(
+          "Tienes un pago pendiente. Por favor, complétalo en la sección «Mis Inscripciones»."
+        );
+      } else {
+        setMensaje("Ya estás inscrito con este perfil y categoría.");
+      }
       return;
     }
 
-    const cat = carrera.categorias.find(c => c.nombre === categoriaSeleccionada);
+    const cat = carrera.categorias.find((c) => c.nombre === categoriaSeleccionada);
     if (!cat) {
       setMensaje("Categoría inválida.");
       return;
@@ -170,7 +180,7 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          price: cat.price, // envío el price correcto
+          price: cat.price,
         }),
       });
       if (res.status === 405) throw new Error("Método no permitido (405)");
@@ -180,7 +190,6 @@ export default function InscribirsePage() {
       }
       const { url, sessionId } = await res.json();
 
-      // Registro la inscripción con la sessionId
       await registrarInscripcion({
         carreraId: carrera.id,
         perfilId: perfilSeleccionado,
@@ -188,7 +197,6 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Abro Stripe en pestaña nueva y vuelvo a mis inscripciones aquí
       const win = window.open(url, "_blank");
       if (win) win.focus();
       router.push("/mis-inscripciones");
@@ -208,16 +216,17 @@ export default function InscribirsePage() {
   }
 
   // Filtrar categorías según edad
-  const perfilActual = perfiles.find(p => p.id === perfilSeleccionado);
-  const categoriasPermitidas = carrera.categorias.filter(cat =>
-    perfilActual
-      ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
-      : false
+  const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
+  const categoriasPermitidas = carrera.categorias.filter(
+    (cat) =>
+      perfilActual
+        ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
+        : false
   );
 
   // Precio de la categoría seleccionada
   const precioSeleccionado =
-    categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)
+    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
       ?.price ?? 0;
 
   return (
@@ -231,9 +240,7 @@ export default function InscribirsePage() {
         )}
         <div className="p-6 space-y-6">
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-          {carrera.descripcion && (
-            <p className="text-gray-700">{carrera.descripcion}</p>
-          )}
+          {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
             {carrera.lugar && (
@@ -271,14 +278,12 @@ export default function InscribirsePage() {
                 </tr>
               </thead>
               <tbody>
-                {carrera.categorias.map(cat => (
+                {carrera.categorias.map((cat) => (
                   <tr key={cat.nombre} className="hover:bg-gray-50">
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">
-                      ${(cat.price ?? 0).toFixed(2)}
-                    </td>
+                    <td className="border px-4 py-2">${(cat.price ?? 0).toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -297,9 +302,9 @@ export default function InscribirsePage() {
                 <select
                   className="w-full border p-2 rounded"
                   value={perfilSeleccionado}
-                  onChange={e => setPerfilSeleccionado(e.target.value)}
+                  onChange={(e) => setPerfilSeleccionado(e.target.value)}
                 >
-                  {perfiles.map(p => (
+                  {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nombre} {p.apellidoPaterno} ({p.edad} años)
                     </option>
@@ -316,11 +321,11 @@ export default function InscribirsePage() {
               <select
                 className="w-full border p-2 rounded disabled:opacity-50"
                 value={categoriaSeleccionada}
-                onChange={e => setCategoriaSeleccionada(e.target.value)}
+                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
                 disabled={!categoriasPermitidas.length}
               >
                 <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map(cat => (
+                {categoriasPermitidas.map((cat) => (
                   <option key={cat.nombre} value={cat.nombre}>
                     {cat.nombre}
                   </option>
@@ -336,17 +341,12 @@ export default function InscribirsePage() {
 
             <button
               onClick={handlePagar}
-              disabled={
-                !perfilSeleccionado ||
-                !categoriaSeleccionada ||
-                procesandoPago
-              }
+              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
               className={`w-full flex justify-center items-center py-3 rounded text-white transition ${
                 perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-gray-400 cursor-not-allowed"
-              }`}
-            >
+              }`}>
               {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
             </button>
 
