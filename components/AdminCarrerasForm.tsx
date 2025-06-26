@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { db, storage } from '@/lib/firebase';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { CarreraData, Categoria } from '@/types/carrera';
+import { CarreraData, Categoria as BaseCategoria } from '@/types/carrera';
 import {
   PencilIcon,
   TrashIcon,
@@ -13,6 +13,11 @@ import {
   PlusCircleIcon,
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
+
+// Extend imported Categoria to include price locally
+interface Categoria extends BaseCategoria {
+  price: number;
+}
 
 export interface AdminCarrerasFormProps {
   initialValues?: CarreraData & { id: string; bannerUrl?: string };
@@ -29,7 +34,6 @@ export default function AdminCarrerasForm({
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
-  const [precio, setPrecio] = useState(initialValues?.precio?.toString() || '');
 
   // imágenes
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -37,12 +41,19 @@ export default function AdminCarrerasForm({
   const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  // categorías
-  const [categorias, setCategorias] = useState<Categoria[]>(initialValues?.categorias ?? []);
-  const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0 });
+  // categorías con precio
+  const [categorias, setCategorias] = useState<Categoria[]>(
+    (initialValues?.categorias ?? []).map(c => ({ ...c as BaseCategoria, price: 0 }))
+  );
+  const [nuevaCat, setNuevaCat] = useState<Categoria>({
+    nombre: '',
+    minAge: 0,
+    maxAge: 0,
+    price: 0
+  });
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
-  // helpers…
+  // helper para subir imágenes
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -51,7 +62,7 @@ export default function AdminCarrerasForm({
   };
 
   const handleAddOrSaveCategoria = () => {
-    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge) return;
+    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge || nuevaCat.price < 0) return;
     setCategorias(prev => {
       if (editIndex !== null) {
         const copy = [...prev];
@@ -60,7 +71,7 @@ export default function AdminCarrerasForm({
       }
       return [...prev, nuevaCat];
     });
-    setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
+    setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
     setEditIndex(null);
   };
 
@@ -71,7 +82,7 @@ export default function AdminCarrerasForm({
   const handleDeleteCategoria = (idx: number) => {
     setCategorias(prev => prev.filter((_, i) => i !== idx));
     if (editIndex === idx) {
-      setNuevaCat({ nombre: '', minAge: 0, maxAge: 0 });
+      setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
       setEditIndex(null);
     }
   };
@@ -91,7 +102,7 @@ export default function AdminCarrerasForm({
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // armar payload, incluyendo precio parseado
+    // armar payload, categorías incluyen price
     const payload: CarreraData & { bannerUrl?: string } = {
       titulo,
       descripcion,
@@ -99,7 +110,7 @@ export default function AdminCarrerasForm({
       fecha,
       horaSalida,
       categorias,
-      precio: parseFloat(precio) || 0,
+      precio: 0,
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
@@ -141,20 +152,6 @@ export default function AdminCarrerasForm({
           onChange={e => setDescripcion(e.target.value)}
           required
           className="mt-1 w-full border p-2 rounded focus:ring-green-300"
-        />
-      </div>
-
-      {/* Precio */}
-      <div className="flex items-center space-x-2">
-        <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
-        <input
-          type="number"
-          step="0.01"
-          value={precio}
-          onChange={e => setPrecio(e.target.value)}
-          placeholder="Precio"
-          required
-          className="flex-1 border p-2 rounded focus:ring-green-300"
         />
       </div>
 
@@ -247,7 +244,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Categorías */}
+      {/* Categorías con precio */}
       <div className="border-t pt-4">
         <h3 className="font-medium text-green-600 flex items-center space-x-2">
           <PlusCircleIcon className="w-5 h-5" />
@@ -256,7 +253,9 @@ export default function AdminCarrerasForm({
         <ul className="mt-2 space-y-2">
           {categorias.map((c, i) => (
             <li key={i} className="flex justify-between items-center">
-              <span>• {c.nombre} ({c.minAge}–{c.maxAge} años)</span>
+              <span>
+                • {c.nombre} ({c.minAge}–{c.maxAge} años) — ${c.price.toFixed(2)}
+              </span>
               <div className="flex space-x-2">
                 <button onClick={() => handleEditCategoria(i)}>
                   <PencilIcon className="w-5 h-5 text-blue-600" />
@@ -268,7 +267,7 @@ export default function AdminCarrerasForm({
             </li>
           ))}
         </ul>
-        <div className="grid grid-cols-3 gap-2 mt-4">
+        <div className="grid grid-cols-4 gap-2 mt-4">
           <input
             type="text"
             placeholder="Nombre categoría"
@@ -290,6 +289,17 @@ export default function AdminCarrerasForm({
             onChange={e => setNuevaCat(s => ({ ...s, maxAge: +e.target.value }))}
             className="border p-2 rounded"
           />
+          <div className="flex items-center space-x-1">
+            <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Precio"
+              value={nuevaCat.price}
+              onChange={e => setNuevaCat(s => ({ ...s, price: +e.target.value }))}
+              className="flex-1 border p-2 rounded"
+            />
+          </div>
         </div>
         <button
           type="button"
