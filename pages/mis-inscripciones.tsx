@@ -57,13 +57,11 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    // Listen for auth changes
     const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
-      // Real-time listener on "inscripciones" for this user
       const q = query(
         collection(db, "inscripciones"),
         where("perfilOwner", "==", user.uid)
@@ -77,7 +75,7 @@ export default function MisInscripcionesPage() {
             const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
 
-            // 2) Obtener precio de la categoría
+            // 2) Obtener precio de la categoría (campo price en Firestore)
             const categoriaObj = Array.isArray(cdata.categorias)
               ? (cdata.categorias as any[]).find(
                   (cat) => cat.nombre === src.categoria
@@ -85,7 +83,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // 3) Leer perfil
+            // 3) Leer perfil del usuario
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "";
@@ -113,7 +111,6 @@ export default function MisInscripcionesPage() {
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
-
             let fechaCarr = "";
             if (cdata.fecha instanceof Timestamp) {
               const dt = (cdata.fecha as Timestamp).toDate();
@@ -128,7 +125,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // 5) Obtener estado de pago
+            // 5) Obtener estado de pago desde Stripe
             let paymentStatus: string | undefined;
             if (src.sessionId) {
               try {
@@ -168,17 +165,15 @@ export default function MisInscripcionesPage() {
         setLoading(false);
       });
 
-      // Cleanup snapshot listener on unmount or user change
       return () => unsubSnap();
     });
 
-    // Cleanup auth listener
     return () => unsubAuth();
   }, []);
 
-  // Reintentar pago: lanza un nuevo Checkout
   const reintentarPago = async (item: InscView) => {
-    const res = await fetch("/api/checkout_sessions", {
+    // Aquí usamos la ruta correcta "checkout-sessions"
+    const res = await fetch("/api/checkout-sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
