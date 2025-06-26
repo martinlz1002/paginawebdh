@@ -1,8 +1,16 @@
 import { buffer } from "micro";
 import type { NextApiRequest, NextApiResponse } from "next";
+import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { db } from "@/lib/firebase";
-import { query, collection, where, getDocs, doc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 
 export const config = {
   api: {
@@ -12,42 +20,40 @@ export const config = {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") return res.status(405).end("Method Not Allowed");
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  if (req.method !== "POST") {
+    return res.status(405).end("Method Not Allowed");
+  }
 
-  const buf = await buffer(req);
   const sig = req.headers["stripe-signature"]!;
+  const buf = await buffer(req);
 
-  let event;
+  let event: Stripe.Event;
   try {
-    event = stripe.webhooks.constructEvent(buf, sig as string, webhookSecret);
+    event = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2022-11-15' })
+      .webhooks.constructEvent(buf, sig as string, webhookSecret);
   } catch (err: any) {
+    console.error("Webhook signature verification failed.", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // interesado en cuando cambia el pago
-  if (
-    event.type === "checkout.session.completed" ||
-    event.type === "checkout.session.async_payment_succeeded" ||
-    event.type === "checkout.session.async_payment_failed"
-  ) {
-    const session = event.data.object as any;
-    const status = session.payment_status; // 'paid', 'unpaid', 'no_payment_required', 'pending'
+  if (event.type === "checkout.session.completed") {
+    const session = event.data.object as Stripe.Checkout.Session;
     const sessionId = session.id;
+    const paymentStatus = session.payment_status;
 
-    // 1) busca la inscripción con este sessionId
+    // Actualizar inscripciones con este sessionId
     const inscQ = query(
       collection(db, "inscripciones"),
       where("sessionId", "==", sessionId)
     );
-    const snap = await getDocs(inscQ);
-
-    // 2) si la encuentra, actualiza paymentStatus
+    const inscSnap = await getDocs(inscQ);
     await Promise.all(
-      snap.docs.map(docSnap =>
-        updateDoc(doc(db, "inscripciones", docSnap.id), {
-          paymentStatus: status,
-        })
+      inscSnap.docs.map(d =>
+        updateDoc(doc(db, "inscripciones", d.id), { paymentStatus })
       )
     );
   }
