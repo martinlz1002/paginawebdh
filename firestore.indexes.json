@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "inscripciones",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "perfilOwner", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
