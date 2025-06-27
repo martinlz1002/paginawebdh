@@ -3,7 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 
-// Inicializa Admin SDK sólo una vez
+// Inicializa Admin SDK solo una vez
 if (!admin.apps.length) {
   const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!, "base64").toString("utf8");
   const serviceAccount = JSON.parse(raw);
@@ -33,34 +33,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     event = stripe.webhooks.constructEvent(buf, sig as string, webhookSecret);
   } catch (err: any) {
-    console.error("⚠️  Webhook signature verification failed:", err.message);
+    console.error("⚠️ Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // función auxiliar que busca en cada slug de carrera
+  // marca como pagado en la subcolección "docs" de cada carrera
   async function markPaid(sessionId: string, status: string) {
-    // 1) Obtiene todos los slugs
-    const carrerasSnap = await firestore.collection("carreras").get();
-    for (const cDoc of carrerasSnap.docs) {
-      const { slug } = cDoc.data() as any;
-      if (!slug) continue;
+    // Query a TODAS las subcolecciones "docs"
+    const snap = await firestore
+      .collectionGroup("docs")
+      .where("sessionId", "==", sessionId)
+      .get();
 
-      // 2) Busca en inscripciones/{slug}/docs
-      const subCol = firestore
-        .collection("inscripciones")
-        .doc(slug)
-        .collection("docs");
-      const snap = await subCol.where("sessionId", "==", sessionId).get();
-      if (snap.empty) continue;
-
-      // 3) Actualiza
-      const batch = firestore.batch();
-      snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus: status }));
-      await batch.commit();
-      console.log(`✅ [${slug}] paymentStatus="${status}" actualizado en ${snap.size} inscripciones.`);
-      return; // salimos tras encontrar la primera coincidencia
+    if (snap.empty) {
+      console.warn(`⚠️ No encontré inscripciones con sessionId=${sessionId}`);
+      return;
     }
-    console.warn(`⚠️  No se encontró sessionId=${sessionId} en ninguna subcolección.`);
+
+    const batch = firestore.batch();
+    snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus: status }));
+    await batch.commit();
+
+    console.log(`✅ Actualizado paymentStatus="${status}" en ${snap.size} docs.`);
   }
 
   try {
@@ -72,7 +66,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       case "payment_intent.succeeded": {
         const pi = event.data.object as Stripe.PaymentIntent;
-        // Encuentra la sesión asociada
         const sessions = await stripe.checkout.sessions.list({
           payment_intent: pi.id,
           limit: 1,
@@ -81,15 +74,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         if (session) {
           await markPaid(session.id, "paid");
         } else {
-          console.warn(`⚠️  No session para payment_intent ${pi.id}`);
+          console.warn(`⚠️ No session para payment_intent ${pi.id}`);
         }
         break;
       }
-      // ...otros eventos si los necesitas
+      // otros eventos si los necesitas…
     }
   } catch (err) {
     console.error("🔴 Error procesando webhook:", err);
-    // respondemos 200 para que Stripe no reintente
   }
 
   res.status(200).json({ received: true });

@@ -2,7 +2,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "./firebase";
 
 export interface InscripcionData {
-  carreraId: string;     // ahora usamos carreraId como padre
+  carreraId: string;
   perfilId: string;
   categoria: string;
   sessionId: string;
@@ -12,13 +12,12 @@ export async function registrarInscripcion(data: InscripcionData) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
-  // Guarda en inscripciones/{carreraId}/docs
+  // Ahora guardamos dentro de la subcolección "docs" bajo el doc = carreraId
   await addDoc(
     collection(db, "inscripciones", data.carreraId, "docs"),
     {
-      carreraId: data.carreraId,
-      perfilId: data.perfilId,
       perfilOwner: user.uid,
+      perfilId: data.perfilId,
       categoria: data.categoria,
       timestamp: serverTimestamp(),
       paymentStatus: "pending",
