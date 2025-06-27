@@ -4,7 +4,8 @@
       "collectionGroup": "inscripciones",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "perfilOwner", "order": "ASCENDING" }
+        { "fieldPath": "perfilOwner", "order": "ASCENDING" },
+        { "fieldPath": "__name__",     "order": "ASCENDING" }
       ]
     }
   ],
