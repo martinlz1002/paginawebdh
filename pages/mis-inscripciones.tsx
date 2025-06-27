@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
-  collection,
+  collectionGroup,
   query,
   where,
   doc,
@@ -20,7 +20,6 @@ import {
 } from "@heroicons/react/24/outline";
 
 interface InscRaw {
-  carreraId: string;
   perfilOwner: string;
   perfilId: string;
   categoria: string;
@@ -30,14 +29,7 @@ interface InscRaw {
 }
 
 interface InscView {
-  id: string;
-  // Datos de perfil
-  perfilNombre: string;
-  perfilApPaterno: string;
-  perfilApMaterno: string;
-  perfilClub?: string;
-  perfilId: string;
-  // Datos de carrera
+  refPath: string;       // ruta completa para updateDoc
   carreraId: string;
   titulo: string;
   fechaCarr: string;
@@ -45,8 +37,14 @@ interface InscView {
   ubicacion?: string;
   imagenUrl?: string;
   precio: number;
-  categoria: string;  
-  // Inscripción
+  categoria: string;
+  // perfil
+  perfilId: string;
+  perfilNombre: string;
+  perfilApPaterno: string;
+  perfilApMaterno: string;
+  perfilClub?: string;
+  // inscripción
   fechaIns: string;
   sessionId?: string;
   paymentStatus?: string;
@@ -67,40 +65,41 @@ export default function MisInscripcionesPage() {
         setLoading(false);
         return;
       }
+      // usamos collectionGroup para leer todas las subcolecciones 'docs'
       const q = query(
-        collection(db, "inscripciones"),
+        collectionGroup(db, "docs"),
         where("perfilOwner", "==", user.uid)
       );
       const unsubSnap = onSnapshot(q, async (snap) => {
         const views: InscView[] = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
+            // extraer carreraId de la ruta: inscripciones/{carreraId}/docs/{docId}
+            const carreraId = d.ref.parent.parent?.id ?? "";
 
-            // --- obtener datos de carrera ---
-            const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-            const cdata = cDoc.exists() ? cDoc.data() as any : {};
+            // datos carrera
+            const cDoc = await getDoc(doc(db, "carreras", carreraId));
+            const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
               ? cdata.categorias.find((cat: any) => cat.nombre === src.categoria)
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // --- obtener datos de perfil ---
+            // datos perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
               perfilClub: string | undefined;
             if (src.perfilId === src.perfilOwner) {
-              // perfil principal en colección "usuarios"
               const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
               if (uDoc.exists()) {
                 const ud = uDoc.data() as any;
                 perfilNombre = ud.nombre;
                 perfilApPaterno = ud.apPaterno || ud.apellidoPaterno;
                 perfilApMaterno = ud.apMaterno || ud.apellidoMaterno;
-                perfilClub = ud.club; 
+                perfilClub = ud.club;
               }
             } else {
-              // perfil secundario en subcolección /usuarios/{uid}/perfiles/
               const sub = await getDoc(
                 doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
               );
@@ -113,7 +112,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // --- formatear fechas ---
+            // formatear fechas
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -121,17 +120,21 @@ export default function MisInscripcionesPage() {
             if (cdata.fecha instanceof Timestamp) {
               const dt = (cdata.fecha as Timestamp).toDate();
               const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-              fechaCarr = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
+              fechaCarr = `${pad(local.getDate())}/${pad(
+                local.getMonth() + 1
+              )}/${local.getFullYear()}`;
             } else if (typeof cdata.fecha === "string") {
               const [y, m, d] = (cdata.fecha as string).split("-");
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // --- estado Stripe en vivo ---
+            // estado Stripe
             let paymentStatus: string | undefined = src.paymentStatus;
             if (src.sessionId) {
               try {
-                const res = await fetch(`/api/get-session?session_id=${src.sessionId}`);
+                const res = await fetch(
+                  `/api/get-session?session_id=${src.sessionId}`
+                );
                 if (res.ok) {
                   const json = await res.json();
                   paymentStatus = json.payment_status;
@@ -142,13 +145,8 @@ export default function MisInscripcionesPage() {
             }
 
             return {
-              id: d.id,
-              perfilNombre,
-              perfilApPaterno,
-              perfilApMaterno,
-              perfilClub,
-              perfilId: src.perfilId,
-              carreraId: src.carreraId,
+              refPath: d.ref.path,
+              carreraId,
               titulo: cdata.titulo || "(sin título)",
               fechaCarr,
               horaSalida: cdata.horaSalida,
@@ -156,6 +154,11 @@ export default function MisInscripcionesPage() {
               imagenUrl: cdata.imagenUrl,
               precio,
               categoria: src.categoria,
+              perfilId: src.perfilId,
+              perfilNombre,
+              perfilApPaterno,
+              perfilApMaterno,
+              perfilClub,
               fechaIns,
               sessionId: src.sessionId,
               paymentStatus,
@@ -170,7 +173,7 @@ export default function MisInscripcionesPage() {
     return () => unsubAuth();
   }, []);
 
-  // Reintentar pago
+  // reintentar pago: actualizamos document vía su path
   const reintentarPago = async (item: InscView) => {
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
@@ -187,10 +190,13 @@ export default function MisInscripcionesPage() {
       return;
     }
     const { url, sessionId } = await res.json();
-    await updateDoc(doc(db, "inscripciones", item.id), {
+
+    // actualiza el mismo doc en subcolección
+    await updateDoc(doc(db, item.refPath), {
       sessionId,
       paymentStatus: "pending",
     });
+
     window.open(url, "_blank")?.focus();
   };
 
@@ -212,7 +218,7 @@ export default function MisInscripcionesPage() {
           <ul className="space-y-6">
             {list.map((i) => (
               <li
-                key={i.id}
+                key={i.refPath}
                 className="border rounded shadow hover:shadow-lg overflow-hidden"
               >
                 <div className="flex flex-col md:flex-row">
@@ -233,7 +239,8 @@ export default function MisInscripcionesPage() {
                     <h2 className="text-xl font-semibold">{i.titulo}</h2>
                     <p className="text-sm text-gray-600">
                       <ClipboardIcon className="inline-block w-4 h-4 mr-1" />
-                      {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
+                      {i.perfilNombre} {i.perfilApPaterno}{" "}
+                      {i.perfilApMaterno}
                       {i.perfilClub && (
                         <span className="ml-2 text-gray-500">
                           • Club: {i.perfilClub}
