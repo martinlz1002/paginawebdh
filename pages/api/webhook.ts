@@ -37,20 +37,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // función auxiliar
+  // función auxiliar que busca en cada slug de carrera
   async function markPaid(sessionId: string, status: string) {
-    const snap = await firestore
-      .collection("inscripciones")
-      .where("sessionId", "==", sessionId)
-      .get();
-    if (snap.empty) {
-      console.warn(`⚠️  No inscripciones con sessionId=${sessionId}`);
-      return;
+    // 1) Obtiene todos los slugs
+    const carrerasSnap = await firestore.collection("carreras").get();
+    for (const cDoc of carrerasSnap.docs) {
+      const { slug } = cDoc.data() as any;
+      if (!slug) continue;
+
+      // 2) Busca en inscripciones/{slug}/docs
+      const subCol = firestore
+        .collection("inscripciones")
+        .doc(slug)
+        .collection("docs");
+      const snap = await subCol.where("sessionId", "==", sessionId).get();
+      if (snap.empty) continue;
+
+      // 3) Actualiza
+      const batch = firestore.batch();
+      snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus: status }));
+      await batch.commit();
+      console.log(`✅ [${slug}] paymentStatus="${status}" actualizado en ${snap.size} inscripciones.`);
+      return; // salimos tras encontrar la primera coincidencia
     }
-    const batch = firestore.batch();
-    snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus: status }));
-    await batch.commit();
-    console.log(`✅ Actualizado paymentStatus="${status}" en ${snap.size} inscripciones.`);
+    console.warn(`⚠️  No se encontró sessionId=${sessionId} en ninguna subcolección.`);
   }
 
   try {
@@ -75,7 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         break;
       }
-      // puedes añadir más casos si lo necesitas
+      // ...otros eventos si los necesitas
     }
   } catch (err) {
     console.error("🔴 Error procesando webhook:", err);

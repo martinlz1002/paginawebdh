@@ -31,6 +31,7 @@ interface Categoria {
 
 interface Carrera {
   id: string;
+  slug: string;
   titulo: string;
   descripcion?: string;
   lugar?: string;
@@ -60,7 +61,7 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera (categorías con price)
+  // 1) Carga de la carrera (incluye slug)
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -72,6 +73,7 @@ export default function InscribirsePage() {
       const data = snap.data() as any;
       setCarrera({
         id: snap.id,
+        slug: data.slug, // asumimos que existe
         titulo: data.titulo,
         descripcion: data.descripcion,
         lugar: data.lugar || data.ubicacion,
@@ -106,22 +108,36 @@ export default function InscribirsePage() {
     const udoc = await getDoc(doc(db, "usuarios", uid));
     if (udoc.exists()) {
       const d: any = udoc.data();
-      lista.push({ id: uid, nombre: d.nombre, apellidoPaterno: d.apPaterno, apellidoMaterno: d.apMaterno, edad: d.edad });
+      lista.push({
+        id: uid,
+        nombre: d.nombre,
+        apellidoPaterno: d.apPaterno,
+        apellidoMaterno: d.apMaterno,
+        edad: d.edad,
+      });
     }
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
-    snap.docs.forEach(d => {
+    snap.docs.forEach((d) => {
       const p: any = d.data();
-      lista.push({ id: d.id, nombre: p.nombre, apellidoPaterno: p.apellidoPaterno, apellidoMaterno: p.apellidoMaterno, edad: p.edad });
+      lista.push({
+        id: d.id,
+        nombre: p.nombre,
+        apellidoPaterno: p.apellidoPaterno,
+        apellidoMaterno: p.apellidoMaterno,
+        edad: p.edad,
+      });
     });
     setPerfiles(lista);
     if (lista.length) setPerfilSeleccionado(lista[0].id);
     setLoadingPerfiles(false);
   }
+
+  // reset categoría al cambiar de perfil
   useEffect(() => {
     setCategoriaSeleccionada("");
   }, [perfilSeleccionado]);
 
-  // 3) Crear Checkout y registrar inscripción
+  // 3) Checkout + registro en inscripciones/{slug}/docs
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -132,10 +148,16 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Check duplicados / pendientes
+    // 3a) Check duplicados en subcolección
+    const subColRef = collection(
+      db,
+      "inscripciones",
+      carrera.slug,
+      "docs"
+    );
     const dupSnap = await getDocs(
       query(
-        collection(db, "inscripciones"),
+        subColRef,
         where("carreraId", "==", carrera.id),
         where("perfilId", "==", perfilSeleccionado),
         where("perfilOwner", "==", user.uid),
@@ -153,7 +175,10 @@ export default function InscribirsePage() {
       return;
     }
 
-    const cat = carrera.categorias.find(c => c.nombre === categoriaSeleccionada)!;
+    // 3b) Crear sesión Stripe
+    const cat = carrera.categorias.find(
+      (c) => c.nombre === categoriaSeleccionada
+    )!;
     setProcesandoPago(true);
     try {
       const res = await fetch("/api/checkout_sessions", {
@@ -169,17 +194,17 @@ export default function InscribirsePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const { url, sessionId } = await res.json();
 
-      // ← aquí: pasamos sessionId como segundo argumento
+      // 3c) Registrar en Firestore (subcolección)
       await registrarInscripcion({
-  carreraId: carrera.id,
-  perfilId: perfilSeleccionado,
-  categoria: categoriaSeleccionada,
-  sessionId,
-});
+        carreraId: carrera.id,
+        carreraSlug: carrera.slug,
+        perfilId: perfilSeleccionado,
+        categoria: categoriaSeleccionada,
+        sessionId,
+      });
 
-      // abrimos Stripe y volvemos
-      const win = window.open(url, "_blank");
-      if (win) win.focus();
+      // 3d) Redirigir a Stripe y luego a mis-inscripciones
+      window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (err: any) {
       console.error(err);
@@ -189,35 +214,61 @@ export default function InscribirsePage() {
   };
 
   if (!carrera) {
-    return <AuthGuard><p className="text-center mt-10">{mensaje || "Cargando…"}</p></AuthGuard>;
+    return (
+      <AuthGuard>
+        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
+      </AuthGuard>
+    );
   }
 
-  // Filtrar categorías por edad
-  const perfilActual = perfiles.find(p => p.id === perfilSeleccionado);
-  const categoriasPermitidas = carrera.categorias.filter(cat =>
-    perfilActual ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge : false
+  // Filtrar categorías según edad del perfil
+  const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
+  const categoriasPermitidas = carrera.categorias.filter((cat) =>
+    perfilActual
+      ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
+      : false
   );
-  const precioSeleccionado = categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)?.price ?? 0;
+  const precioSeleccionado =
+    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
+      ?.price ?? 0;
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         {carrera.bannerUrl && (
-          <div className="h-56 bg-cover bg-center" style={{ backgroundImage: `url(${carrera.bannerUrl})` }} />
+          <div
+            className="h-56 bg-cover bg-center"
+            style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
+          />
         )}
         <div className="p-6 space-y-6">
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-          {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
+          {carrera.descripcion && (
+            <p className="text-gray-700">{carrera.descripcion}</p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
-            {carrera.lugar && <div className="flex items-center space-x-2"><MapPinIcon className="w-5 h-5"/> <span>{carrera.lugar}</span></div>}
-            {carrera.fecha && <div className="flex items-center space-x-2"><CalendarIcon className="w-5 h-5"/> <span>{carrera.fecha}</span></div>}
-            {carrera.horaSalida && <div className="flex items-center space-x-2"><ClockIcon className="w-5 h-5"/> <span>{carrera.horaSalida}</span></div>}
+            {carrera.lugar && (
+              <div className="flex items-center space-x-2">
+                <MapPinIcon className="w-5 h-5" /> <span>{carrera.lugar}</span>
+              </div>
+            )}
+            {carrera.fecha && (
+              <div className="flex items-center space-x-2">
+                <CalendarIcon className="w-5 h-5" /> <span>{carrera.fecha}</span>
+              </div>
+            )}
+            {carrera.horaSalida && (
+              <div className="flex items-center space-x-2">
+                <ClockIcon className="w-5 h-5" />{" "}
+                <span>{carrera.horaSalida}</span>
+              </div>
+            )}
           </div>
 
-          {/* Tabla de categorías con precio */}
+          {/* Tabla de categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
-              <ClipboardIcon className="w-6 h-6 text-green-700"/>
+              <ClipboardIcon className="w-6 h-6 text-green-700" />
               <span>Categorías y precios</span>
             </h2>
             <table className="w-full table-auto border text-gray-700">
@@ -230,24 +281,27 @@ export default function InscribirsePage() {
                 </tr>
               </thead>
               <tbody>
-                {carrera.categorias.map(cat => (
+                {carrera.categorias.map((cat) => (
                   <tr key={cat.nombre} className="hover:bg-gray-50">
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
+                    <td className="border px-4 py-2">
+                      ${cat.price.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Formulario */}
+          {/* Formulario de inscripción */}
           <div className="pt-6 border-t space-y-4">
-            {/* Perfil */}
+            {/* Selección de perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
-                <UserIcon className="w-5 h-5 text-green-600"/><span>Tu perfil</span>
+                <UserIcon className="w-5 h-5 text-green-600" />
+                <span>Tu perfil</span>
               </label>
               {loadingPerfiles ? (
                 <p>Cargando perfiles…</p>
@@ -255,9 +309,9 @@ export default function InscribirsePage() {
                 <select
                   className="w-full border p-2 rounded"
                   value={perfilSeleccionado}
-                  onChange={e => setPerfilSeleccionado(e.target.value)}
+                  onChange={(e) => setPerfilSeleccionado(e.target.value)}
                 >
-                  {perfiles.map(p => (
+                  {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.nombre} {p.apellidoPaterno} ({p.edad} años)
                     </option>
@@ -266,19 +320,20 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Categoría */}
+            {/* Selección de categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
-                <ClipboardIcon className="w-5 h-5 text-purple-700"/><span>Categoría</span>
+                <ClipboardIcon className="w-5 h-5 text-purple-700" />
+                <span>Categoría</span>
               </label>
               <select
                 className="w-full border p-2 rounded disabled:opacity-50"
                 value={categoriaSeleccionada}
-                onChange={e => setCategoriaSeleccionada(e.target.value)}
+                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
                 disabled={!categoriasPermitidas.length}
               >
                 <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map(cat => (
+                {categoriasPermitidas.map((cat) => (
                   <option key={cat.nombre} value={cat.nombre}>
                     {cat.nombre}
                   </option>
@@ -293,10 +348,12 @@ export default function InscribirsePage() {
               </div>
             )}
 
-            {/* Botón */}
+            {/* Botón de pagar */}
             <button
               onClick={handlePagar}
-              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
+              disabled={
+                !perfilSeleccionado || !categoriaSeleccionada || procesandoPago
+              }
               className={`w-full py-3 rounded text-white transition ${
                 perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
@@ -305,7 +362,9 @@ export default function InscribirsePage() {
             >
               {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
             </button>
-            {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
+            {mensaje && (
+              <p className="text-center text-red-600">{mensaje}</p>
+            )}
           </div>
         </div>
       </div>
