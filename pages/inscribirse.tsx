@@ -91,7 +91,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Autenticación + perfiles
+  // 2) Autenticación + carga de perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -130,12 +130,12 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // reset categoría al cambiar perfil
+  // Reset categoría al cambiar de perfil
   useEffect(() => {
     setCategoriaSeleccionada("");
   }, [perfilSeleccionado]);
 
-  // 3) Checkout + registrar en inscripciones/{carreraId}/docs
+  // 3) Crear Checkout y registrar inscripción en subcolección
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -146,7 +146,7 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // 3a) Duplicados en subcolección
+    // 3a) Verificar duplicados en inscripciones/{carreraId}/docs
     const subCol = collection(db, "inscripciones", carrera.id, "docs");
     const dup = await getDocs(
       query(
@@ -167,8 +167,8 @@ export default function InscribirsePage() {
       return;
     }
 
-    // 3b) Crear sesión Stripe
-    const cat = carrera.categorias.find((c) => c.nombre === categoriaSeleccionada)!;
+    // 3b) Crear sesión de Stripe
+    const catObj = carrera.categorias.find((c) => c.nombre === categoriaSeleccionada)!;
     setProcesandoPago(true);
     try {
       const resp = await fetch("/api/checkout_sessions", {
@@ -178,21 +178,22 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          price: cat.price,
+          price: catObj.price,
         }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // 3c) Registrar en Firestore
+      // 3c) Registrar en Firestore dentro de inscripciones/{carreraId}/docs
       await registrarInscripcion({
         carreraId: carrera.id,
+        carreraTitulo: carrera.titulo,  
         perfilId: perfilSeleccionado,
         categoria: categoriaSeleccionada,
         sessionId,
       });
 
-      // 3d) Abrir Stripe & redirigir
+      // 3d) Abrir Stripe y redirigir
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -210,7 +211,7 @@ export default function InscribirsePage() {
     );
   }
 
-  // Filtra categorías por edad
+  // Filtrar categorías por edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
     perfilActual
@@ -254,7 +255,7 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* categorías */}
+          {/* Categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -275,17 +276,16 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">
-                      ${cat.price.toFixed(2)}
-                    </td>
+                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* formulario */}
+          {/* Formulario */}
           <div className="pt-6 border-t space-y-4">
+            {/* Perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -308,6 +308,7 @@ export default function InscribirsePage() {
               )}
             </div>
 
+            {/* Categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -328,12 +329,14 @@ export default function InscribirsePage() {
               </select>
             </div>
 
+            {/* Precio */}
             {categoriaSeleccionada && (
               <div className="text-lg font-medium">
                 Precio seleccionado: ${precioSeleccionado.toFixed(2)}
               </div>
             )}
 
+            {/* Botón */}
             <button
               onClick={handlePagar}
               disabled={
@@ -347,9 +350,7 @@ export default function InscribirsePage() {
             >
               {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
             </button>
-            {mensaje && (
-              <p className="text-center text-red-600">{mensaje}</p>
-            )}
+            {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
           </div>
         </div>
       </div>

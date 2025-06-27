@@ -20,7 +20,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 interface InscRaw {
-  carreraId: string;       // ← add this
+  carreraId: string;       // ← ahora disponible
   perfilOwner: string;
   perfilId: string;
   categoria: string;
@@ -30,7 +30,7 @@ interface InscRaw {
 }
 
 interface InscView {
-  id: string;              // root doc id
+  id: string;              // ID del doc raíz
   carreraId: string;
   titulo: string;
   fechaCarr: string;
@@ -77,10 +77,10 @@ export default function MisInscripcionesPage() {
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
 
-            // carreraId is now available on src
+            // ahora src.carreraId existe
             const carreraId = src.carreraId;
 
-            // fetch carrera
+            // obtener datos de la carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
@@ -88,7 +88,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // fetch perfil
+            // obtener datos de perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -115,7 +115,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // format dates
+            // formatear fechas
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -131,7 +131,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // Stripe live status
+            // estado live de Stripe
             let paymentStatus: string | undefined = src.paymentStatus;
             if (src.sessionId) {
               try {
@@ -177,6 +177,7 @@ export default function MisInscripcionesPage() {
     return () => unsubscribeAuth();
   }, []);
 
+  // reintentar pago
   const reintentarPago = async (item: InscView) => {
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
@@ -194,6 +195,7 @@ export default function MisInscripcionesPage() {
     }
     const { url, sessionId } = await res.json();
 
+    // actualiza doc con nuevo sessionId y estado
     await updateDoc(doc(db, "inscripciones", item.id), {
       sessionId,
       paymentStatus: "pending",
@@ -242,7 +244,8 @@ export default function MisInscripcionesPage() {
                     <p className="text-sm text-gray-600 flex items-center space-x-1">
                       <ClipboardIcon className="w-4 h-4" />
                       <span>
-                        {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
+                        {i.perfilNombre} {i.perfilApPaterno}{" "}
+                        {i.perfilApMaterno}
                         {i.perfilClub && ` • Club: ${i.perfilClub}`}
                       </span>
                     </p>
