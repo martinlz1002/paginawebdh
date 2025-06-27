@@ -6,7 +6,7 @@ import * as admin from "firebase-admin";
 // Inicializa Admin SDK sólo una vez
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY!
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!
   );
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
