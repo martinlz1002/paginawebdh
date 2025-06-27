@@ -5,9 +5,8 @@ import * as admin from "firebase-admin";
 
 // Inicializa Admin SDK sólo una vez
 if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!
-  );
+  const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!, "base64").toString("utf8");
+  const serviceAccount = JSON.parse(raw);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
@@ -18,16 +17,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2022-11-15",
 });
 
-export const config = {
-  api: { bodyParser: false },
-};
-
+export const config = { api: { bodyParser: false } };
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end("Method Not Allowed");
@@ -35,8 +28,8 @@ export default async function handler(
 
   const buf = await buffer(req);
   const sig = req.headers["stripe-signature"]!;
-
   let event: Stripe.Event;
+
   try {
     event = stripe.webhooks.constructEvent(buf, sig as string, webhookSecret);
   } catch (err: any) {
@@ -44,26 +37,20 @@ export default async function handler(
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // Función interna para actualizar Firestore dado un sessionId
-  async function markPaid(sessionId: string, paymentStatus: string) {
+  // función auxiliar
+  async function markPaid(sessionId: string, status: string) {
     const snap = await firestore
       .collection("inscripciones")
       .where("sessionId", "==", sessionId)
       .get();
-
     if (snap.empty) {
-      console.warn(`⚠️ No encontré inscripciones con sessionId=${sessionId}`);
+      console.warn(`⚠️  No inscripciones con sessionId=${sessionId}`);
       return;
     }
-
     const batch = firestore.batch();
-    snap.docs.forEach((docSnap) => {
-      batch.update(docSnap.ref, { paymentStatus });
-    });
+    snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus: status }));
     await batch.commit();
-    console.log(
-      `✅ Actualizado paymentStatus="${paymentStatus}" en ${snap.size} inscripciones.`
-    );
+    console.log(`✅ Actualizado paymentStatus="${status}" en ${snap.size} inscripciones.`);
   }
 
   try {
@@ -73,28 +60,26 @@ export default async function handler(
         await markPaid(session.id, session.payment_status);
         break;
       }
-
       case "payment_intent.succeeded": {
-        const intent = event.data.object as Stripe.PaymentIntent;
-        // buscamos el checkout.session asociado al intent
+        const pi = event.data.object as Stripe.PaymentIntent;
+        // Encuentra la sesión asociada
         const sessions = await stripe.checkout.sessions.list({
-          payment_intent: intent.id,
+          payment_intent: pi.id,
           limit: 1,
         });
         const session = sessions.data[0];
         if (session) {
-          await markPaid(session.id, intent.status === "succeeded" ? "paid" : intent.status);
+          await markPaid(session.id, "paid");
         } else {
-          console.warn(`⚠️ No session for payment_intent ${intent.id}`);
+          console.warn(`⚠️  No session para payment_intent ${pi.id}`);
         }
         break;
       }
-
-      // si quieres puedes manejar otros eventos...
+      // puedes añadir más casos si lo necesitas
     }
   } catch (err) {
     console.error("🔴 Error procesando webhook:", err);
-    // respondemos 200 para no reintentar webhook, incluso si falló actualización
+    // respondemos 200 para que Stripe no reintente
   }
 
   res.status(200).json({ received: true });
