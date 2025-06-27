@@ -11,6 +11,8 @@ import {
   query,
   where,
   Timestamp,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import {
   MapPinIcon,
@@ -18,9 +20,7 @@ import {
   ClockIcon,
   UserIcon,
   ClipboardIcon,
-  CreditCardIcon,
 } from "@heroicons/react/24/outline";
-import { registrarInscripcion } from "@/lib/Inscripciones";
 
 interface Categoria {
   nombre: string;
@@ -185,11 +185,13 @@ export default function InscribirsePage() {
       const { url, sessionId } = await resp.json();
 
       // 3c) Registrar en Firestore dentro de inscripciones/{carreraId}/docs
-      await registrarInscripcion({
+      await addDoc(subCol, {
         carreraId: carrera.id,
-        carreraTitulo: carrera.titulo,  
         perfilId: perfilSeleccionado,
+        perfilOwner: user.uid,
         categoria: categoriaSeleccionada,
+        timestamp: serverTimestamp(),
+        paymentStatus: "pending",
         sessionId,
       });
 
