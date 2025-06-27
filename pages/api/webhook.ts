@@ -16,8 +16,9 @@ if (!admin.apps.length) {
 }
 const firestore = admin.firestore();
 
+// **Usa la misma versión de API que Stripe CLI está enviando**:
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2022-11-15",
+  apiVersion: "2022-11-15", 
 });
 
 export const config = { api: { bodyParser: false } };
@@ -95,7 +96,7 @@ export default async function handler(
           limit: 1,
         });
         if (sessions.data.length) {
-          console.log("   ↳ sesion asociada:", sessions.data[0].id);
+          console.log("   ↳ sesión asociada:", sessions.data[0].id);
           await markPaymentStatus(sessions.data[0].id, "paid");
         }
         break;
@@ -108,7 +109,7 @@ export default async function handler(
           limit: 1,
         });
         if (sessions.data.length) {
-          console.log("   ↳ sesion asociada:", sessions.data[0].id);
+          console.log("   ↳ sesión asociada:", sessions.data[0].id);
           await markPaymentStatus(sessions.data[0].id, "unpaid");
         }
         break;

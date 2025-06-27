@@ -20,7 +20,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 interface InscRaw {
-  carreraId: string;       // ← ahora disponible
+  carreraId: string;
   perfilOwner: string;
   perfilId: string;
   categoria: string;
@@ -30,7 +30,7 @@ interface InscRaw {
 }
 
 interface InscView {
-  id: string;              // ID del doc raíz
+  id: string;
   carreraId: string;
   titulo: string;
   fechaCarr: string;
@@ -39,13 +39,11 @@ interface InscView {
   imagenUrl?: string;
   precio: number;
   categoria: string;
-  // perfil
   perfilId: string;
   perfilNombre: string;
   perfilApPaterno: string;
   perfilApMaterno: string;
   perfilClub?: string;
-  // inscripción
   fechaIns: string;
   sessionId?: string;
   paymentStatus?: string;
@@ -61,7 +59,7 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, (user: User | null) => {
+    const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
@@ -72,15 +70,13 @@ export default function MisInscripcionesPage() {
         where("perfilOwner", "==", user.uid)
       );
 
-      const unsubscribeSnap = onSnapshot(q, async (snap) => {
+      const unsubSnap = onSnapshot(q, async (snap) => {
         const views: InscView[] = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
-
-            // ahora src.carreraId existe
             const carreraId = src.carreraId;
 
-            // obtener datos de la carrera
+            // Datos de la carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
@@ -88,7 +84,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // obtener datos de perfil
+            // Datos del perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -115,7 +111,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // formatear fechas
+            // Formatear fechas
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -131,21 +127,8 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // estado live de Stripe
-            let paymentStatus: string | undefined = src.paymentStatus;
-            if (src.sessionId) {
-              try {
-                const res = await fetch(
-                  `/api/get-session?session_id=${src.sessionId}`
-                );
-                if (res.ok) {
-                  const json = await res.json();
-                  paymentStatus = json.payment_status;
-                }
-              } catch {
-                paymentStatus = paymentStatus ?? "desconocido";
-              }
-            }
+            // **Usamos paymentStatus de Firestore** directamente:
+            const paymentStatus = src.paymentStatus ?? "desconocido";
 
             return {
               id: d.id,
@@ -172,12 +155,12 @@ export default function MisInscripcionesPage() {
         setLoading(false);
       });
 
-      return () => unsubscribeSnap();
+      return () => unsubSnap();
     });
-    return () => unsubscribeAuth();
+    return () => unsubAuth();
   }, []);
 
-  // reintentar pago
+  // Reintentar pago
   const reintentarPago = async (item: InscView) => {
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
@@ -194,13 +177,11 @@ export default function MisInscripcionesPage() {
       return;
     }
     const { url, sessionId } = await res.json();
-
-    // actualiza doc con nuevo sessionId y estado
+    // Actualizamos el documento con la nueva session y dejamos status pending
     await updateDoc(doc(db, "inscripciones", item.id), {
       sessionId,
       paymentStatus: "pending",
     });
-
     window.open(url, "_blank")?.focus();
   };
 
@@ -244,8 +225,7 @@ export default function MisInscripcionesPage() {
                     <p className="text-sm text-gray-600 flex items-center space-x-1">
                       <ClipboardIcon className="w-4 h-4" />
                       <span>
-                        {i.perfilNombre} {i.perfilApPaterno}{" "}
-                        {i.perfilApMaterno}
+                        {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
                         {i.perfilClub && ` • Club: ${i.perfilClub}`}
                       </span>
                     </p>
@@ -258,8 +238,7 @@ export default function MisInscripcionesPage() {
                       {i.horaSalida || "-"}
                     </p>
                     <p>
-                      <strong>Categoría:</strong> {i.categoria} ($
-                      {i.precio.toFixed(2)})
+                      <strong>Categoría:</strong> {i.categoria} (${i.precio.toFixed(2)})
                     </p>
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs ${
@@ -270,7 +249,7 @@ export default function MisInscripcionesPage() {
                           : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {i.paymentStatus || "desconocido"}
+                      {i.paymentStatus}
                     </span>
                     {i.paymentStatus !== "paid" && (
                       <button
