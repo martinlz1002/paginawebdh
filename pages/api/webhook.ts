@@ -27,61 +27,80 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const buf = await buffer(req);
-  const sig = req.headers["stripe-signature"]!;
+  const sig = req.headers["stripe-signature"] as string;
   let event: Stripe.Event;
-
   try {
-    event = stripe.webhooks.constructEvent(buf, sig as string, webhookSecret);
+    event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
   } catch (err: any) {
     console.error("⚠️ Webhook signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // marca como pagado en la subcolección "docs" de cada carrera
-  async function markPaid(sessionId: string, status: string) {
-    // Query a TODAS las subcolecciones "docs"
+  // Actualiza paymentStatus en la colección raíz "inscripciones"
+  async function markPaymentStatus(sessionId: string, status: string) {
     const snap = await firestore
-      .collectionGroup("docs")
+      .collection("inscripciones")
       .where("sessionId", "==", sessionId)
       .get();
 
     if (snap.empty) {
-      console.warn(`⚠️ No encontré inscripciones con sessionId=${sessionId}`);
+      console.warn(`⚠️ No se encontró inscripciones con sessionId=${sessionId}`);
       return;
     }
 
     const batch = firestore.batch();
-    snap.docs.forEach((d) => batch.update(d.ref, { paymentStatus: status }));
+    snap.docs.forEach((docSnap) => {
+      batch.update(docSnap.ref, { paymentStatus: status });
+    });
     await batch.commit();
-
-    console.log(`✅ Actualizado paymentStatus="${status}" en ${snap.size} docs.`);
+    console.log(`✅ Actualizado paymentStatus="${status}" en ${snap.size} documento(s).`);
   }
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        await markPaid(session.id, session.payment_status);
+        // session.payment_status viene como "paid" o "unpaid"
+        await markPaymentStatus(session.id, session.payment_status);
         break;
       }
+
       case "payment_intent.succeeded": {
-        const pi = event.data.object as Stripe.PaymentIntent;
+        const intent = event.data.object as Stripe.PaymentIntent;
+        // Buscamos la sesión asociada al intent
         const sessions = await stripe.checkout.sessions.list({
-          payment_intent: pi.id,
+          payment_intent: intent.id,
           limit: 1,
         });
         const session = sessions.data[0];
         if (session) {
-          await markPaid(session.id, "paid");
+          // En este caso forzamos "paid"
+          await markPaymentStatus(session.id, "paid");
         } else {
-          console.warn(`⚠️ No session para payment_intent ${pi.id}`);
+          console.warn(`⚠️ No se encontró session para payment_intent ${intent.id}`);
         }
         break;
       }
-      // otros eventos si los necesitas…
+
+      case "payment_intent.payment_failed": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        // Si quieres marcar 'unpaid' en fallo de pago
+        const sessions = await stripe.checkout.sessions.list({
+          payment_intent: intent.id,
+          limit: 1,
+        });
+        const session = sessions.data[0];
+        if (session) {
+          await markPaymentStatus(session.id, "unpaid");
+        }
+        break;
+      }
+
+      // Otros eventos que necesites...
     }
   } catch (err) {
     console.error("🔴 Error procesando webhook:", err);
+    // Respondemos 200 para no reintentar
   }
 
   res.status(200).json({ received: true });
