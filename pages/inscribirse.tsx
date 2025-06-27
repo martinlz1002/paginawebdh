@@ -135,7 +135,7 @@ export default function InscribirsePage() {
     setCategoriaSeleccionada("");
   }, [perfilSeleccionado]);
 
-  // 3) Crear Checkout y registrar inscripción en subcolección
+  // 3) Crear Checkout y registrar inscripción en colección raíz
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -146,11 +146,11 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // 3a) Verificar duplicados en inscripciones/{carreraId}/docs
-    const subCol = collection(db, "inscripciones", carrera.id, "docs");
+    // 3a) Verificar duplicados en collection("inscripciones")
+    const rootCol = collection(db, "inscripciones");
     const dup = await getDocs(
       query(
-        subCol,
+        rootCol,
         where("carreraId", "==", carrera.id),
         where("perfilId", "==", perfilSeleccionado),
         where("perfilOwner", "==", user.uid),
@@ -184,9 +184,10 @@ export default function InscribirsePage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // 3c) Registrar en Firestore dentro de inscripciones/{carreraId}/docs
-      await addDoc(subCol, {
+      // 3c) Registrar en colección raíz inscripciones
+      await addDoc(rootCol, {
         carreraId: carrera.id,
+        carreraTitulo: carrera.titulo,
         perfilId: perfilSeleccionado,
         perfilOwner: user.uid,
         categoria: categoriaSeleccionada,
