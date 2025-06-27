@@ -31,7 +31,6 @@ interface Categoria {
 
 interface Carrera {
   id: string;
-  slug: string;
   titulo: string;
   descripcion?: string;
   lugar?: string;
@@ -61,7 +60,7 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // 1) Carga de la carrera (incluye slug)
+  // 1) Carga de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -70,20 +69,19 @@ export default function InscribirsePage() {
         setMensaje("Carrera no encontrada");
         return;
       }
-      const data = snap.data() as any;
+      const d: any = snap.data();
       setCarrera({
         id: snap.id,
-        slug: data.slug, // asumimos que existe
-        titulo: data.titulo,
-        descripcion: data.descripcion,
-        lugar: data.lugar || data.ubicacion,
+        titulo: d.titulo,
+        descripcion: d.descripcion,
+        lugar: d.lugar || d.ubicacion,
         fecha:
-          data.fecha instanceof Timestamp
-            ? data.fecha.toDate().toLocaleDateString()
-            : data.fecha,
-        horaSalida: data.horaSalida,
-        bannerUrl: data.bannerUrl,
-        categorias: (data.categorias || []).map((cat: any) => ({
+          d.fecha instanceof Timestamp
+            ? d.fecha.toDate().toLocaleDateString()
+            : d.fecha,
+        horaSalida: d.horaSalida,
+        bannerUrl: d.bannerUrl,
+        categorias: (d.categorias || []).map((cat: any) => ({
           nombre: cat.nombre,
           minAge: cat.minAge,
           maxAge: cat.maxAge,
@@ -93,7 +91,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // 2) Autenticación + carga de perfiles
+  // 2) Autenticación + perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -107,13 +105,13 @@ export default function InscribirsePage() {
     const lista: Perfil[] = [];
     const udoc = await getDoc(doc(db, "usuarios", uid));
     if (udoc.exists()) {
-      const d: any = udoc.data();
+      const ud: any = udoc.data();
       lista.push({
         id: uid,
-        nombre: d.nombre,
-        apellidoPaterno: d.apPaterno,
-        apellidoMaterno: d.apMaterno,
-        edad: d.edad,
+        nombre: ud.nombre,
+        apellidoPaterno: ud.apPaterno,
+        apellidoMaterno: ud.apMaterno,
+        edad: ud.edad,
       });
     }
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
@@ -132,12 +130,12 @@ export default function InscribirsePage() {
     setLoadingPerfiles(false);
   }
 
-  // reset categoría al cambiar de perfil
+  // reset categoría al cambiar perfil
   useEffect(() => {
     setCategoriaSeleccionada("");
   }, [perfilSeleccionado]);
 
-  // 3) Checkout + registro en inscripciones/{slug}/docs
+  // 3) Checkout + registrar en inscripciones/{carreraId}/docs
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada) {
@@ -148,26 +146,20 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // 3a) Check duplicados en subcolección
-    const subColRef = collection(
-      db,
-      "inscripciones",
-      carrera.slug,
-      "docs"
-    );
-    const dupSnap = await getDocs(
+    // 3a) Duplicados en subcolección
+    const subCol = collection(db, "inscripciones", carrera.id, "docs");
+    const dup = await getDocs(
       query(
-        subColRef,
+        subCol,
         where("carreraId", "==", carrera.id),
         where("perfilId", "==", perfilSeleccionado),
         where("perfilOwner", "==", user.uid),
         where("categoria", "==", categoriaSeleccionada)
       )
     );
-    if (!dupSnap.empty) {
-      const data = dupSnap.docs[0].data() as any;
-      const status = data.paymentStatus as string | undefined;
-      if (status === "pending" || status === "unpaid") {
+    if (!dup.empty) {
+      const st = (dup.docs[0].data() as any).paymentStatus as string;
+      if (st === "pending" || st === "unpaid") {
         setMensaje("Tienes un pago pendiente. Complétalo en «Mis Inscripciones».");
       } else {
         setMensaje("Ya estás inscrito con este perfil y categoría.");
@@ -176,12 +168,10 @@ export default function InscribirsePage() {
     }
 
     // 3b) Crear sesión Stripe
-    const cat = carrera.categorias.find(
-      (c) => c.nombre === categoriaSeleccionada
-    )!;
+    const cat = carrera.categorias.find((c) => c.nombre === categoriaSeleccionada)!;
     setProcesandoPago(true);
     try {
-      const res = await fetch("/api/checkout_sessions", {
+      const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -191,24 +181,23 @@ export default function InscribirsePage() {
           price: cat.price,
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const { url, sessionId } = await res.json();
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const { url, sessionId } = await resp.json();
 
-      // 3c) Registrar en Firestore (subcolección)
+      // 3c) Registrar en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
-        carreraSlug: carrera.slug,
         perfilId: perfilSeleccionado,
         categoria: categoriaSeleccionada,
         sessionId,
       });
 
-      // 3d) Redirigir a Stripe y luego a mis-inscripciones
+      // 3d) Abrir Stripe & redirigir
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
-    } catch (err: any) {
-      console.error(err);
-      setMensaje(`Error al iniciar pago: ${err.message}`);
+    } catch (e: any) {
+      console.error(e);
+      setMensaje(`Error al iniciar pago: ${e.message}`);
       setProcesandoPago(false);
     }
   };
@@ -221,7 +210,7 @@ export default function InscribirsePage() {
     );
   }
 
-  // Filtrar categorías según edad del perfil
+  // Filtra categorías por edad
   const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
     perfilActual
@@ -265,7 +254,7 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Tabla de categorías */}
+          {/* categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -295,9 +284,8 @@ export default function InscribirsePage() {
             </table>
           </div>
 
-          {/* Formulario de inscripción */}
+          {/* formulario */}
           <div className="pt-6 border-t space-y-4">
-            {/* Selección de perfil */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <UserIcon className="w-5 h-5 text-green-600" />
@@ -320,7 +308,6 @@ export default function InscribirsePage() {
               )}
             </div>
 
-            {/* Selección de categoría */}
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
                 <ClipboardIcon className="w-5 h-5 text-purple-700" />
@@ -341,14 +328,12 @@ export default function InscribirsePage() {
               </select>
             </div>
 
-            {/* Precio elegido */}
             {categoriaSeleccionada && (
               <div className="text-lg font-medium">
                 Precio seleccionado: ${precioSeleccionado.toFixed(2)}
               </div>
             )}
 
-            {/* Botón de pagar */}
             <button
               onClick={handlePagar}
               disabled={
