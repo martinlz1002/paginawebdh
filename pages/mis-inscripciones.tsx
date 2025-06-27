@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
-  collectionGroup,
+  collection,
   query,
   where,
   doc,
@@ -20,6 +20,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 interface InscRaw {
+  carreraId: string;       // ← add this
   perfilOwner: string;
   perfilId: string;
   categoria: string;
@@ -29,7 +30,7 @@ interface InscRaw {
 }
 
 interface InscView {
-  refPath: string;       // ruta completa para updateDoc
+  id: string;              // root doc id
   carreraId: string;
   titulo: string;
   fechaCarr: string;
@@ -60,24 +61,26 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
-      // usamos collectionGroup para leer todas las subcolecciones 'docs'
+
       const q = query(
-        collectionGroup(db, "docs"),
+        collection(db, "inscripciones"),
         where("perfilOwner", "==", user.uid)
       );
-      const unsubSnap = onSnapshot(q, async (snap) => {
+
+      const unsubscribeSnap = onSnapshot(q, async (snap) => {
         const views: InscView[] = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
-            // extraer carreraId de la ruta: inscripciones/{carreraId}/docs/{docId}
-            const carreraId = d.ref.parent.parent?.id ?? "";
 
-            // datos carrera
+            // carreraId is now available on src
+            const carreraId = src.carreraId;
+
+            // fetch carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
@@ -85,7 +88,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // datos perfil
+            // fetch perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -112,7 +115,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // formatear fechas
+            // format dates
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -128,7 +131,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // estado Stripe
+            // Stripe live status
             let paymentStatus: string | undefined = src.paymentStatus;
             if (src.sessionId) {
               try {
@@ -145,7 +148,7 @@ export default function MisInscripcionesPage() {
             }
 
             return {
-              refPath: d.ref.path,
+              id: d.id,
               carreraId,
               titulo: cdata.titulo || "(sin título)",
               fechaCarr,
@@ -168,12 +171,12 @@ export default function MisInscripcionesPage() {
         setList(views);
         setLoading(false);
       });
-      return () => unsubSnap();
+
+      return () => unsubscribeSnap();
     });
-    return () => unsubAuth();
+    return () => unsubscribeAuth();
   }, []);
 
-  // reintentar pago: actualizamos document vía su path
   const reintentarPago = async (item: InscView) => {
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
@@ -191,8 +194,7 @@ export default function MisInscripcionesPage() {
     }
     const { url, sessionId } = await res.json();
 
-    // actualiza el mismo doc en subcolección
-    await updateDoc(doc(db, item.refPath), {
+    await updateDoc(doc(db, "inscripciones", item.id), {
       sessionId,
       paymentStatus: "pending",
     });
@@ -218,7 +220,7 @@ export default function MisInscripcionesPage() {
           <ul className="space-y-6">
             {list.map((i) => (
               <li
-                key={i.refPath}
+                key={i.id}
                 className="border rounded shadow hover:shadow-lg overflow-hidden"
               >
                 <div className="flex flex-col md:flex-row">
@@ -237,15 +239,12 @@ export default function MisInscripcionesPage() {
                   )}
                   <div className="p-4 flex-1 space-y-2">
                     <h2 className="text-xl font-semibold">{i.titulo}</h2>
-                    <p className="text-sm text-gray-600">
-                      <ClipboardIcon className="inline-block w-4 h-4 mr-1" />
-                      {i.perfilNombre} {i.perfilApPaterno}{" "}
-                      {i.perfilApMaterno}
-                      {i.perfilClub && (
-                        <span className="ml-2 text-gray-500">
-                          • Club: {i.perfilClub}
-                        </span>
-                      )}
+                    <p className="text-sm text-gray-600 flex items-center space-x-1">
+                      <ClipboardIcon className="w-4 h-4" />
+                      <span>
+                        {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
+                        {i.perfilClub && ` • Club: ${i.perfilClub}`}
+                      </span>
                     </p>
                     <p className="text-sm text-gray-600">
                       <MapPinIcon className="inline-block w-4 h-4 mr-1" />
