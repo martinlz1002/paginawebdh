@@ -3,7 +3,7 @@ import { db, auth } from "./firebase";
 
 export interface InscripcionData {
   carreraId: string;
-  carreraTitulo: string;     // ← nuevo campo
+  carreraTitulo: string;
   perfilId: string;
   categoria: string;
   sessionId: string;
@@ -13,9 +13,18 @@ export async function registrarInscripcion(data: InscripcionData) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
-  await addDoc(collection(db, "inscripciones"), {
+  // Antes: collection(db, "inscripciones")
+  // Ahora: sub-colección "docs" bajo cada carrera
+  const docsCol = collection(
+    db,
+    "inscripciones",
+    data.carreraId,
+    "docs"
+  );
+
+  await addDoc(docsCol, {
     carreraId: data.carreraId,
-    carreraTitulo: data.carreraTitulo,   // ← lo guardamos también
+    carreraTitulo: data.carreraTitulo,
     perfilId: data.perfilId,
     perfilOwner: user.uid,
     categoria: data.categoria,
