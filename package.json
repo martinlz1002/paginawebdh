@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently \"next dev\" \"stripe listen --forward-to http://localhost:3000/api/webhook --api-version=2022-11-15 --events checkout.session.completed,payment_intent.succeeded,payment_intent.payment_failed --log-level debug\"",
     "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 next build --no-lint",
     "start": "next start"
   },
@@ -36,6 +36,7 @@
     "@typescript-eslint/eslint-plugin": "^8.34.0",
     "@typescript-eslint/parser": "^8.34.0",
     "autoprefixer": "^10.4.2",
+    "concurrently": "^9.2.0",
     "cross-env": "^7.0.3",
     "eslint": "^9.29.0",
     "postcss": "^8.4.6",
