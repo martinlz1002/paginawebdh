@@ -1,17 +1,17 @@
-import { buffer } from 'micro';
-import type { NextApiRequest, NextApiResponse } from 'next';
-import Stripe from 'stripe';
-import * as admin from 'firebase-admin';
+import { buffer } from "micro";
+import type { NextApiRequest, NextApiResponse } from "next";
+import Stripe from "stripe";
+import * as admin from "firebase-admin";
 
-// 1️⃣ Desactiva el body parser de Next.js para poder leer el raw body
+// 1️⃣ Desactivar el body parser de Next.js
 export const config = { api: { bodyParser: false } };
 
-// 2️⃣ Inicializa Admin SDK solo una vez
+// 2️⃣ Inicializar Firebase Admin SDK sólo una vez
 if (!admin.apps.length) {
   const raw = Buffer.from(
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!,
-    'base64'
-  ).toString('utf8');
+    "base64"
+  ).toString("utf8");
   const serviceAccount = JSON.parse(raw);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -19,22 +19,21 @@ if (!admin.apps.length) {
 }
 const firestore = admin.firestore();
 
-// 3️⃣ Instancia Stripe con la misma versión que la CLI te está enviando
+// 3️⃣ Instanciar Stripe con la misma versión que usas en CLI / Dashboard
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2025-05-28.basil',
+  apiVersion: "2025-05-28.basil",
 });
 
-// 4️⃣ Escoge el secreto correcto según entorno
-const webhookSecret =
-  process.env.NODE_ENV === 'development'
-    ? process.env.STRIPE_CLI_WEBHOOK_SECRET!
-    : process.env.STRIPE_DASHBOARD_WEBHOOK_SECRET!;
+// 4️⃣ Usa siempre el mismo secret en producción
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+console.log("🔑 STRIPE_WEBHOOK_SECRET:", webhookSecret);
 
+// 5️⃣ Función para actualizar el paymentStatus
 async function markPaymentStatus(sessionId: string, status: string) {
   console.log(`🔍 [webhook] buscando sessionId=${sessionId}`);
   const snap = await firestore
-    .collection('inscripciones')
-    .where('sessionId', '==', sessionId)
+    .collection("inscripciones")
+    .where("sessionId", "==", sessionId)
     .get();
 
   if (snap.empty) {
@@ -54,62 +53,67 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // 👉 Devuelve 405 a todo lo que no sea POST
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).end('Method Not Allowed');
+  // 👇 logging para depurar en Vercel
+  console.log("➡️ Método entrante:", req.method);
+
+  if (req.method !== "POST") {
+    res.setHeader("Allow", ["POST"]);
+    return res.status(405).end("Method Not Allowed");
   }
 
-  // 5️⃣ Micro ayuda a leer el raw body
+  // 6️⃣ obtener raw body y firma
   const buf = await buffer(req);
-  const sig = req.headers['stripe-signature'] as string;
+  const sig = req.headers["stripe-signature"] as string;
+  console.log("📦 payload length:", buf.length, " stripe-signature:", sig);
 
+  // 7️⃣ verificar y parsear evento
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
   } catch (err: any) {
-    console.error('⚠️ Signature verification failed:', err.message);
+    console.error("⚠️ Signature verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  console.log('📩 webhook recibido:', event.type);
+  console.log("📩 webhook recibido:", event.type);
 
+  // 8️⃣ manejar los tipos que te interesan
   try {
     switch (event.type) {
-      case 'checkout.session.completed': {
+      case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         await markPaymentStatus(session.id, session.payment_status);
         break;
       }
-      case 'payment_intent.succeeded': {
+      case "payment_intent.succeeded": {
         const intent = event.data.object as Stripe.PaymentIntent;
         const sessions = await stripe.checkout.sessions.list({
           payment_intent: intent.id,
           limit: 1,
         });
         if (sessions.data.length) {
-          await markPaymentStatus(sessions.data[0].id, 'paid');
+          await markPaymentStatus(sessions.data[0].id, "paid");
         }
         break;
       }
-      case 'payment_intent.payment_failed': {
+      case "payment_intent.payment_failed": {
         const intent = event.data.object as Stripe.PaymentIntent;
         const sessions = await stripe.checkout.sessions.list({
           payment_intent: intent.id,
           limit: 1,
         });
         if (sessions.data.length) {
-          await markPaymentStatus(sessions.data[0].id, 'unpaid');
+          await markPaymentStatus(sessions.data[0].id, "unpaid");
         }
         break;
       }
       default:
-        console.log('ℹ️ evento no manejado:', event.type);
+        console.log("ℹ️ evento no manejado:", event.type);
     }
-  } catch (err) { 
-    console.error('🔴 Error procesando webhook:', err);
+  } catch (err) {
+    console.error("🔴 Error procesando webhook:", err);
   }
 
-  // 6️⃣ Siempre responde 200 para que Stripe no reintente indefinidamente
+  // 9️⃣ responder siempre 2xx para que Stripe no reintente
   res.status(200).json({ received: true });
 }
