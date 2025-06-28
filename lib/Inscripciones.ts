@@ -3,7 +3,6 @@ import { db, auth } from "./firebase";
 
 export interface InscripcionData {
   carreraId: string;
-  carreraTitulo: string;     // ← nuevo campo
   perfilId: string;
   categoria: string;
   sessionId: string;
@@ -15,7 +14,6 @@ export async function registrarInscripcion(data: InscripcionData) {
 
   await addDoc(collection(db, "inscripciones"), {
     carreraId: data.carreraId,
-    carreraTitulo: data.carreraTitulo,   // ← lo guardamos también
     perfilId: data.perfilId,
     perfilOwner: user.uid,
     categoria: data.categoria,
