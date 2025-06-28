@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2022-11-15",
+  apiVersion: "2025-05-28.basil",
 });
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -36,6 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       metadata: { carreraId, perfilId, categoria },
       expand: ["payment_intent"],
     });
+    console.log('[checkout_sessions] session.id →', session.id);
 
     const intent = session.payment_intent as Stripe.PaymentIntent | undefined;
     const redirectUrl = session.url || intent?.next_action?.oxxo_display_details?.hosted_voucher_url || "";

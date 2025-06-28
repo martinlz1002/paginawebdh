@@ -10,6 +10,7 @@ export interface InscripcionData {
 }
 
 export async function registrarInscripcion(data: InscripcionData) {
+   console.log('[registrarInscripcion] sessionId a guardar →', data.sessionId);
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 

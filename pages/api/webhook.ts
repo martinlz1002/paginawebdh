@@ -18,11 +18,13 @@ const firestore = admin.firestore();
 
 // Asegúrate de usar la misma versión de la CLI si hiciera falta
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: "2022-11-15",
+  apiVersion: "2025-05-28.basil",
 });
 
 export const config = { api: { bodyParser: false } };
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const webhookSecret = process.env.NODE_ENV === 'development'
+  ? process.env.STRIPE_CLI_WEBHOOK_SECRET!
+  : process.env.STRIPE_DASHBOARD_WEBHOOK_SECRET!;
 
 async function markPaymentStatus(sessionId: string, status: string) {
   console.log(`🔍 [webhook] buscando sessionId=${sessionId}`);
