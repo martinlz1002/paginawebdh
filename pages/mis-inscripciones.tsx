@@ -76,7 +76,7 @@ export default function MisInscripcionesPage() {
             const src = d.data() as InscRaw;
             const carreraId = src.carreraId;
 
-            // Datos de la carrera
+            // Carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
@@ -84,7 +84,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // Datos del perfil
+            // Perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -111,7 +111,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // Formatear fechas
+            // Fechas
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -127,7 +127,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // **Usamos paymentStatus de Firestore** directamente:
+            // Usar el status guardado
             const paymentStatus = src.paymentStatus ?? "desconocido";
 
             return {
@@ -160,7 +160,6 @@ export default function MisInscripcionesPage() {
     return () => unsubAuth();
   }, []);
 
-  // Reintentar pago
   const reintentarPago = async (item: InscView) => {
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
@@ -177,11 +176,12 @@ export default function MisInscripcionesPage() {
       return;
     }
     const { url, sessionId } = await res.json();
-    // Actualizamos el documento con la nueva session y dejamos status pending
+
     await updateDoc(doc(db, "inscripciones", item.id), {
       sessionId,
       paymentStatus: "pending",
     });
+
     window.open(url, "_blank")?.focus();
   };
 
@@ -238,7 +238,8 @@ export default function MisInscripcionesPage() {
                       {i.horaSalida || "-"}
                     </p>
                     <p>
-                      <strong>Categoría:</strong> {i.categoria} (${i.precio.toFixed(2)})
+                      <strong>Categoría:</strong> {i.categoria} ($
+                      {i.precio.toFixed(2)})
                     </p>
                     <span
                       className={`inline-block px-2 py-1 rounded text-xs ${
