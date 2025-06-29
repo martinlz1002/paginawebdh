@@ -7,7 +7,9 @@ import AdminInscripcionesView from '@/components/AdminInscripcionesView';
 import { ChevronRightIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 export default function AdminPage() {
-  const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
+  const [view, setView] = useState<
+  'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones'
+>('crear');
   const [editItem, setEditItem] = useState<any>();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
