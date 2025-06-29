@@ -14,7 +14,7 @@ export default function Layout({ children, title = 'DH Cronometraje' }: LayoutPr
       <Head>
         <title>{title}</title>
         {/* Favicon: asegúrate de que esté en public/mi-logo.png */}
-        <link rel="icon" href="/mi-logo.png" type="image/png" />
+        <link rel="icon" href="/logo-pestañas.png" type="image/png" />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
