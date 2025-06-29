@@ -20,7 +20,7 @@ export default function AdminPage() {
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Initialize Cloud Functions
+  // Initialize callable
   const functions = getFunctions(app);
   const fnBorrar = httpsCallable<{ carreraId: string }, { eliminado: number }>(
     functions,
@@ -41,7 +41,7 @@ export default function AdminPage() {
     loadCarreras();
   }, []);
 
-  // Delete inscripciones
+  // Delete handler
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
@@ -58,29 +58,34 @@ export default function AdminPage() {
   };
 
   return (
-    <>
+    <div className="relative flex">
       {/* Toggle sidebar button */}
       <button
         onClick={toggleSidebar}
-        className="fixed top-4 left-4 p-2 bg-gray-200 rounded"
+        className="fixed top-4 left-4 z-50 p-2 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition"
       >
-        {sidebarOpen ? <ChevronLeftIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
+        {sidebarOpen
+          ? <ChevronLeftIcon className="w-6 h-6" />
+          : <ChevronRightIcon className="w-6 h-6" />
+        }
       </button>
 
-      {/* Sidebar navigation */}
+      {/* Sidebar */}
       <AdminSidebar
         view={view}
-        setView={v => {
-          setView(v);
-          setFeedback(null);
-        }}
+        setView={v => { setView(v); setFeedback(null); }}
         open={sidebarOpen}
         onToggle={toggleSidebar}
       />
 
-      {/* Main content area */}
-      <div className="ml-64 p-6">
-        {view === 'crear' && <AdminCarrerasForm onSuccess={loadCarreras} />}
+      {/* Main content */}
+      <main className={`${sidebarOpen ? 'ml-64' : 'ml-0'} flex-1 p-6 transition-all duration-300`}
+      >
+        <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
+
+        {view === 'crear' && (
+          <AdminCarrerasForm onSuccess={() => { setView('listar'); loadCarreras(); }} />
+        )}
         {view === 'listar' && <div>Listado de carreras...</div>}
         {view === 'inscripciones' && <div>Gestión de inscripciones...</div>}
         {view === 'eliminarInscripciones' && (
@@ -91,7 +96,7 @@ export default function AdminPage() {
             feedback={feedback}
           />
         )}
-      </div>
-    </>
+      </main>
+    </div>
   );
 }
