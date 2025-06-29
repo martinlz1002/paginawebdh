@@ -5,7 +5,7 @@ import { app, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
-import EliminarInscripciones, { CarreraOption } from '@/components/eliminarInscripciones';
+import EliminarInscripciones, { CarreraOption } from '@/components/EliminarInscripciones';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
 interface Carrera { id: string; titulo: string; }
