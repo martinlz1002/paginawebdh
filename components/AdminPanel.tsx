@@ -5,7 +5,9 @@ import AdminInscripcionesView from './AdminInscripcionesView';
 import AdminSidebar from './AdminSidebar';
 
 export default function AdminPanel() {
-  const [view, setView] = useState<'crear' | 'listar' | 'inscripciones'>('crear');
+  const [view, setView] = useState<
+  'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones'
+>('crear');
   const [editItem, setEditItem] = useState<CarreraItem>();
   const [menuOpen, setMenuOpen] = useState(false);
 
