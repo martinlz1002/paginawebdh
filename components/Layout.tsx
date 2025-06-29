@@ -13,18 +13,14 @@ export default function Layout({ children, title = 'DH Cronometraje' }: LayoutPr
     <>
       <Head>
         <title>{title}</title>
-        <link rel="icon" href="/logo.png" />
+        {/* Favicon: asegúrate de que esté en public/mi-logo.png */}
+        <link rel="icon" href="/mi-logo.png" type="image/png" />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
-      <div>
-        <Header />
-        {/* reduce pt-16 a pt-8 para menos espacio bajo el header */}
-        <main className="pt-6 px-4">
-          {children}
-        </main>
-        <Footer />
-      </div>
+      <Header />
+      <main className="pt-6 px-4">{children}</main>
+      <Footer />
     </>
   );
 }

@@ -1,32 +1,32 @@
-import Head from 'next/head';
-import { ReactNode } from 'react';
-import Header from './header';
-import Footer from './Footer';
+import Link from 'next/link';
+import Image from 'next/image';
+import { FC } from 'react';
 
-interface LayoutProps {
-  children: ReactNode;
-  title?: string;
+export interface CarreraCardProps {
+  id: string;
+  titulo: string;
+  descripcion?: string;
+  ubicacion?: string;
+  fecha: string;
+  imagenUrl?: string;
 }
 
-export default function Layout({ children, title = 'DH Cronometraje' }: LayoutProps) {
-  return (
-    <>
-      <Head>
-        <title>{title}</title>
-        {/* Favicon personalizado */}
-        <link rel="icon" href="/mi-logo.png" type="image/png" />
-        <link rel="shortcut icon" href="/mi-logo.png" type="image/png" />
-        <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </Head>
-      <div>
-        <Header />
-        {/* reduce pt-16 a pt-8 para menos espacio bajo el header */}
-        <main className="pt-6 px-4">
-          {children}
-        </main>
-        <Footer />
+const CarreraCard: FC<CarreraCardProps> = ({ id, titulo, descripcion, ubicacion, fecha, imagenUrl }) => (
+  <Link href={`/carrera/${id}`}>
+    <a className="block bg-white shadow-md rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-200">
+      {imagenUrl && (
+        <div className="h-48 relative">
+          <Image src={imagenUrl} alt={titulo} layout="fill" objectFit="cover" />
+        </div>
+      )}
+      <div className="p-4">
+        <h2 className="text-xl font-semibold mb-1">{titulo}</h2>
+        {ubicacion && <p className="text-gray-600 text-sm mb-1"><strong>Ubicación:</strong> {ubicacion}</p>}
+        <p className="text-gray-600 text-sm mb-2"><strong>Fecha:</strong> {fecha}</p>
+        {descripcion && <p className="text-gray-700 text-base">{descripcion}</p>}
       </div>
-    </>
-  );
-}
+    </a>
+  </Link>
+);
+
+export default CarreraCard;
