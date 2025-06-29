@@ -8,7 +8,7 @@ interface LayoutProps {
   title?: string;
 }
 
-export default function Layout({ children, title = 'DH Cronometraje' }: LayoutProps) {
+export default function Layout({ children, title = 'DH Time' }: LayoutProps) {
   return (
     <>
       <Head>
