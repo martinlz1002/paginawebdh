@@ -1,16 +1,30 @@
-import { ReactNode } from "react";
-import Header from "./header";
-import Footer from "./Footer";
+import Head from 'next/head';
+import { ReactNode } from 'react';
+import Header from './header';
+import Footer from './Footer';
 
-export default function Layout({ children }: { children: ReactNode }) {
+interface LayoutProps {
+  children: ReactNode;
+  title?: string;
+}
+
+export default function Layout({ children, title = 'DH Cronometraje' }: LayoutProps) {
   return (
-    <div>
-      <Header />
-      {/* reduce pt-16 a pt-8 para menos espacio bajo el header */}
-      <main className="pt-6 px-4">
-        {children}
-      </main>
-      <Footer />
-    </div>
+    <>
+      <Head>
+        <title>{title}</title>
+        <link rel="icon" href="/logo.png" />
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </Head>
+      <div>
+        <Header />
+        {/* reduce pt-16 a pt-8 para menos espacio bajo el header */}
+        <main className="pt-6 px-4">
+          {children}
+        </main>
+        <Footer />
+      </div>
+    </>
   );
 }
