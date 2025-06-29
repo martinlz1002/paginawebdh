@@ -14,7 +14,7 @@ export default function Layout({ children, title = 'DH Cronometraje' }: LayoutPr
       <Head>
         <title>{title}</title>
         {/* Favicon actualizado al logo personalizado */}
-        <link rel="icon" href="/mi-logo.png" />
+        <link rel="icon" href="public/mi-logo.png" />
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
