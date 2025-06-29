@@ -31,14 +31,14 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
   return (
     <div
       ref={menuRef}
-      className={
-        `fixed inset-y-0 left-0 z-40 bg-white shadow-lg pt-4 pb-6
-         transform transition-transform duration-300
-         ${open ? 'translate-x-0' : '-translate-x-full'}
-         w-64 overflow-auto`
-      }
+      className={`
+        fixed top-16 bottom-0 left-0 z-40 bg-white shadow-lg
+        transform transition-transform duration-300
+        ${open ? 'translate-x-0' : '-translate-x-full'}
+        w-64 overflow-auto
+      `}
     >
-      <nav className="space-y-4 px-4">
+      <nav className="space-y-4 px-4 pt-4 pb-6">
         <button
           onClick={() => { setView('crear'); onToggle(); }}
           className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}

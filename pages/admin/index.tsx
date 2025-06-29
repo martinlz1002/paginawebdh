@@ -9,7 +9,6 @@ import AdminInscripcionesView from '@/components/AdminInscripcionesView';
 import EliminarInscripciones, { CarreraOption } from '@/components/EliminarInscripciones';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
-// Definimos las vistas disponibles
 type View = 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones';
 
 export default function AdminPage() {
@@ -17,34 +16,31 @@ export default function AdminPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const toggleSidebar = () => setSidebarOpen(o => !o);
 
-  // Estados para las carreras y la acción de borrado
   const [carreras, setCarreras] = useState<CarreraOption[]>([]);
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Inicializamos la función callable (mismísima región de deploy)
+  // Usa la misma región donde desplegaste tu función
   const functions = getFunctions(app, 'us-central1');
   const fnBorrar = httpsCallable<{ carreraId: string }, { eliminado: number }>(
     functions,
     'borrarInscripcionesDeCarrera'
   );
 
-  // Función para cargar carreras desde Firestore
   const loadCarreras = async () => {
-    const snapshot = await getDocs(collection(db, 'carreras'));
-    const list: CarreraOption[] = snapshot.docs.map(doc => ({
-      id: doc.id,
-      titulo: (doc.data() as any).titulo || 'Sin título',
-    }));
-    setCarreras(list);
+    const snap = await getDocs(collection(db, 'carreras'));
+    setCarreras(
+      snap.docs.map(d => ({
+        id: d.id,
+        titulo: (d.data() as any).titulo || 'Sin título',
+      }))
+    );
   };
 
-  // Cargar al montar
   useEffect(() => {
     loadCarreras();
   }, []);
 
-  // Handler para eliminar inscripciones
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
@@ -66,7 +62,7 @@ export default function AdminPage() {
 
   return (
     <div className="relative flex pt-16">
-      {/* Botón toggle */}
+      {/* mueve el toggle más abajo para que no quede bajo el header */}
       <button
         onClick={toggleSidebar}
         className="fixed top-20 left-4 z-50 p-2 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition"
@@ -77,7 +73,7 @@ export default function AdminPage() {
         }
       </button>
 
-      {/* Sidebar */}
+      {/* Sidebar desplazable */}
       <AdminSidebar
         view={view}
         setView={v => { setView(v); setFeedback(null); }}
