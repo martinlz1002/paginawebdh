@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { getDocs, collection } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, db } from '@/lib/firebase';
-import Layout from '@/components/Layout';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
 import EliminarInscripciones, { CarreraOption } from '@/components/EliminarInscripciones';
@@ -59,7 +58,7 @@ export default function AdminPage() {
   };
 
   return (
-    <Layout title="Admin – Panel">
+    <>
       {/* Toggle sidebar button */}
       <button
         onClick={toggleSidebar}
@@ -93,6 +92,6 @@ export default function AdminPage() {
           />
         )}
       </div>
-    </Layout>
+    </>
   );
 }
