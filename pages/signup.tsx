@@ -1,12 +1,14 @@
-import { useState } from "react";
-import { registrarUsuario, Usuario } from "@/lib/usuarios";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
+import { registrarUsuario, Usuario } from "@/lib/usuarios";
+import { app } from "@/lib/firebase";
 import {
   getAuth,
+  fetchSignInMethodsForEmail,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   deleteUser,
 } from "firebase/auth";
-import { app } from "@/lib/firebase";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -43,82 +45,66 @@ export default function RegistroUsuarioPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState<{
-    type: "error" | "success";
-    text: string;
-  } | null>(null);
+  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const router = useRouter();
+  const auth = getAuth(app);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
 
+    // 1) Validaciones de password
     if (formData.password.length < 6) {
-      return setMensaje({
-        type: "error",
-        text: "La contraseña debe tener al menos 6 caracteres.",
-      });
+      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
     }
     if (formData.password !== formData.confirmPassword) {
-      return setMensaje({
-        type: "error",
-        text: "Las contraseñas no coinciden.",
-      });
+      return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
 
-    const auth = getAuth(app);
+    // 2) Comprueba si el email ya existe
+    try {
+      const methods = await fetchSignInMethodsForEmail(auth, formData.email);
+      if (methods.length > 0) {
+        return setMensaje({ type: "error", text: "Este correo ya está registrado." });
+      }
+    } catch (err: any) {
+      return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
+    }
+
+    // 3) Crea el usuario en Auth
     let userCred;
     try {
-      userCred = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
+      userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     } catch (err: any) {
       return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    const uid = userCred.user.uid;
-    const edad = calcularEdad(formData.fechaNacimiento);
-    const usuario: Usuario = {
-      uid,
-      nombre: formData.nombre,
-      apPaterno: formData.apellidoPaterno,
-      apMaterno: formData.apellidoMaterno,
-      email: formData.email,
-      celular: formData.celular,
-      pais: formData.pais,
-      estado: formData.estado,
-      ciudad: formData.ciudad,
-      club: formData.club || undefined,
-      fechaNacimiento: formData.fechaNacimiento,
-      edad,
-    };
-
+    // 4) Envía correo de verificación
     try {
-      await registrarUsuario(usuario);
-      setMensaje({ type: "success", text: "Registro exitoso. Redirigiendo..." });
-      setTimeout(() => router.push("/perfil"), 2000);
-    } catch (err: any) {
-      // Si falla la escritura en Firestore, borramos el Auth user:
-      await deleteUser(userCred.user);
-      setMensaje({
-        type: "error",
-        text: `Error en Firestore: ${err.message}`,
+      await sendEmailVerification(userCred.user, {
+        url: `${window.location.origin}/perfil`, 
       });
+      setMensaje({
+        type: "success",
+        text: "Te hemos enviado un correo de verificación. Revisa tu bandeja y confirma tu email.",
+      });
+    } catch (err: any) {
+      await deleteUser(userCred.user);
+      return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
     }
+
+    // 5) Espera a que el usuario confirme. Puedes redirigirlo a una página de "Verifica tu correo"
+    //    y desde ahí, tras confirmar, llamar a registrarUsuario.
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">
-        Crear Cuenta
-      </h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
         <div className="relative">
@@ -211,7 +197,7 @@ export default function RegistroUsuarioPage() {
           />
         </div>
         {/* Ubicación */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="relative">
             <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
