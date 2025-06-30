@@ -11,7 +11,6 @@ import {
   query,
   where,
   Timestamp,
-  serverTimestamp,
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
 import {
@@ -142,27 +141,22 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // revisar duplicados en la colección raíz
     const rootCol = collection(db, "inscripciones");
-    const dup = await getDocs(
+    // 1) Verificar inscripción previa en cualquier categoría
+    const dupAny = await getDocs(
       query(
         rootCol,
         where("carreraId", "==", carrera.id),
         where("perfilId", "==", perfilSeleccionado),
-        where("perfilOwner", "==", user.uid),
-        where("categoria", "==", categoriaSeleccionada)
+        where("perfilOwner", "==", user.uid)
       )
     );
-    if (!dup.empty) {
-      const st = (dup.docs[0].data() as any).paymentStatus as string;
-      if (st === "pending" || st === "unpaid") {
-        setMensaje("Tienes un pago pendiente. Complétalo en «Mis Inscripciones».");
-      } else {
-        setMensaje("Ya estás inscrito con este perfil y categoría.");
-      }
+    if (!dupAny.empty) {
+      setMensaje("Ya estás inscrito en esta carrera.");
       return;
     }
 
+    // 2) Proceder con pago para la categoría seleccionada
     const catObj = carrera.categorias.find(
       (c) => c.nombre === categoriaSeleccionada
     )!;
@@ -181,7 +175,6 @@ export default function InscribirsePage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // registrar en la colección raíz
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -249,7 +242,7 @@ export default function InscribirsePage() {
             )}
           </div>
 
-          {/* Categorías y precios */}
+          {/* Categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -270,14 +263,16 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
+                    <td className="border px-4 py-2">
+                      ${cat.price.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Formulario de inscripción */}
+          {/* Formulario */}
           <div className="pt-6 border-t space-y-4">
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
@@ -329,9 +324,7 @@ export default function InscribirsePage() {
 
             <button
               onClick={handlePagar}
-              disabled={
-                !perfilSeleccionado || !categoriaSeleccionada || procesandoPago
-              }
+              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
               className={`w-full py-3 rounded text-white transition ${
                 perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
