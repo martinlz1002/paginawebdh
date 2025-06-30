@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useRouter } from "next/router";
-import { registrarUsuario, Usuario } from "@/lib/usuarios";
+import { registrarUsuario } from "@/lib/usuarios";
 
 export default function VerifyEmailPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -20,24 +20,16 @@ export default function VerifyEmailPage() {
     if (!user) return;
     await user.reload();
     if (user.emailVerified) {
-      // Obtén datos reales del usuario (contexto, localStorage, etc.)
-      const uData: Usuario = {
-        uid: user.uid,
-        nombre: "",
-        apPaterno: "",
-        apMaterno: "",
-        email: user.email!,
-        celular: "",
-        pais: "",
-        estado: "",
-        ciudad: "",
-        club: undefined,
-        fechaNacimiento: "",
-        edad: 0,
-      };
+      const pending = sessionStorage.getItem('pendingUser');
+      if (!pending) {
+        setMensaje("No se encontraron datos de registro.");
+        return;
+      }
+      const uData = JSON.parse(pending);
       try {
         await registrarUsuario(uData);
-        router.push("/perfil");
+        sessionStorage.removeItem('pendingUser');
+        router.push('/perfil');
       } catch (e: any) {
         setMensaje("Error guardando perfil: " + e.message);
       }

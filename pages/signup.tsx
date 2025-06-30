@@ -17,6 +17,7 @@ import {
   CalendarIcon,
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
+import { Usuario } from "@/lib/usuarios";
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
@@ -55,7 +56,6 @@ export default function RegistroUsuarioPage() {
     e.preventDefault();
     setMensaje(null);
 
-    // Validación de contraseña
     if (formData.password.length < 6) {
       return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
     }
@@ -63,7 +63,6 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
 
-    // Verificar si el correo ya existe
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
       if (methods.length > 0) {
@@ -73,7 +72,6 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
     }
 
-    // Crear usuario en Firebase Auth
     let userCred;
     try {
       userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
@@ -81,9 +79,25 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    // Enviar correo de verificación
+    // enviar verificación y guardar datos pendientes
     try {
       await sendEmailVerification(userCred.user);
+      const pending: Usuario = {
+        uid: userCred.user.uid,
+        nombre: formData.nombre,
+        apPaterno: formData.apPaterno,
+        apMaterno: formData.apMaterno,
+        email: formData.email,
+        celular: formData.celular,
+        pais: formData.pais,
+        estado: formData.estado,
+        ciudad: formData.ciudad,
+        club: formData.club || undefined,
+        fechaNacimiento: formData.fechaNacimiento,
+        edad: calcularEdad(formData.fechaNacimiento),
+      };
+      sessionStorage.setItem('pendingUser', JSON.stringify(pending));
+
       setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
       router.push('/verify-email');
     } catch (err: any) {
