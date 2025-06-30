@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  User,
+} from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
@@ -21,11 +26,8 @@ export default function Header() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        // recarga para obtener emailVerified actualizado
-        await u.reload();
-        setEmailVerified(u.emailVerified);
-
         setUser(u);
+        setEmailVerified(u.emailVerified);
         const snap = await getDoc(doc(db, "usuarios", u.uid));
         const data = snap.data();
         setNombre(data?.nombre || "");
@@ -64,7 +66,7 @@ export default function Header() {
       {user ? (
         <div className="relative" ref={menuRef}>
           <button
-            onClick={() => setMenuOpen(o => !o)}
+            onClick={() => setMenuOpen((o) => !o)}
             className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 transition"
           >
             <span className="font-medium">{nombre}</span>
@@ -84,7 +86,7 @@ export default function Header() {
                 </>
               ) : (
                 <p className="px-4 py-2 text-sm text-gray-500">
-                  Verifica tu correo para ver opciones
+                  Verifica tu correo ({user.email}) para ver más opciones
                 </p>
               )}
               {esAdmin && (
