@@ -76,7 +76,7 @@ export default function MisInscripcionesPage() {
             const src = d.data() as InscRaw;
             const carreraId = src.carreraId;
 
-            // Carrera
+            // Obtener datos de la carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
@@ -84,11 +84,12 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // Perfil
+            // Perfil (titular o subperfil)
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
               perfilClub: string | undefined;
+
             if (src.perfilId === src.perfilOwner) {
               const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
               if (uDoc.exists()) {
@@ -105,16 +106,19 @@ export default function MisInscripcionesPage() {
               if (sub.exists()) {
                 const sd = sub.data() as any;
                 perfilNombre = sd.nombre;
-                perfilApPaterno = sd.apellidoPaterno;
-                perfilApMaterno = sd.apellidoMaterno;
+                // Usar los campos correctos de apellidos en subperfiles
+                perfilApPaterno = sd.apPaterno || sd.apellidoPaterno || "";
+                perfilApMaterno = sd.apMaterno || sd.apellidoMaterno || "";
                 perfilClub = sd.club;
               }
             }
 
-            // Fechas
+            // Fecha de inscripción
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
+
+            // Fecha de la carrera
             let fechaCarr = "";
             if (cdata.fecha instanceof Timestamp) {
               const dt = (cdata.fecha as Timestamp).toDate();
@@ -127,7 +131,6 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${d}/${m}/${y}`;
             }
 
-            // Usar el status guardado
             const paymentStatus = src.paymentStatus ?? "desconocido";
 
             return {
@@ -202,18 +205,11 @@ export default function MisInscripcionesPage() {
         ) : (
           <ul className="space-y-6">
             {list.map((i) => (
-              <li
-                key={i.id}
-                className="border rounded shadow hover:shadow-lg overflow-hidden"
-              >
+              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
                 <div className="flex flex-col md:flex-row">
                   {i.imagenUrl ? (
                     <div className="md:w-1/3 h-48 overflow-hidden">
-                      <img
-                        src={i.imagenUrl}
-                        alt={i.titulo}
-                        className="w-full h-full object-cover"
-                      />
+                      <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
