@@ -17,6 +17,6 @@ async function setAdmin(uid) {
 }
 
 // Reemplaza aquí tu UID real
-setAdmin('vzCL6ToMtte7bSsvQT4evnfHdnj1')
+setAdmin('wrug7aS09zVps6nEDNRx8eTi8hO2')
   .catch(console.error)
   .then(() => process.exit());
