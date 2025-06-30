@@ -21,10 +21,10 @@ export interface Usuario {
  * Registra o actualiza un usuario en Firestore bajo la colección 'usuarios'.
  */
 export async function registrarUsuario(usuario: Usuario) {
+  // Copiamos datos y limpiamos campos opcionales undefined o vacíos
   const data: Partial<Usuario> = { ...usuario };
-  // Si club es undefined o vacío, lo borramos:
-  if (data.club === undefined || data.club === "") {
+  if (!data.club) {
     delete data.club;
   }
-  await setDoc(doc(db, 'usuarios', usuario.uid), usuario);
+  await setDoc(doc(db, 'usuarios', usuario.uid), data);
 }

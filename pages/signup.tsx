@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { registrarUsuario, Usuario } from "@/lib/usuarios";
 import { useRouter } from "next/router";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  deleteUser,
+} from "firebase/auth";
 import { app } from "@/lib/firebase";
 import {
   UserIcon,
@@ -39,53 +43,82 @@ export default function RegistroUsuarioPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [mensaje, setMensaje] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
   const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
+
     if (formData.password.length < 6) {
-      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+      return setMensaje({
+        type: "error",
+        text: "La contraseña debe tener al menos 6 caracteres.",
+      });
     }
     if (formData.password !== formData.confirmPassword) {
-      return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
+      return setMensaje({
+        type: "error",
+        text: "Las contraseñas no coinciden.",
+      });
     }
+
+    const auth = getAuth(app);
+    let userCred;
     try {
-      const auth = getAuth(app);
-      const userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-      const uid = userCred.user.uid;
-      const edad = calcularEdad(formData.fechaNacimiento);
-      const usuario: Usuario = {
-        uid,
-        nombre: formData.nombre,
-        apPaterno: formData.apellidoPaterno,
-        apMaterno: formData.apellidoMaterno,
-        email: formData.email,
-        celular: formData.celular,
-        pais: formData.pais,
-        estado: formData.estado,
-        ciudad: formData.ciudad,
-        club: formData.club || undefined,
-        fechaNacimiento: formData.fechaNacimiento,
-        edad,
-      };
+      userCred = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+    } catch (err: any) {
+      return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
+    }
+
+    const uid = userCred.user.uid;
+    const edad = calcularEdad(formData.fechaNacimiento);
+    const usuario: Usuario = {
+      uid,
+      nombre: formData.nombre,
+      apPaterno: formData.apellidoPaterno,
+      apMaterno: formData.apellidoMaterno,
+      email: formData.email,
+      celular: formData.celular,
+      pais: formData.pais,
+      estado: formData.estado,
+      ciudad: formData.ciudad,
+      club: formData.club || undefined,
+      fechaNacimiento: formData.fechaNacimiento,
+      edad,
+    };
+
+    try {
       await registrarUsuario(usuario);
       setMensaje({ type: "success", text: "Registro exitoso. Redirigiendo..." });
       setTimeout(() => router.push("/perfil"), 2000);
     } catch (err: any) {
-      setMensaje({ type: "error", text: "Error: " + err.message });
+      // Si falla la escritura en Firestore, borramos el Auth user:
+      await deleteUser(userCred.user);
+      setMensaje({
+        type: "error",
+        text: `Error en Firestore: ${err.message}`,
+      });
     }
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">
+        Crear Cuenta
+      </h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
         <div className="relative">
@@ -244,7 +277,11 @@ export default function RegistroUsuarioPage() {
         </button>
       </form>
       {mensaje && (
-        <p className={`mt-4 text-center text-sm ${mensaje.type === "error" ? "text-red-600" : "text-green-600"}`}>
+        <p
+          className={`mt-4 text-center text-sm ${
+            mensaje.type === "error" ? "text-red-600" : "text-green-600"
+          }`}
+        >
           {mensaje.text}
         </p>
       )}
