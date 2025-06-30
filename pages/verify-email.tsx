@@ -44,8 +44,7 @@ export default function VerifyEmailPage() {
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded shadow-lg text-center">
       <h1 className="text-xl font-semibold mb-4">Confirma tu correo</h1>
       <p>
-        Te hemos enviado un email de verificación. Por favor revísalo y haz clic
-        en el enlace.
+        Te hemos enviado un email de verificación. Por favor revísalo en tu bandeja de entrada o en spam y haz clic en el enlace.
       </p>
       <button
         onClick={handleConfirmed}
