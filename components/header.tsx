@@ -2,7 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
+import {
+  getAuth,
+  onAuthStateChanged,
+  signOut,
+  User,
+} from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
@@ -14,6 +19,7 @@ export default function Header() {
   const [user, setUser] = useState<User | null>(null);
   const [nombre, setNombre] = useState("");
   const [esAdmin, setEsAdmin] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -21,6 +27,8 @@ export default function Header() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
+        setEmailVerified(u.emailVerified);
+        // Carga datos de Firestore
         const snap = await getDoc(doc(db, "usuarios", u.uid));
         const data = snap.data();
         setNombre(data?.nombre || "");
@@ -29,11 +37,13 @@ export default function Header() {
         setUser(null);
         setNombre("");
         setEsAdmin(false);
+        setEmailVerified(false);
       }
     });
     return unsub;
   }, [auth]);
 
+  // Cierra el menú al click fuera
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -73,12 +83,21 @@ export default function Header() {
 
           {menuOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md py-2">
-              <Link href="/mis-inscripciones" className="block px-4 py-2 hover:bg-gray-100">
-                Mis inscripciones
-              </Link>
-              <Link href="/perfil" className="block px-4 py-2 hover:bg-gray-100">
-                Perfil
-              </Link>
+              {emailVerified && (
+                <>
+                  <Link href="/mis-inscripciones" className="block px-4 py-2 hover:bg-gray-100">
+                    Mis inscripciones
+                  </Link>
+                  <Link href="/perfil" className="block px-4 py-2 hover:bg-gray-100">
+                    Perfil
+                  </Link>
+                </>
+              )}
+              {!emailVerified && (
+                <p className="px-4 py-2 text-sm text-gray-500">
+                  Confirma tu email para ver más opciones
+                </p>
+              )}
               {esAdmin && (
                 <Link href="/admin" className="block px-4 py-2 hover:bg-gray-100">
                   Admin
