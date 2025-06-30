@@ -1,6 +1,13 @@
+// pages/signup.tsx
 import React, { useState } from "react";
 import { useRouter } from "next/router";
-import { getAuth, fetchSignInMethodsForEmail, createUserWithEmailAndPassword, sendEmailVerification, deleteUser } from "firebase/auth";
+import {
+  getAuth,
+  fetchSignInMethodsForEmail,
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  deleteUser,
+} from "firebase/auth";
 import { app } from "@/lib/firebase";
 import {
   UserIcon,
@@ -36,13 +43,15 @@ export default function RegistroUsuarioPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [mensaje, setMensaje] = useState<
+    { type: "error" | "success"; text: string } | null
+  >(null);
   const router = useRouter();
   const auth = getAuth(app);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,50 +60,75 @@ export default function RegistroUsuarioPage() {
 
     // 1) Validaciones de contraseña
     if (formData.password.length < 6) {
-      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+      return setMensaje({
+        type: "error",
+        text: "La contraseña debe tener al menos 6 caracteres.",
+      });
     }
     if (formData.password !== formData.confirmPassword) {
-      return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
+      return setMensaje({
+        type: "error",
+        text: "Las contraseñas no coinciden.",
+      });
     }
 
     // 2) Verificar si el email ya existe
     try {
-      const methods = await fetchSignInMethodsForEmail(auth, formData.email);
+      const methods = await fetchSignInMethodsForEmail(
+        auth,
+        formData.email
+      );
       if (methods.length > 0) {
-        return setMensaje({ type: "error", text: "Este correo ya está registrado." });
+        return setMensaje({
+          type: "error",
+          text: "Este correo ya está registrado.",
+        });
       }
     } catch (err: any) {
-      return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
+      return setMensaje({
+        type: "error",
+        text: `Error comprobando email: ${err.message}`,
+      });
     }
 
     // 3) Crear usuario en Auth
     let userCred;
     try {
-      userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      userCred = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
     } catch (err: any) {
-      return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
+      return setMensaje({
+        type: "error",
+        text: `Error en Auth: ${err.message}`,
+      });
     }
 
-    // 4) Enviar correo de verificación (usa la configuración por defecto de Firebase)
+    // 4) Enviar correo de verificación (configuración por defecto)
     try {
       await sendEmailVerification(userCred.user);
       setMensaje({
         type: "success",
         text: "Te hemos enviado un correo de verificación. Revisa tu bandeja y confirma tu email.",
       });
+      router.push("/verify-email");
     } catch (err: any) {
-      // Si falla el envío, elimina el usuario recién creado
+      // si falla, eliminar usuario de Auth
       await deleteUser(userCred.user);
-      return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
+      return setMensaje({
+        type: "error",
+        text: `Error enviando verificación: ${err.message}`,
+      });
     }
-
-    // Aquí puedes redirigir a una página de "Verifica tu correo"
-    // y, tras confirmación, llamar a registrarUsuario(...) para guardar el perfil.
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">
+        Crear Cuenta
+      </h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
         <div className="relative">
@@ -253,7 +287,11 @@ export default function RegistroUsuarioPage() {
         </button>
       </form>
       {mensaje && (
-        <p className={`mt-4 text-center text-sm ${mensaje.type==="error"?"text-red-600":"text-green-600"}`}>
+        <p
+          className={`mt-4 text-center text-sm ${
+            mensaje.type === "error" ? "text-red-600" : "text-green-600"
+          }`}
+        >
           {mensaje.text}
         </p>
       )}
