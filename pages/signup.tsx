@@ -1,4 +1,3 @@
-// pages/signup.tsx
 import React, { useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -56,6 +55,7 @@ export default function RegistroUsuarioPage() {
     e.preventDefault();
     setMensaje(null);
 
+    // Validación de contraseña
     if (formData.password.length < 6) {
       return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
     }
@@ -63,6 +63,7 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
 
+    // Verificar si el correo ya existe
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
       if (methods.length > 0) {
@@ -72,6 +73,7 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
     }
 
+    // Crear usuario en Firebase Auth
     let userCred;
     try {
       userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
@@ -79,15 +81,14 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    if (!userCred.user.emailVerified) {
-      try {
-        await sendEmailVerification(userCred.user);
-        setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
-        router.push('/verify-email');
-      } catch (err: any) {
-        await deleteUser(userCred.user);
-        return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
-      }
+    // Enviar correo de verificación
+    try {
+      await sendEmailVerification(userCred.user);
+      setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
+      router.push('/verify-email');
+    } catch (err: any) {
+      await deleteUser(userCred.user);
+      return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
     }
   };
 
@@ -95,18 +96,41 @@ export default function RegistroUsuarioPage() {
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
       <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Nombre */}
         <div className="relative">
           <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input name="nombre" placeholder="Nombre" value={formData.nombre} onChange={handleChange} required className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
+          <input
+            name="nombre"
+            placeholder="Nombre"
+            value={formData.nombre}
+            onChange={handleChange}
+            required
+            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
         </div>
+        {/* Apellidos */}
         <div className="grid grid-cols-2 gap-4">
           <div className="relative">
             <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input name="apPaterno" placeholder="Apellido Paterno" value={formData.apPaterno} onChange={handleChange} required className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            <input
+              name="apPaterno"
+              placeholder="Apellido Paterno"
+              value={formData.apPaterno}
+              onChange={handleChange}
+              required
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
           </div>
           <div className="relative">
             <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input name="apMaterno" placeholder="Apellido Materno" value={formData.apMaterno} onChange={handleChange} required className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
+            <input
+              name="apMaterno"
+              placeholder="Apellido Materno"
+              value={formData.apMaterno}
+              onChange={handleChange}
+              required
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
           </div>
         </div>
         {/* Email */}
@@ -221,9 +245,16 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-        <button type="submit" className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition">Registrarse</button>
+        <button
+          type="submit"
+          className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
+        >
+          Registrarse
+        </button>
       </form>
-      {mensaje && <p className={`mt-4 text-center ${mensaje.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{mensaje.text}</p>}
+      {mensaje && (
+        <p className={`mt-4 text-center ${mensaje.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{mensaje.text}</p>
+      )}
     </div>
   );
 }

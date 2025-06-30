@@ -1,4 +1,3 @@
-// pages/perfil.tsx
 import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
@@ -56,134 +55,58 @@ export default function PerfilPage() {
   const router = useRouter();
   const auth = getAuth(app);
 
-  // Scroll al formulario si aparece
   useEffect(() => {
-    if (showForm && formRef.current) {
-      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (showForm && formRef.current) formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [showForm]);
 
-  // Carga datos de usuario y perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (!u) {
-        router.push("/login");
-        return;
-      }
+      if (!u) return router.push("/login");
       setUser(u);
-
-      // Perfil principal
+      // principal
       const mainRef = doc(db, "usuarios", u.uid);
       const mainSnap = await getDoc(mainRef);
       if (mainSnap.exists()) {
         const data = mainSnap.data() as any;
-        const mainData: UserData = {
-          id: u.uid,
-          nombre: data.nombre,
-          apPaterno: data.apPaterno,
-          apMaterno: data.apMaterno,
-          email: data.email,
-          celular: data.celular,
-          pais: data.pais,
-          estado: data.estado,
-          ciudad: data.ciudad,
-          club: data.club,
-          fechaNacimiento: data.fechaNacimiento,
-          edad: data.edad,
-        };
+        const mainData: UserData = { id: u.uid, nombre: data.nombre, apPaterno: data.apPaterno, apMaterno: data.apMaterno, email: data.email, celular: data.celular, pais: data.pais, estado: data.estado, ciudad: data.ciudad, club: data.club, fechaNacimiento: data.fechaNacimiento, edad: data.edad };
         setUserData(mainData);
         setSelectedProfile(mainData);
       }
-
-      // Sub-perfiles
+      // sub-perfiles
       const snap = await getDocs(collection(db, "usuarios", u.uid, "perfiles"));
-      setProfiles(
-        snap.docs.map((d) => ({ id: d.id, ...(d.data() as UserData) }))
-      );
+      setProfiles(snap.docs.map(d => ({ id: d.id, ...(d.data() as UserData) })));
       setLoading(false);
     });
     return () => unsub();
   }, [auth, router]);
 
-  // Calcula edad
   const calcAge = (date: string) => {
-    const today = new Date();
-    const birth = new Date(date);
+    const today = new Date(); const birth = new Date(date);
     let age = today.getFullYear() - birth.getFullYear();
     const m = today.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
     return age;
   };
 
-  // Guarda o actualiza perfil
   const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-    const profileWithAge = {
-      ...newProfile,
-      edad: calcAge(newProfile.fechaNacimiento),
-    } as any;
-
+    e.preventDefault(); if (!user) return;
+    const profileWithAge = { ...newProfile, edad: calcAge(newProfile.fechaNacimiento) } as any;
     if (editingProfile?.id) {
-      if (editingProfile.id === user.uid) {
-        // actualizar perfil principal
-        await updateDoc(doc(db, "usuarios", user.uid), profileWithAge);
-      } else {
-        // actualizar sub-perfil
-        await updateDoc(
-          doc(db, "usuarios", user.uid, "perfiles", editingProfile.id),
-          profileWithAge
-        );
-      }
+      if (editingProfile.id === user.uid) await updateDoc(doc(db, "usuarios", user.uid), profileWithAge);
+      else await updateDoc(doc(db, "usuarios", user.uid, "perfiles", editingProfile.id), profileWithAge);
       setEditingProfile(null);
-    } else {
-      // crear nuevo sub-perfil
-      await addDoc(collection(db, "usuarios", user.uid, "perfiles"), profileWithAge);
-    }
-
-    // reset
-    setNewProfile({
-      nombre: "",
-      apPaterno: "",
-      apMaterno: "",
-      email: "",
-      celular: "",
-      pais: "",
-      estado: "",
-      ciudad: "",
-      club: "",
-      fechaNacimiento: "",
-    });
+    } else await addDoc(collection(db, "usuarios", user.uid, "perfiles"), profileWithAge);
+    setNewProfile({ nombre:"", apPaterno:"", apMaterno:"", email:"", celular:"", pais:"", estado:"", ciudad:"", club:"", fechaNacimiento:"" });
     setShowForm(false);
-
-    // recarga lista
-    const snap = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
-    setProfiles(snap.docs.map((d) => ({ id: d.id, ...(d.data() as UserData) })));
+    const s = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
+    setProfiles(s.docs.map(d=>({ id:d.id, ...(d.data() as UserData) })));
   };
 
-  // Inicia edición
-  const startEdit = (p: UserData) => {
-    setEditingProfile(p);
-    setNewProfile(p);
-    setShowForm(true);
-  };
+  const startEdit = (p: UserData) => { setEditingProfile(p); setNewProfile(p); setShowForm(true); };
+  const handleDelete = async (id:string) => { if(!user||!confirm("¿Eliminar este perfil?")) return; await deleteDoc(doc(db,"usuarios",user.uid,"perfiles",id)); setProfiles(profiles.filter(x=>x.id!==id)); };
+  const logout = async()=>{ await signOut(auth); router.push("/login"); };
 
-  // Elimina perfil
-  const handleDelete = async (id: string) => {
-    if (!user || !confirm("¿Eliminar este perfil?")) return;
-    await deleteDoc(doc(db, "usuarios", user.uid, "perfiles", id));
-    setProfiles(profiles.filter((x) => x.id !== id));
-  };
-
-  // Cerrar sesión
-  const logout = async () => {
-    await signOut(auth);
-    router.push("/login");
-  };
-
-  if (loading || !userData) {
-    return <p className="text-center mt-10">Cargando perfil…</p>;
-  }
+  if (loading||!userData) return <p className="text-center mt-10">Cargando perfil…</p>;
 
   return (
     <AuthGuard>
