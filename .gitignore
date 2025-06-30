@@ -3,3 +3,4 @@ node_modules
 .next
 outserviceAccount.json
 serviceAccount.json
+/scripts/serviceAccountKey.json
