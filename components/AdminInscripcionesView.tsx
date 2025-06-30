@@ -29,8 +29,8 @@ interface InscripcionItem {
   perfil: PerfilData | null;
   categoria: string;
   timestamp: any;
-  sessionId?: string;      // viene de Firestore
-  payment_status?: string; // lo rellenamos más abajo
+  sessionId?: string;
+  payment_status?: string;
 }
 
 export default function AdminInscripcionesView() {
@@ -47,7 +47,7 @@ export default function AdminInscripcionesView() {
     })();
   }, []);
 
-  // 2) Cargo inscripciones + perfil + sessionId
+  // 2) Cargo inscripciones + perfil + sessionId + status
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
@@ -62,21 +62,20 @@ export default function AdminInscripcionesView() {
       );
       const snap = await getDocs(q);
 
-      // Primero obtengo perfil y sessionId
       const items: InscripcionItem[] = await Promise.all(
         snap.docs.map(async d => {
-          const data = d.data()!;
+          const data = d.data();
           let perfil: PerfilData | null = null;
 
-          // Perfil principal vs subperfil
+          // Perfil principal
           if (data.perfilId === data.perfilOwner) {
             const main = await getDoc(doc(db, 'usuarios', data.perfilOwner));
             if (main.exists()) {
               const m = main.data() as any;
               perfil = {
                 nombre: m.nombre,
-                apellidoPaterno: m.apPaterno || m.apellidoPaterno,
-                apellidoMaterno: m.apMaterno || m.apellidoMaterno,
+                apellidoPaterno: m.apPaterno || '',
+                apellidoMaterno: m.apMaterno || '',
                 celular: m.celular,
                 pais: m.pais,
                 estado: m.estado,
@@ -86,6 +85,7 @@ export default function AdminInscripcionesView() {
               };
             }
           } else {
+            // Subperfil
             const sub = await getDoc(
               doc(db, 'usuarios', data.perfilOwner, 'perfiles', data.perfilId)
             );
@@ -93,8 +93,8 @@ export default function AdminInscripcionesView() {
               const s = sub.data() as any;
               perfil = {
                 nombre: s.nombre,
-                apellidoPaterno: s.apellidoPaterno,
-                apellidoMaterno: s.apellidoMaterno,
+                apellidoPaterno: s.apPaterno || '',
+                apellidoMaterno: s.apMaterno || '',
                 celular: s.celular,
                 pais: s.pais,
                 estado: s.estado,
@@ -105,39 +105,36 @@ export default function AdminInscripcionesView() {
             }
           }
 
+          // Obtener estado de pago desde Stripe
+          let payment_status: string | undefined;
+          const sessionId = (data as any).sessionId;
+          if (sessionId) {
+            try {
+              const res = await fetch(`/api/get-session?session_id=${sessionId}`);
+              if (res.ok) {
+                const json = await res.json();
+                payment_status = json.payment_status;
+              }
+            } catch {}
+          }
+
           return {
             id: d.id,
             perfil,
             categoria: data.categoria,
             timestamp: data.timestamp,
-            sessionId: (data as any).sessionId
+            sessionId,
+            payment_status
           };
         })
       );
 
-      // 3) Para cada inscripción con sessionId, consulto Stripe
-      const withStatus = await Promise.all(
-        items.map(async item => {
-          if (!item.sessionId) return item;
-          try {
-            const res = await fetch(`/api/get-session?session_id=${item.sessionId}`);
-            if (res.ok) {
-              const json = await res.json();
-              return { ...item, payment_status: json.payment_status };
-            }
-          } catch {
-            // ignoro errores individuales
-          }
-          return item;
-        })
-      );
-
-      setInscripciones(withStatus);
+      setInscripciones(items);
       setLoading(false);
     })();
   }, [selectedCarrera]);
 
-  // 4) Exportar a Excel incluyendo el estado de pago
+  // Exportar a Excel
   const exportExcel = () => {
     const rows = inscripciones.map(i => ({
       Nombre: i.perfil?.nombre,
@@ -159,7 +156,6 @@ export default function AdminInscripcionesView() {
 
   return (
     <div className="p-6">
-      {/* Header con botón de exportar */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
         <button
@@ -172,7 +168,6 @@ export default function AdminInscripcionesView() {
         </button>
       </div>
 
-      {/* Selector de carrera */}
       <select
         value={selectedCarrera}
         onChange={e => setSelectedCarrera(e.target.value)}
@@ -180,9 +175,7 @@ export default function AdminInscripcionesView() {
       >
         <option value="">-- Elige una carrera --</option>
         {carreras.map(c => (
-          <option key={c.id} value={c.id}>
-            {c.titulo}
-          </option>
+          <option key={c.id} value={c.id}>{c.titulo}</option>
         ))}
       </select>
 
@@ -213,11 +206,11 @@ export default function AdminInscripcionesView() {
                   <td className="p-2">{i.perfil?.celular}</td>
                   <td className="p-2">{i.categoria}</td>
                   <td className="p-2 capitalize">{i.payment_status || '-'}</td>
-                  <td className="p-2">
-                    {i.timestamp?.toDate
+                  <td className="p-2">{
+                    i.timestamp?.toDate
                       ? i.timestamp.toDate().toLocaleString()
-                      : '-'}
-                  </td>
+                      : '-'
+                  }</td>
                 </tr>
               ))}
             </tbody>
