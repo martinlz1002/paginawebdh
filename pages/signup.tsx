@@ -43,43 +43,65 @@ export default function RegistroUsuarioPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [mensaje, setMensaje] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
   const router = useRouter();
   const auth = getAuth(app);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    setFormData((p) => ({ ...p, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
 
+    // 1) Validaciones de contraseña
     if (formData.password.length < 6) {
-      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+      return setMensaje({
+        type: "error",
+        text: "La contraseña debe tener al menos 6 caracteres.",
+      });
     }
     if (formData.password !== formData.confirmPassword) {
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
 
+    // 2) Comprueba email libre
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
       if (methods.length > 0) {
-        return setMensaje({ type: "error", text: "Este correo ya está registrado." });
+        return setMensaje({
+          type: "error",
+          text: "Este correo ya está registrado.",
+        });
       }
     } catch (err: any) {
-      return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
+      return setMensaje({
+        type: "error",
+        text: `Error comprobando email: ${err.message}`,
+      });
     }
 
+    // 3) Crea en Auth
     let userCred;
     try {
-      userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      userCred = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
     } catch (err: any) {
-      return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
+      return setMensaje({
+        type: "error",
+        text: `Error en Auth: ${err.message}`,
+      });
     }
 
-    // enviar verificación y guardar datos pendientes
+    // 4) Envía verificación y almacena datos en localStorage
     try {
       await sendEmailVerification(userCred.user);
       const pending: Usuario = {
@@ -96,19 +118,26 @@ export default function RegistroUsuarioPage() {
         fechaNacimiento: formData.fechaNacimiento,
         edad: calcularEdad(formData.fechaNacimiento),
       };
-      sessionStorage.setItem('pendingUser', JSON.stringify(pending));
-
-      setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
-      router.push('/verify-email');
+      localStorage.setItem("pendingUser", JSON.stringify(pending));
+      setMensaje({
+        type: "success",
+        text: "Correo de verificación enviado. Revisa tu bandeja.",
+      });
+      router.push("/verify-email");
     } catch (err: any) {
       await deleteUser(userCred.user);
-      return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
+      return setMensaje({
+        type: "error",
+        text: `Error enviando verificación: ${err.message}`,
+      });
     }
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">
+        Crear Cuenta
+      </h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
         <div className="relative">
