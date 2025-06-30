@@ -1,14 +1,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/router";
-import { registrarUsuario, Usuario } from "@/lib/usuarios";
+import { getAuth, fetchSignInMethodsForEmail, createUserWithEmailAndPassword, sendEmailVerification, deleteUser } from "firebase/auth";
 import { app } from "@/lib/firebase";
-import {
-  getAuth,
-  fetchSignInMethodsForEmail,
-  createUserWithEmailAndPassword,
-  sendEmailVerification,
-  deleteUser,
-} from "firebase/auth";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -24,9 +17,7 @@ function calcularEdad(fechaNacimiento: string): number {
   const nacimiento = new Date(fechaNacimiento);
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-    edad--;
-  }
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
   return edad;
 }
 
@@ -58,7 +49,7 @@ export default function RegistroUsuarioPage() {
     e.preventDefault();
     setMensaje(null);
 
-    // 1) Validaciones de password
+    // 1) Validaciones de contraseña
     if (formData.password.length < 6) {
       return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
     }
@@ -66,7 +57,7 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
 
-    // 2) Comprueba si el email ya existe
+    // 2) Verificar si el email ya existe
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
       if (methods.length > 0) {
@@ -76,7 +67,7 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
     }
 
-    // 3) Crea el usuario en Auth
+    // 3) Crear usuario en Auth
     let userCred;
     try {
       userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
@@ -84,22 +75,21 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    // 4) Envía correo de verificación
+    // 4) Enviar correo de verificación (usa la configuración por defecto de Firebase)
     try {
-      await sendEmailVerification(userCred.user, {
-        url: `${window.location.origin}/perfil`, 
-      });
+      await sendEmailVerification(userCred.user);
       setMensaje({
         type: "success",
         text: "Te hemos enviado un correo de verificación. Revisa tu bandeja y confirma tu email.",
       });
     } catch (err: any) {
+      // Si falla el envío, elimina el usuario recién creado
       await deleteUser(userCred.user);
       return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
     }
 
-    // 5) Espera a que el usuario confirme. Puedes redirigirlo a una página de "Verifica tu correo"
-    //    y desde ahí, tras confirmar, llamar a registrarUsuario.
+    // Aquí puedes redirigir a una página de "Verifica tu correo"
+    // y, tras confirmación, llamar a registrarUsuario(...) para guardar el perfil.
   };
 
   return (
@@ -115,7 +105,7 @@ export default function RegistroUsuarioPage() {
             value={formData.nombre}
             onChange={handleChange}
             required
-            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
         {/* Apellidos */}
@@ -128,7 +118,7 @@ export default function RegistroUsuarioPage() {
               value={formData.apellidoPaterno}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
           <div className="relative">
@@ -139,7 +129,7 @@ export default function RegistroUsuarioPage() {
               value={formData.apellidoMaterno}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
         </div>
@@ -153,7 +143,7 @@ export default function RegistroUsuarioPage() {
             value={formData.email}
             onChange={handleChange}
             required
-            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
         {/* Contraseña */}
@@ -167,7 +157,7 @@ export default function RegistroUsuarioPage() {
               value={formData.password}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
           <div className="relative">
@@ -179,10 +169,11 @@ export default function RegistroUsuarioPage() {
               value={formData.confirmPassword}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
         </div>
+        {/* Resto de campos (celular, ubicación, club, fecha)… */}
         {/* Celular */}
         <div className="relative">
           <PhoneIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -193,10 +184,10 @@ export default function RegistroUsuarioPage() {
             value={formData.celular}
             onChange={handleChange}
             required
-            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-        {/* Ubicación */}
+        {/* País, estado, ciudad, club */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="relative">
             <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -206,7 +197,7 @@ export default function RegistroUsuarioPage() {
               value={formData.pais}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
           <div className="relative">
@@ -217,7 +208,7 @@ export default function RegistroUsuarioPage() {
               value={formData.estado}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
           <div className="relative">
@@ -228,7 +219,7 @@ export default function RegistroUsuarioPage() {
               value={formData.ciudad}
               onChange={handleChange}
               required
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
           <div className="relative">
@@ -238,7 +229,7 @@ export default function RegistroUsuarioPage() {
               placeholder="Club (opcional)"
               value={formData.club}
               onChange={handleChange}
-              className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
             />
           </div>
         </div>
@@ -251,10 +242,9 @@ export default function RegistroUsuarioPage() {
             value={formData.fechaNacimiento}
             onChange={handleChange}
             required
-            className="w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-        {/* Botón */}
         <button
           type="submit"
           className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
@@ -263,11 +253,7 @@ export default function RegistroUsuarioPage() {
         </button>
       </form>
       {mensaje && (
-        <p
-          className={`mt-4 text-center text-sm ${
-            mensaje.type === "error" ? "text-red-600" : "text-green-600"
-          }`}
-        >
+        <p className={`mt-4 text-center text-sm ${mensaje.type==="error"?"text-red-600":"text-green-600"}`}>
           {mensaje.text}
         </p>
       )}

@@ -2,12 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signOut,
-  User,
-} from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
@@ -26,9 +21,11 @@ export default function Header() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
-        setUser(u);
+        // recarga para obtener emailVerified actualizado
+        await u.reload();
         setEmailVerified(u.emailVerified);
-        // Carga datos de Firestore
+
+        setUser(u);
         const snap = await getDoc(doc(db, "usuarios", u.uid));
         const data = snap.data();
         setNombre(data?.nombre || "");
@@ -43,7 +40,6 @@ export default function Header() {
     return unsub;
   }, [auth]);
 
-  // Cierra el menú al click fuera
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -61,29 +57,23 @@ export default function Header() {
 
   return (
     <header className="flex justify-between items-center p-4 bg-white shadow sticky top-0 z-50">
-      {/* Logo */}
       <Link href="/" className="flex items-center">
         <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
       </Link>
 
-      {/* Menú usuario */}
       {user ? (
         <div className="relative" ref={menuRef}>
           <button
-            onClick={() => setMenuOpen((o) => !o)}
+            onClick={() => setMenuOpen(o => !o)}
             className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 transition"
           >
             <span className="font-medium">{nombre}</span>
-            {menuOpen ? (
-              <XMarkIcon className="w-4 h-4" />
-            ) : (
-              <ChevronDownIcon className="w-4 h-4" />
-            )}
+            {menuOpen ? <XMarkIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
           </button>
 
           {menuOpen && (
             <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md py-2">
-              {emailVerified && (
+              {emailVerified ? (
                 <>
                   <Link href="/mis-inscripciones" className="block px-4 py-2 hover:bg-gray-100">
                     Mis inscripciones
@@ -92,10 +82,9 @@ export default function Header() {
                     Perfil
                   </Link>
                 </>
-              )}
-              {!emailVerified && (
+              ) : (
                 <p className="px-4 py-2 text-sm text-gray-500">
-                  Confirma tu email para ver más opciones
+                  Verifica tu correo para ver opciones
                 </p>
               )}
               {esAdmin && (
