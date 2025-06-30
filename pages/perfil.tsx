@@ -1,13 +1,14 @@
-import { useEffect, useState, useRef } from "react";
+// pages/perfil.tsx
+import React, { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import {
-  addDoc,
-  getDoc,
-  getDocs,
   doc,
+  getDoc,
   collection,
+  getDocs,
   updateDoc,
+  addDoc,
   deleteDoc,
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
@@ -16,8 +17,8 @@ import AuthGuard from "@/components/AuthGuard";
 interface UserData {
   id?: string;
   nombre: string;
-  apellidoPaterno: string;
-  apellidoMaterno: string;
+  apPaterno: string;
+  apMaterno: string;
   email?: string;
   celular?: string;
   pais?: string;
@@ -38,8 +39,8 @@ export default function PerfilPage() {
 
   const [newProfile, setNewProfile] = useState<UserData>({
     nombre: "",
-    apellidoPaterno: "",
-    apellidoMaterno: "",
+    apPaterno: "",
+    apMaterno: "",
     email: "",
     celular: "",
     pais: "",
@@ -55,30 +56,56 @@ export default function PerfilPage() {
   const router = useRouter();
   const auth = getAuth(app);
 
+  // Scroll al formulario si aparece
   useEffect(() => {
     if (showForm && formRef.current) {
       formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [showForm]);
 
+  // Carga datos de usuario y perfiles
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (u) => {
-      if (!u) return router.push("/login");
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) {
+        router.push("/login");
+        return;
+      }
       setUser(u);
-      const docRef = doc(db, "usuarios", u.uid);
-      const docSnap = await getDoc(docRef);
-      if (!docSnap.exists()) return;
-      const data = { id: u.uid, ...(docSnap.data() as UserData) };
-      setUserData(data);
-      setSelectedProfile(data);
+
+      // Perfil principal
+      const mainRef = doc(db, "usuarios", u.uid);
+      const mainSnap = await getDoc(mainRef);
+      if (mainSnap.exists()) {
+        const data = mainSnap.data() as any;
+        const mainData: UserData = {
+          id: u.uid,
+          nombre: data.nombre,
+          apPaterno: data.apPaterno,
+          apMaterno: data.apMaterno,
+          email: data.email,
+          celular: data.celular,
+          pais: data.pais,
+          estado: data.estado,
+          ciudad: data.ciudad,
+          club: data.club,
+          fechaNacimiento: data.fechaNacimiento,
+          edad: data.edad,
+        };
+        setUserData(mainData);
+        setSelectedProfile(mainData);
+      }
+
+      // Sub-perfiles
       const snap = await getDocs(collection(db, "usuarios", u.uid, "perfiles"));
-      const list = snap.docs.map(d => ({ id: d.id, ...(d.data() as UserData) }));
-      setProfiles(list);
+      setProfiles(
+        snap.docs.map((d) => ({ id: d.id, ...(d.data() as UserData) }))
+      );
       setLoading(false);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, [auth, router]);
 
+  // Calcula edad
   const calcAge = (date: string) => {
     const today = new Date();
     const birth = new Date(date);
@@ -88,52 +115,67 @@ export default function PerfilPage() {
     return age;
   };
 
+  // Guarda o actualiza perfil
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     const profileWithAge = {
       ...newProfile,
       edad: calcAge(newProfile.fechaNacimiento),
-      creado: new Date(),
     } as any;
+
     if (editingProfile?.id) {
-      await updateDoc(
-        doc(db, "usuarios", user.uid, "perfiles", editingProfile.id),
-        profileWithAge
-      );
+      if (editingProfile.id === user.uid) {
+        // actualizar perfil principal
+        await updateDoc(doc(db, "usuarios", user.uid), profileWithAge);
+      } else {
+        // actualizar sub-perfil
+        await updateDoc(
+          doc(db, "usuarios", user.uid, "perfiles", editingProfile.id),
+          profileWithAge
+        );
+      }
       setEditingProfile(null);
     } else {
+      // crear nuevo sub-perfil
       await addDoc(collection(db, "usuarios", user.uid, "perfiles"), profileWithAge);
     }
-    setNewProfile({ nombre:"", apellidoPaterno:"", apellidoMaterno:"", email:"", celular:"", pais:"", estado:"", ciudad:"", club:"", fechaNacimiento:"" });
+
+    // reset
+    setNewProfile({
+      nombre: "",
+      apPaterno: "",
+      apMaterno: "",
+      email: "",
+      celular: "",
+      pais: "",
+      estado: "",
+      ciudad: "",
+      club: "",
+      fechaNacimiento: "",
+    });
     setShowForm(false);
+
+    // recarga lista
     const snap = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
-    setProfiles(snap.docs.map(d => ({ id: d.id, ...(d.data() as UserData) })));
+    setProfiles(snap.docs.map((d) => ({ id: d.id, ...(d.data() as UserData) })));
   };
 
+  // Inicia edición
   const startEdit = (p: UserData) => {
     setEditingProfile(p);
-    setNewProfile({
-      nombre: p.nombre,
-      apellidoPaterno: p.apellidoPaterno,
-      apellidoMaterno: p.apellidoMaterno,
-      email: p.email || "",
-      celular: p.celular || "",
-      pais: p.pais || "",
-      estado: p.estado || "",
-      ciudad: p.ciudad || "",
-      club: p.club || "",
-      fechaNacimiento: p.fechaNacimiento,
-    });
+    setNewProfile(p);
     setShowForm(true);
   };
 
+  // Elimina perfil
   const handleDelete = async (id: string) => {
     if (!user || !confirm("¿Eliminar este perfil?")) return;
     await deleteDoc(doc(db, "usuarios", user.uid, "perfiles", id));
-    setProfiles(profiles.filter(x => x.id !== id));
+    setProfiles(profiles.filter((x) => x.id !== id));
   };
 
+  // Cerrar sesión
   const logout = async () => {
     await signOut(auth);
     router.push("/login");
@@ -146,9 +188,9 @@ export default function PerfilPage() {
   return (
     <AuthGuard>
       <div className="max-w-4xl mx-auto space-y-8 p-4 sm:p-6 lg:p-8">
-        {/* Top section */}
+        {/* Top */}
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Profile info */}
+          {/* Sección principal */}
           <div className="flex-1 bg-white rounded-lg shadow-md p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-semibold">Mi Perfil</h2>
@@ -164,19 +206,22 @@ export default function PerfilPage() {
               <label className="block text-sm font-medium">Ver como:</label>
               <select
                 className="w-full border rounded-md p-2"
-                value={selectedProfile?.id || "titular"}
-                onChange={e => {
+                value={selectedProfile?.id || userData.id}
+                onChange={(e) => {
                   const val = e.target.value;
-                  if (val === "titular") setSelectedProfile(userData);
-                  else setSelectedProfile(profiles.find(x => x.id === val) || null);
+                  if (val === userData.id) setSelectedProfile(userData);
+                  else
+                    setSelectedProfile(
+                      profiles.find((x) => x.id === val) || null
+                    );
                 }}
               >
-                <option value="titular">
-                  Titular: {userData.nombre} {userData.apellidoPaterno}
+                <option value={userData.id}>
+                  Titular: {userData.nombre} {userData.apPaterno}
                 </option>
-                {profiles.map(p => (
+                {profiles.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.nombre} {p.apellidoPaterno}
+                    {p.nombre} {p.apPaterno}
                   </option>
                 ))}
               </select>
@@ -184,45 +229,37 @@ export default function PerfilPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <p>
-                <span className="font-medium">Nombre:</span>{" "}
-                {selectedProfile?.nombre} {selectedProfile?.apellidoPaterno}{" "}
-                {selectedProfile?.apellidoMaterno}
+                <span className="font-medium">Nombre:</span> {selectedProfile?.nombre}{" "}
+                {selectedProfile?.apPaterno} {selectedProfile?.apMaterno}
               </p>
               <p>
-                <span className="font-medium">Email:</span>{" "}
-                {selectedProfile?.email}
+                <span className="font-medium">Email:</span> {selectedProfile?.email}
               </p>
               <p>
-                <span className="font-medium">Celular:</span>{" "}
-                {selectedProfile?.celular}
+                <span className="font-medium">Celular:</span> {selectedProfile?.celular}
               </p>
               <p>
-                <span className="font-medium">Ubicación:</span>{" "}
-                {selectedProfile?.ciudad}, {selectedProfile?.estado},{" "}
-                {selectedProfile?.pais}
+                <span className="font-medium">Ubicación:</span> {selectedProfile?.ciudad}, {selectedProfile?.estado}, {selectedProfile?.pais}
               </p>
               <p>
-                <span className="font-medium">Nacimiento:</span>{" "}
-                {selectedProfile?.fechaNacimiento}
+                <span className="font-medium">Nacimiento:</span> {selectedProfile?.fechaNacimiento}
               </p>
               <p>
-                <span className="font-medium">Edad:</span>{" "}
-                {selectedProfile?.edad}
+                <span className="font-medium">Edad:</span> {selectedProfile?.edad}
               </p>
               {selectedProfile?.club && (
                 <p>
-                  <span className="font-medium">Club:</span>{" "}
-                  {selectedProfile.club}
+                  <span className="font-medium">Club:</span> {selectedProfile.club}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Add / edit profiles */}
+          {/* Formulario perfiles */}
           <div className="w-full md:w-1/3 bg-white rounded-lg shadow-md p-6">
             <button
               onClick={() => {
-                setShowForm(prev => !prev);
+                setShowForm((prev) => !prev);
                 setEditingProfile(null);
               }}
               className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
@@ -233,14 +270,26 @@ export default function PerfilPage() {
             {showForm && (
               <div ref={formRef} className="mt-4 space-y-3">
                 <form onSubmit={handleSave} className="space-y-4">
-                  {["nombre","apellidoPaterno","apellidoMaterno","email","celular","pais","estado","ciudad","club"].map(field => (
+                  {[
+                    "nombre",
+                    "apPaterno",
+                    "apMaterno",
+                    "email",
+                    "celular",
+                    "pais",
+                    "estado",
+                    "ciudad",
+                    "club",
+                  ].map((field) => (
                     <input
                       key={field}
-                      type={field==="email"? "email" : "text"}
-                      placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                      type={field === "email" ? "email" : "text"}
+                      placeholder={
+                        field.charAt(0).toUpperCase() + field.slice(1)
+                      }
                       value={(newProfile as any)[field] || ""}
-                      onChange={e =>
-                        setNewProfile(prev => ({
+                      onChange={(e) =>
+                        setNewProfile((prev) => ({
                           ...prev,
                           [field]: e.target.value,
                         }))
@@ -252,8 +301,8 @@ export default function PerfilPage() {
                   <input
                     type="date"
                     value={newProfile.fechaNacimiento}
-                    onChange={e =>
-                      setNewProfile(prev => ({
+                    onChange={(e) =>
+                      setNewProfile((prev) => ({
                         ...prev,
                         fechaNacimiento: e.target.value,
                       }))
@@ -273,18 +322,18 @@ export default function PerfilPage() {
           </div>
         </div>
 
-        {/* Existing profiles list */}
+        {/* Lista de perfiles */}
         {profiles.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold mb-4">Perfiles Guardados</h3>
             <ul className="space-y-3">
-              {profiles.map(p => (
+              {profiles.map((p) => (
                 <li
                   key={p.id}
                   className="flex justify-between items-center border-b pb-2"
                 >
                   <span>
-                    {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno}
+                    {p.nombre} {p.apPaterno} {p.apMaterno}
                   </span>
                   <div className="space-x-4">
                     <button

@@ -31,8 +31,8 @@ function calcularEdad(fechaNacimiento: string): number {
 export default function RegistroUsuarioPage() {
   const [formData, setFormData] = useState({
     nombre: "",
-    apellidoPaterno: "",
-    apellidoMaterno: "",
+    apPaterno: "",
+    apMaterno: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -43,128 +43,70 @@ export default function RegistroUsuarioPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState<
-    { type: "error" | "success"; text: string } | null
-  >(null);
+  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const router = useRouter();
   const auth = getAuth(app);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
 
-    // 1) Validaciones de contraseña
     if (formData.password.length < 6) {
-      return setMensaje({
-        type: "error",
-        text: "La contraseña debe tener al menos 6 caracteres.",
-      });
+      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
     }
     if (formData.password !== formData.confirmPassword) {
-      return setMensaje({
-        type: "error",
-        text: "Las contraseñas no coinciden.",
-      });
+      return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
     }
 
-    // 2) Verificar si el email ya existe
     try {
-      const methods = await fetchSignInMethodsForEmail(
-        auth,
-        formData.email
-      );
+      const methods = await fetchSignInMethodsForEmail(auth, formData.email);
       if (methods.length > 0) {
-        return setMensaje({
-          type: "error",
-          text: "Este correo ya está registrado.",
-        });
+        return setMensaje({ type: "error", text: "Este correo ya está registrado." });
       }
     } catch (err: any) {
-      return setMensaje({
-        type: "error",
-        text: `Error comprobando email: ${err.message}`,
-      });
+      return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
     }
 
-    // 3) Crear usuario en Auth
     let userCred;
     try {
-      userCred = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
+      userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     } catch (err: any) {
-      return setMensaje({
-        type: "error",
-        text: `Error en Auth: ${err.message}`,
-      });
+      return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    // 4) Enviar correo de verificación (configuración por defecto)
-    try {
-      await sendEmailVerification(userCred.user);
-      setMensaje({
-        type: "success",
-        text: "Te hemos enviado un correo de verificación. Revisa tu bandeja y confirma tu email.",
-      });
-      router.push("/verify-email");
-    } catch (err: any) {
-      // si falla, eliminar usuario de Auth
-      await deleteUser(userCred.user);
-      return setMensaje({
-        type: "error",
-        text: `Error enviando verificación: ${err.message}`,
-      });
+    if (!userCred.user.emailVerified) {
+      try {
+        await sendEmailVerification(userCred.user);
+        setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
+        router.push('/verify-email');
+      } catch (err: any) {
+        await deleteUser(userCred.user);
+        return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
+      }
     }
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">
-        Crear Cuenta
-      </h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Nombre */}
         <div className="relative">
           <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="nombre"
-            placeholder="Nombre"
-            value={formData.nombre}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-          />
+          <input name="nombre" placeholder="Nombre" value={formData.nombre} onChange={handleChange} required className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
         </div>
-        {/* Apellidos */}
         <div className="grid grid-cols-2 gap-4">
           <div className="relative">
             <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="apellidoPaterno"
-              placeholder="Apellido Paterno"
-              value={formData.apellidoPaterno}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
+            <input name="apPaterno" placeholder="Apellido Paterno" value={formData.apPaterno} onChange={handleChange} required className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
           </div>
           <div className="relative">
             <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="apellidoMaterno"
-              placeholder="Apellido Materno"
-              value={formData.apellidoMaterno}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
+            <input name="apMaterno" placeholder="Apellido Materno" value={formData.apMaterno} onChange={handleChange} required className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400" />
           </div>
         </div>
         {/* Email */}
@@ -279,22 +221,9 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-        <button
-          type="submit"
-          className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
-        >
-          Registrarse
-        </button>
+        <button type="submit" className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition">Registrarse</button>
       </form>
-      {mensaje && (
-        <p
-          className={`mt-4 text-center text-sm ${
-            mensaje.type === "error" ? "text-red-600" : "text-green-600"
-          }`}
-        >
-          {mensaje.text}
-        </p>
-      )}
+      {mensaje && <p className={`mt-4 text-center ${mensaje.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{mensaje.text}</p>}
     </div>
   );
 }
