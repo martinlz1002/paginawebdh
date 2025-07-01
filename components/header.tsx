@@ -65,8 +65,8 @@ export default function Header() {
     <header className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm sticky top-0 z-50">
       {/* Logo */}
       <Link href="/" className="flex items-center space-x-2">
-        <Image src="/mi-logo.png" alt="Logo" width={48} height={48} />
-        <span className="text-2xl font-bold text-green-800">DH Time</span>
+        <Image src="/mi-logo.png" alt="Logo" width={150} height={150} />
+        <span className="text-2xl font-bold text-green-800"></span>
       </Link>
 
       {/* Tagline */}
