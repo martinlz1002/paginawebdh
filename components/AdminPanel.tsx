@@ -19,19 +19,22 @@ export default function AdminPanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   const toggleMenu = () => setMenuOpen(o => !o);
 
-  // States for carreras and delete action
+  // 1) estado para edición de carrera
+  const [editItem, setEditItem] = useState<CarreraItem | undefined>(undefined);
+
+  // States for carreras y eliminación de inscripciones
   const [carreras, setCarreras] = useState<CarreraOption[]>([]);
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Initialize Cloud Functions callable
+  // Cloud Functions
   const functions = getFunctions(app);
   const fnBorrar = httpsCallable<{ carreraId: string }, { eliminado: number }>(
     functions,
     'borrarInscripcionesDeCarrera'
   );
 
-  // Load carreras from Firestore
+  // Carga carreras
   const loadCarreras = async () => {
     const snapshot = await getDocs(collection(db, 'carreras'));
     const list: CarreraOption[] = snapshot.docs.map(doc => ({
@@ -40,12 +43,11 @@ export default function AdminPanel() {
     }));
     setCarreras(list);
   };
-
   useEffect(() => {
     loadCarreras();
   }, []);
 
-  // Handler to delete all inscriptions of a carrera
+  // Borrar inscripciones
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
@@ -63,7 +65,7 @@ export default function AdminPanel() {
 
   return (
     <div className="relative flex flex-col min-h-[calc(100vh-4rem)]">
-      {/* Toggle sidebar button */}
+      {/* Toggle sidebar */}
       <button
         onClick={toggleMenu}
         className="fixed top-4 left-4 z-50 p-2 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition"
@@ -76,7 +78,6 @@ export default function AdminPanel() {
       </button>
 
       <div className="flex flex-1">
-        {/* Sidebar navigation */}
         <AdminSidebar
           view={view}
           setView={v => {
@@ -87,14 +88,16 @@ export default function AdminPanel() {
           onToggle={toggleMenu}
         />
 
-        {/* Main content area */}
         <main className="flex-1 p-6 relative z-0">
           <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
           {view === 'crear' && (
             <AdminCarrerasForm
+              initialValues={editItem}
               onSuccess={() => {
+                // tras guardar, volver a lista y limpiar editItem
                 setView('listar');
+                setEditItem(undefined);
                 loadCarreras();
               }}
             />
@@ -103,8 +106,8 @@ export default function AdminPanel() {
           {view === 'listar' && (
             <AdminCarrerasList
               onEdit={(c: CarreraItem) => {
+                setEditItem(c);
                 setView('crear');
-                // handle setting edit item if needed
               }}
             />
           )}
