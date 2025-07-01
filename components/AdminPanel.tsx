@@ -3,12 +3,12 @@ import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { app, db } from '@/lib/firebase';
+import { getDocs, collection } from 'firebase/firestore';
 import AdminSidebar from './AdminSidebar';
 import AdminCarrerasForm from './AdminCarrerasForm';
 import AdminCarrerasList, { CarreraItem } from './AdminCarrerasList';
 import AdminInscripcionesView from './AdminInscripcionesView';
 import EliminarInscripciones, { CarreraOption } from './EliminarInscripciones';
-import { getDocs, collection } from 'firebase/firestore';
 
 export default function AdminPanel() {
   const [view, setView] = useState<
@@ -17,12 +17,33 @@ export default function AdminPanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [editItem, setEditItem] = useState<CarreraItem | undefined>(undefined);
 
-  // Estados para "Eliminar Inscripciones"
+  // Para el select de "Eliminar inscripciones"
   const [carreras, setCarreras] = useState<CarreraOption[]>([]);
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Fuerza la renovación del token para incluir el nuevo claim admin
+  // Carga Firebase Functions en us-central1
+  const functions = getFunctions(app, 'us-central1');
+  const fnBorrar = httpsCallable<{ carreraId: string }, { eliminado: number }>(
+    functions,
+    'borrarInscripcionesDeCarrera'
+  );
+
+  // Recarga la lista de carreras para el select
+  const loadCarreras = async () => {
+    const snap = await getDocs(collection(db, 'carreras'));
+    setCarreras(
+      snap.docs.map(d => ({
+        id: d.id,
+        titulo: (d.data() as any).titulo || 'Sin título',
+      }))
+    );
+  };
+  useEffect(() => {
+    loadCarreras();
+  }, []);
+
+  // Cuando montamos el panel, si ya estamos logueados forzamos token para pillar admin
   useEffect(() => {
     const auth = getAuth(app);
     if (auth.currentUser) {
@@ -30,33 +51,14 @@ export default function AdminPanel() {
     }
   }, []);
 
-  // Cargamos la función en la región donde la desplegaste
-  const functions = getFunctions(app, 'us-central1');
-  const fnBorrar = httpsCallable<{ carreraId: string }, { eliminado: number }>(
-    functions,
-    'borrarInscripcionesDeCarrera'
-  );
-
-  // Recarga el listado de carreras (para el select de eliminar)
-  const loadCarreras = async () => {
-    const snapshot = await getDocs(collection(db, 'carreras'));
-    setCarreras(
-      snapshot.docs.map(doc => ({
-        id: doc.id,
-        titulo: (doc.data() as any).titulo || 'Sin título',
-      }))
-    );
-  };
-
-  useEffect(() => {
-    loadCarreras();
-  }, []);
-
-  // Handler de borrar inscripciones
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
     try {
+      // forzamos renovacion de token para que el claim admin esté presente
+      const auth = getAuth(app);
+      await auth.currentUser?.getIdToken(true);
+
       const { data } = await fnBorrar({ carreraId });
       setFeedback(`Se borraron ${data.eliminado} inscripciones.`);
       loadCarreras();
@@ -74,7 +76,6 @@ export default function AdminPanel() {
 
   return (
     <div className="relative flex flex-col min-h-[calc(100vh-4rem)]">
-      {/* Toggle sidebar */}
       <button
         onClick={() => setMenuOpen(o => !o)}
         className="fixed top-4 left-4 z-50 p-2 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition"
@@ -85,10 +86,7 @@ export default function AdminPanel() {
       <div className="flex flex-1">
         <AdminSidebar
           view={view}
-          setView={v => {
-            setView(v);
-            setFeedback(null);
-          }}
+          setView={v => { setView(v); setFeedback(null); }}
           open={menuOpen}
           onToggle={() => setMenuOpen(o => !o)}
         />

@@ -21,14 +21,7 @@ export default function AdminPage() {
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
-  // Renovar token al montar la página (para tener admin=true)
-  useEffect(() => {
-    const auth = getAuth(app);
-    if (auth.currentUser) {
-      auth.currentUser.getIdToken(true).catch(console.error);
-    }
-  }, []);
-
+  // Funcion de borrado en us-central1
   const functions = getFunctions(app, 'us-central1');
   const fnBorrar = httpsCallable<{ carreraId: string }, { eliminado: number }>(
     functions,
@@ -37,20 +30,30 @@ export default function AdminPage() {
 
   const loadCarreras = async () => {
     const snap = await getDocs(collection(db, 'carreras'));
-    setCarreras(snap.docs.map(d => ({
-      id: d.id,
-      titulo: (d.data() as any).titulo || 'Sin título',
-    })));
+    setCarreras(
+      snap.docs.map(d => ({ id: d.id, titulo: (d.data() as any).titulo || 'Sin título' }))
+    );
   };
-
   useEffect(() => {
     loadCarreras();
+  }, []);
+
+  // Renovamos token al montar para pillar claim admin
+  useEffect(() => {
+    const auth = getAuth(app);
+    if (auth.currentUser) {
+      auth.currentUser.getIdToken(true).catch(console.error);
+    }
   }, []);
 
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
     try {
+      // forzamos refresh
+      const auth = getAuth(app);
+      await auth.currentUser?.getIdToken(true);
+
       const { data } = await fnBorrar({ carreraId });
       setFeedback(`Se borraron ${data.eliminado} inscripciones.`);
       loadCarreras();
@@ -77,7 +80,7 @@ export default function AdminPage() {
 
       <AdminSidebar
         view={view}
-        setView={v => { setView(v); setFeedback(null); }}
+        setView={(v) => { setView(v); setFeedback(null); }}
         open={sidebarOpen}
         onToggle={() => setSidebarOpen(o => !o)}
       />
@@ -97,7 +100,9 @@ export default function AdminPage() {
         )}
 
         {view === 'listar' && (
-          <AdminCarrerasList onEdit={c => { setEditItem(c); setView('crear'); }} />
+          <AdminCarrerasList
+            onEdit={(c) => { setEditItem(c); setView('crear'); }}
+          />
         )}
 
         {view === 'inscripciones' && <AdminInscripcionesView />}
