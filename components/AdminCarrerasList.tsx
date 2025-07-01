@@ -7,6 +7,13 @@ import { PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 export interface CarreraItem extends CarreraData { id: string; }
 
 interface Props { onEdit: (c: CarreraItem) => void; }
+
+// Formatea "YYYY-MM-DD" a "DD/MM/YYYY"
+function formatDate(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+}
+
 export default function AdminCarrerasList({ onEdit }: Props) {
   const [list, setList] = useState<CarreraItem[]>([]);
 
@@ -33,7 +40,7 @@ export default function AdminCarrerasList({ onEdit }: Props) {
           <div>
             <h3 className="text-lg font-semibold text-gray-800">{c.titulo}</h3>
             <p className="text-sm text-gray-500">
-              Fecha: <time>{new Date(c.fecha).toLocaleDateString()}</time>
+              Fecha: <time>{formatDate(c.fecha)}</time>
             </p>
           </div>
           <div className="flex space-x-2">
