@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
   getAuth,
@@ -43,65 +43,64 @@ export default function RegistroUsuarioPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [mensaje, setMensaje] = useState<{
-    type: "error" | "success";
-    text: string;
-  } | null>(null);
+  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const router = useRouter();
   const auth = getAuth(app);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Listas dependientes de país → estados → ciudades
+  const countryOptions = ["México", "Estados Unidos"];
+  const stateOptionsMap: Record<string, string[]> = {
+    México: ["Ciudad de México", "Jalisco"],
+    "Estados Unidos": ["California", "New York"],
+  };
+  const cityOptionsMap: Record<string, string[]> = {
+    "Ciudad de México": ["Álvaro Obregón", "Coyoacán", "Polanco"],
+    Jalisco: ["Guadalajara", "Zapopan"],
+    California: ["Los Angeles", "San Francisco"],
+    "New York": ["New York City", "Buffalo"],
+  };
+
+  // Cuando cambie país o estado, limpiamos abajo
+  useEffect(() => {
+    setFormData(fd => ({ ...fd, estado: "", ciudad: "" }));
+  }, [formData.pais]);
+
+  useEffect(() => {
+    setFormData(fd => ({ ...fd, ciudad: "" }));
+  }, [formData.estado]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: value }));
+    setFormData(p => ({ ...p, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
 
-    // 1) Validaciones de contraseña
-    if (formData.password.length < 6) {
-      return setMensaje({
-        type: "error",
-        text: "La contraseña debe tener al menos 6 caracteres.",
-      });
-    }
-    if (formData.password !== formData.confirmPassword) {
+    if (formData.password.length < 6)
+      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+    if (formData.password !== formData.confirmPassword)
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
-    }
 
     // 2) Comprueba email libre
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
-      if (methods.length > 0) {
-        return setMensaje({
-          type: "error",
-          text: "Este correo ya está registrado.",
-        });
-      }
+      if (methods.length > 0)
+        return setMensaje({ type: "error", text: "Este correo ya está registrado." });
     } catch (err: any) {
-      return setMensaje({
-        type: "error",
-        text: `Error comprobando email: ${err.message}`,
-      });
+      return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
     }
 
     // 3) Crea en Auth
     let userCred;
     try {
-      userCred = await createUserWithEmailAndPassword(
-        auth,
-        formData.email,
-        formData.password
-      );
+      userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     } catch (err: any) {
-      return setMensaje({
-        type: "error",
-        text: `Error en Auth: ${err.message}`,
-      });
+      return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    // 4) Envía verificación y almacena datos en localStorage
+    // 4) Envía verificación y guarda datos temporales
     try {
       await sendEmailVerification(userCred.user);
       const pending: Usuario = {
@@ -119,25 +118,17 @@ export default function RegistroUsuarioPage() {
         edad: calcularEdad(formData.fechaNacimiento),
       };
       localStorage.setItem("pendingUser", JSON.stringify(pending));
-      setMensaje({
-        type: "success",
-        text: "Correo de verificación enviado. Revisa tu bandeja.",
-      });
+      setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
       router.push("/verify-email");
     } catch (err: any) {
       await deleteUser(userCred.user);
-      return setMensaje({
-        type: "error",
-        text: `Error enviando verificación: ${err.message}`,
-      });
+      return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
     }
   };
 
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">
-        Crear Cuenta
-      </h1>
+      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
         <div className="relative">
@@ -153,28 +144,19 @@ export default function RegistroUsuarioPage() {
         </div>
         {/* Apellidos */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="relative">
-            <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="apPaterno"
-              placeholder="Apellido Paterno"
-              value={formData.apPaterno}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </div>
-          <div className="relative">
-            <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="apMaterno"
-              placeholder="Apellido Materno"
-              value={formData.apMaterno}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </div>
+          {["apPaterno","apMaterno"].map(name => (
+            <div key={name} className="relative">
+              <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                name={name}
+                placeholder={name === "apPaterno" ? "Apellido Paterno" : "Apellido Materno"}
+                value={(formData as any)[name]}
+                onChange={handleChange}
+                required
+                className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+          ))}
         </div>
         {/* Email */}
         <div className="relative">
@@ -191,32 +173,21 @@ export default function RegistroUsuarioPage() {
         </div>
         {/* Contraseña */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="relative">
-            <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="password"
-              type="password"
-              placeholder="Contraseña"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </div>
-          <div className="relative">
-            <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="confirmPassword"
-              type="password"
-              placeholder="Confirmar Contraseña"
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </div>
+          {["password","confirmPassword"].map(name => (
+            <div key={name} className="relative">
+              <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                name={name}
+                type="password"
+                placeholder={name === "password" ? "Contraseña" : "Confirmar Contraseña"}
+                value={(formData as any)[name]}
+                onChange={handleChange}
+                required
+                className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+              />
+            </div>
+          ))}
         </div>
-        {/* Resto de campos (celular, ubicación, club, fecha)… */}
         {/* Celular */}
         <div className="relative">
           <PhoneIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -230,53 +201,65 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
-        {/* País, estado, ciudad, club */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* País, Estado, Ciudad */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="relative">
             <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
+            <select
               name="pais"
-              placeholder="País"
               value={formData.pais}
               onChange={handleChange}
               required
               className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
+            >
+              <option value="">País</option>
+              {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
           <div className="relative">
             <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
+            <select
               name="estado"
-              placeholder="Estado"
               value={formData.estado}
               onChange={handleChange}
               required
+              disabled={!formData.pais}
               className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
+            >
+              <option value="">Estado</option>
+              {(stateOptionsMap[formData.pais]||[]).map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           <div className="relative">
             <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
+            <select
               name="ciudad"
-              placeholder="Ciudad"
               value={formData.ciudad}
               onChange={handleChange}
               required
+              disabled={!formData.estado}
               className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </div>
-          <div className="relative">
-            <BuildingOffice2Icon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="club"
-              placeholder="Club (opcional)"
-              value={formData.club}
-              onChange={handleChange}
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
+            >
+              <option value="">Ciudad</option>
+              {(cityOptionsMap[formData.estado]||[]).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
         </div>
+        {/* Club */}
+        <div className="relative">
+          <BuildingOffice2Icon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            name="club"
+            placeholder="Club (opcional)"
+            value={formData.club}
+            onChange={handleChange}
+            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+        </div>
         {/* Fecha de nacimiento */}
+        <label className="block text-sm font-medium text-gray-700">
+          Ingresa tu fecha de nacimiento
+        </label>
         <div className="relative">
           <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
@@ -288,6 +271,7 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
         </div>
+        {/* Botón */}
         <button
           type="submit"
           className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
@@ -296,7 +280,9 @@ export default function RegistroUsuarioPage() {
         </button>
       </form>
       {mensaje && (
-        <p className={`mt-4 text-center ${mensaje.type === 'error' ? 'text-red-600' : 'text-green-600'}`}>{mensaje.text}</p>
+        <p className={`mt-4 text-center ${mensaje.type==="error"?"text-red-600":"text-green-600"}`}>
+          {mensaje.text}
+        </p>
       )}
     </div>
   );
