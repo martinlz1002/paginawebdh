@@ -82,12 +82,12 @@ export default function Footer() {
           <h3 className="text-white font-semibold mb-3">Contacto</h3>
           <p className="flex items-center space-x-2 text-sm mb-2">
             <PhoneIcon className="w-5 h-5" />
-            <span>+52 55 1234 5678</span>
+            <span>+52 66 8820 7434</span>
           </p>
           <p className="flex items-center space-x-2 text-sm mb-4">
             <WhatsappIcon className="w-5 h-5 text-green-400" />
             <a
-              href="https://wa.me/525512345678"
+              href="https://wa.me/526688207434"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white"
