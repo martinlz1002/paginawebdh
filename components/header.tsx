@@ -9,7 +9,11 @@ import {
   User,
 } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { ChevronDownIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronDownIcon,
+  XMarkIcon,
+  UserCircleIcon,
+} from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
 
 export default function Header() {
@@ -58,61 +62,77 @@ export default function Header() {
   };
 
   return (
-    <header className="flex justify-between items-center p-4 bg-white shadow sticky top-0 z-50">
+    <header className="relative flex items-center p-4 bg-white shadow sticky top-0 z-50">
+      {/* Logo a la izquierda */}
       <Link href="/" className="flex items-center">
         <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
       </Link>
 
-      {user ? (
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 transition"
-          >
-            <span className="font-medium">{nombre}</span>
-            {menuOpen ? <XMarkIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
-          </button>
+      {/* Texto centrado */}
+      <div className="absolute left-1/2 transform -translate-x-1/2">
+        <span className="text-lg font-semibold text-gray-700">
+          medimos lo que te apasiona
+        </span>
+      </div>
 
-          {menuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md py-2">
-              {emailVerified ? (
-                <>
-                  <Link href="/mis-inscripciones" className="block px-4 py-2 hover:bg-gray-100">
-                    Mis inscripciones
-                  </Link>
-                  <Link href="/perfil" className="block px-4 py-2 hover:bg-gray-100">
-                    Perfil
-                  </Link>
-                </>
+      {/* Menú usuario a la derecha */}
+      <div className="ml-auto relative" ref={menuRef}>
+        {user ? (
+          <>
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="flex items-center space-x-2 bg-gray-100 px-3 py-1 rounded hover:bg-gray-200 transition"
+            >
+              <UserCircleIcon className="w-5 h-5 text-gray-600" />
+              <span className="font-medium">{nombre}</span>
+              {menuOpen ? (
+                <XMarkIcon className="w-4 h-4" />
               ) : (
-                <p className="px-4 py-2 text-sm text-gray-500">
-                  Verifica tu correo ({user.email}) para ver más opciones
-                </p>
+                <ChevronDownIcon className="w-4 h-4" />
               )}
-              {esAdmin && (
-                <Link href="/admin" className="block px-4 py-2 hover:bg-gray-100">
-                  Admin
-                </Link>
-              )}
-              <button
-                onClick={handleLogout}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100"
-              >
-                Cerrar sesión
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex items-center space-x-6">
-          <Link href="/login" className="text-gray-700 hover:text-green-700 transition">
-            Iniciar sesión
-          </Link>
-          <Link href="/signup" className="text-green-700 font-medium hover:underline transition">
-            Registrarse
-          </Link>
-        </div>
-      )}
+            </button>
+
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-md py-2">
+                {emailVerified ? (
+                  <>
+                    <Link href="/mis-inscripciones" className="block px-4 py-2 hover:bg-gray-100">
+                      Mis inscripciones
+                    </Link>
+                    <Link href="/perfil" className="block px-4 py-2 hover:bg-gray-100">
+                      Perfil
+                    </Link>
+                  </>
+                ) : (
+                  <p className="px-4 py-2 text-sm text-gray-500">
+                    Confirma tu email para ver más opciones
+                  </p>
+                )}
+                {esAdmin && (
+                  <Link href="/admin" className="block px-4 py-2 hover:bg-gray-100">
+                    Admin
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                >
+                  Cerrar sesión
+                </button>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex items-center space-x-6">
+            <Link href="/login" className="text-gray-700 hover:text-green-700 transition">
+              Iniciar sesión
+            </Link>
+            <Link href="/signup" className="text-green-700 font-medium hover:underline transition">
+              Registrarse
+            </Link>
+          </div>
+        )}
+      </div>
     </header>
   );
 }
