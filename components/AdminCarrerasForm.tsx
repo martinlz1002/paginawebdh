@@ -26,20 +26,20 @@ export default function AdminCarrerasForm({
   initialValues,
   onSuccess
 }: AdminCarrerasFormProps) {
-  // Basic fields
+  // 1) Estados iniciales a partir de initialValues
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
 
-  // Images
+  // Imágenes
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  // Categories with price
+  // Categorías con precio
   const [categorias, setCategorias] = useState<Categoria[]>(
     (initialValues?.categorias ?? []).map((c: any) => ({
       nombre: c.nombre,
@@ -51,7 +51,7 @@ export default function AdminCarrerasForm({
   const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
   const [editIndex, setEditIndex] = useState<number | null>(null);
 
-  // Upload helper
+  // Helper para subir archivos
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -100,14 +100,14 @@ export default function AdminCarrerasForm({
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // Build payload including categorias with price
+    // Payload usando 'ubicacion'
     const payload = {
       titulo,
       descripcion,
       lugar,
       fecha,
       horaSalida,
-      categorias, // each has nombre, minAge, maxAge, price
+      categorias, // cada categoría incluye nombre,minAge,maxAge,price
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     } as any;
@@ -129,7 +129,7 @@ export default function AdminCarrerasForm({
         {initialValues ? '✏️ Editar carrera' : '+ Crear carrera'}
       </h2>
 
-      {/* Título */}
+      {/* TÍTULO */}
       <div>
         <label className="block font-medium">Título</label>
         <input
@@ -141,7 +141,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Descripción */}
+      {/* DESCRIPCIÓN */}
       <div>
         <label className="block font-medium">Descripción</label>
         <textarea
@@ -152,7 +152,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Lugar */}
+  {/* LUGAR */}
       <div className="flex items-center space-x-2">
         <MapPinIcon className="w-5 h-5 text-gray-500" />
         <input
@@ -165,7 +165,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Fecha & Hora */}
+      {/* FECHA & HORA */}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex items-center space-x-2">
           <CalendarIcon className="w-5 h-5 text-purple-600" />
@@ -189,7 +189,7 @@ export default function AdminCarrerasForm({
         </div>
       </div>
 
-      {/* Imagen principal */}
+      {/* IMAGEN PRINCIPAL */}
       <div>
         <label className="block font-medium flex items-center space-x-2">
           <PhotoIcon className="w-5 h-5 text-green-600" />
@@ -215,7 +215,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Banner superior */}
+      {/* BANNER SUPERIOR */}
       <div>
         <label className="block font-medium flex items-center space-x-2">
           <PhotoIcon className="w-5 h-5 text-green-600" />
@@ -241,7 +241,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-      {/* Categorías con precio */}
+      {/* CATEGORÍAS */}
       <div className="border-t pt-4">
         <h3 className="font-medium text-green-600 flex items-center space-x-2">
           <PlusCircleIcon className="w-5 h-5" />
@@ -252,10 +252,10 @@ export default function AdminCarrerasForm({
             <li key={i} className="flex justify-between items-center">
               <span>• {c.nombre} ({c.minAge}–{c.maxAge} años) — ${c.price.toFixed(2)}</span>
               <div className="flex space-x-2">
-                <button onClick={() => handleEditCategoria(i)}>
+                <button type="button" onClick={() => handleEditCategoria(i)}>
                   <PencilIcon className="w-5 h-5 text-blue-600" />
                 </button>
-                <button onClick={() => handleDeleteCategoria(i)}>
+                <button type="button" onClick={() => handleDeleteCategoria(i)}>
                   <TrashIcon className="w-5 h-5 text-red-600" />
                 </button>
               </div>
@@ -299,7 +299,6 @@ export default function AdminCarrerasForm({
         <button
           type="button"
           onClick={handleAddOrSaveCategoria}
-
           className="mt-2 w-full flex justify-center items-center bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition"
         >
           <PlusCircleIcon className="w-5 h-5 mr-1" />
@@ -307,7 +306,7 @@ export default function AdminCarrerasForm({
         </button>
       </div>
 
-      {/* Enviar */}
+      {/* BOTÓN GUARDAR */}
       <button
         type="submit"
         className="mt-4 w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition"

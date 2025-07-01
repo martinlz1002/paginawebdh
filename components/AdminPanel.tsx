@@ -19,10 +19,10 @@ export default function AdminPanel() {
   const [menuOpen, setMenuOpen] = useState(false);
   const toggleMenu = () => setMenuOpen(o => !o);
 
-  // 1) estado para edición de carrera
+  // **1) Estado para la carrera que estamos editando**
   const [editItem, setEditItem] = useState<CarreraItem | undefined>(undefined);
 
-  // States for carreras y eliminación de inscripciones
+  // States para borrar inscripciones
   const [carreras, setCarreras] = useState<CarreraOption[]>([]);
   const [loadingDelete, setLoadingDelete] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export default function AdminPanel() {
     'borrarInscripcionesDeCarrera'
   );
 
-  // Carga carreras
+  // Carga carreras para el sidebar de "Eliminar inscripciones"
   const loadCarreras = async () => {
     const snapshot = await getDocs(collection(db, 'carreras'));
     const list: CarreraOption[] = snapshot.docs.map(doc => ({
@@ -47,7 +47,7 @@ export default function AdminPanel() {
     loadCarreras();
   }, []);
 
-  // Borrar inscripciones
+  // Handler para borrar inscripciones de una carrera
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
@@ -95,7 +95,7 @@ export default function AdminPanel() {
             <AdminCarrerasForm
               initialValues={editItem}
               onSuccess={() => {
-                // tras guardar, volver a lista y limpiar editItem
+                // una vez creada/actualizada, vuelvo a listar y limpio editItem
                 setView('listar');
                 setEditItem(undefined);
                 loadCarreras();
