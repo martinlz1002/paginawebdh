@@ -105,7 +105,7 @@ export default function Footer() {
               <FacebookIcon />
             </a>
             <a
-              href="https://instagram.com/tuempresa"
+              href="https://www.instagram.com/dhtimelm/"
               target="_blank"
               rel="noopener noreferrer"
               className="hover:text-white"
