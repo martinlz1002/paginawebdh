@@ -1,22 +1,23 @@
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getAuth } = require('firebase-admin/auth');
-// Carga el JSON desde la misma carpeta
-const serviceAccount = require('./serviceAccountKey.json');
+const path = require('path');
+
+// Carga tu JSON de credenciales desde la carpeta scripts
+const serviceAccount = require(path.join(__dirname, 'serviceAccountKey.json'));
 
 initializeApp({
-  credential: cert({
-    projectId: serviceAccount.project_id,
-    privateKey: serviceAccount.private_key,
-    clientEmail: serviceAccount.client_email,
-  }),
+  credential: cert(serviceAccount),
 });
 
 async function setAdmin(uid) {
-  await getAuth().setCustomUserClaims(uid, { admin: true });
-  console.log(`✅ admin=true set for ${uid}`);
+  try {
+    await getAuth().setCustomUserClaims(uid, { admin: true });
+    console.log(`✅ Se ha establecido admin=true para ${uid}`);
+  } catch (err) {
+    console.error('❌ Error al asignar claim de admin:', err);
+  }
 }
 
-// Reemplaza aquí tu UID real
+// Reemplaza con el UID al que quieras dar permisos de admin
 setAdmin('wrug7aS09zVps6nEDNRx8eTi8hO2')
-  .catch(console.error)
   .then(() => process.exit());
