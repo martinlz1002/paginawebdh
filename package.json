@@ -11,6 +11,7 @@
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.1.1",
     "@stripe/stripe-js": "^7.3.1",
+    "country-state-city": "^3.2.1",
     "express": "^5.1.0",
     "file-saver": "^2.0.5",
     "firebase": "^9.0.0",

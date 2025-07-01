@@ -13,11 +13,14 @@ import {
   EnvelopeIcon,
   LockClosedIcon,
   PhoneIcon,
-  GlobeAltIcon,
   CalendarIcon,
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
+import { Country, State, City } from "country-state-city";
 import { Usuario } from "@/lib/usuarios";
+
+type Estado = ReturnType<typeof State.getStatesOfCountry>[number];
+type Ciudad = ReturnType<typeof City.getCitiesOfState>[number];
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
@@ -47,25 +50,29 @@ export default function RegistroUsuarioPage() {
   const router = useRouter();
   const auth = getAuth(app);
 
-  // Listas dependientes de país → estados → ciudades
-  const countryOptions = ["México", "Estados Unidos"];
-  const stateOptionsMap: Record<string, string[]> = {
-    México: ["Ciudad de México", "Jalisco"],
-    "Estados Unidos": ["California", "New York"],
-  };
-  const cityOptionsMap: Record<string, string[]> = {
-    "Ciudad de México": ["Álvaro Obregón", "Coyoacán", "Polanco"],
-    Jalisco: ["Guadalajara", "Zapopan"],
-    California: ["Los Angeles", "San Francisco"],
-    "New York": ["New York City", "Buffalo"],
-  };
+  // Listas dinámicas
+  const [paises, setPaises] = useState(Country.getAllCountries());
+  const [estados, setEstados] = useState<Estado[]>([]);
+  const [ciudades, setCiudades] = useState<Ciudad[]>([]);
 
-  // Cuando cambie país o estado, limpiamos abajo
+  // Cuando cambia el país, cargamos sus estados y limpiamos abajo
   useEffect(() => {
+    if (formData.pais) {
+      setEstados(State.getStatesOfCountry(formData.pais));
+    } else {
+      setEstados([]);
+    }
     setFormData(fd => ({ ...fd, estado: "", ciudad: "" }));
+    setCiudades([]);
   }, [formData.pais]);
 
+  // Cuando cambia el estado, cargamos sus ciudades
   useEffect(() => {
+    if (formData.pais && formData.estado) {
+      setCiudades(City.getCitiesOfState(formData.pais, formData.estado));
+    } else {
+      setCiudades([]);
+    }
     setFormData(fd => ({ ...fd, ciudad: "" }));
   }, [formData.estado]);
 
@@ -83,16 +90,14 @@ export default function RegistroUsuarioPage() {
     if (formData.password !== formData.confirmPassword)
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
 
-    // 2) Comprueba email libre
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
-      if (methods.length > 0)
+      if (methods.length)
         return setMensaje({ type: "error", text: "Este correo ya está registrado." });
     } catch (err: any) {
       return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
     }
 
-    // 3) Crea en Auth
     let userCred;
     try {
       userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
@@ -100,7 +105,6 @@ export default function RegistroUsuarioPage() {
       return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
     }
 
-    // 4) Envía verificación y guarda datos temporales
     try {
       await sendEmailVerification(userCred.user);
       const pending: Usuario = {
@@ -139,21 +143,21 @@ export default function RegistroUsuarioPage() {
             value={formData.nombre}
             onChange={handleChange}
             required
-            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
         {/* Apellidos */}
         <div className="grid grid-cols-2 gap-4">
-          {["apPaterno","apMaterno"].map(name => (
-            <div key={name} className="relative">
+          {["apPaterno","apMaterno"].map(n => (
+            <div key={n} className="relative">
               <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                name={name}
-                placeholder={name === "apPaterno" ? "Apellido Paterno" : "Apellido Materno"}
-                value={(formData as any)[name]}
+                name={n}
+                placeholder={n === "apPaterno" ? "Apellido Paterno" : "Apellido Materno"}
+                value={(formData as any)[n]}
                 onChange={handleChange}
                 required
-                className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
               />
             </div>
           ))}
@@ -168,22 +172,22 @@ export default function RegistroUsuarioPage() {
             value={formData.email}
             onChange={handleChange}
             required
-            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
         {/* Contraseña */}
         <div className="grid grid-cols-2 gap-4">
-          {["password","confirmPassword"].map(name => (
-            <div key={name} className="relative">
+          {["password","confirmPassword"].map(n => (
+            <div key={n} className="relative">
               <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                name={name}
+                name={n}
                 type="password"
-                placeholder={name === "password" ? "Contraseña" : "Confirmar Contraseña"}
-                value={(formData as any)[name]}
+                placeholder={n === "password" ? "Contraseña" : "Confirmar Contraseña"}
+                value={(formData as any)[n]}
                 onChange={handleChange}
                 required
-                className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+                className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
               />
             </div>
           ))}
@@ -198,52 +202,58 @@ export default function RegistroUsuarioPage() {
             value={formData.celular}
             onChange={handleChange}
             required
-            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
-        {/* País, Estado, Ciudad */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="relative">
-            <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              name="pais"
-              value={formData.pais}
-              onChange={handleChange}
-              required
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            >
-              <option value="">País</option>
-              {countryOptions.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="relative">
-            <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              name="estado"
-              value={formData.estado}
-              onChange={handleChange}
-              required
-              disabled={!formData.pais}
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            >
-              <option value="">Estado</option>
-              {(stateOptionsMap[formData.pais]||[]).map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="relative">
-            <GlobeAltIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <select
-              name="ciudad"
-              value={formData.ciudad}
-              onChange={handleChange}
-              required
-              disabled={!formData.estado}
-              className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
-            >
-              <option value="">Ciudad</option>
-              {(cityOptionsMap[formData.estado]||[]).map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
+        {/* País */}
+        <div className="relative">
+          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <select
+            name="pais"
+            value={formData.pais}
+            onChange={handleChange}
+            required
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+          >
+            <option value="">Selecciona País</option>
+            {paises.map(c => (
+              <option key={c.isoCode} value={c.isoCode}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        {/* Estado */}
+        <div className="relative">
+          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <select
+            name="estado"
+            value={formData.estado}
+            onChange={handleChange}
+            required
+            disabled={!formData.pais}
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+          >
+            <option value="">Selecciona Estado</option>
+            {estados.map(s => (
+              <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+        {/* Ciudad */}
+        <div className="relative">
+          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <select
+            name="ciudad"
+            value={formData.ciudad}
+            onChange={handleChange}
+            required
+            disabled={!formData.estado}
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+          >
+            <option value="">Selecciona Ciudad</option>
+            {ciudades.map(c => (
+              <option key={c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
         </div>
         {/* Club */}
         <div className="relative">
@@ -253,7 +263,7 @@ export default function RegistroUsuarioPage() {
             placeholder="Club (opcional)"
             value={formData.club}
             onChange={handleChange}
-            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
         {/* Fecha de nacimiento */}
@@ -268,7 +278,7 @@ export default function RegistroUsuarioPage() {
             value={formData.fechaNacimiento}
             onChange={handleChange}
             required
-            className="w-full pl-10 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400"
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
         {/* Botón */}
