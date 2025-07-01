@@ -34,6 +34,7 @@ interface InscView {
   carreraId: string;
   titulo: string;
   fechaCarr: string;
+  carreraDate: Date;
   horaSalida?: string;
   ubicacion?: string;
   imagenUrl?: string;
@@ -71,7 +72,10 @@ export default function MisInscripcionesPage() {
       );
 
       const unsubSnap = onSnapshot(q, async (snap) => {
-        const views: InscView[] = await Promise.all(
+        const hoy = new Date();
+        const today = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+        const all = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
             const carreraId = src.carreraId;
@@ -84,7 +88,22 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // Perfil (titular o subperfil)
+            // Fecha de la carrera en Date y formateada DD/MM/YYYY
+            let fechaCarr = "";
+            let carreraDate = today;
+            if (cdata.fecha instanceof Timestamp) {
+              const dt = (cdata.fecha as Timestamp).toDate();
+              carreraDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+              fechaCarr = `${pad(carreraDate.getDate())}/${pad(
+                carreraDate.getMonth() + 1
+              )}/${carreraDate.getFullYear()}`;
+            } else if (typeof cdata.fecha === "string") {
+              const [y, m, d] = (cdata.fecha as string).split("-").map(Number);
+              carreraDate = new Date(y, m - 1, d);
+              fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
+            }
+
+            // Datos del perfil (titular o subperfil)
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -106,7 +125,6 @@ export default function MisInscripcionesPage() {
               if (sub.exists()) {
                 const sd = sub.data() as any;
                 perfilNombre = sd.nombre;
-                // Usar los campos correctos de apellidos en subperfiles
                 perfilApPaterno = sd.apPaterno || sd.apellidoPaterno || "";
                 perfilApMaterno = sd.apMaterno || sd.apellidoMaterno || "";
                 perfilClub = sd.club;
@@ -118,26 +136,12 @@ export default function MisInscripcionesPage() {
               ? src.timestamp.toDate().toLocaleString()
               : "";
 
-            // Fecha de la carrera
-            let fechaCarr = "";
-            if (cdata.fecha instanceof Timestamp) {
-              const dt = (cdata.fecha as Timestamp).toDate();
-              const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-              fechaCarr = `${pad(local.getDate())}/${pad(
-                local.getMonth() + 1
-              )}/${local.getFullYear()}`;
-            } else if (typeof cdata.fecha === "string") {
-              const [y, m, d] = (cdata.fecha as string).split("-");
-              fechaCarr = `${d}/${m}/${y}`;
-            }
-
-            const paymentStatus = src.paymentStatus ?? "desconocido";
-
             return {
               id: d.id,
               carreraId,
               titulo: cdata.titulo || "(sin título)",
               fechaCarr,
+              carreraDate,
               horaSalida: cdata.horaSalida,
               ubicacion: cdata.lugar || cdata.ubicacion,
               imagenUrl: cdata.imagenUrl,
@@ -150,11 +154,14 @@ export default function MisInscripcionesPage() {
               perfilClub,
               fechaIns,
               sessionId: src.sessionId,
-              paymentStatus,
-            };
+              paymentStatus: src.paymentStatus ?? "desconocido",
+            } as InscView;
           })
         );
-        setList(views);
+
+        // Filtrar solo carreras de hoy o en el futuro
+        const upcoming = all.filter(i => i.carreraDate >= today);
+        setList(upcoming);
         setLoading(false);
       });
 
@@ -205,11 +212,18 @@ export default function MisInscripcionesPage() {
         ) : (
           <ul className="space-y-6">
             {list.map((i) => (
-              <li key={i.id} className="border rounded shadow hover:shadow-lg overflow-hidden">
+              <li
+                key={i.id}
+                className="border rounded shadow hover:shadow-lg overflow-hidden"
+              >
                 <div className="flex flex-col md:flex-row">
                   {i.imagenUrl ? (
                     <div className="md:w-1/3 h-48 overflow-hidden">
-                      <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
+                      <img
+                        src={i.imagenUrl}
+                        alt={i.titulo}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
                   ) : (
                     <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">

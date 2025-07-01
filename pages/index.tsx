@@ -13,7 +13,7 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
-  fecha: string;
+  fecha: string;       // "DD/MM/YYYY"
   imagenUrl?: string;
 }
 
@@ -27,26 +27,48 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       const snapshot = await getDocs(collection(db, "carreras"));
-      const data = snapshot.docs.map(doc => {
-        const c = doc.data() as any;
-        let fechaFormateada = "";
-        if (c.fecha instanceof Timestamp) {
-          const dt = c.fecha.toDate();
-          const local = new Date(dt.getTime() + dt.getTimezoneOffset() * 60000);
-          fechaFormateada = `${pad(local.getDate())}/${pad(local.getMonth() + 1)}/${local.getFullYear()}`;
-        } else if (typeof c.fecha === "string") {
-          const [y, m, d] = c.fecha.split("-");
-          fechaFormateada = `${d}/${m}/${y}`;
-        }
-        return {
-          id: doc.id,
-          titulo: c.titulo,
-          descripcion: c.descripcion,
-          ubicacion: c.ubicacion,
-          fecha: fechaFormateada,
-          imagenUrl: c.imagenUrl,
-        };
-      });
+      const hoy = new Date();
+      // normalizar hora a medianoche
+      const today = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+      const data = snapshot.docs
+        .map(doc => {
+          const c = doc.data() as any;
+          let fechaFormateada = "";
+          let carreraDate: Date | null = null;
+
+          if (c.fecha instanceof Timestamp) {
+            const dt = c.fecha.toDate();
+            // convertir a local sin desfase
+            carreraDate = new Date(
+              dt.getFullYear(),
+              dt.getMonth(),
+              dt.getDate()
+            );
+            fechaFormateada = `${pad(carreraDate.getDate())}/${pad(
+              carreraDate.getMonth() + 1
+            )}/${carreraDate.getFullYear()}`;
+          } else if (typeof c.fecha === "string") {
+            const [y, m, d] = c.fecha.split("-").map(Number);
+            carreraDate = new Date(y, m - 1, d);
+            fechaFormateada = `${pad(d)}/${pad(m)}/${y}`;
+          }
+
+          return {
+            id: doc.id,
+            titulo: c.titulo,
+            descripcion: c.descripcion,
+            ubicacion: c.ubicacion,
+            fecha: fechaFormateada,
+            imagenUrl: c.imagenUrl,
+            carreraDate,
+          } as Carrera & { carreraDate: Date | null };
+        })
+        .filter((c): c is Carrera & { carreraDate: Date } =>
+          c.carreraDate !== null && c.carreraDate >= today
+        )
+        .map(({ carreraDate, ...rest }) => rest);
+
       setCarreras(data);
     })();
   }, []);
@@ -75,9 +97,13 @@ export default function HomePage() {
               )}
             </div>
             <div className="p-5 space-y-3">
-              <h2 className="text-xl font-semibold text-gray-800">{c.titulo}</h2>
+              <h2 className="text-xl font-semibold text-gray-800">
+                {c.titulo}
+              </h2>
               {c.descripcion && (
-                <p className="text-gray-600 line-clamp-3">{c.descripcion}</p>
+                <p className="text-gray-600 line-clamp-3">
+                  {c.descripcion}
+                </p>
               )}
               <div className="flex items-center text-gray-500 text-sm space-x-4">
                 <div className="flex items-center space-x-1">
