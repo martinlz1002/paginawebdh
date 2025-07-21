@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { db, storage } from '@/lib/firebase';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { CarreraData, Categoria as BaseCategoria } from '@/types/carrera';
+import { CarreraData, Categoria as BaseCategoria, AgeBasis } from '@/types/carrera';
 import {
   PencilIcon,
   TrashIcon,
@@ -15,23 +15,24 @@ import {
 } from "@heroicons/react/24/outline";
 
 // Extend BaseCategoria to include price locally
-type Categoria = BaseCategoria & { price: number };
+export interface Categoria extends BaseCategoria {
+  price: number;
+}
 
 export interface AdminCarrerasFormProps {
   initialValues?: CarreraData & { id: string; bannerUrl?: string; imagenUrl?: string };
   onSuccess?: () => void;
 }
 
-export default function AdminCarrerasForm({
-  initialValues,
-  onSuccess
-}: AdminCarrerasFormProps) {
-  // 1) Estados iniciales a partir de initialValues
+export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
+  // Estados iniciales a partir de initialValues
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
   const [fecha, setFecha] = useState(initialValues?.fecha || '');
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || '');
+  const [maxCompetitors, setMaxCompetitors] = useState<number>(initialValues?.maxCompetitors || 0);
+  const [ageBasis, setAgeBasis] = useState<AgeBasis>(initialValues?.ageBasis || 'endOfYear');
 
   // Imágenes
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -100,14 +101,16 @@ export default function AdminCarrerasForm({
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // Payload usando 'ubicacion'
+    // Payload usando 'ubicacion' y nuevos campos
     const payload = {
       titulo,
       descripcion,
       lugar,
       fecha,
       horaSalida,
-      categorias, // cada categoría incluye nombre,minAge,maxAge,price
+      categorias,
+      maxCompetitors,
+      ageBasis,
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     } as any;
@@ -152,7 +155,7 @@ export default function AdminCarrerasForm({
         />
       </div>
 
-  {/* LUGAR */}
+      {/* LUGAR */}
       <div className="flex items-center space-x-2">
         <MapPinIcon className="w-5 h-5 text-gray-500" />
         <input
@@ -188,6 +191,47 @@ export default function AdminCarrerasForm({
           />
         </div>
       </div>
+
+      {/* CUPO MÁXIMO */}
+      <div>
+        <label className="block font-medium">Cupo máximo de competidores</label>
+        <input
+          type="number"
+          min="1"
+          value={maxCompetitors}
+          onChange={e => setMaxCompetitors(+e.target.value)}
+          required
+          className="mt-1 w-full border p-2 rounded focus:ring-green-300"
+        />
+      </div>
+
+      {/* CÁLCULO DE EDAD */}
+      <div>
+        <label className="block font-medium">Cálculo de edad</label>
+        <div className="mt-1 space-x-4">
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              value="endOfYear"
+              checked={ageBasis === 'endOfYear'}
+              onChange={() => setAgeBasis('endOfYear')}
+              className="form-radio"
+            />
+            <span className="ml-2">Al término del año ({new Date().getFullYear()}/12/31)</span>
+          </label>
+          <label className="inline-flex items-center">
+            <input
+              type="radio"
+              value="eventDate"
+              checked={ageBasis === 'eventDate'}
+              onChange={() => setAgeBasis('eventDate')}
+              className="form-radio"
+            />
+            <span className="ml-2">Fecha del evento</span>
+          </label>
+        </div>
+      </div>
+
 
       {/* IMAGEN PRINCIPAL */}
       <div>
@@ -309,7 +353,7 @@ export default function AdminCarrerasForm({
       {/* BOTÓN GUARDAR */}
       <button
         type="submit"
-        className="mt-4 w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition"
+        className="mt-4 w-full bg-green-600 text:white py-3 rounded hover:bg-green-700 transition"
       >
         Guardar
       </button>

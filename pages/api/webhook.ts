@@ -18,6 +18,7 @@ if (!admin.apps.length) {
   });
 }
 const firestore = admin.firestore();
+const FieldValue = admin.firestore.FieldValue;
 
 // 3️⃣ Instanciar Stripe con la misma versión que usas en CLI / Dashboard
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -28,7 +29,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 console.log("🔑 STRIPE_WEBHOOK_SECRET:", webhookSecret);
 
-// 5️⃣ Función para actualizar el paymentStatus
+// 5️⃣ Función para actualizar el paymentStatus y asignar/ liberar número de competidor
 async function markPaymentStatus(sessionId: string, status: string) {
   console.log(`🔍 [webhook] buscando sessionId=${sessionId}`);
   const snap = await firestore
@@ -42,18 +43,53 @@ async function markPaymentStatus(sessionId: string, status: string) {
   }
 
   const batch = firestore.batch();
-  snap.docs.forEach((docSnap) =>
-    batch.update(docSnap.ref, { paymentStatus: status })
-  );
+
+  for (const docSnap of snap.docs) {
+    const ref = docSnap.ref;
+    const data = docSnap.data() as any;
+    const carreraId = data.carreraId;
+
+    if (status === "paid") {
+      // Obtener cupo máximo
+      const carreraDoc = await firestore.collection("carreras").doc(carreraId).get();
+      const maxCupo = carreraDoc.get("maxCompetitors") || 0;
+      // Inscripciones ya pagadas y con número
+      const paidSnap = await firestore
+        .collection("inscripciones")
+        .where("carreraId", "==", carreraId)
+        .where("paymentStatus", "==", "paid")
+        .where("competitorNumber", ">", 0)
+        .get();
+      const used = paidSnap.docs.map(d => d.data().competitorNumber as number);
+      // Encontrar primer número disponible
+      let assigned = 1;
+      while (used.includes(assigned) && assigned <= maxCupo) {
+        assigned++;
+      }
+      if (assigned > maxCupo) {
+        console.warn(`Cupo lleno para la carrera ${carreraId}, no se asignó número`);
+        batch.update(ref, { paymentStatus: status });
+      } else {
+        batch.update(ref, { paymentStatus: status, competitorNumber: assigned });
+      }
+
+    } else {
+      // unpaid o expired => liberar número
+      batch.update(ref, {
+        paymentStatus: status,
+        competitorNumber: FieldValue.delete(),
+      });
+    }
+  }
+
   await batch.commit();
-  console.log(`✅ [webhook] paymentStatus actualizado a "${status}"`);
+  console.log(`✅ [webhook] paymentStatus y número de competidor actualizados a "${status}"`);
 }
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // 👇 logging para depurar en Vercel
   console.log("➡️ Método entrante:", req.method);
 
   if (req.method !== "POST") {
@@ -61,12 +97,10 @@ export default async function handler(
     return res.status(405).end("Method Not Allowed");
   }
 
-  // 6️⃣ obtener raw body y firma
   const buf = await buffer(req);
   const sig = req.headers["stripe-signature"] as string;
   console.log("📦 payload length:", buf.length, " stripe-signature:", sig);
 
-  // 7️⃣ verificar y parsear evento
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
@@ -77,20 +111,16 @@ export default async function handler(
 
   console.log("📩 webhook recibido:", event.type);
 
-  // 8️⃣ manejar los tipos que te interesan
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        await markPaymentStatus(session.id, session.payment_status);
+        await markPaymentStatus(session.id, "paid");
         break;
       }
       case "payment_intent.succeeded": {
         const intent = event.data.object as Stripe.PaymentIntent;
-        const sessions = await stripe.checkout.sessions.list({
-          payment_intent: intent.id,
-          limit: 1,
-        });
+        const sessions = await stripe.checkout.sessions.list({ payment_intent: intent.id, limit: 1 });
         if (sessions.data.length) {
           await markPaymentStatus(sessions.data[0].id, "paid");
         }
@@ -98,13 +128,15 @@ export default async function handler(
       }
       case "payment_intent.payment_failed": {
         const intent = event.data.object as Stripe.PaymentIntent;
-        const sessions = await stripe.checkout.sessions.list({
-          payment_intent: intent.id,
-          limit: 1,
-        });
+        const sessions = await stripe.checkout.sessions.list({ payment_intent: intent.id, limit: 1 });
         if (sessions.data.length) {
           await markPaymentStatus(sessions.data[0].id, "unpaid");
         }
+        break;
+      }
+      case "checkout.session.expired": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        await markPaymentStatus(session.id, "expired");
         break;
       }
       default:
@@ -114,6 +146,5 @@ export default async function handler(
     console.error("🔴 Error procesando webhook:", err);
   }
 
-  // 9️⃣ responder siempre 2xx para que Stripe no reintente
   res.status(200).json({ received: true });
 }

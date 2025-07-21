@@ -19,5 +19,5 @@ async function setAdmin(uid) {
 }
 
 // Reemplaza con el UID al que quieras dar permisos de admin
-setAdmin('wrug7aS09zVps6nEDNRx8eTi8hO2')
+setAdmin('XLEDxZAY8DVl3wIgQioomvl6Iwb2')
   .then(() => process.exit());

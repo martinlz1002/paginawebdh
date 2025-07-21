@@ -9,6 +9,8 @@ interface Carrera {
   titulo: string;
 }
 
+type AgeBasis = 'endOfYear' | 'eventDate';
+
 export default function AdminCarreras() {
   // Estados para el formulario de creación
   const [titulo, setTitulo] = useState("");
@@ -17,6 +19,8 @@ export default function AdminCarreras() {
   const [fecha, setFecha] = useState("");
   const [imagenUrl, setImagenUrl] = useState("");
   const [price, setPrecio] = useState("");
+  const [maxCompetitors, setMaxCompetitors] = useState("");
+  const [ageBasis, setAgeBasis] = useState<AgeBasis>('endOfYear');
   const [mensaje, setMensaje] = useState("");
 
   // Lista de carreras para gestión de inscripciones
@@ -26,7 +30,7 @@ export default function AdminCarreras() {
   // Inicializa Firebase Functions
   const functions = getFunctions(app);
   const fnCrearCarrera = httpsCallable<
-    { titulo: string; descripcion: string; ubicacion: string; fecha: string; imagenUrl: string; price: number },
+    { titulo: string; descripcion: string; ubicacion: string; fecha: string; imagenUrl: string; price: number; maxCompetitors: number; ageBasis: AgeBasis },
     any
   >(functions, "crearCarrera");
 
@@ -41,7 +45,6 @@ export default function AdminCarreras() {
       const snapshot = await getDocs(collection(db, "carreras"));
       const lista: Carrera[] = snapshot.docs.map(doc => ({
         id: doc.id,
-        // Asegúrate de que cada doc tenga el campo 'titulo'
         titulo: (doc.data() as any).titulo || "Sin título",
       }));
       setCarreras(lista);
@@ -58,6 +61,8 @@ export default function AdminCarreras() {
         fecha,
         imagenUrl,
         price: parseFloat(price) || 0,
+        maxCompetitors: parseInt(maxCompetitors, 10) || 0,
+        ageBasis,
       });
       setMensaje("Carrera creada exitosamente.");
       // Refresca listado de carreras
@@ -87,6 +92,7 @@ export default function AdminCarreras() {
       setLoadingBorrado(false);
     }
   };
+
 
   return (
     <Layout title="Admin – Carreras">
@@ -136,6 +142,27 @@ export default function AdminCarreras() {
               step="0.01"
               className="w-full p-2 border rounded"
             />
+            <input
+              type="number"
+              value={maxCompetitors}
+              onChange={e => setMaxCompetitors(e.target.value)}
+              placeholder="Cupo máximo de competidores"
+              className="w-full p-2 border rounded"
+            />
+            {/* Cálculo de edad */}
+              <div className="py-2">
+                <label className="block font-medium">Cálculo de edad</label>
+                <div className="mt-1 space-x-4">
+                  <label className="inline-flex items-center">
+                    <input type="radio" className="form-radio" value="endOfYear" checked={ageBasis==='endOfYear'} onChange={()=>setAgeBasis('endOfYear')} />
+                    <span className="ml-2">Al término del año ({new Date().getFullYear()}/12/31)</span>
+                  </label>
+                  <label className="inline-flex items-center">
+                    <input type="radio" className="form-radio" value="eventDate" checked={ageBasis==='eventDate'} onChange={()=>setAgeBasis('eventDate')} />
+                    <span className="ml-2">Fecha del evento</span>
+                  </label>
+                </div>
+              </div>
             <button
               onClick={handleCrearCarrera}
               className="mt-4 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
