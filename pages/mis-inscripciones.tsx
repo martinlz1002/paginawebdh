@@ -38,7 +38,7 @@ interface InscView {
   carreraDate: Date;
   horaSalida?: string;
   ubicacion?: string;
-  imagenUrl?: string;
+  imagenUrl?: string;          // <-- imagen principal
   precio: number;
   categoria: string;
   perfilId: string;
@@ -90,7 +90,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // Fecha de la carrera en Date y formateada DD/MM/YYYY
+            // Formatear fecha de la carrera
             let fechaCarr = "";
             let carreraDate = today;
             if (cdata.fecha instanceof Timestamp) {
@@ -105,7 +105,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
 
-            // Datos del perfil (titular o subperfil)
+            // Obtener datos del perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -146,7 +146,7 @@ export default function MisInscripcionesPage() {
               carreraDate,
               horaSalida: cdata.horaSalida,
               ubicacion: cdata.lugar || cdata.ubicacion,
-              imagenUrl: cdata.imagenUrl,
+              imagenUrl: cdata.imagenUrl,  // <-- aquí se pasa la URL
               precio,
               categoria: src.categoria,
               perfilId: src.perfilId,
@@ -162,7 +162,7 @@ export default function MisInscripcionesPage() {
           })
         );
 
-        // Filtrar solo carreras de hoy o en el futuro
+        // Mostrar solo eventos hoy o futuros
         const upcoming = all.filter(i => i.carreraDate >= today);
         setList(upcoming);
         setLoading(false);
@@ -219,9 +219,20 @@ export default function MisInscripcionesPage() {
                 key={i.id}
                 className="border rounded shadow hover:shadow-lg overflow-hidden"
               >
+                {/* Imagen principal */}
+                {i.imagenUrl && (
+                  <div className="w-full h-48 overflow-hidden">
+                    <img
+                      src={i.imagenUrl}
+                      alt={i.titulo}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+
                 <div className="p-4">
                   <p className="font-medium">
-                    Número de competidor: {i.competitorNumber ?? '-'}
+                    Número de competidor: {i.competitorNumber ?? "-"}
                   </p>
                   <h2 className="text-xl font-semibold">{i.titulo}</h2>
                   <p className="text-sm text-gray-600 flex items-center space-x-1">
