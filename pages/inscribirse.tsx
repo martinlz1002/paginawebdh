@@ -21,6 +21,7 @@ import {
   ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
+// Tipos
 interface Categoria {
   nombre: string;
   minAge: number;
@@ -28,15 +29,18 @@ interface Categoria {
   price: number;
 }
 
+type AgeBasis = 'endOfYear' | 'eventDate';
+
 interface Carrera {
   id: string;
   titulo: string;
   descripcion?: string;
   lugar?: string;
-  fecha?: string;
+  fecha?: string; // ISO date YYYY-MM-DD
   horaSalida?: string;
   bannerUrl?: string;
   categorias: Categoria[];
+  ageBasis: AgeBasis;
 }
 
 interface Perfil {
@@ -44,7 +48,17 @@ interface Perfil {
   nombre: string;
   apellidoPaterno: string;
   apellidoMaterno: string;
-  edad: number;
+  birthDate: Date;
+}
+
+// Función auxiliar para calcular edad en base a fecha de corte
+function computeAge(birthDate: Date, basisDate: Date): number {
+  let age = basisDate.getFullYear() - birthDate.getFullYear();
+  const m = basisDate.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && basisDate.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
 }
 
 export default function InscribirsePage() {
@@ -59,6 +73,7 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
+  // Carga de datos de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -75,7 +90,7 @@ export default function InscribirsePage() {
         lugar: d.lugar || d.ubicacion,
         fecha:
           d.fecha instanceof Timestamp
-            ? d.fecha.toDate().toLocaleDateString()
+            ? d.fecha.toDate().toISOString().split('T')[0]
             : d.fecha,
         horaSalida: d.horaSalida,
         bannerUrl: d.bannerUrl,
@@ -85,10 +100,12 @@ export default function InscribirsePage() {
           maxAge: cat.maxAge,
           price: typeof cat.price === "number" ? cat.price : 0,
         })),
+        ageBasis: d.ageBasis || 'endOfYear',
       });
     })();
   }, [carreraId]);
 
+  // Carga de perfiles del usuario
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -103,23 +120,29 @@ export default function InscribirsePage() {
     const udoc = await getDoc(doc(db, "usuarios", uid));
     if (udoc.exists()) {
       const ud: any = udoc.data();
+      const bd = ud.fechaNacimiento instanceof Timestamp
+        ? ud.fechaNacimiento.toDate()
+        : new Date(ud.fechaNacimiento);
       lista.push({
         id: uid,
         nombre: ud.nombre,
-        apellidoPaterno: ud.apPaterno,
-        apellidoMaterno: ud.apMaterno,
-        edad: ud.edad,
+        apellidoPaterno: ud.apPaterno || ud.apellidoPaterno,
+        apellidoMaterno: ud.apMaterno || ud.apellidoMaterno,
+        birthDate: bd,
       });
     }
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
     snap.docs.forEach((d) => {
       const p: any = d.data();
+      const bd = p.fechaNacimiento instanceof Timestamp
+        ? p.fechaNacimiento.toDate()
+        : new Date(p.fechaNacimiento);
       lista.push({
         id: d.id,
         nombre: p.nombre,
         apellidoPaterno: p.apellidoPaterno,
         apellidoMaterno: p.apellidoMaterno,
-        edad: p.edad,
+        birthDate: bd,
       });
     });
     setPerfiles(lista);
@@ -141,8 +164,8 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
+    // Evitar duplicados
     const rootCol = collection(db, "inscripciones");
-    // 1) Verificar inscripción previa en cualquier categoría
     const dupAny = await getDocs(
       query(
         rootCol,
@@ -156,7 +179,7 @@ export default function InscribirsePage() {
       return;
     }
 
-    // 2) Proceder con pago para la categoría seleccionada
+    // Proceder con pago
     const catObj = carrera.categorias.find(
       (c) => c.nombre === categoriaSeleccionada
     )!;
@@ -200,12 +223,21 @@ export default function InscribirsePage() {
     );
   }
 
-  const perfilActual = perfiles.find((p) => p.id === perfilSeleccionado);
+  // Determinar fecha de corte según ageBasis
+  const basisDate = carrera.ageBasis === 'endOfYear'
+    ? new Date(new Date().getFullYear(), 11, 31)
+    : new Date(carrera.fecha as string);
+
+  // Obtener edad dinámica del perfil seleccionado
+  const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
+  const perfilAge = perfilData ? computeAge(perfilData.birthDate, basisDate) : 0;
+
+  // Filtrar categorías
   const categoriasPermitidas = carrera.categorias.filter((cat) =>
-    perfilActual
-      ? perfilActual.edad >= cat.minAge && perfilActual.edad <= cat.maxAge
-      : false
+    perfilAge >= cat.minAge && perfilAge <= cat.maxAge
   );
+
+  // Precio
   const precioSeleccionado =
     categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
       ?.price ?? 0;
@@ -289,7 +321,7 @@ export default function InscribirsePage() {
                 >
                   {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.nombre} {p.apellidoPaterno} ({p.edad} años)
+                      {p.nombre} {p.apellidoPaterno} (${computeAge(p.birthDate, basisDate)} años)
                     </option>
                   ))}
                 </select>
