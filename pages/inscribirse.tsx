@@ -265,7 +265,7 @@ export default function InscribirsePage() {
 
           {/* Mostrar edad y categorías para verificación */}
           <div className="p-4 bg-gray-100 rounded">
-            <p className="font-medium">Edad calculada: {perfilAge} años</p>
+            <p className="font-medium">Edad en base a la convocatoria: {perfilAge} años</p>
             <p className="text-sm text-gray-600">
               Según {carrera.ageBasis === 'endOfYear' ? `corte al 31/12/${eventYear}` : `fecha del evento (${carrera.fecha})`}
             </p>

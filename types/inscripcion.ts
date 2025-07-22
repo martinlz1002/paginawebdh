@@ -10,4 +10,6 @@ export interface InscripcionData {
   competitorNumber?: number;
   paymentStatus?: 'paid' | 'pending' | 'unpaid' | 'expired';
   timestamp?: Timestamp;      // <-- lo añades aquí
+  isManualEntry?: boolean;
+  manualAdminId?: string;  // referencia (tempusuario.id)
 }
