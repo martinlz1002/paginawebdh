@@ -3,10 +3,10 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
 
-// 1️⃣ Desactivar el body parser de Next.js
+// 1️⃣ Desactivar body parser de Next.js
 export const config = { api: { bodyParser: false } };
 
-// 2️⃣ Inicializar Firebase Admin SDK sólo una vez
+// 2️⃣ Inicializar Firebase Admin SDK
 if (!admin.apps.length) {
   const raw = Buffer.from(
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!,
@@ -17,7 +17,6 @@ if (!admin.apps.length) {
     credential: admin.credential.cert(serviceAccount),
   });
 }
-
 const firestore = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
@@ -29,8 +28,11 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 // 4️⃣ Secret del webhook
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-// 5️⃣ Actualizar paymentStatus y asignar/liberar número de competidor
-async function markPaymentStatus(sessionId: string, status: string) {
+// 5️⃣ Función para actualizar paymentStatus y asignar/liberar número de competidor
+async function markPaymentStatus(
+  sessionId: string,
+  status: "paid" | "pending" | "unpaid" | "expired"
+) {
   console.log(`🔍 [webhook] buscando sessionId=${sessionId}`);
   const snap = await firestore
     .collection("inscripciones")
@@ -50,42 +52,46 @@ async function markPaymentStatus(sessionId: string, status: string) {
     const carreraId = data.carreraId;
 
     // Leer cupo máximo
-    const carreraDoc = await firestore.collection("carreras").doc(carreraId).get();
+    const carreraDoc = await firestore
+      .collection("carreras")
+      .doc(carreraId)
+      .get();
     const maxCupo = carreraDoc.get("maxCompetitors") || 0;
 
-    // Inscripciones ya pagadas con número
+    // Inscripciones ya pagadas con número asignado
     const paidSnap = await firestore
       .collection("inscripciones")
       .where("carreraId", "==", carreraId)
       .where("paymentStatus", "==", "paid")
       .where("competitorNumber", ">", 0)
       .get();
-    const used = paidSnap.docs.map(d => d.data().competitorNumber as number);
+    const used = paidSnap.docs.map((d) => d.data().competitorNumber as number);
 
-    // Primer número disponible
+    // Encontrar primer número libre
     let assigned = 1;
     while (used.includes(assigned) && assigned <= maxCupo) {
       assigned++;
     }
 
     if (status === "paid" || status === "pending") {
-      // Asignar número (si cabe)
+      // Asignar número si hay espacio
       if (assigned > maxCupo) {
         console.warn(`Cupo lleno para ${carreraId}, no se asignó número`);
         batch.update(ref, { paymentStatus: status });
       } else {
-        batch.update(ref, { paymentStatus: status, competitorNumber: assigned });
+        batch.update(ref, {
+          paymentStatus: status,
+          competitorNumber: assigned,
+        });
       }
-
     } else if (status === "unpaid" || status === "expired") {
       // Liberar número
       batch.update(ref, {
         paymentStatus: status,
         competitorNumber: FieldValue.delete(),
       });
-
     } else {
-      // Otros estados, solo actualizar status
+      // Otros estados: solo actualizar status
       batch.update(ref, { paymentStatus: status });
     }
   }
@@ -105,7 +111,7 @@ export default async function handler(
     return res.status(405).end("Method Not Allowed");
   }
 
-  // Raw body + firma
+  // Obtener body crudo y firma
   const buf = await buffer(req);
   const sig = req.headers["stripe-signature"] as string;
 
@@ -124,11 +130,9 @@ export default async function handler(
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         // Stripe usa session.status === "open" para pagos manuales
-        // mapeamos 'open' a 'pending'; si ya está complete, usamos payment_status
+        // mapeamos 'open' a 'pending'; si no, al completar, marcamos 'paid'
         const status =
-          session.status === "open"
-            ? "pending"
-            : session.payment_status;
+          session.status === "open" ? "pending" : "paid";
         await markPaymentStatus(session.id, status);
         break;
       }
