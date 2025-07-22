@@ -74,8 +74,8 @@ export default function MisInscripcionesPage() {
       );
 
       const unsubSnap = onSnapshot(q, async (snap) => {
-        const hoy = new Date();
-        const today = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
 
         const all = await Promise.all(
           snap.docs.map(async (d) => {
@@ -90,7 +90,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // Fecha de la carrera
+            // Formatear fecha de la carrera
             let fechaCarr = "";
             let carreraDate = today;
             if (cdata.fecha instanceof Timestamp) {
@@ -105,7 +105,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
 
-            // Perfil
+            // Datos del perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -133,7 +133,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // Fecha inscripción
+            // Fecha de inscripción
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -157,7 +157,7 @@ export default function MisInscripcionesPage() {
               fechaIns,
               sessionId: src.sessionId,
               paymentStatus: src.paymentStatus ?? "desconocido",
-              competitorNumber: src.competitorNumber
+              competitorNumber: src.competitorNumber,
             } as InscView;
           })
         );
@@ -201,19 +201,19 @@ export default function MisInscripcionesPage() {
 
   return (
     <AuthGuard>
-      <div className="max-w-3xl mx-auto p-4 space-y-4">
+      <div className="max-w-5xl mx-auto p-6">
         {list.length === 0 ? (
           <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
-          <ul>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {list.map((i) => (
-              <li
+              <div
                 key={i.id}
-                className="border rounded shadow-sm hover:shadow-md overflow-hidden"
+                className="border rounded-lg shadow-lg overflow-hidden flex flex-col"
               >
-                {/* Imagen compacta */}
+                {/* Imagen principal */}
                 {i.imagenUrl && (
-                  <div className="w-full h-32 overflow-hidden">
+                  <div className="w-full h-40 overflow-hidden">
                     <img
                       src={i.imagenUrl}
                       alt={i.titulo}
@@ -221,28 +221,33 @@ export default function MisInscripcionesPage() {
                     />
                   </div>
                 )}
-                <div className="p-2">
-                  <p className="text-sm font-medium">
-                    #{i.competitorNumber ?? "-"} •{" "}
-                    <span className="text-base font-semibold">{i.titulo}</span>
+
+                <div className="p-4 flex-1 flex flex-col">
+                  <h2 className="text-2xl font-bold mb-2">{i.titulo}</h2>
+                  <p className="text-lg font-semibold mb-1">
+                    Número: #{i.competitorNumber ?? "-"}
                   </p>
-                  <p className="text-xs text-gray-600 flex items-center space-x-1 mt-1">
-                    <ClipboardIcon className="w-3 h-3" />
-                    <span>
-                      {i.perfilNombre} {i.perfilApPaterno}
+                  <p className="text-base text-gray-700 mb-2">
+                    <ClipboardIcon className="inline w-5 h-5 mr-1" />
+                    {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
+                  </p>
+                  <div className="text-base text-gray-600 mb-2 flex flex-wrap gap-4">
+                    <span className="flex items-center">
+                      <MapPinIcon className="w-5 h-5 mr-1" />
+                      {i.ubicacion || "-"}
                     </span>
-                  </p>
-                  <p className="text-xs text-gray-600 flex items-center space-x-1">
-                    <MapPinIcon className="w-3 h-3" />
-                    <span>{i.ubicacion || "-"}</span>
-                    <CalendarIcon className="w-3 h-3 ml-2" />
-                    <span>{i.fechaCarr}</span>
-                    <ClockIcon className="w-3 h-3 ml-2" />
-                    <span>{i.horaSalida || "-"}</span>
-                  </p>
-                  <div className="flex items-center justify-between mt-2">
+                    <span className="flex items-center">
+                      <CalendarIcon className="w-5 h-5 mr-1" />
+                      {i.fechaCarr}
+                    </span>
+                    <span className="flex items-center">
+                      <ClockIcon className="w-5 h-5 mr-1" />
+                      {i.horaSalida || "-"}
+                    </span>
+                  </div>
+                  <div className="mt-auto flex items-center justify-between">
                     <span
-                      className={`px-2 py-1 rounded text-xs ${
+                      className={`px-3 py-1 rounded-full text-sm ${
                         i.paymentStatus === "paid"
                           ? "bg-green-100 text-green-800"
                           : i.paymentStatus === "pending"
@@ -255,16 +260,16 @@ export default function MisInscripcionesPage() {
                     {i.paymentStatus !== "paid" && (
                       <button
                         onClick={() => reintentarPago(i)}
-                        className="text-xs text-purple-600 hover:underline"
+                        className="text-sm text-purple-600 hover:underline"
                       >
-                        Reintentar
+                        Reintentar pago
                       </button>
                     )}
                   </div>
                 </div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </AuthGuard>
