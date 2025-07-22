@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import TempAuthGuard from "@/components/TempAuthguard";
+import TempAuthGuard from "@/components/TempAuthGuard";
 import Layout from "@/components/Layout";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import { collection, query, where, getDocs } from "firebase/firestore";
