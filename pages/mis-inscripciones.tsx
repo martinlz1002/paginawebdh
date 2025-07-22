@@ -27,6 +27,7 @@ interface InscRaw {
   timestamp: any;
   sessionId?: string;
   paymentStatus?: string;
+  competitorNumber?: number;
 }
 
 interface InscView {
@@ -48,6 +49,7 @@ interface InscView {
   fechaIns: string;
   sessionId?: string;
   paymentStatus?: string;
+  competitorNumber?: number;
 }
 
 function pad(n: number) {
@@ -155,6 +157,7 @@ export default function MisInscripcionesPage() {
               fechaIns,
               sessionId: src.sessionId,
               paymentStatus: src.paymentStatus ?? "desconocido",
+              competitorNumber: src.competitorNumber
             } as InscView;
           })
         );
@@ -216,61 +219,49 @@ export default function MisInscripcionesPage() {
                 key={i.id}
                 className="border rounded shadow hover:shadow-lg overflow-hidden"
               >
-                <div className="flex flex-col md:flex-row">
-                  {i.imagenUrl ? (
-                    <div className="md:w-1/3 h-48 overflow-hidden">
-                      <img
-                        src={i.imagenUrl}
-                        alt={i.titulo}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="md:w-1/3 h-48 bg-gray-200 flex items-center justify-center">
-                      <span className="text-gray-500">Sin imagen</span>
-                    </div>
-                  )}
-                  <div className="p-4 flex-1 space-y-2">
-                    <h2 className="text-xl font-semibold">{i.titulo}</h2>
-                    <p className="text-sm text-gray-600 flex items-center space-x-1">
-                      <ClipboardIcon className="w-4 h-4" />
-                      <span>
-                        {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
-                        {i.perfilClub && ` • Club: ${i.perfilClub}`}
-                      </span>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <MapPinIcon className="inline-block w-4 h-4 mr-1" />
-                      {i.ubicacion || "-"} ·{" "}
-                      <CalendarIcon className="inline-block w-4 h-4 mr-1" />
-                      {i.fechaCarr} ·{" "}
-                      <ClockIcon className="inline-block w-4 h-4 mr-1" />
-                      {i.horaSalida || "-"}
-                    </p>
-                    <p>
-                      <strong>Categoría:</strong> {i.categoria} ($
-                      {i.precio.toFixed(2)})
-                    </p>
-                    <span
-                      className={`inline-block px-2 py-1 rounded text-xs ${
-                        i.paymentStatus === "paid"
-                          ? "bg-green-100 text-green-800"
-                          : i.paymentStatus === "pending"
-                          ? "bg-yellow-100 text-yellow-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
-                    >
-                      {i.paymentStatus}
+                <div className="p-4">
+                  <p className="font-medium">
+                    Número de competidor: {i.competitorNumber ?? '-'}
+                  </p>
+                  <h2 className="text-xl font-semibold">{i.titulo}</h2>
+                  <p className="text-sm text-gray-600 flex items-center space-x-1">
+                    <ClipboardIcon className="w-4 h-4" />
+                    <span>
+                      {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
+                      {i.perfilClub && ` • Club: ${i.perfilClub}`}
                     </span>
-                    {i.paymentStatus !== "paid" && (
-                      <button
-                        onClick={() => reintentarPago(i)}
-                        className="mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
-                      >
-                        Reintentar pago
-                      </button>
-                    )}
-                  </div>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <MapPinIcon className="inline-block w-4 h-4 mr-1" />
+                    {i.ubicacion || "-"} ·{" "}
+                    <CalendarIcon className="inline-block w-4 h-4 mr-1" />
+                    {i.fechaCarr} ·{" "}
+                    <ClockIcon className="inline-block w-4 h-4 mr-1" />
+                    {i.horaSalida || "-"}
+                  </p>
+                  <p>
+                    <strong>Categoría:</strong> {i.categoria} ($
+                    {i.precio.toFixed(2)})
+                  </p>
+                  <span
+                    className={`inline-block px-2 py-1 rounded text-xs ${
+                      i.paymentStatus === "paid"
+                        ? "bg-green-100 text-green-800"
+                        : i.paymentStatus === "pending"
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {i.paymentStatus}
+                  </span>
+                  {i.paymentStatus !== "paid" && (
+                    <button
+                      onClick={() => reintentarPago(i)}
+                      className="mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+                    >
+                      Reintentar pago
+                    </button>
+                  )}
                 </div>
               </li>
             ))}

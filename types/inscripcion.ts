@@ -1,3 +1,5 @@
+import { Timestamp } from 'firebase/firestore';
+
 export interface InscripcionData {
   carreraId: string;
   carreraTitulo: string;
@@ -7,5 +9,5 @@ export interface InscripcionData {
   sessionId: string;
   competitorNumber?: number;
   paymentStatus?: 'paid' | 'pending' | 'unpaid' | 'expired';
-  createdAt?: FirebaseFirestore.Timestamp;
+  timestamp?: Timestamp;      // <-- lo añades aquí
 }

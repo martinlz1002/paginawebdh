@@ -9,10 +9,12 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { CarreraData } from '@/types/carrera';
+import type { InscripcionData } from '@/types/inscripcion';
 import * as XLSX from 'xlsx';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
 interface CarreraItem extends CarreraData { id: string; }
+
 interface PerfilData {
   nombre: string;
   apellidoPaterno: string;
@@ -24,6 +26,7 @@ interface PerfilData {
   club?: string;
   edad?: number;
 }
+
 interface InscripcionItem {
   id: string;
   perfil: PerfilData | null;
@@ -31,6 +34,7 @@ interface InscripcionItem {
   timestamp: any;
   sessionId?: string;
   payment_status?: string;
+  competitorNumber?: number;
 }
 
 export default function AdminInscripcionesView() {
@@ -43,11 +47,13 @@ export default function AdminInscripcionesView() {
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, 'carreras'));
-      setCarreras(snap.docs.map(d => ({ id: d.id, ...(d.data() as CarreraData) })));
+      setCarreras(
+        snap.docs.map(d => ({ id: d.id, ...(d.data() as CarreraData) }))
+      );
     })();
   }, []);
 
-  // 2) Cargo inscripciones + perfil + sessionId + status
+  // 2) Cargo inscripciones + perfil + sessionId + status + competitorNumber
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
@@ -64,7 +70,7 @@ export default function AdminInscripcionesView() {
 
       const items: InscripcionItem[] = await Promise.all(
         snap.docs.map(async d => {
-          const data = d.data();
+          const data = d.data() as InscripcionData;
           let perfil: PerfilData | null = null;
 
           // Perfil principal
@@ -107,10 +113,9 @@ export default function AdminInscripcionesView() {
 
           // Obtener estado de pago desde Stripe
           let payment_status: string | undefined;
-          const sessionId = (data as any).sessionId;
-          if (sessionId) {
+          if (data.sessionId) {
             try {
-              const res = await fetch(`/api/get-session?session_id=${sessionId}`);
+              const res = await fetch(`/api/get-session?session_id=${data.sessionId}`);
               if (res.ok) {
                 const json = await res.json();
                 payment_status = json.payment_status;
@@ -123,8 +128,9 @@ export default function AdminInscripcionesView() {
             perfil,
             categoria: data.categoria,
             timestamp: data.timestamp,
-            sessionId,
-            payment_status
+            sessionId: data.sessionId,
+            payment_status,
+            competitorNumber: data.competitorNumber
           };
         })
       );
@@ -134,9 +140,9 @@ export default function AdminInscripcionesView() {
     })();
   }, [selectedCarrera]);
 
-  // Exportar a Excel
   const exportExcel = () => {
     const rows = inscripciones.map(i => ({
+      Número: i.competitorNumber,
       Nombre: i.perfil?.nombre,
       ApellidoP: i.perfil?.apellidoPaterno,
       ApellidoM: i.perfil?.apellidoMaterno,
@@ -186,6 +192,7 @@ export default function AdminInscripcionesView() {
           <table className="w-full table-auto border-collapse rounded-lg shadow">
             <thead className="bg-gray-100">
               <tr>
+                <th className="p-2 text-left">Número</th>
                 <th className="p-2 text-left">Nombre</th>
                 <th className="p-2 text-left">Apellido P</th>
                 <th className="p-2 text-left">Apellido M</th>
@@ -199,6 +206,7 @@ export default function AdminInscripcionesView() {
             <tbody>
               {inscripciones.map(i => (
                 <tr key={i.id} className="hover:bg-gray-50">
+                  <td className="p-2">{i.competitorNumber ?? '-'}</td>
                   <td className="p-2">{i.perfil?.nombre}</td>
                   <td className="p-2">{i.perfil?.apellidoPaterno}</td>
                   <td className="p-2">{i.perfil?.apellidoMaterno}</td>
@@ -206,11 +214,11 @@ export default function AdminInscripcionesView() {
                   <td className="p-2">{i.perfil?.celular}</td>
                   <td className="p-2">{i.categoria}</td>
                   <td className="p-2 capitalize">{i.payment_status || '-'}</td>
-                  <td className="p-2">{
-                    i.timestamp?.toDate
+                  <td className="p-2">
+                    {i.timestamp?.toDate
                       ? i.timestamp.toDate().toLocaleString()
-                      : '-'
-                  }</td>
+                      : '-'}
+                  </td>
                 </tr>
               ))}
             </tbody>
