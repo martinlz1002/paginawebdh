@@ -3,11 +3,12 @@ import {
   PlusCircleIcon,
   PencilIcon,
   ClipboardIcon,
-  TrashIcon
+  TrashIcon,
+  UserPlusIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
-  view: 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones';
+  view: 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones' | 'inscripcionesManuales';
   setView: (v: SidebarProps['view']) => void;
   open: boolean;
   onToggle: () => void;
@@ -56,6 +57,12 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
           className={`${btnBase} ${view === 'inscripciones' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <ClipboardIcon className="w-5 h-5 mr-2" /> Ver Inscripciones
+        </button>
+        <button
+          onClick={() => { setView('inscripcionesManuales'); onToggle(); }}
+          className={`${btnBase} ${view === 'inscripcionesManuales' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+        >
+          <UserPlusIcon className="w-5 h-5 mr-2" /> Inscripciones Manuales
         </button>
         <button
           onClick={() => { setView('eliminarInscripciones'); onToggle(); }}
