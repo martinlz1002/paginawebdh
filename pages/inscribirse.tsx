@@ -321,8 +321,8 @@ export default function InscribirsePage() {
                 >
                   {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.nombre} {p.apellidoPaterno} (${computeAge(p.birthDate, basisDate)} años)
-                    </option>
+                  {`${p.nombre} ${p.apellidoPaterno} (${computeAge(p.birthDate, basisDate)} años)`}
+                  </option>
                   ))}
                 </select>
               )}
