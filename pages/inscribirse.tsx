@@ -51,7 +51,7 @@ interface Perfil {
   birthDate: Date;
 }
 
-// Función auxiliar para calcular edad en base a fecha de corte
+// Calcula edad dado nacimiento y fecha de corte
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -105,7 +105,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // Carga de perfiles del usuario
+  // Carga de perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -164,7 +164,7 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Evitar duplicados
+    // Duplicados
     const rootCol = collection(db, "inscripciones");
     const dupAny = await getDocs(
       query(
@@ -179,10 +179,8 @@ export default function InscribirsePage() {
       return;
     }
 
-    // Proceder con pago
-    const catObj = carrera.categorias.find(
-      (c) => c.nombre === categoriaSeleccionada
-    )!;
+    // Pago
+    const catObj = carrera.categorias.find((c) => c.nombre === categoriaSeleccionada)!;
     setProcesandoPago(true);
     try {
       const resp = await fetch("/api/checkout_sessions", {
@@ -197,7 +195,6 @@ export default function InscribirsePage() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
-
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -205,7 +202,6 @@ export default function InscribirsePage() {
         categoria: categoriaSeleccionada,
         sessionId,
       });
-
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -215,63 +211,38 @@ export default function InscribirsePage() {
     }
   };
 
-  if (!carrera) {
-    return (
-      <AuthGuard>
-        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
-      </AuthGuard>
-    );
-  }
+  if (!carrera) return <AuthGuard><p className="text-center mt-10">{mensaje || "Cargando…"}</p></AuthGuard>;
 
-  // Determinar fecha de corte según ageBasis
+  // Año del evento
+  const eventYear = new Date(carrera.fecha as string).getFullYear();
+  // Fecha de corte según base
   const basisDate = carrera.ageBasis === 'endOfYear'
-    ? new Date(new Date().getFullYear(), 11, 31)
+    ? new Date(eventYear, 11, 31)
     : new Date(carrera.fecha as string);
 
-  // Obtener edad dinámica del perfil seleccionado
+  // Edad perfil
   const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
   const perfilAge = perfilData ? computeAge(perfilData.birthDate, basisDate) : 0;
 
-  // Filtrar categorías
-  const categoriasPermitidas = carrera.categorias.filter((cat) =>
-    perfilAge >= cat.minAge && perfilAge <= cat.maxAge
+  // Categorías válidas
+  const categoriasPermitidas = carrera.categorias.filter(
+    (cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
   );
-
-  // Precio
-  const precioSeleccionado =
-    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
-      ?.price ?? 0;
+  const precioSeleccionado = categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)?.price ?? 0;
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         {carrera.bannerUrl && (
-          <div
-            className="h-56 bg-cover bg-center"
-            style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
-          />
+          <div className="h-56 bg-cover bg-center" style={{ backgroundImage: `url(${carrera.bannerUrl})` }} />
         )}
         <div className="p-6 space-y-6">
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-          {carrera.descripcion && (
-            <p className="text-gray-700">{carrera.descripcion}</p>
-          )}
+          {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-gray-600">
-            {carrera.lugar && (
-              <div className="flex items-center space-x-2">
-                <MapPinIcon className="w-5 h-5" /> <span>{carrera.lugar}</span>
-              </div>
-            )}
-            {carrera.fecha && (
-              <div className="flex items-center space-x-2">
-                <CalendarIcon className="w-5 h-5" /> <span>{carrera.fecha}</span>
-              </div>
-            )}
-            {carrera.horaSalida && (
-              <div className="flex items-center space-x-2">
-                <ClockIcon className="w-5 h-5" /> <span>{carrera.horaSalida}</span>
-              </div>
-            )}
+            {carrera.lugar && <div className="flex items-center space-x-2"><MapPinIcon className="w-5 h-5" /> <span>{carrera.lugar}</span></div>}
+            {carrera.fecha && <div className="flex items-center space-x-2"><CalendarIcon className="w-5 h-5" /> <span>{carrera.fecha}</span></div>}
+            {carrera.horaSalida && <div className="flex items-center space-x-2"><ClockIcon className="w-5 h-5" /> <span>{carrera.horaSalida}</span></div>}
           </div>
 
           {/* Categorías */}
@@ -281,88 +252,37 @@ export default function InscribirsePage() {
               <span>Categorías y precios</span>
             </h2>
             <table className="w-full table-auto border text-gray-700">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-4 py-2">Nombre</th>
-                  <th className="border px-4 py-2">Edad mínima</th>
-                  <th className="border px-4 py-2">Edad máxima</th>
-                  <th className="border px-4 py-2">Precio (MXN)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {carrera.categorias.map((cat) => (
-                  <tr key={cat.nombre} className="hover:bg-gray-50">
-                    <td className="border px-4 py-2">{cat.nombre}</td>
-                    <td className="border px-4 py-2">{cat.minAge}</td>
-                    <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">
-                      ${cat.price.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+              <thead className="bg-gray-100"><tr><th className="border px-4 py-2">Nombre</th><th className="border px-4 py-2">Edad mínima</th><th className="border px-4 py-2">Edad máxima</th><th className="border px-4 py-2">Precio (MXN)</th></tr></thead>
+              <tbody>{carrera.categorias.map((cat) => (<tr key={cat.nombre} className="hover:bg-gray-50"><td className="border px-4 py-2">{cat.nombre}</td><td className="border px-4 py-2">{cat.minAge}</td><td className="border px-4 py-2">{cat.maxAge}</td><td className="border px-4 py-2">${cat.price.toFixed(2)}</td></tr>))}</tbody>
             </table>
           </div>
 
           {/* Formulario */}
           <div className="pt-6 border-t space-y-4">
             <div>
-              <label className="block font-medium mb-1 flex items-center space-x-1">
-                <UserIcon className="w-5 h-5 text-green-600" />
-                <span>Tu perfil</span>
-              </label>
-              {loadingPerfiles ? (
-                <p>Cargando perfiles…</p>
-              ) : (
-                <select
-                  className="w-full border p-2 rounded"
-                  value={perfilSeleccionado}
-                  onChange={(e) => setPerfilSeleccionado(e.target.value)}
-                >
+              <label className="block font-medium mb-1 flex items-center space-x-1"><UserIcon className="w-5 h-5 text-green-600" /><span>Tu perfil</span></label>
+              {loadingPerfiles ? <p>Cargando perfiles…</p> : (
+                <select className="w-full border p-2 rounded" value={perfilSeleccionado} onChange={(e) => setPerfilSeleccionado(e.target.value)}>
                   {perfiles.map((p) => (
                     <option key={p.id} value={p.id}>
-                  {`${p.nombre} ${p.apellidoPaterno} (${computeAge(p.birthDate, basisDate)} años)`}
-                  </option>
+                      {`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(p.birthDate, basisDate)} años)`}
+                    </option>
                   ))}
                 </select>
               )}
             </div>
 
             <div>
-              <label className="block font-medium mb-1 flex items-center space-x-1">
-                <ClipboardIcon className="w-5 h-5 text-purple-700" />
-                <span>Categoría</span>
-              </label>
-              <select
-                className="w-full border p-2 rounded disabled:opacity-50"
-                value={categoriaSeleccionada}
-                onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-                disabled={!categoriasPermitidas.length}
-              >
+              <label className="block font-medium mb-1 flex items-center space-x-1"><ClipboardIcon className="w-5 h-5 text-purple-700" /><span>Categoría</span></label>
+              <select className="w-full border p-2 rounded disabled:opacity-50" value={categoriaSeleccionada} onChange={(e) => setCategoriaSeleccionada(e.target.value)} disabled={!categoriasPermitidas.length}>
                 <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map((cat) => (
-                  <option key={cat.nombre} value={cat.nombre}>
-                    {cat.nombre}
-                  </option>
-                ))}
+                {categoriasPermitidas.map((cat) => (<option key={cat.nombre} value={cat.nombre}>{cat.nombre}</option>))}
               </select>
             </div>
 
-            {categoriaSeleccionada && (
-              <div className="text-lg font-medium">
-                Precio seleccionado: ${precioSeleccionado.toFixed(2)}
-              </div>
-            )}
+            {categoriaSeleccionada && <div className="text-lg font-medium">Precio seleccionado: ${precioSeleccionado.toFixed(2)}</div>}
 
-            <button
-              onClick={handlePagar}
-              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
-              className={`w-full py-3 rounded text-white transition ${
-                perfilSeleccionado && categoriaSeleccionada
-                  ? "bg-purple-600 hover:bg-purple-700"
-                  : "bg-gray-400 cursor-not-allowed"
-              }`}
-            >
+            <button onClick={handlePagar} disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago} className={`w-full py-3 rounded text-white transition ${perfilSeleccionado && categoriaSeleccionada ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-400 cursor-not-allowed"}`}>
               {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
             </button>
             {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
