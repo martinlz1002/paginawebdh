@@ -38,7 +38,7 @@ interface InscView {
   carreraDate: Date;
   horaSalida?: string;
   ubicacion?: string;
-  imagenUrl?: string;          // <-- imagen principal
+  imagenUrl?: string;
   precio: number;
   categoria: string;
   perfilId: string;
@@ -82,7 +82,7 @@ export default function MisInscripcionesPage() {
             const src = d.data() as InscRaw;
             const carreraId = src.carreraId;
 
-            // Obtener datos de la carrera
+            // Datos de la carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
             const categoriaObj = Array.isArray(cdata.categorias)
@@ -90,7 +90,7 @@ export default function MisInscripcionesPage() {
               : null;
             const precio: number = categoriaObj?.price ?? 0;
 
-            // Formatear fecha de la carrera
+            // Fecha de la carrera
             let fechaCarr = "";
             let carreraDate = today;
             if (cdata.fecha instanceof Timestamp) {
@@ -105,7 +105,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
 
-            // Obtener datos del perfil
+            // Perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -133,7 +133,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // Fecha de inscripción
+            // Fecha inscripción
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -146,7 +146,7 @@ export default function MisInscripcionesPage() {
               carreraDate,
               horaSalida: cdata.horaSalida,
               ubicacion: cdata.lugar || cdata.ubicacion,
-              imagenUrl: cdata.imagenUrl,  // <-- aquí se pasa la URL
+              imagenUrl: cdata.imagenUrl,
               precio,
               categoria: src.categoria,
               perfilId: src.perfilId,
@@ -162,9 +162,7 @@ export default function MisInscripcionesPage() {
           })
         );
 
-        // Mostrar solo eventos hoy o futuros
-        const upcoming = all.filter(i => i.carreraDate >= today);
-        setList(upcoming);
+        setList(all.filter(i => i.carreraDate >= today));
         setLoading(false);
       });
 
@@ -184,17 +182,12 @@ export default function MisInscripcionesPage() {
         price: item.precio,
       }),
     });
-    if (!res.ok) {
-      console.error("Error reintentando pago:", await res.text());
-      return;
-    }
+    if (!res.ok) return;
     const { url, sessionId } = await res.json();
-
     await updateDoc(doc(db, "inscripciones", item.id), {
       sessionId,
       paymentStatus: "pending",
     });
-
     window.open(url, "_blank")?.focus();
   };
 
@@ -208,20 +201,19 @@ export default function MisInscripcionesPage() {
 
   return (
     <AuthGuard>
-      <div className="max-w-4xl mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">Mis Inscripciones</h1>
+      <div className="max-w-3xl mx-auto p-4 space-y-4">
         {list.length === 0 ? (
           <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
-          <ul className="space-y-6">
+          <ul>
             {list.map((i) => (
               <li
                 key={i.id}
-                className="border rounded shadow hover:shadow-lg overflow-hidden"
+                className="border rounded shadow-sm hover:shadow-md overflow-hidden"
               >
-                {/* Imagen principal */}
+                {/* Imagen compacta */}
                 {i.imagenUrl && (
-                  <div className="w-full h-48 overflow-hidden">
+                  <div className="w-full h-32 overflow-hidden">
                     <img
                       src={i.imagenUrl}
                       alt={i.titulo}
@@ -229,50 +221,46 @@ export default function MisInscripcionesPage() {
                     />
                   </div>
                 )}
-
-                <div className="p-4">
-                  <p className="font-medium">
-                    Número de competidor: {i.competitorNumber ?? "-"}
+                <div className="p-2">
+                  <p className="text-sm font-medium">
+                    #{i.competitorNumber ?? "-"} •{" "}
+                    <span className="text-base font-semibold">{i.titulo}</span>
                   </p>
-                  <h2 className="text-xl font-semibold">{i.titulo}</h2>
-                  <p className="text-sm text-gray-600 flex items-center space-x-1">
-                    <ClipboardIcon className="w-4 h-4" />
+                  <p className="text-xs text-gray-600 flex items-center space-x-1 mt-1">
+                    <ClipboardIcon className="w-3 h-3" />
                     <span>
-                      {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
-                      {i.perfilClub && ` • Club: ${i.perfilClub}`}
+                      {i.perfilNombre} {i.perfilApPaterno}
                     </span>
                   </p>
-                  <p className="text-sm text-gray-600">
-                    <MapPinIcon className="inline-block w-4 h-4 mr-1" />
-                    {i.ubicacion || "-"} ·{" "}
-                    <CalendarIcon className="inline-block w-4 h-4 mr-1" />
-                    {i.fechaCarr} ·{" "}
-                    <ClockIcon className="inline-block w-4 h-4 mr-1" />
-                    {i.horaSalida || "-"}
+                  <p className="text-xs text-gray-600 flex items-center space-x-1">
+                    <MapPinIcon className="w-3 h-3" />
+                    <span>{i.ubicacion || "-"}</span>
+                    <CalendarIcon className="w-3 h-3 ml-2" />
+                    <span>{i.fechaCarr}</span>
+                    <ClockIcon className="w-3 h-3 ml-2" />
+                    <span>{i.horaSalida || "-"}</span>
                   </p>
-                  <p>
-                    <strong>Categoría:</strong> {i.categoria} ($
-                    {i.precio.toFixed(2)})
-                  </p>
-                  <span
-                    className={`inline-block px-2 py-1 rounded text-xs ${
-                      i.paymentStatus === "paid"
-                        ? "bg-green-100 text-green-800"
-                        : i.paymentStatus === "pending"
-                        ? "bg-yellow-100 text-yellow-800"
-                        : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {i.paymentStatus}
-                  </span>
-                  {i.paymentStatus !== "paid" && (
-                    <button
-                      onClick={() => reintentarPago(i)}
-                      className="mt-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded"
+                  <div className="flex items-center justify-between mt-2">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        i.paymentStatus === "paid"
+                          ? "bg-green-100 text-green-800"
+                          : i.paymentStatus === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
                     >
-                      Reintentar pago
-                    </button>
-                  )}
+                      {i.paymentStatus}
+                    </span>
+                    {i.paymentStatus !== "paid" && (
+                      <button
+                        onClick={() => reintentarPago(i)}
+                        className="text-xs text-purple-600 hover:underline"
+                      >
+                        Reintentar
+                      </button>
+                    )}
+                  </div>
                 </div>
               </li>
             ))}
