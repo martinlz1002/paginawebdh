@@ -187,6 +187,34 @@ export default function InscribirsePage() {
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
           {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
 
+          {/* Tabla completa de categorías */}
+          <div>
+            <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
+              <ClipboardIcon className="w-6 h-6 text-green-700" />
+              <span>Categorías y precios</span>
+            </h2>
+            <table className="w-full table-auto border text-gray-700">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="border px-4 py-2">Nombre</th>
+                  <th className="border px-4 py-2">Edad mínima</th>
+                  <th className="border px-4 py-2">Edad máxima</th>
+                  <th className="border px-4 py-2">Precio (MXN)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {carrera.categorias.map((cat) => (
+                  <tr key={cat.nombre} className="hover:bg-gray-50">
+                    <td className="border px-4 py-2">{cat.nombre}</td>
+                    <td className="border px-4 py-2">{cat.minAge}</td>
+                    <td className="border px-4 py-2">{cat.maxAge}</td>
+                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
           {/* Mostrar edad y categorías para verificación */}
           <div className="p-4 bg-gray-100 rounded">
             <p className="font-medium">Edad calculada: {perfilAge} años</p>
@@ -208,7 +236,9 @@ export default function InscribirsePage() {
               <label className="block font-medium mb-1 flex items-center space-x-1"><UserIcon className="w-5 h-5 text-green-600" /><span>Tu perfil</span></label>
               {loadingPerfiles ? <p>Cargando perfiles…</p> : (
                 <select className="w-full border p-2 rounded" value={perfilSeleccionado} onChange={(e) => setPerfilSeleccionado(e.target.value)}>
-                  {perfiles.map((p) => (<option key={p.id} value={p.id}>{`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno}`}</option>))}
+                  {perfiles.map((p) => (
+                    <option key={p.id} value={p.id}>{`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno}`}</option>
+                  ))}
                 </select>
               )}
             </div>
@@ -217,7 +247,9 @@ export default function InscribirsePage() {
               <label className="block font-medium mb-1 flex items-center space-x-1"><ClipboardIcon className="w-5 h-5 text-purple-700" /><span>Categoría</span></label>
               <select className="w-full border p-2 rounded disabled:opacity-50" value={categoriaSeleccionada} onChange={(e) => setCategoriaSeleccionada(e.target.value)} disabled={!categoriasPermitidas.length}>
                 <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map((cat) => (<option key={cat.nombre} value={cat.nombre}>{cat.nombre}</option>))}
+                {categoriasPermitidas.map((cat) => (
+                  <option key={cat.nombre} value={cat.nombre}>{cat.nombre}</option>
+                ))}
               </select>
             </div>
 
