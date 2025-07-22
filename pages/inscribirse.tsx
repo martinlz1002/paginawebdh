@@ -122,7 +122,13 @@ export default function InscribirsePage() {
       const bd = ud.fechaNacimiento instanceof Timestamp
         ? ud.fechaNacimiento.toDate()
         : new Date(ud.fechaNacimiento);
-      lista.push({ id: uid, nombre: ud.nombre, apellidoPaterno: ud.apPaterno || ud.apellidoPaterno, apellidoMaterno: ud.apMaterno || ud.apellidoMaterno, birthDate: bd });
+      lista.push({
+        id: uid,
+        nombre: ud.nombre,
+        apellidoPaterno: ud.apPaterno || ud.apellidoPaterno,
+        apellidoMaterno: ud.apMaterno || ud.apellidoMaterno,
+        birthDate: bd,
+      });
     }
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
     snap.docs.forEach((d) => {
@@ -130,7 +136,13 @@ export default function InscribirsePage() {
       const bd = p.fechaNacimiento instanceof Timestamp
         ? p.fechaNacimiento.toDate()
         : new Date(p.fechaNacimiento);
-      lista.push({ id: d.id, nombre: p.nombre, apellidoPaterno: p.apellidoPaterno, apellidoMaterno: p.apellidoMaterno, birthDate: bd });
+      lista.push({
+        id: d.id,
+        nombre: p.nombre,
+        apellidoPaterno: p.apellidoPaterno || p.apPaterno,
+        apellidoMaterno: p.apellidoMaterno || p.apMaterno,
+        birthDate: bd,
+      });
     });
     setPerfiles(lista);
     if (lista.length) setPerfilSeleccionado(lista[0].id);
@@ -150,7 +162,12 @@ export default function InscribirsePage() {
 
     // Duplicados
     const dupAny = await getDocs(
-      query(collection(db, "inscripciones"), where("carreraId","==",carrera.id), where("perfilId","==",perfilSeleccionado), where("perfilOwner","==",user.uid))
+      query(
+        collection(db, "inscripciones"),
+        where("carreraId","==",carrera.id),
+        where("perfilId","==",perfilSeleccionado),
+        where("perfilOwner","==",user.uid)
+      )
     );
     if (!dupAny.empty) { setMensaje("Ya estás inscrito en esta carrera."); return; }
 
@@ -169,7 +186,7 @@ export default function InscribirsePage() {
 
   if (!carrera) return <AuthGuard><p className="text-center mt-10">{mensaje || "Cargando…"}</p></AuthGuard>;
 
-  // Definir fecha de corte según tipo
+  // Fecha de corte según tipo
   const eventYear = new Date(carrera.fecha as string).getFullYear();
   const basisDate = carrera.ageBasis === 'endOfYear' ? new Date(eventYear, 11, 31) : new Date(carrera.fecha as string);
 
