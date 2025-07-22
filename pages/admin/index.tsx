@@ -7,10 +7,12 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
 import AdminCarrerasList, { CarreraItem } from '@/components/AdminCarrerasList';
 import AdminInscripcionesView from '@/components/AdminInscripcionesView';
+import InscripcionesManualesPage from '@/pages/admin/inscripciones-manuales';
 import EliminarInscripciones, { CarreraOption } from '@/components/EliminarInscripciones';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
-type View = 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones';
+// Incluir la nueva vista manual
+type View = 'crear' | 'listar' | 'inscripciones' | 'inscripcionesManuales' | 'eliminarInscripciones';
 
 export default function AdminPage() {
   const [view, setView] = useState<View>('crear');
@@ -41,19 +43,15 @@ export default function AdminPage() {
   // Renovamos token al montar para pillar claim admin
   useEffect(() => {
     const auth = getAuth(app);
-    if (auth.currentUser) {
-      auth.currentUser.getIdToken(true).catch(console.error);
-    }
+    auth.currentUser?.getIdToken(true).catch(console.error);
   }, []);
 
   const handleDeleteInscripciones = async (carreraId: string) => {
     setLoadingDelete(true);
     setFeedback(null);
     try {
-      // forzamos refresh
       const auth = getAuth(app);
       await auth.currentUser?.getIdToken(true);
-
       const { data } = await fnBorrar({ carreraId });
       setFeedback(`Se borraron ${data.eliminado} inscripciones.`);
       loadCarreras();
@@ -91,11 +89,7 @@ export default function AdminPage() {
         {view === 'crear' && (
           <AdminCarrerasForm
             initialValues={editItem ?? undefined}
-            onSuccess={() => {
-              setEditItem(null);
-              setView('listar');
-              loadCarreras();
-            }}
+            onSuccess={() => { setEditItem(null); setView('listar'); loadCarreras(); }}
           />
         )}
 
@@ -106,6 +100,8 @@ export default function AdminPage() {
         )}
 
         {view === 'inscripciones' && <AdminInscripcionesView />}
+
+        {view === 'inscripcionesManuales' && <InscripcionesManualesPage />}
 
         {view === 'eliminarInscripciones' && (
           <EliminarInscripciones
