@@ -29,7 +29,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 // 4️⃣ Secret del webhook
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-// 5️⃣ Actualizar paymentStatus y asignar/liberar número
+// 5️⃣ Actualizar paymentStatus y asignar/liberar número de competidor
 async function markPaymentStatus(sessionId: string, status: string) {
   console.log(`🔍 [webhook] buscando sessionId=${sessionId}`);
   const snap = await firestore
@@ -49,47 +49,43 @@ async function markPaymentStatus(sessionId: string, status: string) {
     const data = docSnap.data() as any;
     const carreraId = data.carreraId;
 
-    // leer cupo máximo
+    // Leer cupo máximo
     const carreraDoc = await firestore.collection("carreras").doc(carreraId).get();
     const maxCupo = carreraDoc.get("maxCompetitors") || 0;
 
-    // inscripciones 'paid' con número ya asignado
+    // Inscripciones ya pagadas con número
     const paidSnap = await firestore
       .collection("inscripciones")
       .where("carreraId", "==", carreraId)
       .where("paymentStatus", "==", "paid")
       .where("competitorNumber", ">", 0)
       .get();
-
     const used = paidSnap.docs.map(d => d.data().competitorNumber as number);
 
-    // encontrar primer número disponible
+    // Primer número disponible
     let assigned = 1;
     while (used.includes(assigned) && assigned <= maxCupo) {
       assigned++;
     }
 
     if (status === "paid" || status === "pending") {
-      // asignar número si hay espacio
+      // Asignar número (si cabe)
       if (assigned > maxCupo) {
         console.warn(`Cupo lleno para ${carreraId}, no se asignó número`);
         batch.update(ref, { paymentStatus: status });
       } else {
-        batch.update(ref, {
-          paymentStatus: status,
-          competitorNumber: assigned,
-        });
+        batch.update(ref, { paymentStatus: status, competitorNumber: assigned });
       }
 
     } else if (status === "unpaid" || status === "expired") {
-      // liberar número
+      // Liberar número
       batch.update(ref, {
         paymentStatus: status,
         competitorNumber: FieldValue.delete(),
       });
 
     } else {
-      // otros estados (por si acaso), mantener número
+      // Otros estados, solo actualizar status
       batch.update(ref, { paymentStatus: status });
     }
   }
@@ -109,6 +105,7 @@ export default async function handler(
     return res.status(405).end("Method Not Allowed");
   }
 
+  // Raw body + firma
   const buf = await buffer(req);
   const sig = req.headers["stripe-signature"] as string;
 
@@ -126,9 +123,13 @@ export default async function handler(
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        // Usar el status real (paid / unpaid)
-        const ps = session.payment_status || "pending";
-        await markPaymentStatus(session.id, ps);
+        // Stripe usa session.status === "open" para pagos manuales
+        // mapeamos 'open' a 'pending'; si ya está complete, usamos payment_status
+        const status =
+          session.status === "open"
+            ? "pending"
+            : session.payment_status;
+        await markPaymentStatus(session.id, status);
         break;
       }
       case "payment_intent.succeeded": {
@@ -165,6 +166,6 @@ export default async function handler(
     console.error("🔴 Error procesando webhook:", err);
   }
 
-  // ✅ responder 2xx para que Stripe no reintente
+  // Responder 2xx para que Stripe no reintente
   res.status(200).json({ received: true });
 }
