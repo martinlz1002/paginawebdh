@@ -6,17 +6,24 @@ import {
   collection,
   getDocs,
   addDoc,
-  serverTimestamp,
   updateDoc,
-  DocumentReference
+  serverTimestamp,
+  DocumentReference,
+  Timestamp
 } from 'firebase/firestore';
 import { ChevronLeftIcon } from '@heroicons/react/24/outline';
+import type { TempUsuario } from '@/types/tempusuario';
+import type { CarreraOption } from '@/components/EliminarInscripciones';
 
-type CarreraOption = { id: string; titulo: string };
+interface TempAccessRecord extends TempUsuario {
+  id: string;
+  link?: string;
+}
 
 export default function InscripcionesManualesAdmin() {
   const router = useRouter();
   const [carreras, setCarreras] = useState<CarreraOption[]>([]);
+  const [accesses, setAccesses] = useState<TempAccessRecord[]>([]);
   const [carreraId, setCarreraId] = useState<string>('');
   const [startNumber, setStartNumber] = useState<number>(0);
   const [endNumber, setEndNumber] = useState<number>(0);
@@ -27,16 +34,33 @@ export default function InscripcionesManualesAdmin() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar carreras
+  // 1) Cargar carreras y accesos existentes
   useEffect(() => {
     (async () => {
-      const snap = await getDocs(collection(db, 'carreras'));
+      // Carreras
+      const snapC = await getDocs(collection(db, 'carreras'));
       setCarreras(
-        snap.docs.map(d => ({
+        snapC.docs.map(d => ({
           id: d.id,
-          titulo: (d.data() as any).titulo || ''
+          titulo: (d.data() as any).titulo || '(sin título)'
         }))
       );
+      // Accesos temporales
+      const snapT = await getDocs(collection(db, 'tempusuarios'));
+      const accs: TempAccessRecord[] = snapT.docs.map(d => {
+        const data = d.data() as any;
+        return {
+          id: d.id,
+          carreraId: data.carreraId,
+          range: data.range,
+          username: data.username,
+          password: data.password,
+          expiresAt: (data.expiresAt as Timestamp).toDate(),
+          createdAt: (data.createdAt as Timestamp).toDate(),
+          link: data.link
+        };
+      });
+      setAccesses(accs);
     })();
   }, []);
 
@@ -55,7 +79,7 @@ export default function InscripcionesManualesAdmin() {
     }
     setLoading(true);
     try {
-      // 1️⃣ Crear el documento temporal
+      // 1️⃣ Crear documento
       const docRef = await addDoc(
         collection(db, 'tempusuarios'),
         {
@@ -63,15 +87,29 @@ export default function InscripcionesManualesAdmin() {
           range: { start: startNumber, end: endNumber },
           expiresAt: new Date(expiresAt),
           username: username.trim(),
-          password, // en prod deberías hashear
+          password, // en producción deberías hashear
           createdAt: serverTimestamp()
         }
-      ) as DocumentReference;  // anotar tipo para TS
+      ) as DocumentReference;
 
-      // 2️⃣ Generar el link y actualizar el mismo doc
+      // 2️⃣ Generar y guardar el link
       const url = `${window.location.origin}/inscripcion-manual/${docRef.id}`;
       await updateDoc(docRef, { link: url });
 
+      // 3️⃣ Refrescar la lista local
+      setAccesses(prev => [
+        ...prev,
+        {
+          id: docRef.id,
+          carreraId,
+          range: { start: startNumber, end: endNumber },
+          username: username.trim(),
+          password,
+          expiresAt: new Date(expiresAt),
+          createdAt: new Date(),
+          link: url
+        }
+      ]);
       setLink(url);
     } catch (e: any) {
       console.error(e);
@@ -83,85 +121,84 @@ export default function InscripcionesManualesAdmin() {
 
   return (
     <AuthGuard>
-      <div className="max-w-2xl mx-auto bg-white p-6 rounded shadow space-y-6">
+      <div className="max-w-4xl mx-auto p-6 space-y-8 bg-white rounded shadow">
+        {/* Volver */}
         <button
           onClick={() => router.back()}
           className="flex items-center text-gray-600 hover:text-gray-800"
         >
           <ChevronLeftIcon className="w-5 h-5 mr-1" /> Volver
         </button>
-        <h2 className="text-xl font-semibold">Crear Inscripciones Manuales</h2>
 
-        <div className="space-y-4">
-          {/* Carrera */}
-          <div>
-            <label className="block font-medium">Carrera</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={carreraId}
-              onChange={e => setCarreraId(e.target.value)}
-            >
-              <option value="">-- Selecciona carrera --</option>
-              {carreras.map(c => (
-                <option key={c.id} value={c.id}>{c.titulo}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Rango de números */}
-          <div className="grid grid-cols-2 gap-4">
+        {/* Formulario de creación */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold">Crear Inscripciones Manuales</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block font-medium">Número inicio</label>
-              <input
-                type="number"
-                min={1}
+              <label className="block font-medium">Carrera</label>
+              <select
                 className="w-full border p-2 rounded"
-                value={startNumber}
-                onChange={e => setStartNumber(Number(e.target.value))}
-              />
+                value={carreraId}
+                onChange={e => setCarreraId(e.target.value)}
+              >
+                <option value="">-- Selecciona carrera --</option>
+                {carreras.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.titulo}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex space-x-4">
+              <div className="flex-1">
+                <label className="block font-medium">Número inicio</label>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full border p-2 rounded"
+                  value={startNumber}
+                  onChange={e => setStartNumber(Number(e.target.value))}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block font-medium">Número fin</label>
+                <input
+                  type="number"
+                  min={startNumber}
+                  className="w-full border p-2 rounded"
+                  value={endNumber}
+                  onChange={e => setEndNumber(Number(e.target.value))}
+                />
+              </div>
             </div>
             <div>
-              <label className="block font-medium">Número fin</label>
+              <label className="block font-medium">Expiración</label>
               <input
-                type="number"
-                min={startNumber}
+                type="datetime-local"
                 className="w-full border p-2 rounded"
-                value={endNumber}
-                onChange={e => setEndNumber(Number(e.target.value))}
+                value={expiresAt}
+                onChange={e => setExpiresAt(e.target.value)}
               />
             </div>
-          </div>
-
-          {/* Expiración */}
-          <div>
-            <label className="block font-medium">Expiración</label>
-            <input
-              type="datetime-local"
-              className="w-full border p-2 rounded"
-              value={expiresAt}
-              onChange={e => setExpiresAt(e.target.value)}
-            />
-          </div>
-
-          {/* Credenciales */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block font-medium">Usuario</label>
-              <input
-                type="text"
-                className="w-full border p-2 rounded"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block font-medium">Contraseña</label>
-              <input
-                type="password"
-                className="w-full border p-2 rounded"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-              />
+            <div className="flex space-x-4">
+              <div className="flex-1">
+                <label className="block font-medium">Usuario</label>
+                <input
+                  type="text"
+                  className="w-full border p-2 rounded"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block font-medium">Contraseña</label>
+                <input
+                  type="password"
+                  className="w-full border p-2 rounded"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
@@ -188,7 +225,60 @@ export default function InscripcionesManualesAdmin() {
               </a>
             </div>
           )}
-        </div>
+        </section>
+
+        {/* Tabla de accesos ya creados */}
+        <section>
+          <h2 className="text-xl font-semibold">Accesos Temporales Creados</h2>
+          {accesses.length === 0 ? (
+            <p className="text-gray-500">No hay accesos temporales.</p>
+          ) : (
+            <div className="overflow-auto">
+              <table className="w-full table-auto border-collapse rounded-lg shadow">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 text-left">Carrera</th>
+                    <th className="p-2 text-left">Usuario</th>
+                    <th className="p-2 text-left">Contraseña</th>
+                    <th className="p-2 text-left">Rango</th>
+                    <th className="p-2 text-left">Expira</th>
+                    <th className="p-2 text-left">Link</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {accesses.map(acc => {
+                    const carrera = carreras.find(c => c.id === acc.carreraId);
+                    return (
+                      <tr key={acc.id} className="hover:bg-gray-50">
+                        <td className="p-2">{carrera?.titulo || acc.carreraId}</td>
+                        <td className="p-2">{acc.username}</td>
+                        <td className="p-2">{acc.password}</td>
+                        <td className="p-2">{`${acc.range.start}–${acc.range.end}`}</td>
+                        <td className="p-2">
+                          {(acc.expiresAt as Date).toLocaleString()}
+                        </td>
+                        <td className="p-2">
+                          {acc.link ? (
+                            <a
+                              href={acc.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 underline"
+                            >
+                              Ver
+                            </a>
+                          ) : (
+                            '-'
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
       </div>
     </AuthGuard>
   );
