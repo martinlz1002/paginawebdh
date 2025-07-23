@@ -12,7 +12,7 @@ import {
   where,
   Timestamp,
 } from "firebase/firestore";
-import { registrarInscripcion } from "@/lib/Inscripciones";
+import { registrarInscripcion } from "@/lib/Inscripciones";  // ahora apunta a la función Stripe
 import {
   MapPinIcon,
   CalendarIcon,
@@ -28,21 +28,18 @@ interface Categoria {
   maxAge: number;
   price: number;
 }
-
 type AgeBasis = 'endOfYear' | 'eventDate';
-
 interface Carrera {
   id: string;
   titulo: string;
   descripcion?: string;
   lugar?: string;
-  fecha?: string; // ISO date YYYY-MM-DD
+  fecha?: string;
   horaSalida?: string;
   bannerUrl?: string;
   categorias: Categoria[];
   ageBasis: AgeBasis;
 }
-
 interface Perfil {
   id: string;
   nombre: string;
@@ -51,7 +48,7 @@ interface Perfil {
   birthDate: Date;
 }
 
-// Calcula edad dado nacimiento y fecha de corte
+// Calcula edad
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -74,7 +71,7 @@ export default function InscribirsePage() {
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
 
-  // Carga de datos de la carrera
+  // Carga carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -89,9 +86,10 @@ export default function InscribirsePage() {
         titulo: d.titulo,
         descripcion: d.descripcion,
         lugar: d.lugar || d.ubicacion,
-        fecha: d.fecha instanceof Timestamp
-          ? d.fecha.toDate().toISOString().split('T')[0]
-          : d.fecha,
+        fecha:
+          d.fecha instanceof Timestamp
+            ? d.fecha.toDate().toISOString().split("T")[0]
+            : d.fecha,
         horaSalida: d.horaSalida,
         bannerUrl: d.bannerUrl,
         categorias: (d.categorias || []).map((cat: any) => ({
@@ -100,12 +98,12 @@ export default function InscribirsePage() {
           maxAge: cat.maxAge,
           price: typeof cat.price === "number" ? cat.price : 0,
         })),
-        ageBasis: d.ageBasis || 'endOfYear',
+        ageBasis: d.ageBasis || "endOfYear",
       });
     })();
   }, [carreraId]);
 
-  // Carga de perfiles
+  // Carga perfiles
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user) return router.replace("/login");
@@ -123,7 +121,13 @@ export default function InscribirsePage() {
       const bd = ud.fechaNacimiento instanceof Timestamp
         ? ud.fechaNacimiento.toDate()
         : new Date(ud.fechaNacimiento);
-      lista.push({ id: uid, nombre: ud.nombre, apellidoPaterno: ud.apPaterno || ud.apellidoPaterno, apellidoMaterno: ud.apMaterno || ud.apellidoMaterno, birthDate: bd });
+      lista.push({
+        id: uid,
+        nombre: ud.nombre,
+        apellidoPaterno: ud.apPaterno || ud.apellidoPaterno,
+        apellidoMaterno: ud.apellidoMaterno || ud.apellidoMaterno,
+        birthDate: bd,
+      });
     }
     const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
     snap.docs.forEach((d) => {
@@ -131,13 +135,20 @@ export default function InscribirsePage() {
       const bd = p.fechaNacimiento instanceof Timestamp
         ? p.fechaNacimiento.toDate()
         : new Date(p.fechaNacimiento);
-      lista.push({ id: d.id, nombre: p.nombre, apellidoPaterno: p.apellidoPaterno || p.apPaterno, apellidoMaterno: p.apellidoMaterno || p.apMaterno, birthDate: bd });
+      lista.push({
+        id: d.id,
+        nombre: p.nombre,
+        apellidoPaterno: p.apellidoPaterno || p.apPaterno,
+        apellidoMaterno: p.apellidoMaterno || p.apMaterno,
+        birthDate: bd,
+      });
     });
     setPerfiles(lista);
     if (lista.length) setPerfilSeleccionado(lista[0].id);
     setLoadingPerfiles(false);
   }
 
+  // Reset al cambiar perfil
   useEffect(() => {
     setCategoriaSeleccionada("");
     setCompetitorNumber(null);
@@ -153,7 +164,7 @@ export default function InscribirsePage() {
     const user = auth.currentUser;
     if (!user) return;
 
-    // Evitar duplicados
+    // Duplicados
     const dupAny = await getDocs(
       query(
         collection(db, "inscripciones"),
@@ -169,8 +180,10 @@ export default function InscribirsePage() {
 
     setProcesandoPago(true);
     try {
-      // Crear sesión de pago en backend
-      const catObj = carrera.categorias.find(c => c.nombre === categoriaSeleccionada)!;
+      // Crear sesión de pago
+      const catObj = carrera.categorias.find(
+        (c) => c.nombre === categoriaSeleccionada
+      )!;
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -184,7 +197,7 @@ export default function InscribirsePage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // Registrar inscripción con sessionId
+      // Registrar en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -193,19 +206,19 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Obtener número asignado mediante sessionId
-      const insQuery = query(
-        collection(db, "inscripciones"),
-        where("sessionId", "==", sessionId)
+      // Leer número asignado por el webhook
+      const insSnap = await getDocs(
+        query(
+          collection(db, "inscripciones"),
+          where("sessionId", "==", sessionId)
+        )
       );
-      const insSnap = await getDocs(insQuery);
       if (!insSnap.empty) {
-        const docSnap = insSnap.docs[0];
-        const data: any = docSnap.data();
+        const data: any = insSnap.docs[0].data();
         setCompetitorNumber(data.competitorNumber ?? null);
       }
 
-      // Redirigir al checkout
+      // Ir al checkout
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -215,25 +228,47 @@ export default function InscribirsePage() {
     }
   };
 
-  if (!carrera) return <AuthGuard><p className="text-center mt-10">{mensaje || "Cargando…"}</p></AuthGuard>;
+  if (!carrera) {
+    return (
+      <AuthGuard>
+        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
+      </AuthGuard>
+    );
+  }
 
-  // Fecha de corte según tipo
+  // Fecha de corte
   const eventYear = new Date(carrera.fecha as string).getFullYear();
-  const basisDate = carrera.ageBasis === 'endOfYear' ? new Date(eventYear, 11, 31) : new Date(carrera.fecha as string);
+  const basisDate =
+    carrera.ageBasis === "endOfYear"
+      ? new Date(eventYear, 11, 31)
+      : new Date(carrera.fecha as string);
 
-  // Edad y categorías permitidas
+  // Calcular edad y categorías
   const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
-  const perfilAge = perfilData ? computeAge(perfilData.birthDate, basisDate) : 0;
-  const categoriasPermitidas = carrera.categorias.filter((cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge);
-  const precioSeleccionado = categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)?.price ?? 0;
+  const perfilAge = perfilData
+    ? computeAge(perfilData.birthDate, basisDate)
+    : 0;
+  const categoriasPermitidas = carrera.categorias.filter(
+    (cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
+  );
+  const precioSeleccionado =
+    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
+      ?.price ?? 0;
 
   return (
     <AuthGuard>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
-        {carrera.bannerUrl && <div className="h-56 bg-cover bg-center" style={{ backgroundImage: `url(${carrera.bannerUrl})` }} />}
+        {carrera.bannerUrl && (
+          <div
+            className="h-56 bg-cover bg-center"
+            style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
+          />
+        )}
         <div className="p-6 space-y-6">
           <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-          {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
+          {carrera.descripcion && (
+            <p className="text-gray-700">{carrera.descripcion}</p>
+          )}
 
           {/* Tabla completa de categorías */}
           <div>
@@ -256,59 +291,119 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
+                    <td className="border px-4 py-2">
+                      ${cat.price.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Mostrar edad y categorías para verificación */}
+          {/* Verificación de edad y categorías */}
           <div className="p-4 bg-gray-100 rounded">
-            <p className="font-medium">Edad en base a la convocatoria: {perfilAge} años</p>
-            <p className="text-sm text-gray-600">
-              Según {carrera.ageBasis === 'endOfYear' ? `corte al 31/12/${eventYear}` : `fecha del evento (${carrera.fecha})`}
+            <p className="font-medium">
+              Edad en base a la convocatoria: {perfilAge} años
             </p>
-            <p className="text-sm mt-2">Categorías disponibles: {categoriasPermitidas.map(c => c.nombre).join(', ') || 'Ninguna'}</p>
+            <p className="text-sm text-gray-600">
+              Según{" "}
+              {carrera.ageBasis === "endOfYear"
+                ? `corte al 31/12/${eventYear}`
+                : `fecha del evento (${carrera.fecha})`}
+            </p>
+            <p className="text-sm mt-2">
+              Categorías disponibles:{" "}
+              {categoriasPermitidas.map((c) => c.nombre).join(", ") ||
+                "Ninguna"}
+            </p>
           </div>
 
-          {/* Campo Número de Competidor */}
+          {/* Número de competidor */}
           {competitorNumber !== null && (
             <div>
-              <label className="block font-medium">Número de competidor</label>
-              <input type="text" value={competitorNumber} readOnly className="w-full p-2 border rounded bg-gray-100" />
+              <label className="block font-medium">
+                Número de competidor
+              </label>
+              <input
+                type="text"
+                value={competitorNumber}
+                readOnly
+                className="w-full p-2 border rounded bg-gray-100"
+              />
             </div>
           )}
 
-          {/* Formulario de inscripción */}
+          {/* Selección de perfil y categoría */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block font-medium mb-1 flex items-center space-x-1"><UserIcon className="w-5 h-5 text-green-600" /><span>Tu perfil</span></label>
-              {loadingPerfiles ? <p>Cargando perfiles…</p> : (
-                <select className="w-full border p-2 rounded" value={perfilSeleccionado} onChange={(e) => setPerfilSeleccionado(e.target.value)}>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <UserIcon className="w-5 h-5 text-green-600" />
+                <span>Tu perfil</span>
+              </label>
+              {loadingPerfiles ? (
+                <p>Cargando perfiles…</p>
+              ) : (
+                <select
+                  className="w-full border p-2 rounded"
+                  value={perfilSeleccionado}
+                  onChange={(e) => setPerfilSeleccionado(e.target.value)}
+                >
                   {perfiles.map((p) => (
-                    <option key={p.id} value={p.id}>{`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(p.birthDate, basisDate)} años)`}</option>
+                    <option key={p.id} value={p.id}>
+                      {`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(
+                        p.birthDate,
+                        basisDate
+                      )} años)`}
+                    </option>
                   ))}
                 </select>
               )}
             </div>
             <div>
-              <label className="block font-medium mb-1 flex items-center space-x-1"><ClipboardIcon className="w-5 h-5 text-purple-700" /><span>Categoría</span></label>
-              <select className="w-full border p-2 rounded disabled:opacity-50" value={categoriaSeleccionada} onChange={(e) => setCategoriaSeleccionada(e.target.value)} disabled={!categoriasPermitidas.length}>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <ClipboardIcon className="w-5 h-5 text-purple-700" />
+                <span>Categoría</span>
+              </label>
+              <select
+                className="w-full border p-2 rounded disabled:opacity-50"
+                value={categoriaSeleccionada}
+                onChange={(e) =>
+                  setCategoriaSeleccionada(e.target.value)
+                }
+                disabled={!categoriasPermitidas.length}
+              >
                 <option value="">-- Selecciona categoría --</option>
                 {categoriasPermitidas.map((cat) => (
-                  <option key={cat.nombre} value={cat.nombre}>{cat.nombre}</option>
+                  <option key={cat.nombre} value={cat.nombre}>
+                    {cat.nombre}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {categoriaSeleccionada && <div className="text-lg font-medium">Precio seleccionado: ${precioSeleccionado.toFixed(2)}</div>}
+          {categoriaSeleccionada && (
+            <div className="text-lg font-medium">
+              Precio seleccionado: ${precioSeleccionado.toFixed(2)}
+            </div>
+          )}
 
-          <button onClick={handlePagar} disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago} className={`w-full py-3 rounded text-white transition ${perfilSeleccionado && categoriaSeleccionada ? "bg-purple-600 hover:bg-purple-700" : "bg-gray-400 cursor-not-allowed"}`}>
+          <button
+            onClick={handlePagar}
+            disabled={
+              !perfilSeleccionado || !categoriaSeleccionada || procesandoPago
+            }
+            className={`w-full py-3 rounded text-white transition ${
+              perfilSeleccionado && categoriaSeleccionada
+                ? "bg-purple-600 hover:bg-purple-700"
+                : "bg-gray-400 cursor-not-allowed"
+            }`}
+          >
             {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
           </button>
-          {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
+          {mensaje && (
+            <p className="text-center text-red-600">{mensaje}</p>
+          )}
         </div>
       </div>
     </AuthGuard>
