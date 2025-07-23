@@ -7,7 +7,7 @@ import AdminSidebar from '@/components/AdminSidebar';
 import AdminCarrerasForm from '@/components/AdminCarrerasForm';
 import AdminCarrerasList, { CarreraItem } from '@/components/AdminCarrerasList';
 import AdminInscripcionesView from '@/components/AdminInscripcionesView';
-import InscripcionesManualesPage from '@/pages/admin/inscripciones-manuales';
+import InscripcionesManualesPage from './inscripciones-manuales';
 import EliminarInscripciones, { CarreraOption } from '@/components/EliminarInscripciones';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 
