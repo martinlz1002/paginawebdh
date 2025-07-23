@@ -25,6 +25,26 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
+  // 1️⃣ Calcular el siguiente número de competidor libre (incluye manuales y pagos)
+  const usedSnap = await getDocs(
+    query(
+      collection(db, "inscripciones"),
+      where("carreraId", "==", data.carreraId),
+      where("competitorNumber", ">", 0)
+    )
+  );
+  const usedNumbers = usedSnap.docs.map(d => d.data().competitorNumber as number);
+  let assigned = 1;
+  while (usedNumbers.includes(assigned)) {
+    assigned++;
+  }
+
+  console.log(
+    "[registrarInscripcion] asignando competitorNumber →",
+    assigned
+  );
+
+  // 2️⃣ Guardar la inscripción con número asignado
   await addDoc(collection(db, "inscripciones"), {
     carreraId: data.carreraId,
     carreraTitulo: data.carreraTitulo,
@@ -33,6 +53,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
     categoria: data.categoria,
     sessionId: data.sessionId,
     paymentStatus: "pending",
+    competitorNumber: assigned,
     timestamp: serverTimestamp(),
   });
 }

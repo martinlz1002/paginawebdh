@@ -23,6 +23,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
+// Asigna número si falta, agrega competitorNumber al confirmar pago
 async function markPaymentStatus(
   sessionId: string,
   status: "paid" | "pending" | "unpaid" | "expired"
@@ -37,9 +38,35 @@ async function markPaymentStatus(
 
   for (const docSnap of snap.docs) {
     const ref = docSnap.ref;
+    const data = docSnap.data() as any;
+    // En paid o pending, asignar número si aún no tiene
     if (status === "paid" || status === "pending") {
-      batch.update(ref, { paymentStatus: status });
+      if (!data.competitorNumber) {
+        // Leer cupo máximo
+        const carreraDoc = await firestore.collection("carreras").doc(data.carreraId).get();
+        const maxCupo = carreraDoc.get("maxCompetitors") || 0;
+        // Inscripciones con número ya asignado
+        const usedSnap = await firestore
+          .collection("inscripciones")
+          .where("carreraId", "==", data.carreraId)
+          .where("competitorNumber", ">", 0)
+          .get();
+        const used = usedSnap.docs.map(d => d.data().competitorNumber as number);
+        let assigned = 1;
+        while (used.includes(assigned) && assigned <= maxCupo) {
+          assigned++;
+        }
+        if (assigned <= maxCupo) {
+          batch.update(ref, { paymentStatus: status, competitorNumber: assigned });
+        } else {
+          // si se agotó cupo, solo actualiza status
+          batch.update(ref, { paymentStatus: status });
+        }
+      } else {
+        batch.update(ref, { paymentStatus: status });
+      }
     } else if (status === "unpaid" || status === "expired") {
+      // liberar número
       batch.update(ref, {
         paymentStatus: status,
         competitorNumber: FieldValue.delete(),
@@ -74,9 +101,6 @@ export default async function handler(
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object as Stripe.Checkout.Session;
-      // session.payment_status = 'paid' | 'unpaid' | 'no_payment_required'
-      // session.status = 'open' | 'complete'
-      // Para manual payments, async_payment_succeeded viene luego
       const ps = session.payment_status === "paid" ? "paid" : "pending";
       await markPaymentStatus(session.id, ps);
       break;
@@ -114,7 +138,6 @@ export default async function handler(
       break;
     }
     default:
-      // ignorar el resto
       break;
   }
 

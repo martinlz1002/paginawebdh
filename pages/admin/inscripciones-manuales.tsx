@@ -2,7 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AuthGuard from '@/components/AuthGuard';
 import { app, db } from '@/lib/firebase';
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+  updateDoc,
+  DocumentReference
+} from 'firebase/firestore';
 import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 type CarreraOption = { id: string; titulo: string };
@@ -24,27 +31,47 @@ export default function InscripcionesManualesAdmin() {
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, 'carreras'));
-      setCarreras(snap.docs.map(d => ({ id: d.id, titulo: (d.data() as any).titulo || '' }))); 
+      setCarreras(
+        snap.docs.map(d => ({
+          id: d.id,
+          titulo: (d.data() as any).titulo || ''
+        }))
+      );
     })();
   }, []);
 
   const handleCreate = async () => {
     setError(null);
-    if (!carreraId || startNumber <= 0 || endNumber < startNumber || !expiresAt || !username.trim() || !password) {
+    if (
+      !carreraId ||
+      startNumber <= 0 ||
+      endNumber < startNumber ||
+      !expiresAt ||
+      !username.trim() ||
+      !password
+    ) {
       setError('Por favor completa todos los campos correctamente.');
       return;
     }
     setLoading(true);
     try {
-      const docRef = await addDoc(collection(db, 'tempusuarios'), {
-        carreraId,
-        range: { start: startNumber, end: endNumber },
-        expiresAt: new Date(expiresAt),
-        username: username.trim(),
-        password, // en producción deberías hashear
-        createdAt: serverTimestamp()
-      });
+      // 1️⃣ Crear el documento temporal
+      const docRef = await addDoc(
+        collection(db, 'tempusuarios'),
+        {
+          carreraId,
+          range: { start: startNumber, end: endNumber },
+          expiresAt: new Date(expiresAt),
+          username: username.trim(),
+          password, // en prod deberías hashear
+          createdAt: serverTimestamp()
+        }
+      ) as DocumentReference;  // anotar tipo para TS
+
+      // 2️⃣ Generar el link y actualizar el mismo doc
       const url = `${window.location.origin}/inscripcion-manual/${docRef.id}`;
+      await updateDoc(docRef, { link: url });
+
       setLink(url);
     } catch (e: any) {
       console.error(e);
@@ -57,12 +84,16 @@ export default function InscripcionesManualesAdmin() {
   return (
     <AuthGuard>
       <div className="max-w-2xl mx-auto bg-white p-6 rounded shadow space-y-6">
-        <button onClick={() => router.back()} className="flex items-center text-gray-600 hover:text-gray-800">
+        <button
+          onClick={() => router.back()}
+          className="flex items-center text-gray-600 hover:text-gray-800"
+        >
           <ChevronLeftIcon className="w-5 h-5 mr-1" /> Volver
         </button>
         <h2 className="text-xl font-semibold">Crear Inscripciones Manuales</h2>
 
         <div className="space-y-4">
+          {/* Carrera */}
           <div>
             <label className="block font-medium">Carrera</label>
             <select
@@ -76,6 +107,8 @@ export default function InscripcionesManualesAdmin() {
               ))}
             </select>
           </div>
+
+          {/* Rango de números */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-medium">Número inicio</label>
@@ -98,6 +131,8 @@ export default function InscripcionesManualesAdmin() {
               />
             </div>
           </div>
+
+          {/* Expiración */}
           <div>
             <label className="block font-medium">Expiración</label>
             <input
@@ -107,6 +142,8 @@ export default function InscripcionesManualesAdmin() {
               onChange={e => setExpiresAt(e.target.value)}
             />
           </div>
+
+          {/* Credenciales */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-medium">Usuario</label>
@@ -127,7 +164,9 @@ export default function InscripcionesManualesAdmin() {
               />
             </div>
           </div>
+
           {error && <p className="text-red-600">{error}</p>}
+
           <button
             onClick={handleCreate}
             disabled={loading}
@@ -139,7 +178,12 @@ export default function InscripcionesManualesAdmin() {
           {link && (
             <div className="bg-green-50 border border-green-200 p-4 rounded">
               <p className="font-medium">Link generado:</p>
-              <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">
+              <a
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-700 underline break-all"
+              >
                 {link}
               </a>
             </div>
