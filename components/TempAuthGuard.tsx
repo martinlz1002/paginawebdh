@@ -5,7 +5,7 @@ import type { TempUsuario } from "@/types/tempusuario";
 interface Props { children: ReactNode; }
 
 export default function TempAuthGuard({ children }: Props) {
-  const [loading, setLoading] = useState(true);
+  const [ok, setOk] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -21,15 +21,13 @@ export default function TempAuthGuard({ children }: Props) {
         router.replace("/temp-login");
         return;
       }
-      setLoading(false);
+      setOk(true);
     } catch {
       localStorage.removeItem("tempUser");
       router.replace("/temp-login");
     }
   }, [router]);
 
-  if (loading) {
-    return <p className="text-center mt-10">Validando acceso…</p>;
-  }
+  if (!ok) return <p className="text-center mt-10">Validando acceso…</p>;
   return <>{children}</>;
 }
