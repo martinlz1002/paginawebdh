@@ -6,59 +6,75 @@ import TempAuthGuard from "@/components/TempAuthGuard";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import type { TempUsuario } from "@/types/tempusuario";
 
+interface TempUserWithID extends TempUsuario {
+  id: string;
+}
+
+interface FormState {
+  nombre: string;
+  apellidoPaterno: string;
+  apellidoMaterno: string;
+  email: string;
+  celular: string;
+  ciudad: string;
+  estado: string;
+  pais: string;
+  club: string;
+  competitorNumber: number;
+}
+
 export default function ManualPage() {
   const router = useRouter();
   const { id } = router.query as { id: string };
 
-  const [step, setStep] = useState<"login"|"form"|"expired">("login");
-  const [tempUser, setTempUser] = useState<TempUsuario|null>(null);
-  const [user, setUser] = useState({ username:"", password:"" });
-  const [form, setForm] = useState({
-    nombre:"", apellidoPaterno:"", apellidoMaterno:"",
-    email:"", celular:"", ciudad:"", estado:"", pais:"", club:"",
-    competitorNumber: 0
-  });
+  const [tempUser, setTempUser] = useState<TempUserWithID | null>(null);
   const [available, setAvailable] = useState<number[]>([]);
-  const [error, setError] = useState<string|null>(null);
+  const [form, setForm] = useState<FormState>({
+    nombre: "",
+    apellidoPaterno: "",
+    apellidoMaterno: "",
+    email: "",
+    celular: "",
+    ciudad: "",
+    estado: "",
+    pais: "",
+    club: "",
+    competitorNumber: 0,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expired, setExpired] = useState(false);
 
-  // 1️⃣ Carga el tempUsuario desde localStorage
+  // 1️⃣ Validar tempUser en localStorage y expiración
   useEffect(() => {
     if (!id) return;
-    const json = localStorage.getItem('tempUser');
-    if (!json) return setStep("expired");
-    const u = JSON.parse(json);
-    const exp = new Date(u.expiresAt);
-    if (exp.getTime() < Date.now()) return setStep("expired");
-    setTempUser(u);
-  }, [id]);
-
-  // 2️⃣ Login temporal
-  const handleLogin = async () => {
-    if (!tempUser) return;
-    if (user.username === tempUser.username && user.password === tempUser.password) {
-      // calcula rango completo
-      const all = Array.from(
-        { length: tempUser.range.end - tempUser.range.start + 1 },
-        (_, i) => tempUser.range.start + i
-      );
-      // filtra los usados
-      const snap = await getDocs(
-        query(
-          collection(db,"inscripciones"),
-          where("carreraId","==", tempUser.carreraId),
-          where("competitorNumber",">=", tempUser.range.start),
-          where("competitorNumber","<=", tempUser.range.end)
-        )
-      );
-      const used = snap.docs.map(d => d.data().competitorNumber as number);
-      setAvailable(all.filter(n => !used.includes(n)));
-      setStep("form");
-    } else {
-      setError("Credenciales incorrectas");
+    const json = localStorage.getItem("tempUser");
+    if (!json) {
+      router.replace("/temp-login");
+      return;
     }
-  };
+    const u = JSON.parse(json) as TempUserWithID;
+    if (u.id !== id || new Date(u.expiresAt).getTime() < Date.now()) {
+      setExpired(true);
+      setLoading(false);
+      return;
+    }
+    setTempUser(u);
 
-  // 3️⃣ Envío de la inscripción manual
+    // 2️⃣ Cargar los números disponibles via API
+    fetch(`/api/temp-avail?id=${id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setAvailable(data.available as number[]);
+        setLoading(false);
+      })
+      .catch((e) => {
+        console.error(e);
+        setError("No se pudieron cargar los números disponibles");
+        setLoading(false);
+      });
+  }, [id, router]);
+
   const handleSubmit = async () => {
     if (!tempUser) return;
     try {
@@ -74,148 +90,93 @@ export default function ManualPage() {
         pais: form.pais,
         club: form.club,
         competitorNumber: form.competitorNumber,
-        paymentStatus: "manual"
+        paymentStatus: "manual",
       });
       alert("Competidor registrado correctamente");
-      setAvailable(av => av.filter(n => n !== form.competitorNumber));
+      setAvailable((av) =>
+        av.filter((n) => n !== form.competitorNumber)
+      );
+      setForm(f => ({ ...f, competitorNumber: 0 }));
     } catch (e: any) {
       setError(e.message);
     }
   };
 
-  if (step === "expired") {
-    return <TempAuthGuard><p className="p-6 text-center">Este enlace ha expirado.</p></TempAuthGuard>;
-  }
-  if (step === "login") {
+  if (loading) {
     return (
       <TempAuthGuard>
-        <div className="max-w-md mx-auto p-6">
-          <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
-          {error && <p className="text-red-600">{error}</p>}
-          <input
-            className="w-full mb-2 p-2 border"
-            placeholder="Usuario"
-            value={user.username}
-            onChange={e=>setUser(u=>({...u,username:e.target.value}))}
-          />
-          <input
-            className="w-full mb-4 p-2 border"
-            placeholder="Contraseña"
-            type="password"
-            value={user.password}
-            onChange={e=>setUser(u=>({...u,password:e.target.value}))}
-          />
-          <button
-            className="w-full bg-blue-600 text-white py-2 rounded"
-            onClick={handleLogin}
-          >
-            Entrar
-          </button>
-        </div>
+        <p className="p-6 text-center">Cargando…</p>
+      </TempAuthGuard>
+    );
+  }
+  if (expired) {
+    return (
+      <TempAuthGuard>
+        <p className="p-6 text-center text-red-600">Este enlace ha expirado.</p>
       </TempAuthGuard>
     );
   }
 
-  // ── paso “form” ──
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
         <h2 className="text-xl">Inscripción Manual</h2>
-        <p>Competidores restantes: {available.length}</p>
         {error && <p className="text-red-600">{error}</p>}
 
+        {/* Selección de número */}
         <label>Número</label>
         <select
           className="w-full p-2 border"
           value={form.competitorNumber}
-          onChange={e=>setForm(f=>({...f,competitorNumber:+e.target.value}))}
+          onChange={(e) =>
+            setForm((f) => ({
+              ...f,
+              competitorNumber: Number(e.target.value),
+            }))
+          }
         >
           <option value={0}>-- elige --</option>
-          {available.map(n=>(
-            <option key={n} value={n}>{n}</option>
+          {available.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
           ))}
         </select>
 
-        {/* Datos del competidor */}
-        <label>Nombre</label>
-        <input
-          className="w-full p-2 border"
-          value={form.nombre}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, nombre: e.target.value }))
-          }
-        />
-        <label>Apellido Paterno</label>
-        <input
-          className="w-full p-2 border"
-          value={form.apellidoPaterno}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              apellidoPaterno: e.target.value
-            }))
-          }
-        />
-        <label>Apellido Materno</label>
-        <input
-          className="w-full p-2 border"
-          value={form.apellidoMaterno}
-          onChange={(e) =>
-            setForm((f) => ({
-              ...f,
-              apellidoMaterno: e.target.value
-            }))
-          }
-        />
-
-        {/* Contacto */}
-        <label>Email</label>
-        <input
-          type="email"
-          className="w-full p-2 border"
-          value={form.email}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, email: e.target.value }))
-          }
-        />
-        <label>Celular</label>
-        <input
-          className="w-full p-2 border"
-          value={form.celular}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, celular: e.target.value }))
-          }
-        />
+        {/* Campos del competidor */}
+        {["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular"].map((field) => (
+          <div key={field}>
+            <label className="block font-medium">
+              {field === "email" ? "Email" : field === "celular" ? "Celular" : field.charAt(0).toUpperCase() + field.slice(1)}
+            </label>
+            <input
+              type={field === "email" ? "email" : "text"}
+              className="w-full p-2 border"
+              value={(form as any)[field]}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, [field]: e.target.value }))
+              }
+            />
+          </div>
+        ))}
 
         {/* Ubicación */}
-        <label>Ciudad, Estado, País</label>
+        <label>Ciudad / Estado / País</label>
         <div className="grid grid-cols-3 gap-2">
-          <input
-            placeholder="Ciudad"
-            className="p-2 border"
-            value={form.ciudad}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, ciudad: e.target.value }))
-            }
-          />
-          <input
-            placeholder="Estado"
-            className="p-2 border"
-            value={form.estado}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, estado: e.target.value }))
-            }
-          />
-          <input
-            placeholder="País"
-            className="p-2 border"
-            value={form.pais}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, pais: e.target.value }))
-            }
-          />
+          {["ciudad", "estado", "pais"].map((loc) => (
+            <input
+              key={loc}
+              placeholder={loc.charAt(0).toUpperCase() + loc.slice(1)}
+              className="p-2 border"
+              value={(form as any)[loc]}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, [loc]: e.target.value }))
+              }
+            />
+          ))}
         </div>
 
+        {/* Club */}
         <label>Club (opcional)</label>
         <input
           className="w-full p-2 border"
@@ -226,12 +187,12 @@ export default function ManualPage() {
         />
 
         <button
-          className="w-full bg-green-600 text-white py-2 rounded"
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
           onClick={handleSubmit}
         >
           Registrar Competidor
         </button>
       </div>
-      </TempAuthGuard>
+    </TempAuthGuard>
   );
 }

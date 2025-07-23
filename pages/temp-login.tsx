@@ -6,9 +6,7 @@ interface TempUser {
   id: string;
   username: string;
   carreraId: string;
-  startNumber: number;
-  endNumber: number;
-  remainingSlots: number;
+  range: { start: number; end: number };
   expiresAt: string;
 }
 
@@ -24,20 +22,20 @@ export default function TempLoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch('/api/temp-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/temp-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Error de autenticación');
+        throw new Error(data.error || "Error de autenticación");
       }
       const user: TempUser = data.user;
       // Guardar en localStorage
-      localStorage.setItem('tempUser', JSON.stringify(user));
-      // Redirigir a página de inscripciones manuales
-      router.push('/admin/inscripciones-manuales');
+      localStorage.setItem("tempUser", JSON.stringify(user));
+      // Redirigir directamente al formulario manual
+      router.push(`/inscripcion-manual/${user.id}`);
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -75,7 +73,7 @@ export default function TempLoginPage() {
             disabled={loading}
             className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
           >
-            {loading ? 'Verificando...' : 'Ingresar'}
+            {loading ? "Verificando..." : "Ingresar"}
           </button>
         </form>
       </div>
