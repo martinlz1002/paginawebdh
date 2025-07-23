@@ -8,16 +8,12 @@ import AuthGuard from "@/components/AuthGuard";
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
 
-  // Rutas públicas: login temporal y página de inscripción manual
+  // Estas son las rutas que NO exigen autenticación
   const openRoutes = [
     "/temp-login",
-    "/inscripcion-manual/" // Next.js no hace match exacto con dinámicas, así que comprobamos startsWith
+    "/inscripcion-manual/[id]"  // Next.js coloca el patrón dinámico aquí
   ];
-  const isOpen = openRoutes.some((route) =>
-    route.endsWith("/")
-      ? pathname.startsWith(route)
-      : pathname === route
-  );
+  const isOpen = openRoutes.includes(pathname);
 
   const content = isOpen ? (
     <Component {...pageProps} />
