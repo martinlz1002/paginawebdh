@@ -1,240 +1,151 @@
-import { useEffect, useState } from "react";
-import TempAuthGuard from "@/components/TempAuthGuard";
-import Layout from "@/components/Layout";
-import { registrarInscripcionManual } from "@/lib/Inscripciones";
-import { collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import type { TempUsuario } from "@/types/tempusuario";
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import AuthGuard from '@/components/AuthGuard';
+import { app, db } from '@/lib/firebase';
+import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ChevronLeftIcon } from '@heroicons/react/24/outline';
 
-export default function InscripcionesManualesPage() {
-  const [tempUser, setTempUser] = useState<TempUsuario | null>(null);
-  const [usedNumbers, setUsedNumbers] = useState<number[]>([]);
-  const [availableNumbers, setAvailableNumbers] = useState<number[]>([]);
-  const [selectedNumber, setSelectedNumber] = useState<number | null>(null);
-  const [perfilData, setPerfilData] = useState({
-    nombre: "",
-    apellidoPaterno: "",
-    apellidoMaterno: "",
-    email: "",
-    celular: "",
-    ciudad: "",
-    estado: "",
-    pais: "",
-    club: ""
-  });
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+type CarreraOption = { id: string; titulo: string };
 
-  // Cargar usuario temporal
+export default function InscripcionesManualesAdmin() {
+  const router = useRouter();
+  const [carreras, setCarreras] = useState<CarreraOption[]>([]);
+  const [carreraId, setCarreraId] = useState<string>('');
+  const [startNumber, setStartNumber] = useState<number>(0);
+  const [endNumber, setEndNumber] = useState<number>(0);
+  const [expiresAt, setExpiresAt] = useState<string>('');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [link, setLink] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Cargar carreras
   useEffect(() => {
-    const json = localStorage.getItem("tempUser");
-    if (json) {
-      const user = JSON.parse(json) as TempUsuario;
-      setTempUser(user);
-    }
+    (async () => {
+      const snap = await getDocs(collection(db, 'carreras'));
+      setCarreras(snap.docs.map(d => ({ id: d.id, titulo: (d.data() as any).titulo || '' }))); 
+    })();
   }, []);
 
-  // Cargar números ya usados
-  useEffect(() => {
-    const loadUsed = async () => {
-      if (!tempUser) return;
-      const carreraId = tempUser.carreraId!;
-      const q = query(
-        collection(db, "inscripciones"),
-        where("carreraId", "==", carreraId)
-      );
-      const snap = await getDocs(q);
-      const nums = snap.docs
-        .map(d => (d.data().competitorNumber as number) || null)
-        .filter((n): n is number => n !== null);
-      setUsedNumbers(nums);
-    };
-    loadUsed();
-  }, [tempUser]);
-
-  // Calcular números disponibles
-  useEffect(() => {
-    if (!tempUser) return;
-    const { startNumber, endNumber } = tempUser;
-    const all: number[] = [];
-    for (let i = startNumber; i <= endNumber; i++) {
-      if (!usedNumbers.includes(i)) all.push(i);
+  const handleCreate = async () => {
+    setError(null);
+    if (!carreraId || startNumber <= 0 || endNumber < startNumber || !expiresAt || !username.trim() || !password) {
+      setError('Por favor completa todos los campos correctamente.');
+      return;
     }
-    setAvailableNumbers(all);
-    if (all.length) setSelectedNumber(all[0]);
-  }, [tempUser, usedNumbers]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedNumber(parseInt(e.target.value, 10));
-  };
-
-  const handlePerfil = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setPerfilData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tempUser || selectedNumber === null) return;
     setLoading(true);
-    setMessage(null);
     try {
-      const carreraId = tempUser.carreraId!;
-      // Usar non-null assertion para id
-      await registrarInscripcionManual(
-        tempUser.id!,
+      const docRef = await addDoc(collection(db, 'tempusuarios'), {
         carreraId,
-        selectedNumber,
-        perfilData
-      );
-      setMessage("Inscripción manual creada.");
-      setUsedNumbers(prev => [...prev, selectedNumber]);
-      const updated = { ...tempUser, remainingSlots: tempUser.remainingSlots - 1 };
-      localStorage.setItem("tempUser", JSON.stringify(updated));
-      setTempUser(updated);
-    } catch (err: any) {
-      setMessage(err.message);
+        range: { start: startNumber, end: endNumber },
+        expiresAt: new Date(expiresAt),
+        username: username.trim(),
+        password, // en producción deberías hashear
+        createdAt: serverTimestamp()
+      });
+      const url = `${window.location.origin}/inscripcion-manual/${docRef.id}`;
+      setLink(url);
+    } catch (e: any) {
+      console.error(e);
+      setError('Error al crear el acceso temporal.');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!tempUser) {
-    return null;
-  }
-
   return (
-    <TempAuthGuard>
-      <Layout title="Inscripciones Manuales">
-        <div className="max-w-lg mx-auto mt-8 bg-white p-6 rounded shadow">
-          <h1 className="text-2xl font-semibold mb-4">Inscripción Manual</h1>
-          <p className="mb-2">
-            <strong>Carrera:</strong> {tempUser.carreraId}
-          </p>
-          <p className="mb-4">
-            <strong>Slots restantes:</strong> {tempUser.remainingSlots}
-          </p>
+    <AuthGuard>
+      <div className="max-w-2xl mx-auto bg-white p-6 rounded shadow space-y-6">
+        <button onClick={() => router.back()} className="flex items-center text-gray-600 hover:text-gray-800">
+          <ChevronLeftIcon className="w-5 h-5 mr-1" /> Volver
+        </button>
+        <h2 className="text-xl font-semibold">Crear Inscripciones Manuales</h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block font-medium">Número de competidor</label>
-              <select
-                value={selectedNumber ?? ""}
-                onChange={handleChange}
-                className="w-full p-2 border rounded"
-              >
-                {availableNumbers.map(num => (
-                  <option key={num} value={num}>{num}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-medium">Nombre</label>
-              <input
-                name="nombre"
-                value={perfilData.nombre}
-                onChange={handlePerfil}
-                required
-                className="w-full p-2 border rounded"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block font-medium">Apellido Paterno</label>
-                <input
-                  name="apellidoPaterno"
-                  value={perfilData.apellidoPaterno}
-                  onChange={handlePerfil}
-                  required
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              <div>
-                <label className="block font-medium">Apellido Materno</label>
-                <input
-                  name="apellidoMaterno"
-                  value={perfilData.apellidoMaterno}
-                  onChange={handlePerfil}
-                  required
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block font-medium">Email</label>
-              <input
-                name="email"
-                type="email"
-                value={perfilData.email}
-                onChange={handlePerfil}
-                required
-                className="w-full p-2 border rounded"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block font-medium">Celular</label>
-                <input
-                  name="celular"
-                  value={perfilData.celular}
-                  onChange={handlePerfil}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              <div>
-                <label className="block font-medium">Club (opcional)</label>
-                <input
-                  name="club"
-                  value={perfilData.club}
-                  onChange={handlePerfil}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block font-medium">Ciudad</label>
-                <input
-                  name="ciudad"
-                  value={perfilData.ciudad}
-                  onChange={handlePerfil}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              <div>
-                <label className="block font-medium">Estado</label>
-                <input
-                  name="estado"
-                  value={perfilData.estado}
-                  onChange={handlePerfil}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-              <div>
-                <label className="block font-medium">País</label>
-                <input
-                  name="pais"
-                  value={perfilData.pais}
-                  onChange={handlePerfil}
-                  className="w-full p-2 border rounded"
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+        <div className="space-y-4">
+          <div>
+            <label className="block font-medium">Carrera</label>
+            <select
+              className="w-full border p-2 rounded"
+              value={carreraId}
+              onChange={e => setCarreraId(e.target.value)}
             >
-              {loading ? 'Registrando...' : 'Registrar Inscripción'}
-            </button>
-          </form>
+              <option value="">-- Selecciona carrera --</option>
+              {carreras.map(c => (
+                <option key={c.id} value={c.id}>{c.titulo}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block font-medium">Número inicio</label>
+              <input
+                type="number"
+                min={1}
+                className="w-full border p-2 rounded"
+                value={startNumber}
+                onChange={e => setStartNumber(Number(e.target.value))}
+              />
+            </div>
+            <div>
+              <label className="block font-medium">Número fin</label>
+              <input
+                type="number"
+                min={startNumber}
+                className="w-full border p-2 rounded"
+                value={endNumber}
+                onChange={e => setEndNumber(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-medium">Expiración</label>
+            <input
+              type="datetime-local"
+              className="w-full border p-2 rounded"
+              value={expiresAt}
+              onChange={e => setExpiresAt(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block font-medium">Usuario</label>
+              <input
+                type="text"
+                className="w-full border p-2 rounded"
+                value={username}
+                onChange={e => setUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block font-medium">Contraseña</label>
+              <input
+                type="password"
+                className="w-full border p-2 rounded"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          {error && <p className="text-red-600">{error}</p>}
+          <button
+            onClick={handleCreate}
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50"
+          >
+            {loading ? 'Creando...' : 'Crear Acceso'}
+          </button>
 
-          {message && (
-            <p className="mt-4 text-center text-lg text-red-600">{message}</p>
+          {link && (
+            <div className="bg-green-50 border border-green-200 p-4 rounded">
+              <p className="font-medium">Link generado:</p>
+              <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline break-all">
+                {link}
+              </a>
+            </div>
           )}
         </div>
-      </Layout>
-    </TempAuthGuard>
+      </div>
+    </AuthGuard>
   );
 }
