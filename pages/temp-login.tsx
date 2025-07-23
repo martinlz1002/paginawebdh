@@ -21,20 +21,25 @@ export default function TempLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
       const res = await fetch("/api/temp-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Error de autenticación");
+      // Si no es 2xx, leemos el JSON de error (o text)
+      if (!res.ok) {
+        let errMsg = `Error ${res.status}`;
+        try {
+          const errJson = await res.json();
+          errMsg = errJson.error || errMsg;
+        } catch {}
+        throw new Error(errMsg);
       }
+      const data = await res.json();
       const user: TempUser = data.user;
-      // Guardar en localStorage
       localStorage.setItem("tempUser", JSON.stringify(user));
-      // Redirigir directamente al formulario manual
       router.push(`/inscripcion-manual/${user.id}`);
     } catch (err: any) {
       setError(err.message);

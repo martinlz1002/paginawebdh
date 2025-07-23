@@ -7,6 +7,7 @@ import AuthGuard from "@/components/AuthGuard";
 
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
+  // Rutas totalmente públicas:
   const isPublic =
     pathname === "/temp-login" ||
     pathname.startsWith("/inscripcion-manual");
