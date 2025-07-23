@@ -1,4 +1,5 @@
 export interface TempUsuario {
+  id: string;                                // <— ahora existe
   carreraId: string;
   range: { start: number; end: number };
   username: string;

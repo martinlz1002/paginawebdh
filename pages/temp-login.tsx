@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
+import Layout from "@/components/Layout";
 
 interface TempUser {
   id: string;
@@ -20,26 +21,19 @@ export default function TempLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
     try {
       const res = await fetch("/api/temp-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
-      // capturar error HTTP
-      if (!res.ok) {
-        let msg = `Error ${res.status}`;
-        try {
-          const err = await res.json();
-          msg = err.error || msg;
-        } catch {}
-        throw new Error(msg);
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Error de autenticación");
       }
-      const { user } = await res.json();
-      localStorage.setItem("tempUser", JSON.stringify(user as TempUser));
-      // redirigir directo a la ruta dinámica
-      router.push(`/inscripcion-manual/${(user as TempUser).id}`);
+      const user: TempUser = data.user;
+      localStorage.setItem("tempUser", JSON.stringify(user));
+      router.push(`/inscripcion-manual/${user.id}`);
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -47,37 +41,40 @@ export default function TempLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <form
-        onSubmit={handleSubmit}
-        className="bg-white p-6 rounded shadow-md w-full max-w-sm"
-      >
-        <h1 className="text-2xl mb-4">Login Inscripción Manual</h1>
+    <Layout title="Login Temporal">
+      <div className="max-w-md mx-auto mt-20 p-6 bg-white rounded shadow">
+        <h1 className="text-2xl font-bold mb-4">Login Temporal</h1>
         {error && <p className="text-red-600 mb-2">{error}</p>}
-        <input
-          type="text"
-          placeholder="Usuario"
-          required
-          className="w-full mb-3 p-2 border rounded"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-        <input
-          type="password"
-          placeholder="Contraseña"
-          required
-          className="w-full mb-3 p-2 border rounded"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? "Verificando..." : "Ingresar"}
-        </button>
-      </form>
-    </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block font-medium">Usuario</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full p-2 border rounded"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {loading ? "Verificando..." : "Ingresar"}
+          </button>
+        </form>
+      </div>
+    </Layout>
   );
 }

@@ -1,11 +1,12 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/router";
-import type { TempUsuario } from "@/types/tempusuario";
 
-interface Props { children: ReactNode; }
+interface TempAuthGuardProps {
+  children: ReactNode;
+}
 
-export default function TempAuthGuard({ children }: Props) {
-  const [ok, setOk] = useState(false);
+export default function TempAuthGuard({ children }: TempAuthGuardProps) {
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
@@ -15,19 +16,19 @@ export default function TempAuthGuard({ children }: Props) {
       return;
     }
     try {
-      const u = JSON.parse(json) as TempUsuario & { id: string; expiresAt: string };
+      const u = JSON.parse(json);
       if (new Date(u.expiresAt).getTime() < Date.now()) {
         localStorage.removeItem("tempUser");
         router.replace("/temp-login");
-        return;
+      } else {
+        setLoading(false);
       }
-      setOk(true);
     } catch {
       localStorage.removeItem("tempUser");
       router.replace("/temp-login");
     }
   }, [router]);
 
-  if (!ok) return <p className="text-center mt-10">Validando acceso…</p>;
+  if (loading) return <p className="text-center mt-10">Validando acceso…</p>;
   return <>{children}</>;
 }

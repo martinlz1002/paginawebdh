@@ -3,17 +3,27 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import type { TempUsuario } from "@/types/tempusuario";
 
-type Resp =
-  | { ok: true; user: Omit<TempUsuario, "password" | "expiresAt"> & { id: string; expiresAt: string } }
+type Data =
+  | {
+      ok: true;
+      user: Omit<TempUsuario, "password" | "expiresAt" | "id"> & {
+        id: string;
+        expiresAt: string;
+      };
+    }
   | { ok: false; error: string };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Resp>) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<Data>
+) {
   if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
+    res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ ok: false, error: "Method Not Allowed" });
   }
 
-  const { username, password } = req.body as { username?: string; password?: string };
+  const { username, password } =
+    (req.body as { username?: string; password?: string }) || {};
   if (!username || !password) {
     return res.status(400).json({ ok: false, error: "Faltan credenciales" });
   }
@@ -28,21 +38,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(401).json({ ok: false, error: "Credenciales inválidas" });
   }
 
-  const docSnap = snap.docs[0];
-  const data = docSnap.data() as TempUsuario;
-  const expires: Date = data.expiresAt;
-  if (expires.getTime() < Date.now()) {
-    return res.status(403).json({ ok: false, error: "Enlace expirado" });
+  // Aquí forzamos a TS a ver sólo los campos GUARDADOS en Firestore (no incluye 'id')
+  const raw = snap.docs[0].data() as Omit<TempUsuario, "id">;
+  const expiresAt: Date = raw.expiresAt;
+  if (expiresAt.getTime() < Date.now()) {
+    return res.status(403).json({ ok: false, error: "Cuenta temporal expirada" });
   }
 
-  // 👍 todo ok: devolvemos el user (sin password) y expiresAt como ISO
-  const { password: _, expiresAt: __, ...rest } = data;
+  // Sacamos password y expiresAt, el resto lo devolvemos
+  const { password: _pw, expiresAt: _exp, ...rest } = raw;
   return res.status(200).json({
     ok: true,
     user: {
-      id: docSnap.id,
+      id: snap.docs[0].id,
       ...rest,
-      expiresAt: expires.toISOString(),
+      expiresAt: expiresAt.toISOString(),
     },
   });
 }
