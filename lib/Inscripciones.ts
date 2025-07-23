@@ -47,3 +47,4 @@ export async function registrarInscripcionManual(data: InscripcionData) {
     createdAt: serverTimestamp()
   });
 }
+export { registrarInscripcionManual as registrarInscripcion };
