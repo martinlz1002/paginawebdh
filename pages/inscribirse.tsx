@@ -16,10 +16,8 @@ import {
 import { registrarInscripcion } from "@/lib/Inscripciones";
 import {
   MapPinIcon,
-  CalendarIcon,
-  ClockIcon,
-  UserIcon,
   ClipboardIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
 
 // --- Tipos ---
@@ -168,17 +166,26 @@ export default function InscribirsePage() {
     setCompetitorNumber(null);
   }, [perfilSeleccionado]);
 
-  // --- Cálculo de bruto (Stripe MX): 3.6% + $3 + 16% IVA sobre la comisión ---
+  // --- NUEVOS CONSTANTES para cálculo de comisiones Stripe + IVA ---
   const STRIPE_RATE = 0.036; // 3.6%
-  const FIXED_FEE = 3;       // MXN 3
+  const FIXED_FEE = 300;     // 3.00 MXN expresados en centavos
   const IVA_RATE = 0.16;     // 16%
   const IVA_MULT = 1 + IVA_RATE;
-  const computeGross = (net: number) => {
-    // net = gross - (gross * STRIPE_RATE + FIXED_FEE) * IVA_MULT
-    // → gross = (net + FIXED_FEE * IVA_MULT) / (1 - STRIPE_RATE * IVA_MULT)
-    return parseFloat(
-      ((net + FIXED_FEE * IVA_MULT) / (1 - STRIPE_RATE * IVA_MULT)).toFixed(2)
-    );
+
+  /** 
+   * Dado un neto en pesos, calcula el bruto (= lo que paga el cliente)
+   *   comisiónSinIVA = gross * rate + tarifa_fija
+   *   IVA = comisiónSinIVA * IVA_RATE
+   *   neto = gross - comisiónSinIVA - IVA
+   * Resolvemos gross = (neto + FIXED_FEE/100 * IVA_MULT) / (1 - STRIPE_RATE * IVA_MULT)
+   * Retornamos truncado a centavos (para evitar redondeos arriba de la cuenta).
+   */
+  const computeGross = (netPesos: number) => {
+    const netCent = Math.round(netPesos * 100);
+    const numer = netCent + FIXED_FEE * IVA_MULT;
+    const denom = 1 - STRIPE_RATE * IVA_MULT;
+    const grossCent = Math.floor(numer / denom);
+    return grossCent / 100;
   };
 
   const handlePagar = async () => {
@@ -203,29 +210,27 @@ export default function InscribirsePage() {
       return;
     }
 
-    // Precio base neto de la categoría
+    // Precio base neto
     const base = carrera.categorias.find(
       (c) => c.nombre === categoriaSeleccionada
     )!.price;
 
-    // Calculamos cuánto debe pagar el usuario (bruto)
+    // Calculamos bruto para que neto queden `base`
     const gross = computeGross(base);
 
-    // Confirmación
-    if (
-      !window.confirm(
-        `Vas a pagar $${gross.toFixed(
-          2
-        )} MXN (incluye comisión + IVA)
-        \n¿Deseas continuar?`
-      )
-    ) {
-      return;
-    }
+    // Confirmación al usuario
+    const confirmar = window.confirm(
+      `Vas a pagar $${gross.toFixed(
+        2
+      )} MXN (incluye comisión + IVA) para que neto queden $${base.toFixed(
+        2
+      )} MXN.\n¿Deseas continuar?`
+    );
+    if (!confirmar) return;
 
     setProcesandoPago(true);
     try {
-      // Crear sesión con el importe bruto
+      // Creamos sesión de pago pasando el bruto
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -239,7 +244,7 @@ export default function InscribirsePage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // Registrar la inscripción en Firestore
+      // Guardamos la inscripción en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -248,7 +253,7 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Obtener número asignado
+      // Leemos número asignado
       const insSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -260,7 +265,7 @@ export default function InscribirsePage() {
         setCompetitorNumber(data.competitorNumber ?? null);
       }
 
-      // Redirigir al checkout
+      // Redirigimos al checkout
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -274,7 +279,7 @@ export default function InscribirsePage() {
     return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
   }
 
-  // Fecha de corte y cálculo de edad/categorías (igual que antes)
+  // Fecha de corte y edad/categorías
   const eventYear = new Date(carrera.fecha!).getFullYear();
   const basisDate =
     carrera.ageBasis === "endOfYear"
@@ -288,8 +293,8 @@ export default function InscribirsePage() {
     (cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
   );
   const precioSeleccionado =
-    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
-      ?.price ?? 0;
+  categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)
+    ?.price ?? 0;
 
   return (
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
