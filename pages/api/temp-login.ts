@@ -10,7 +10,9 @@ type Data =
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
+    return res
+      .status(405)
+      .json({ ok: false, error: "Method Not Allowed" });  // <-- JSON en todos los casos
   }
 
   const { username, password } = req.body as { username?: string; password?: string };
