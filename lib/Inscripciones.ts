@@ -6,7 +6,7 @@ import {
   query,
   where,
   doc,
-  getDoc
+  getDoc,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
 
@@ -25,7 +25,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
-  // 1️⃣ Calcular el siguiente número de competidor libre (incluye manuales y pagos)
+  // 1️⃣ Obtener todos los números ya usados (pagos + manuales confirmados)
   const usedSnap = await getDocs(
     query(
       collection(db, "inscripciones"),
@@ -33,7 +33,28 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
       where("competitorNumber", ">", 0)
     )
   );
-  const usedNumbers = usedSnap.docs.map(d => d.data().competitorNumber as number);
+  const usedNumbers: number[] = usedSnap.docs.map(
+    (d) => d.data().competitorNumber as number
+  );
+
+  // 2️⃣ Obtener rangos reservados por accesos manuales activos
+  const now = new Date();
+  const reservedSnap = await getDocs(
+    query(
+      collection(db, "tempusuarios"),
+      where("carreraId", "==", data.carreraId),
+      // expiresAt > ahora -> sigue activo
+      where("expiresAt", ">", now)
+    )
+  );
+  for (const docSnap of reservedSnap.docs) {
+    const { range } = docSnap.data() as { range: { start: number; end: number } };
+    for (let n = range.start; n <= range.end; n++) {
+      usedNumbers.push(n);
+    }
+  }
+
+  // 3️⃣ Calcular el primer número libre
   let assigned = 1;
   while (usedNumbers.includes(assigned)) {
     assigned++;
@@ -44,7 +65,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
     assigned
   );
 
-  // 2️⃣ Guardar la inscripción con número asignado
+  // 4️⃣ Guardar la inscripción con número asignado
   await addDoc(collection(db, "inscripciones"), {
     carreraId: data.carreraId,
     carreraTitulo: data.carreraTitulo,
@@ -78,7 +99,7 @@ export interface ManualInscripcionData {
 }
 
 export async function registrarInscripcionManual(data: ManualInscripcionData) {
-  // 1️⃣ Verificar que número no esté ya usado
+  // 1️⃣ Verificar que el número no esté ya usado
   const usedSnap = await getDocs(
     query(
       collection(db, "inscripciones"),
@@ -104,7 +125,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     club: data.club,
     competitorNumber: data.competitorNumber,
     paymentStatus: data.paymentStatus,
-    perfilOwner: "manual",    // distinguir manual
+    perfilOwner: "manual", // distinguir manual
     sessionId: null,
     timestamp: serverTimestamp(),
   });
