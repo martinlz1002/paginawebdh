@@ -51,7 +51,7 @@ export default function TempLoginPage() {
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={e => setUsername(e.target.value)}
               required
               className="w-full p-2 border rounded"
             />
@@ -61,7 +61,7 @@ export default function TempLoginPage() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               required
               className="w-full p-2 border rounded"
             />

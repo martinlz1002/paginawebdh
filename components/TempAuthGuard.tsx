@@ -10,7 +10,7 @@ export default function TempAuthGuard({ children }: TempAuthGuardProps) {
   const router = useRouter();
 
   useEffect(() => {
-    const json = localStorage.getItem("tempUser");
+    const json = typeof window !== 'undefined' && localStorage.getItem("tempUser");
     if (!json) {
       router.replace("/temp-login");
       return;
