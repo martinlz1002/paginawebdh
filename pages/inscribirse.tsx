@@ -22,7 +22,7 @@ import {
   ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
-// Tipos
+// --- Tipos (idénticos a como los tenías antes) ---
 interface Categoria {
   nombre: string;
   minAge: number;
@@ -66,14 +66,16 @@ export default function InscribirsePage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
-  const [competitorNumber, setCompetitorNumber] = useState<number | null>(null);
+  const [competitorNumber, setCompetitorNumber] = useState<number | null>(
+    null
+  );
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // Monitorea auth (para mostrar botón o enlace)
+  // Monitorea auth
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
     return () => unsub();
@@ -122,9 +124,10 @@ export default function InscribirsePage() {
       const udoc = await getDoc(doc(db, "usuarios", currentUser.uid));
       if (udoc.exists()) {
         const ud: any = udoc.data();
-        const bd = ud.fechaNacimiento instanceof Timestamp
-          ? ud.fechaNacimiento.toDate()
-          : new Date(ud.fechaNacimiento);
+        const bd =
+          ud.fechaNacimiento instanceof Timestamp
+            ? ud.fechaNacimiento.toDate()
+            : new Date(ud.fechaNacimiento);
         lista.push({
           id: currentUser.uid,
           nombre: ud.nombre,
@@ -135,12 +138,15 @@ export default function InscribirsePage() {
       }
 
       // Subperfiles
-      const snap = await getDocs(collection(db, "usuarios", currentUser.uid, "perfiles"));
+      const snap = await getDocs(
+        collection(db, "usuarios", currentUser.uid, "perfiles")
+      );
       snap.docs.forEach((d) => {
         const p: any = d.data();
-        const bd = p.fechaNacimiento instanceof Timestamp
-          ? p.fechaNacimiento.toDate()
-          : new Date(p.fechaNacimiento);
+        const bd =
+          p.fechaNacimiento instanceof Timestamp
+            ? p.fechaNacimiento.toDate()
+            : new Date(p.fechaNacimiento);
         lista.push({
           id: d.id,
           nombre: p.nombre,
@@ -156,11 +162,19 @@ export default function InscribirsePage() {
     })();
   }, [currentUser]);
 
-  // Reset cuando cambia perfil
+  // Reset al cambiar perfil
   useEffect(() => {
     setCategoriaSeleccionada("");
     setCompetitorNumber(null);
   }, [perfilSeleccionado]);
+
+  // --- NUEVOS CONSTANTES para cálculo de comisiones Stripe + IVA ---
+  const STRIPE_RATE = 0.036;     // 3.6%
+  const IVA_RATE = 0.16;         // 16%
+  const computeGross = (net: number) => {
+    const totalRate = STRIPE_RATE * (1 + IVA_RATE);
+    return parseFloat((net / (1 - totalRate)).toFixed(2));
+  };
 
   const handlePagar = async () => {
     setMensaje("");
@@ -169,6 +183,7 @@ export default function InscribirsePage() {
       return;
     }
     if (!carrera) return;
+
     // Evitar duplicados
     const dupAny = await getDocs(
       query(
@@ -183,9 +198,29 @@ export default function InscribirsePage() {
       return;
     }
 
+    // Precio base neto
+    const base = carrera.categorias.find(
+      (c) => c.nombre === categoriaSeleccionada
+    )!.price;
+
+    // Calculamos bruto para que neto queden `base`
+    const gross = computeGross(base);
+
+    // Confirmación al usuario
+    const confirmar = window.confirm(
+      `Vas a pagar $${gross.toFixed(
+        2
+      )} MXN (incluye comisión + IVA) para que neto queden $${base.toFixed(
+        2
+      )} MXN.\n¿Deseas continuar?`
+    );
+    if (!confirmar) {
+      return;
+    }
+
     setProcesandoPago(true);
     try {
-      const catObj = carrera.categorias.find(c => c.nombre === categoriaSeleccionada)!;
+      // Creamos sesión de pago pasando el bruto
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,12 +228,13 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          price: catObj.price,
+          price: gross,      // <-- ahora usamos gross
         }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
+      // Guardamos la inscripción en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -207,7 +243,7 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Leer número asignado
+      // Leemos número asignado
       const insSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -219,6 +255,7 @@ export default function InscribirsePage() {
         setCompetitorNumber(data.competitorNumber ?? null);
       }
 
+      // Redirigimos al checkout
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -228,28 +265,26 @@ export default function InscribirsePage() {
     }
   };
 
-  // Mientras carga carrera…
   if (!carrera) {
-    return (
-      <Layout>
-        <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
-      </Layout>
-    );
+    return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
   }
 
-  // Prepara fechas y categorías
+  // Fecha de corte y edad/categorías (igual que antes) …
   const eventYear = new Date(carrera.fecha!).getFullYear();
-  const basisDate = carrera.ageBasis === "endOfYear"
-    ? new Date(eventYear, 11, 31)
-    : new Date(carrera.fecha!);
-
-  const perfilData = perfiles.find(p => p.id === perfilSeleccionado);
-  const perfilAge = perfilData ? computeAge(perfilData.birthDate, basisDate) : 0;
+  const basisDate =
+    carrera.ageBasis === "endOfYear"
+      ? new Date(eventYear, 11, 31)
+      : new Date(carrera.fecha!);
+  const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
+  const perfilAge = perfilData
+    ? computeAge(perfilData.birthDate, basisDate)
+    : 0;
   const categoriasPermitidas = carrera.categorias.filter(
-    cat => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
+    (cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
   );
   const precioSeleccionado =
-    categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)?.price ?? 0;
+    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
+      ?.price ?? 0;
 
   return (
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
@@ -368,19 +403,29 @@ export default function InscribirsePage() {
           {currentUser ? (
             <button
               onClick={handlePagar}
-              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
+              disabled={
+                !perfilSeleccionado ||
+                !categoriaSeleccionada ||
+                procesandoPago
+              }
               className={`w-full py-3 rounded text-white transition ${
                 perfilSeleccionado && categoriaSeleccionada
                   ? "bg-purple-600 hover:bg-purple-700"
                   : "bg-gray-400 cursor-not-allowed"
               }`}
             >
-              {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
+              {procesandoPago
+                ? "Procesando..."
+                : `Inscribirme y Pagar $${(
+                    computeGross(precioSeleccionado)
+                  ).toFixed(2)}`}
             </button>
           ) : (
             <div className="text-center">
               <Link href="/login">
-                <a className="text-blue-600 underline">Inicia sesión para inscribirte</a>
+                <a className="text-blue-600 underline">
+                  Inicia sesión para inscribirte
+                </a>
               </Link>
             </div>
           )}
