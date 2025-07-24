@@ -10,7 +10,7 @@ import {
 import { db, auth } from "./firebase";
 
 //
-// 1) Registro vía Stripe (pago)
+// 1) Función para registrar la inscripción desde Stripe (pago)
 //
 export interface StripeInscripcionData {
   carreraId: string;
@@ -24,7 +24,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
   const user = auth.currentUser;
   if (!user) throw new Error("No estás autenticado");
 
-  // ➡️ Calcular siguiente número libre (manuales + pagos)
+  // calcular siguiente número libre (manuales + pagos)
   const usedSnap = await getDocs(
     query(
       collection(db, "inscripciones"),
@@ -36,7 +36,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
   let assigned = 1;
   while (used.includes(assigned)) assigned++;
 
-  // ➡️ Guardar
+  // guardar la inscripción de pago
   await addDoc(collection(db, "inscripciones"), {
     carreraId:       data.carreraId,
     carreraTitulo:   data.carreraTitulo,
@@ -51,7 +51,8 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
 }
 
 //
-// 2) Registro manual (sin pago)
+// 2) Función para registrar la inscripción manual (sin pago)
+//    ahora **sin** hacer ninguna lectura local, solo escribe.
 //
 export interface ManualInscripcionData {
   carreraId: string;
@@ -67,23 +68,11 @@ export interface ManualInscripcionData {
   pais: string;
   club?: string;
   competitorNumber: number;
-  paymentStatus: "manual";
 }
 
 export async function registrarInscripcionManual(data: ManualInscripcionData) {
-  // 1️⃣ Verificar que el número no esté ya ocupado
-  const usedSnap = await getDocs(
-    query(
-      collection(db, "inscripciones"),
-      where("carreraId", "==", data.carreraId),
-      where("competitorNumber", "==", data.competitorNumber)
-    )
-  );
-  if (!usedSnap.empty) {
-    throw new Error("Número de competidor ya registrado");
-  }
-
-  // 2️⃣ Guardar la inscripción manual
+  // simplemente registra; las validaciones de número libre
+  // llegan del endpoint /api/temp-avail, así evitamos permisos de lectura
   await addDoc(collection(db, "inscripciones"), {
     carreraId:       data.carreraId,
     perfilNombre:    data.perfilNombre,
@@ -99,7 +88,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     club:            data.club || null,
     competitorNumber:data.competitorNumber,
     paymentStatus:   "manual",
-    perfilOwner:     "manual",
+    perfilOwner:     "manual",   // clave para que tu regla lo permita
     sessionId:       null,
     timestamp:       serverTimestamp(),
   });

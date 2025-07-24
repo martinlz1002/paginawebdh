@@ -30,11 +30,11 @@ export default function ManualPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
 
-  // credenciales que el usuario escribe en el login
+  // login
   const [userCreds, setUserCreds] = useState({ username: "", password: "" });
   const [error, setError] = useState<string | null>(null);
 
-  // estado del formulario
+  // form state
   const [birthDate, setBirthDate] = useState<string>(""); // yyyy-MM-dd
   const [edad, setEdad] = useState<number>(0);
   const [dispCats, setDispCats] = useState<Categoria[]>([]);
@@ -53,11 +53,11 @@ export default function ManualPage() {
     club: ""
   });
 
-  // ── 1) Cargar datos públicos de tempUser y de la carrera ──
+  // 1) Carga datos públicos
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${id}`)
-      .then((res) => {
+      .then(res => {
         if (!res.ok) throw new Error();
         return res.json();
       })
@@ -65,7 +65,7 @@ export default function ManualPage() {
         setTempUser(u);
         return getDoc(doc(db, "carreras", u.carreraId));
       })
-      .then((csnap) => {
+      .then(csnap => {
         if (!csnap.exists()) throw new Error();
         const d = csnap.data() as any;
         setRace({ id: csnap.id, ...d });
@@ -75,7 +75,7 @@ export default function ManualPage() {
       .catch(() => setStep("expired"));
   }, [id]);
 
-  // ── 2) Login TEMPORAL (público) ──
+  // 2) Login temporal
   const handleLogin = async () => {
     setError(null);
     try {
@@ -89,17 +89,10 @@ export default function ManualPage() {
         throw new Error(data.error || "Credenciales inválidas");
       }
       const u = data.user as APIUser;
-      if (u.id !== id) {
-        throw new Error("Esas credenciales no pertenecen a este enlace");
-      }
-      // Guardar en localStorage para TempAuthGuard
-      localStorage.setItem(
-        "tempUser",
-        JSON.stringify({ ...u, password: userCreds.password })
-      );
+      if (u.id !== id) throw new Error("Esas credenciales no pertenecen a este enlace");
+      localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
       setTempUser(u);
 
-      // Obtener lista de números disponibles
       const availRes = await fetch(`/api/temp-avail?id=${id}`);
       const availJson = await availRes.json();
       setAvailable(availJson.available as number[]);
@@ -109,51 +102,48 @@ export default function ManualPage() {
     }
   };
 
-  // ── 3) Calcular edad y categorías al cambiar birthDate ──
+  // 3) Recalcula edad y categorías
   useEffect(() => {
     if (!birthDate || !race) return;
     const bd = new Date(birthDate);
-    const basis =
-      ageBasis === "endOfYear"
-        ? new Date(new Date(race.fecha as any).getFullYear(), 11, 31)
-        : new Date(race.fecha as any);
+    const basis = ageBasis === "endOfYear"
+      ? new Date(new Date(race.fecha as any).getFullYear(), 11, 31)
+      : new Date(race.fecha as any);
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
     if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) age--;
     setEdad(age);
-    setDispCats(categorias.filter((c) => age >= c.minAge && age <= c.maxAge));
+    setDispCats(categorias.filter(c => age >= c.minAge && age <= c.maxAge));
     setCategoria("");
   }, [birthDate, race, ageBasis, categorias]);
 
-  // ── 4) Enviar la inscripción manual ──
+  // 4) Envía la inscripción manual (sin paymentStatus aquí)
   const handleSubmit = async () => {
     if (!tempUser) return;
     try {
       await registrarInscripcionManual({
-        carreraId: tempUser.carreraId,
-        perfilNombre: competidor.nombre,
+        carreraId:       tempUser.carreraId,
+        perfilNombre:    competidor.nombre,
         perfilApPaterno: competidor.apellidoPaterno,
         perfilApMaterno: competidor.apellidoMaterno,
-        birthDate: new Date(birthDate),
+        birthDate:       new Date(birthDate),
         categoria,
-        email: competidor.email,
-        celular: competidor.celular,
-        ciudad: competidor.ciudad,
-        estado: competidor.estado,
-        pais: competidor.pais,
-        club: competidor.club,
+        email:           competidor.email,
+        celular:         competidor.celular,
+        ciudad:          competidor.ciudad,
+        estado:          competidor.estado,
+        pais:            competidor.pais,
+        club:            competidor.club,
         competitorNumber: numero,
-        paymentStatus: "manual",
       });
       alert("Competidor registrado correctamente");
-      // Actualizar lista de disponibles
-      setAvailable((av) => av.filter((n) => n !== numero));
+      setAvailable(av => av.filter(n => n !== numero));
     } catch (e: any) {
       setError(e.message);
     }
   };
 
-  // ── VISTAS según `step` ──
+  // VISTAS
   if (step === "expired") {
     return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
@@ -167,18 +157,14 @@ export default function ManualPage() {
           className="w-full mb-2 p-2 border"
           placeholder="Usuario"
           value={userCreds.username}
-          onChange={(e) =>
-            setUserCreds((u) => ({ ...u, username: e.target.value }))
-          }
+          onChange={e => setUserCreds(u => ({ ...u, username: e.target.value }))}
         />
         <input
           className="w-full mb-4 p-2 border"
           placeholder="Contraseña"
           type="password"
           value={userCreds.password}
-          onChange={(e) =>
-            setUserCreds((u) => ({ ...u, password: e.target.value }))
-          }
+          onChange={e => setUserCreds(u => ({ ...u, password: e.target.value }))}
         />
         <button
           className="w-full bg-blue-600 text-white py-2 rounded"
@@ -190,7 +176,6 @@ export default function ManualPage() {
     );
   }
 
-  // FORMULARIO protegido solo por la expiración
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
@@ -203,7 +188,7 @@ export default function ManualPage() {
           type="date"
           className="w-full p-2 border"
           value={birthDate}
-          onChange={(e) => setBirthDate(e.target.value)}
+          onChange={e => setBirthDate(e.target.value)}
         />
         <p>Edad calculada: {edad} años</p>
 
@@ -212,11 +197,11 @@ export default function ManualPage() {
         <select
           className="w-full p-2 border"
           value={categoria}
-          onChange={(e) => setCategoria(e.target.value)}
+          onChange={e => setCategoria(e.target.value)}
           disabled={!dispCats.length}
         >
           <option value="">-- Elige categoría --</option>
-          {dispCats.map((c) => (
+          {dispCats.map(c => (
             <option key={c.nombre} value={c.nombre}>
               {c.nombre} ({c.minAge}–{c.maxAge} años)
             </option>
@@ -228,13 +213,11 @@ export default function ManualPage() {
         <select
           className="w-full p-2 border"
           value={numero}
-          onChange={(e) => setNumero(+e.target.value)}
+          onChange={e => setNumero(+e.target.value)}
         >
           <option value={0}>-- elige --</option>
-          {available.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
+          {available.map(n => (
+            <option key={n} value={n}>{n}</option>
           ))}
         </select>
 
@@ -243,9 +226,7 @@ export default function ManualPage() {
         <input
           className="w-full p-2 border"
           value={competidor.nombre}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, nombre: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, nombre: e.target.value }))}
         />
         <label>Apellido Paterno</label>
         <input
