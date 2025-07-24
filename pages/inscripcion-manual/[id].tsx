@@ -31,12 +31,12 @@ export default function ManualPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
 
-  // credenciales de login local
+  // credenciales que escribe el usuario en el login
   const [userCreds, setUserCreds] = useState({ username: "", password: "" });
   const [error, setError] = useState<string | null>(null);
 
   // estado del formulario
-  const [birthDate, setBirthDate] = useState<string>(""); // formato yyyy-MM-dd
+  const [birthDate, setBirthDate] = useState<string>(""); // yyyy-MM-dd
   const [edad, setEdad] = useState<number>(0);
   const [dispCats, setDispCats] = useState<Categoria[]>([]);
   const [categoria, setCategoria] = useState<string>("");
@@ -54,7 +54,7 @@ export default function ManualPage() {
     club: ""
   });
 
-  // ── 1) Cargo los datos públicos del tempUser y la carrera ──
+  // ── 1) Cargo la info pública de la carrera y tempUser (sin password)
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${id}`)
@@ -76,33 +76,41 @@ export default function ManualPage() {
       .catch(() => setStep("expired"));
   }, [id]);
 
-  // ── 2) Login local: compara contra lo guardado en localStorage ──
-  const handleLogin = () => {
-    if (!tempUser) return setError("Error interno");
-    const stored = localStorage.getItem("tempUser");
-    if (!stored) {
-      setError("Primero debes loguearte en /temp-login");
-      return;
-    }
-    const u = JSON.parse(stored) as APIUser & { password: string };
-    if (
-      userCreds.username === u.username &&
-      userCreds.password === u.password
-    ) {
-      // obtengo lista de números disponibles
-      fetch(`/api/temp-avail?id=${id}`)
-        .then((r) => r.json())
-        .then(({ available }: { available: number[] }) => {
-          setAvailable(available);
-          setStep("form");
-        })
-        .catch(() => setError("No pude calcular disponibles"));
-    } else {
-      setError("Credenciales incorrectas");
+  // ── 2) Login TEMPORAL: consulto Firestore via API
+  const handleLogin = async () => {
+    setError(null);
+    try {
+      const res = await fetch("/api/temp-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userCreds),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Credenciales inválidas");
+      }
+      const u = data.user as APIUser;
+      if (u.id !== id) {
+        throw new Error("Estas credenciales no pertenecen a este enlace");
+      }
+      // guardo el usuario + contraseña en localStorage para TempAuthGuard
+      localStorage.setItem(
+        "tempUser",
+        JSON.stringify({ ...u, password: userCreds.password })
+      );
+      setTempUser(u);
+
+      // ahora obtengo lista de números disponibles
+      const availRes = await fetch(`/api/temp-avail?id=${id}`);
+      const availJson = await availRes.json();
+      setAvailable(availJson.available as number[]);
+      setStep("form");
+    } catch (e: any) {
+      setError(e.message);
     }
   };
 
-  // ── 3) Recalcular edad y categorías al cambiar birthDate ──
+  // ── 3) Calcular edad y categorías al cambiar birthDate ──
   useEffect(() => {
     if (!birthDate || !race) return;
     const bd = new Date(birthDate);
@@ -145,13 +153,13 @@ export default function ManualPage() {
     }
   };
 
-  // ── VISTAS SEGÚN STEP ──
+  // ── VISTAS ──
   if (step === "expired") {
     return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
 
   if (step === "login") {
-    // ** Login PÚBLICO, sin TempAuthGuard **
+    // Login PÚBLICO, sin guard
     return (
       <div className="max-w-md mx-auto p-6">
         <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
@@ -183,7 +191,7 @@ export default function ManualPage() {
     );
   }
 
-  // ** FORMULARIO proteg​ido por TempAuthGuard **
+  // FORMULARIO bajo guard de TempAuthGuard (verifica sólo expiración)
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
