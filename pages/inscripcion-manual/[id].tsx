@@ -12,12 +12,13 @@ interface APIUser {
 }
 
 export default function ManualPage() {
-  const { query } = useRouter();
-  const id = Array.isArray(query.id) ? query.id[0] : query.id;
+  const router = useRouter();
+  const rawId = router.query.id;
+  const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
   const [step, setStep] = useState<"login" | "form" | "expired">("login");
   const [tempUser, setTempUser] = useState<APIUser | null>(null);
-  const [user, setUser] = useState({ username: "", password: "" });
+  const [credentials, setCredentials] = useState({ username: "", password: "" });
   const [available, setAvailable] = useState<number[]>([]);
   const [form, setForm] = useState({
     nombre: "",
@@ -33,47 +34,49 @@ export default function ManualPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  // 1️⃣ Cargo datos públicos de tempUser
-  useEffect(() => {
-    if (!id) return;
-    fetch(`/api/get-tempusuario?id=${id}`)
-      .then(r => {
-        if (!r.ok) throw new Error();
-        return r.json();
-      })
-      .then((u: APIUser) => setTempUser(u))
-      .catch(() => setStep("expired"));
-  }, [id]);
+  // Si el enlace expiró (lo manejas en el login handler, o puedes pingear get-tempusuario aquí)
 
-  // 2️⃣ Login local (comparamos contra tempUser y lo almacenado en localStorage)
-  const handleLogin = () => {
-    if (!tempUser) return;
-    const stored = localStorage.getItem("tempUser");
-    if (!stored) {
-      setError("Primero debes loguearte en /temp-login");
+  // 1️⃣ Handle login contra /api/temp-login
+  const handleLogin = async () => {
+    setError(null);
+    if (!credentials.username || !credentials.password) {
+      setError("Ingresa usuario y contraseña");
       return;
     }
-    const u = JSON.parse(stored) as APIUser & { password: string };
-    if (user.username === u.username && user.password === u.password) {
-      // ✔️ cargo lista de disponibles
-      fetch(`/api/temp-avail?id=${id}`)
-        .then(r => {
-          if (!r.ok) throw new Error();
-          return r.json();
-        })
-        .then(({ available }: { available: number[] }) => {
-          setAvailable(available);
-          setStep("form");
-        })
-        .catch(() => setError("No pude calcular disponibles"));
-    } else {
-      setError("Credenciales incorrectas");
+    try {
+      const res = await fetch("/api/temp-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(credentials),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Autenticación fallida");
+      }
+      // Guardo en localStorage para persistir
+      const userWithPw = { ...data.user, password: credentials.password };
+      localStorage.setItem("tempUser", JSON.stringify(userWithPw));
+      setTempUser(data.user);
+
+      // 2️⃣ Cargo números disponibles
+      const availRes = await fetch(`/api/temp-avail?id=${data.user.id}`);
+      const availJson = await availRes.json();
+      setAvailable(availJson.available);
+
+      setStep("form");
+    } catch (e: any) {
+      setError(e.message);
     }
   };
 
-  // 3️⃣ Envío del formulario
+  // 3️⃣ Cuando ya estoy en form, envío la inscripción
   const handleSubmit = async () => {
     if (!tempUser) return;
+    setError(null);
+    if (!form.competitorNumber) {
+      setError("Selecciona un número");
+      return;
+    }
     try {
       await registrarInscripcionManual({
         carreraId: tempUser.carreraId,
@@ -90,40 +93,38 @@ export default function ManualPage() {
         paymentStatus: "manual",
       });
       alert("Competidor registrado correctamente");
+      // Actualizo la lista de disponibles
       setAvailable(av => av.filter(n => n !== form.competitorNumber));
-      // Opcional: resetear el formulario
-      setForm(prev => ({ ...prev, competitorNumber: 0 }));
+      // Opcional: limpiar el número seleccionado
+      setForm(f => ({ ...f, competitorNumber: 0 }));
     } catch (e: any) {
       setError(e.message);
     }
   };
 
   // ── RENDERS ──
+
   if (step === "expired") {
-    return (
-      <TempAuthGuard>
-        <p className="p-6 text-center">Este enlace ha expirado.</p>
-      </TempAuthGuard>
-    );
+    return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
 
   if (step === "login") {
     return (
       <div className="max-w-md mx-auto p-6">
-        <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
+        <h2 className="text-2xl font-semibold mb-4">Login Inscripción Manual</h2>
         {error && <p className="text-red-600 mb-2">{error}</p>}
         <input
           placeholder="Usuario"
           className="w-full mb-2 p-2 border rounded"
-          value={user.username}
-          onChange={e => setUser(u => ({ ...u, username: e.target.value }))}
+          value={credentials.username}
+          onChange={e => setCredentials(c => ({ ...c, username: e.target.value }))}
         />
         <input
           placeholder="Contraseña"
           type="password"
           className="w-full mb-4 p-2 border rounded"
-          value={user.password}
-          onChange={e => setUser(u => ({ ...u, password: e.target.value }))}
+          value={credentials.password}
+          onChange={e => setCredentials(c => ({ ...c, password: e.target.value }))}
         />
         <button
           className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
@@ -139,13 +140,13 @@ export default function ManualPage() {
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
-        <h2 className="text-xl font-semibold">Inscripción Manual</h2>
+        <h2 className="text-2xl font-semibold">Inscripción Manual</h2>
         <p>Competidores restantes: {available.length}</p>
         {error && <p className="text-red-600">{error}</p>}
 
-        {/* Selección de número disponible */}
+        {/* Selecciona número */}
         <div>
-          <label className="block font-medium">Número de Competidor</label>
+          <label className="block font-medium">Número</label>
           <select
             className="w-full p-2 border rounded"
             value={form.competitorNumber}
@@ -160,7 +161,7 @@ export default function ManualPage() {
           </select>
         </div>
 
-        {/* Datos del competidor */}
+        {/* Nombre */}
         <div>
           <label className="block font-medium">Nombre</label>
           <input
@@ -169,6 +170,8 @@ export default function ManualPage() {
             onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
           />
         </div>
+
+        {/* Apellidos */}
         <div>
           <label className="block font-medium">Apellido Paterno</label>
           <input
