@@ -31,12 +31,12 @@ export default function ManualPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
 
-  // Creds login local
+  // credenciales de login local
   const [userCreds, setUserCreds] = useState({ username: "", password: "" });
   const [error, setError] = useState<string | null>(null);
 
-  // Formulario
-  const [birthDate, setBirthDate] = useState<string>(""); // yyyy-MM-dd
+  // estado del formulario
+  const [birthDate, setBirthDate] = useState<string>(""); // formato yyyy-MM-dd
   const [edad, setEdad] = useState<number>(0);
   const [dispCats, setDispCats] = useState<Categoria[]>([]);
   const [categoria, setCategoria] = useState<string>("");
@@ -54,13 +54,13 @@ export default function ManualPage() {
     club: ""
   });
 
-  // ① Cargo tempUser + carrera
+  // ── 1) Cargo los datos públicos del tempUser y la carrera ──
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${id}`)
-      .then((r) => {
-        if (!r.ok) throw new Error();
-        return r.json();
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
       })
       .then((u: APIUser) => {
         setTempUser(u);
@@ -76,7 +76,7 @@ export default function ManualPage() {
       .catch(() => setStep("expired"));
   }, [id]);
 
-  // ② Login local contra localStorage
+  // ── 2) Login local: compara contra lo guardado en localStorage ──
   const handleLogin = () => {
     if (!tempUser) return setError("Error interno");
     const stored = localStorage.getItem("tempUser");
@@ -89,7 +89,7 @@ export default function ManualPage() {
       userCreds.username === u.username &&
       userCreds.password === u.password
     ) {
-      // obtengo disponibles
+      // obtengo lista de números disponibles
       fetch(`/api/temp-avail?id=${id}`)
         .then((r) => r.json())
         .then(({ available }: { available: number[] }) => {
@@ -102,7 +102,7 @@ export default function ManualPage() {
     }
   };
 
-  // ③ Al cambiar birthDate recalculo edad y categorías
+  // ── 3) Recalcular edad y categorías al cambiar birthDate ──
   useEffect(() => {
     if (!birthDate || !race) return;
     const bd = new Date(birthDate);
@@ -118,7 +118,7 @@ export default function ManualPage() {
     setCategoria("");
   }, [birthDate, race, ageBasis, categorias]);
 
-  // ④ Envío de la inscripción manual
+  // ── 4) Envío del formulario manual ──
   const handleSubmit = async () => {
     if (!tempUser) return;
     try {
@@ -136,7 +136,7 @@ export default function ManualPage() {
         pais: competidor.pais,
         club: competidor.club,
         competitorNumber: numero,
-        paymentStatus: "manual"
+        paymentStatus: "manual",
       });
       alert("Competidor registrado correctamente");
       setAvailable((av) => av.filter((n) => n !== numero));
@@ -145,12 +145,13 @@ export default function ManualPage() {
     }
   };
 
-  // —— Vistas según step ——  
+  // ── VISTAS SEGÚN STEP ──
   if (step === "expired") {
     return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
 
   if (step === "login") {
+    // ** Login PÚBLICO, sin TempAuthGuard **
     return (
       <div className="max-w-md mx-auto p-6">
         <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
@@ -182,14 +183,13 @@ export default function ManualPage() {
     );
   }
 
-  // Sólo el FORM va dentro de TempAuthGuard
+  // ** FORMULARIO proteg​ido por TempAuthGuard **
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
         <h2 className="text-xl">Inscripción Manual</h2>
         {error && <p className="text-red-600">{error}</p>}
 
-        {/* 1) Fecha de nacimiento */}
         <label>Fecha de nacimiento</label>
         <input
           type="date"
@@ -199,7 +199,6 @@ export default function ManualPage() {
         />
         <p>Edad calculada: {edad} años</p>
 
-        {/* 2) Categoría filtrada */}
         <label>Categoría</label>
         <select
           className="w-full p-2 border"
@@ -215,7 +214,6 @@ export default function ManualPage() {
           ))}
         </select>
 
-        {/* 3) Número libre */}
         <label>Número</label>
         <select
           className="w-full p-2 border"
@@ -230,7 +228,6 @@ export default function ManualPage() {
           ))}
         </select>
 
-        {/* 4) Datos del competidor */}
         <label>Nombre</label>
         <input
           className="w-full p-2 border"
