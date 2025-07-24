@@ -22,7 +22,7 @@ import {
   ClipboardIcon,
 } from "@heroicons/react/24/outline";
 
-// --- Tipos (idénticos a como los tenías antes) ---
+// --- Tipos ---
 interface Categoria {
   nombre: string;
   minAge: number;
@@ -168,12 +168,17 @@ export default function InscribirsePage() {
     setCompetitorNumber(null);
   }, [perfilSeleccionado]);
 
-  // --- NUEVOS CONSTANTES para cálculo de comisiones Stripe + IVA ---
-  const STRIPE_RATE = 0.036;     // 3.6%
-  const IVA_RATE = 0.16;         // 16%
+  // --- Cálculo de bruto (Stripe MX): 3.6% + $3 + 16% IVA sobre la comisión ---
+  const STRIPE_RATE = 0.036; // 3.6%
+  const FIXED_FEE = 3;       // MXN 3
+  const IVA_RATE = 0.16;     // 16%
+  const IVA_MULT = 1 + IVA_RATE;
   const computeGross = (net: number) => {
-    const totalRate = STRIPE_RATE * (1 + IVA_RATE);
-    return parseFloat((net / (1 - totalRate)).toFixed(2));
+    // net = gross - (gross * STRIPE_RATE + FIXED_FEE) * IVA_MULT
+    // → gross = (net + FIXED_FEE * IVA_MULT) / (1 - STRIPE_RATE * IVA_MULT)
+    return parseFloat(
+      ((net + FIXED_FEE * IVA_MULT) / (1 - STRIPE_RATE * IVA_MULT)).toFixed(2)
+    );
   };
 
   const handlePagar = async () => {
@@ -198,29 +203,29 @@ export default function InscribirsePage() {
       return;
     }
 
-    // Precio base neto
+    // Precio base neto de la categoría
     const base = carrera.categorias.find(
       (c) => c.nombre === categoriaSeleccionada
     )!.price;
 
-    // Calculamos bruto para que neto queden `base`
+    // Calculamos cuánto debe pagar el usuario (bruto)
     const gross = computeGross(base);
 
-    // Confirmación al usuario
-    const confirmar = window.confirm(
-      `Vas a pagar $${gross.toFixed(
-        2
-      )} MXN (incluye comisión + IVA) para que neto queden $${base.toFixed(
-        2
-      )} MXN.\n¿Deseas continuar?`
-    );
-    if (!confirmar) {
+    // Confirmación
+    if (
+      !window.confirm(
+        `Vas a pagar $${gross.toFixed(
+          2
+        )} MXN (incluye comisión + IVA)
+        \n¿Deseas continuar?`
+      )
+    ) {
       return;
     }
 
     setProcesandoPago(true);
     try {
-      // Creamos sesión de pago pasando el bruto
+      // Crear sesión con el importe bruto
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -228,13 +233,13 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          price: gross,      // <-- ahora usamos gross
+          price: gross,
         }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // Guardamos la inscripción en Firestore
+      // Registrar la inscripción en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -243,7 +248,7 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Leemos número asignado
+      // Obtener número asignado
       const insSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -255,7 +260,7 @@ export default function InscribirsePage() {
         setCompetitorNumber(data.competitorNumber ?? null);
       }
 
-      // Redirigimos al checkout
+      // Redirigir al checkout
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -269,7 +274,7 @@ export default function InscribirsePage() {
     return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
   }
 
-  // Fecha de corte y edad/categorías (igual que antes) …
+  // Fecha de corte y cálculo de edad/categorías (igual que antes)
   const eventYear = new Date(carrera.fecha!).getFullYear();
   const basisDate =
     carrera.ageBasis === "endOfYear"
@@ -400,7 +405,7 @@ export default function InscribirsePage() {
             </div>
           )}
 
-          {currentUser ? (
+            {currentUser ? (
             <button
               onClick={handlePagar}
               disabled={
@@ -416,8 +421,8 @@ export default function InscribirsePage() {
             >
               {procesandoPago
                 ? "Procesando..."
-                : `Inscribirme y Pagar $${(
-                    computeGross(precioSeleccionado)
+                : `Inscribirme y Pagar $${computeGross(
+                    precioSeleccionado
                   ).toFixed(2)}`}
             </button>
           ) : (
