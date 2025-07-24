@@ -5,32 +5,32 @@ import { AuthProvider } from "@/context/authContext";
 import Layout from "@/components/Layout";
 import AuthGuard from "@/components/AuthGuard";
 
+const PUBLIC_PATHS = [
+  "/",
+  "/temp-login",
+  "/inscripcion-manual/", // dynamic prefix
+];
+
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
 
-  // Estas rutas NO necesitan login
-  const PUBLIC_PATHS = [
-    "/",               // homepage
-    "/temp-login",
-    "/inscripcion-manual/", // dinámica
-  ];
-  const isPublic = PUBLIC_PATHS.some(p =>
-    p.endsWith("/") ? pathname.startsWith(p) : pathname === p
+  // Check if this path is public
+  const isPublic = PUBLIC_PATHS.some(path =>
+    path.endsWith("/") ? pathname.startsWith(path) : pathname === path
   );
 
-  if (isPublic) {
-    // renderizas sin AuthGuard
-    return <Component {...pageProps} />;
-  } else {
-    // el resto con tu Layout + AuthGuard
-    return (
-      <AuthProvider>
-        <Layout>
+  // Wrap protected pages in AuthGuard, but always inside Layout
+  return (
+    <AuthProvider>
+      <Layout>
+        {isPublic ? (
+          <Component {...pageProps} />
+        ) : (
           <AuthGuard>
             <Component {...pageProps} />
           </AuthGuard>
-        </Layout>
-      </AuthProvider>
-    );
-  }
+        )}
+      </Layout>
+    </AuthProvider>
+  );
 }
