@@ -252,7 +252,6 @@ export default function InscribirsePage() {
     categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)?.price ?? 0;
 
   return (
-    <Layout>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         {carrera.bannerUrl && (
           <div
@@ -389,6 +388,5 @@ export default function InscribirsePage() {
           {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
         </div>
       </div>
-    </Layout>
   );
 }
