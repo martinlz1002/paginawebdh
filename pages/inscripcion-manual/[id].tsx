@@ -5,7 +5,6 @@ import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import type { CarreraData } from "@/types/carrera";
-import { Timestamp } from "firebase/firestore";
 
 interface APIUser {
   id: string;
@@ -31,7 +30,7 @@ export default function ManualPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
 
-  // credenciales que escribe el usuario en el login
+  // credenciales que el usuario escribe en el login
   const [userCreds, setUserCreds] = useState({ username: "", password: "" });
   const [error, setError] = useState<string | null>(null);
 
@@ -54,7 +53,7 @@ export default function ManualPage() {
     club: ""
   });
 
-  // ── 1) Cargo la info pública de la carrera y tempUser (sin password)
+  // ── 1) Cargar datos públicos de tempUser y de la carrera ──
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${id}`)
@@ -76,7 +75,7 @@ export default function ManualPage() {
       .catch(() => setStep("expired"));
   }, [id]);
 
-  // ── 2) Login TEMPORAL: consulto Firestore via API
+  // ── 2) Login TEMPORAL (público) ──
   const handleLogin = async () => {
     setError(null);
     try {
@@ -91,16 +90,16 @@ export default function ManualPage() {
       }
       const u = data.user as APIUser;
       if (u.id !== id) {
-        throw new Error("Estas credenciales no pertenecen a este enlace");
+        throw new Error("Esas credenciales no pertenecen a este enlace");
       }
-      // guardo el usuario + contraseña en localStorage para TempAuthGuard
+      // Guardar en localStorage para TempAuthGuard
       localStorage.setItem(
         "tempUser",
         JSON.stringify({ ...u, password: userCreds.password })
       );
       setTempUser(u);
 
-      // ahora obtengo lista de números disponibles
+      // Obtener lista de números disponibles
       const availRes = await fetch(`/api/temp-avail?id=${id}`);
       const availJson = await availRes.json();
       setAvailable(availJson.available as number[]);
@@ -126,7 +125,7 @@ export default function ManualPage() {
     setCategoria("");
   }, [birthDate, race, ageBasis, categorias]);
 
-  // ── 4) Envío del formulario manual ──
+  // ── 4) Enviar la inscripción manual ──
   const handleSubmit = async () => {
     if (!tempUser) return;
     try {
@@ -147,19 +146,19 @@ export default function ManualPage() {
         paymentStatus: "manual",
       });
       alert("Competidor registrado correctamente");
+      // Actualizar lista de disponibles
       setAvailable((av) => av.filter((n) => n !== numero));
     } catch (e: any) {
       setError(e.message);
     }
   };
 
-  // ── VISTAS ──
+  // ── VISTAS según `step` ──
   if (step === "expired") {
     return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
 
   if (step === "login") {
-    // Login PÚBLICO, sin guard
     return (
       <div className="max-w-md mx-auto p-6">
         <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
@@ -191,13 +190,14 @@ export default function ManualPage() {
     );
   }
 
-  // FORMULARIO bajo guard de TempAuthGuard (verifica sólo expiración)
+  // FORMULARIO protegido solo por la expiración
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
         <h2 className="text-xl">Inscripción Manual</h2>
         {error && <p className="text-red-600">{error}</p>}
 
+        {/* Fecha de nacimiento */}
         <label>Fecha de nacimiento</label>
         <input
           type="date"
@@ -207,6 +207,7 @@ export default function ManualPage() {
         />
         <p>Edad calculada: {edad} años</p>
 
+        {/* Categoría */}
         <label>Categoría</label>
         <select
           className="w-full p-2 border"
@@ -222,6 +223,7 @@ export default function ManualPage() {
           ))}
         </select>
 
+        {/* Número */}
         <label>Número</label>
         <select
           className="w-full p-2 border"
@@ -236,6 +238,7 @@ export default function ManualPage() {
           ))}
         </select>
 
+        {/* Datos del competidor */}
         <label>Nombre</label>
         <input
           className="w-full p-2 border"
