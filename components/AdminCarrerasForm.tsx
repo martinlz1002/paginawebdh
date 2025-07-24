@@ -343,7 +343,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         <button
           type="button"
           onClick={handleAddOrSaveCategoria}
-          className="mt-2 w-full flex justify-center items-center bg-green-600 text-white py-2 rounded hover:bg-green-700 transition"
+          className="mt-2 w-full flex justify-center items-center bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition"
         >
           <PlusCircleIcon className="w-5 h-5 mr-1" />
           {editIndex !== null ? "Guardar categoría" : "Agregar categoría"}

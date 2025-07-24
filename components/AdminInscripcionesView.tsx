@@ -5,11 +5,11 @@ import {
   query,
   where,
   doc,
-  getDoc
+  getDoc,
+  Timestamp
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { CarreraData } from '@/types/carrera';
-import type { InscripcionData } from '@/types/inscripcion';
 import * as XLSX from 'xlsx';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
@@ -29,13 +29,19 @@ interface PerfilData {
 
 interface InscripcionItem {
   id: string;
-  perfil: PerfilData | null;
+  perfil: PerfilData;
   categoria: string;
-  timestamp: any;
-  sessionId?: string;
+  timestamp: Date;            // siempre Date para simplificar
+  sessionId?: string | null;
   payment_status?: string;
-  competitorNumber?: number;
+  competitorNumber: number;
+  // para manual:
+  email?: string;
 }
+
+// Nota: aquí aceptamos *cualquier* shape que venga de Firestore,
+// pero al final normalizamos a nuestro InscripcionItem.
+type RawData = Record<string, any>;
 
 export default function AdminInscripcionesView() {
   const [carreras, setCarreras] = useState<CarreraItem[]>([]);
@@ -45,15 +51,12 @@ export default function AdminInscripcionesView() {
 
   // 1) Cargo las carreras
   useEffect(() => {
-    (async () => {
-      const snap = await getDocs(collection(db, 'carreras'));
-      setCarreras(
-        snap.docs.map(d => ({ id: d.id, ...(d.data() as CarreraData) }))
-      );
-    })();
+    getDocs(collection(db, 'carreras')).then(snap => {
+      setCarreras(snap.docs.map(d => ({ id: d.id, ...(d.data() as CarreraData) })));
+    });
   }, []);
 
-  // 2) Cargo inscripciones + perfil + sessionId + status + competitorNumber
+  // 2) Cuando cambia carrera, cargo inscripciones
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
@@ -70,67 +73,104 @@ export default function AdminInscripcionesView() {
 
       const items: InscripcionItem[] = await Promise.all(
         snap.docs.map(async d => {
-          const data = d.data() as InscripcionData;
-          let perfil: PerfilData | null = null;
+          const raw = d.data() as RawData;
 
-          // Perfil principal
-          if (data.perfilId === data.perfilOwner) {
-            const main = await getDoc(doc(db, 'usuarios', data.perfilOwner));
-            if (main.exists()) {
-              const m = main.data() as any;
-              perfil = {
-                nombre: m.nombre,
-                apellidoPaterno: m.apPaterno || '',
-                apellidoMaterno: m.apMaterno || '',
-                celular: m.celular,
-                pais: m.pais,
-                estado: m.estado,
-                ciudad: m.ciudad,
-                club: m.club,
-                edad: m.edad
-              };
-            }
+          // 2.1) perfil
+          let perfil: PerfilData = {
+            nombre: '',
+            apellidoPaterno: '',
+            apellidoMaterno: '',
+          };
+
+          if (raw.perfilOwner === 'manual') {
+            // inscripcion manual: traigo los campos que guardaste
+            perfil.nombre = raw.perfilNombre || '';
+            perfil.apellidoPaterno = raw.perfilApPaterno || '';
+            perfil.apellidoMaterno = raw.perfilApMaterno || '';
+            perfil.celular = raw.celular;
+            perfil.ciudad = raw.ciudad;
+            perfil.estado = raw.estado;
+            perfil.pais = raw.pais;
+            perfil.club = raw.club;
           } else {
-            // Subperfil
-            const sub = await getDoc(
-              doc(db, 'usuarios', data.perfilOwner, 'perfiles', data.perfilId)
-            );
-            if (sub.exists()) {
-              const s = sub.data() as any;
-              perfil = {
-                nombre: s.nombre,
-                apellidoPaterno: s.apPaterno || '',
-                apellidoMaterno: s.apMaterno || '',
-                celular: s.celular,
-                pais: s.pais,
-                estado: s.estado,
-                ciudad: s.ciudad,
-                club: s.club,
-                edad: s.edad
-              };
+            // inscripcion por pago: perfilId + perfilOwner
+            if (raw.perfilId === raw.perfilOwner) {
+              // perfil principal
+              const main = await getDoc(doc(db, 'usuarios', raw.perfilOwner));
+              if (main.exists()) {
+                const m = main.data() as any;
+                perfil = {
+                  nombre: m.nombre || '',
+                  apellidoPaterno: m.apPaterno || m.apellidoPaterno || '',
+                  apellidoMaterno: m.apMaterno || m.apellidoMaterno || '',
+                  celular:   m.celular,
+                  pais:      m.pais,
+                  estado:    m.estado,
+                  ciudad:    m.ciudad,
+                  club:      m.club,
+                  edad:      m.edad
+                };
+              }
+            } else {
+              // subperfil
+              const sub = await getDoc(
+                doc(db, 'usuarios', raw.perfilOwner, 'perfiles', raw.perfilId)
+              );
+              if (sub.exists()) {
+                const s = sub.data() as any;
+                perfil = {
+                  nombre: s.nombre || '',
+                  apellidoPaterno: s.apPaterno || s.apellidoPaterno || '',
+                  apellidoMaterno: s.apMaterno || s.apellidoMaterno || '',
+                  celular:   s.celular,
+                  pais:      s.pais,
+                  estado:    s.estado,
+                  ciudad:    s.ciudad,
+                  club:      s.club,
+                  edad:      s.edad
+                };
+              }
             }
           }
 
-          // Obtener estado de pago desde Stripe
+          // 2.2) payment_status desde Stripe si aplica
           let payment_status: string | undefined;
-          if (data.sessionId) {
+          if (raw.sessionId) {
             try {
-              const res = await fetch(`/api/get-session?session_id=${data.sessionId}`);
+              const res = await fetch(`/api/get-session?session_id=${raw.sessionId}`);
               if (res.ok) {
-                const json = await res.json();
-                payment_status = json.payment_status;
+                const js = await res.json();
+                payment_status = js.payment_status;
               }
-            } catch {}
+            } catch {
+              // ignoro
+            }
           }
+
+          // 2.3) timestamp seguro: lo convierto a Date
+          let ts: Date = new Date();
+          if (raw.timestamp instanceof Timestamp) {
+            ts = raw.timestamp.toDate();
+          } else if (raw.timestamp?.toDate) {
+            ts = raw.timestamp.toDate();
+          } else if (typeof raw.timestamp === 'string' || raw.timestamp instanceof String) {
+            ts = new Date(raw.timestamp as string);
+          }
+
+          // 2.4) número de competidor
+          const num: number = typeof raw.competitorNumber === 'number'
+            ? raw.competitorNumber
+            : (raw.competitorNumber || 0);
 
           return {
             id: d.id,
             perfil,
-            categoria: data.categoria,
-            timestamp: data.timestamp,
-            sessionId: data.sessionId,
+            categoria: raw.categoria || '',
+            timestamp: ts,
+            sessionId: raw.sessionId ?? null,
             payment_status,
-            competitorNumber: data.competitorNumber
+            competitorNumber: num,
+            email: raw.email // opcional
           };
         })
       );
@@ -140,24 +180,23 @@ export default function AdminInscripcionesView() {
     })();
   }, [selectedCarrera]);
 
+  // 3) Exportar a Excel
   const exportExcel = () => {
     const rows = inscripciones.map(i => ({
       Número: i.competitorNumber,
-      Nombre: i.perfil?.nombre,
-      ApellidoP: i.perfil?.apellidoPaterno,
-      ApellidoM: i.perfil?.apellidoMaterno,
-      Edad: i.perfil?.edad,
-      Celular: i.perfil?.celular,
+      Nombre: i.perfil.nombre,
+      ApellidoP: i.perfil.apellidoPaterno,
+      ApellidoM: i.perfil.apellidoMaterno,
+      Edad: i.perfil.edad ?? '',
+      Celular: i.perfil.celular ?? '',
       Categoría: i.categoria,
       EstadoPago: i.payment_status ?? 'desconocido',
-      Registrado: i.timestamp?.toDate
-        ? i.timestamp.toDate().toLocaleString()
-        : ''
+      Registrado: i.timestamp.toLocaleString()
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inscripciones');
-    XLSX.writeFile(wb, `inscripciones_${selectedCarrera}.xlsx`);
+    XLSX.writeFile(wb, `inscripciones_${selectedCarrera || 'todas'}.xlsx`);
   };
 
   return (
@@ -206,19 +245,15 @@ export default function AdminInscripcionesView() {
             <tbody>
               {inscripciones.map(i => (
                 <tr key={i.id} className="hover:bg-gray-50">
-                  <td className="p-2">{i.competitorNumber ?? '-'}</td>
-                  <td className="p-2">{i.perfil?.nombre}</td>
-                  <td className="p-2">{i.perfil?.apellidoPaterno}</td>
-                  <td className="p-2">{i.perfil?.apellidoMaterno}</td>
-                  <td className="p-2">{i.perfil?.edad}</td>
-                  <td className="p-2">{i.perfil?.celular}</td>
+                  <td className="p-2">{i.competitorNumber}</td>
+                  <td className="p-2">{i.perfil.nombre}</td>
+                  <td className="p-2">{i.perfil.apellidoPaterno}</td>
+                  <td className="p-2">{i.perfil.apellidoMaterno}</td>
+                  <td className="p-2">{i.perfil.edad ?? '-'}</td>
+                  <td className="p-2">{i.perfil.celular ?? '-'}</td>
                   <td className="p-2">{i.categoria}</td>
-                  <td className="p-2 capitalize">{i.payment_status || '-'}</td>
-                  <td className="p-2">
-                    {i.timestamp?.toDate
-                      ? i.timestamp.toDate().toLocaleString()
-                      : '-'}
-                  </td>
+                  <td className="p-2">{i.payment_status ?? '-'}</td>
+                  <td className="p-2">{i.timestamp.toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
