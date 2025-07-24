@@ -1,5 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import TempAuthGuard from "@/components/TempAuthGuard";
+import { registrarInscripcionManual } from "@/lib/Inscripciones";
 
 interface APIUser {
   id: string;
@@ -9,25 +11,14 @@ interface APIUser {
   expiresAt: string;
 }
 
-type Step = "login" | "form" | "expired";
-
 export default function ManualPage() {
   const router = useRouter();
-  const raw = router.query.id;
-  const id = Array.isArray(raw) ? raw[0] : raw;
+  const { id } = router.query as { id?: string };
 
-  const [step, setStep] = useState<Step>("login");
-  const [apiUser, setApiUser] = useState<APIUser | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // Login form state
-  const [loginData, setLoginData] = useState({ username: "", password: "" });
-
-  // Available numbers
+  const [step, setStep] = useState<"login" | "form" | "expired">("login");
+  const [tempUser, setTempUser] = useState<APIUser | null>(null);
+  const [user, setUser] = useState({ username: "", password: "" });
   const [available, setAvailable] = useState<number[]>([]);
-
-  // Inscription form state
   const [form, setForm] = useState({
     competitorNumber: 0,
     nombre: "",
@@ -40,73 +31,57 @@ export default function ManualPage() {
     pais: "",
     club: "",
   });
+  const [error, setError] = useState<string | null>(null);
 
-  // 1️⃣ Al montar, obtenemos el tempUsuario público y validamos expiración
+  // 1️⃣ Al montar, cargo los datos públicos del tempUser
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${encodeURIComponent(id)}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Expired or not found");
+      .then(async res => {
+        if (!res.ok) throw new Error("No encontrado o expirado");
         return res.json();
       })
-      .then((u: APIUser) => {
-        // si expiró
-        if (new Date(u.expiresAt).getTime() < Date.now()) {
-          setStep("expired");
-        } else {
-          setApiUser(u);
-        }
-      })
-      .catch(() => {
-        setStep("expired");
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+      .then((u: APIUser) => setTempUser(u))
+      .catch(() => setStep("expired"));
   }, [id]);
 
-  // 2️⃣ Manejar login: llamar a /api/temp-login y luego cargar disponibles
-  const handleLogin = async () => {
-    if (!apiUser) return;
-    setError(null);
-    try {
-      const res = await fetch("/api/temp-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(loginData),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Credenciales inválidas");
-      }
-      // Verificar que el ID coincida
-      if (data.user.id !== apiUser.id) {
-        throw new Error("Este usuario/contraseña no corresponde a este enlace");
-      }
-      // Cargar números disponibles
-      const availRes = await fetch(`/api/temp-avail?id=${encodeURIComponent(id!)}`);
-      const { available: nums } = await availRes.json();
-      setAvailable(nums);
-      setStep("form");
-    } catch (e: any) {
-      setError(e.message);
+  // 2️⃣ Login local: comparamos credenciales guardadas en localStorage
+  const handleLogin = () => {
+    if (!tempUser) return;
+    const stored = localStorage.getItem("tempUser");
+    if (!stored) {
+      setError("Primero debes loguearte en /temp-login");
+      return;
+    }
+    const u = JSON.parse(stored) as APIUser & { password: string };
+    if (user.username === u.username && user.password === u.password) {
+      // obtener lista de números disponibles
+      fetch(`/api/temp-avail?id=${encodeURIComponent(id!)}`)
+        .then(async res => {
+          if (!res.ok) throw new Error("No pude calcular disponibles");
+          return res.json();
+        })
+        .then(({ available }: { available: number[] }) => {
+          setAvailable(available);
+          setStep("form");
+        })
+        .catch(err => setError(err.message));
+    } else {
+      setError("Credenciales incorrectas");
     }
   };
 
-  // 3️⃣ Envío del formulario de inscripción manual
+  // 3️⃣ Envío del formulario
   const handleSubmit = async () => {
-    if (!apiUser) return;
+    if (!tempUser) return;
     setError(null);
-    if (!form.competitorNumber) {
-      setError("Selecciona un número de competidor");
-      return;
-    }
     try {
-      await fetch("/api/registrar-inscripcion-manual", {
+      const resp = await fetch("/api/registrar-inscripcion-manual", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          carreraId: apiUser.carreraId,
+          carreraId: tempUser.carreraId,
+          competitorNumber: form.competitorNumber,
           perfilNombre: form.nombre,
           perfilApPaterno: form.apellidoPaterno,
           perfilApMaterno: form.apellidoMaterno,
@@ -116,172 +91,151 @@ export default function ManualPage() {
           estado: form.estado,
           pais: form.pais,
           club: form.club,
-          competitorNumber: form.competitorNumber,
           paymentStatus: "manual",
-        }),
-      }).then(r => {
-        if (!r.ok) return r.text().then(text => { throw new Error(text); });
+        })
       });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        throw new Error(data.error || "Error al registrar");
+      }
       alert("Competidor registrado correctamente");
-      // actualizar lista local de disponibles
-      setAvailable((a) => a.filter((n) => n !== form.competitorNumber));
-      setForm((f) => ({ ...f, competitorNumber: 0 }));
+      // actualizo disponibles
+      setAvailable(av => av.filter(n => n !== form.competitorNumber));
     } catch (e: any) {
       setError(e.message);
     }
   };
 
-  if (loading) {
-    return <p className="text-center mt-10">Cargando…</p>;
-  }
+  // — Render por paso —
   if (step === "expired") {
-    return <p className="text-center mt-10 text-red-600">Este enlace ha expirado.</p>;
+    return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
+
   if (step === "login") {
     return (
-      <div className="max-w-md mx-auto p-6 space-y-4">
-        <h2 className="text-xl font-semibold">Login Inscripción Manual</h2>
-        {error && <p className="text-red-600">{error}</p>}
+      <div className="max-w-md mx-auto p-6">
+        <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
+        {error && <p className="text-red-600 mb-2">{error}</p>}
         <input
-          type="text"
+          className="w-full mb-2 p-2 border"
           placeholder="Usuario"
-          value={loginData.username}
-          onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
-          className="w-full p-2 border rounded"
+          value={user.username}
+          onChange={e => setUser(u => ({ ...u, username: e.target.value }))}
         />
         <input
-          type="password"
+          className="w-full mb-4 p-2 border"
           placeholder="Contraseña"
-          value={loginData.password}
-          onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
-          className="w-full p-2 border rounded"
+          type="password"
+          value={user.password}
+          onChange={e => setUser(u => ({ ...u, password: e.target.value }))}
         />
         <button
+          className="w-full bg-blue-600 text-white py-2 rounded"
           onClick={handleLogin}
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
         >
           Entrar
         </button>
       </div>
     );
   }
+
   // step === "form"
   return (
-    <div className="max-w-lg mx-auto p-6 space-y-4">
-      <h2 className="text-xl font-semibold">Inscripción Manual</h2>
-      {error && <p className="text-red-600">{error}</p>}
+    <TempAuthGuard>
+      <div className="max-w-lg mx-auto p-6 space-y-4">
+        <h2 className="text-xl">Inscripción Manual</h2>
+        <p>Competidores restantes: {available.length}</p>
+        {error && <p className="text-red-600">{error}</p>}
 
-      <div>
-        <label className="block font-medium">Número de Competidor</label>
+        {/* Nº Competidor */}
+        <label className="block font-medium">Número</label>
         <select
           className="w-full p-2 border rounded"
           value={form.competitorNumber}
-          onChange={(e) =>
-            setForm((f) => ({ ...f, competitorNumber: Number(e.target.value) }))
+          onChange={e =>
+            setForm(f => ({ ...f, competitorNumber: +e.target.value }))
           }
         >
-          <option value={0}>-- Elige --</option>
-          {available.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
+          <option value={0}>-- elige --</option>
+          {available.map(n => (
+            <option key={n} value={n}>{n}</option>
           ))}
         </select>
-      </div>
 
-      <div>
+        {/* Datos personales */}
         <label className="block font-medium">Nombre</label>
         <input
           className="w-full p-2 border rounded"
           value={form.nombre}
-          onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+          onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))}
         />
-      </div>
+        <label className="block font-medium">Apellido Paterno</label>
+        <input
+          className="w-full p-2 border rounded"
+          value={form.apellidoPaterno}
+          onChange={e =>
+            setForm(f => ({ ...f, apellidoPaterno: e.target.value }))
+          }
+        />
+        <label className="block font-medium">Apellido Materno</label>
+        <input
+          className="w-full p-2 border rounded"
+          value={form.apellidoMaterno}
+          onChange={e =>
+            setForm(f => ({ ...f, apellidoMaterno: e.target.value }))
+          }
+        />
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block font-medium">Apellido Paterno</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.apellidoPaterno}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, apellidoPaterno: e.target.value }))
-            }
-          />
-        </div>
-        <div>
-          <label className="block font-medium">Apellido Materno</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.apellidoMaterno}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, apellidoMaterno: e.target.value }))
-            }
-          />
-        </div>
-      </div>
-
-      <div>
+        {/* Contacto */}
         <label className="block font-medium">Email</label>
         <input
           type="email"
           className="w-full p-2 border rounded"
           value={form.email}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+          onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
         />
-      </div>
-
-      <div>
         <label className="block font-medium">Celular</label>
         <input
           className="w-full p-2 border rounded"
           value={form.celular}
-          onChange={(e) => setForm((f) => ({ ...f, celular: e.target.value }))}
+          onChange={e => setForm(f => ({ ...f, celular: e.target.value }))}
         />
-      </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div>
-          <label className="block font-medium">Ciudad</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.ciudad}
-            onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="block font-medium">Estado</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.estado}
-            onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="block font-medium">País</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.pais}
-            onChange={(e) => setForm((f) => ({ ...f, pais: e.target.value }))}
-          />
-        </div>
-      </div>
+        {/* Ubicación */}
+        <label className="block font-medium">Ciudad</label>
+        <input
+          className="w-full p-2 border rounded"
+          value={form.ciudad}
+          onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))}
+        />
+        <label className="block font-medium">Estado</label>
+        <input
+          className="w-full p-2 border rounded"
+          value={form.estado}
+          onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
+        />
+        <label className="block font-medium">País</label>
+        <input
+          className="w-full p-2 border rounded"
+          value={form.pais}
+          onChange={e => setForm(f => ({ ...f, pais: e.target.value }))}
+        />
 
-      <div>
+        {/* Club opcional */}
         <label className="block font-medium">Club (opcional)</label>
         <input
           className="w-full p-2 border rounded"
           value={form.club}
-          onChange={(e) => setForm((f) => ({ ...f, club: e.target.value }))}
+          onChange={e => setForm(f => ({ ...f, club: e.target.value }))}
         />
-      </div>
 
-      <button
-        onClick={handleSubmit}
-        className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
-      >
-        Registrar Competidor
-      </button>
-    </div>
+        <button
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
+          onClick={handleSubmit}
+        >
+          Registrar Competidor
+        </button>
+      </div>
+    </TempAuthGuard>
   );
 }
