@@ -30,12 +30,12 @@ export default function ManualPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
 
-  // login
+  // Login temporal
   const [userCreds, setUserCreds] = useState({ username: "", password: "" });
   const [error, setError] = useState<string | null>(null);
 
-  // form state
-  const [birthDate, setBirthDate] = useState<string>(""); // yyyy-MM-dd
+  // Formulario
+  const [birthDate, setBirthDate] = useState<string>("");
   const [edad, setEdad] = useState<number>(0);
   const [dispCats, setDispCats] = useState<Categoria[]>([]);
   const [categoria, setCategoria] = useState<string>("");
@@ -53,7 +53,7 @@ export default function ManualPage() {
     club: ""
   });
 
-  // 1) Carga datos públicos
+  // 1️⃣ Carga datos públicos
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${id}`)
@@ -66,7 +66,7 @@ export default function ManualPage() {
         return getDoc(doc(db, "carreras", u.carreraId));
       })
       .then(csnap => {
-        if (!csnap.exists()) throw new Error();
+        if (!csnap.exists()) throw new Error("Carrera no encontrada");
         const d = csnap.data() as any;
         setRace({ id: csnap.id, ...d });
         setCategorias(d.categorias || []);
@@ -75,7 +75,7 @@ export default function ManualPage() {
       .catch(() => setStep("expired"));
   }, [id]);
 
-  // 2) Login temporal
+  // 2️⃣ Login temporal
   const handleLogin = async () => {
     setError(null);
     try {
@@ -85,11 +85,9 @@ export default function ManualPage() {
         body: JSON.stringify(userCreds),
       });
       const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Credenciales inválidas");
-      }
+      if (!res.ok || !data.ok) throw new Error(data.error || "Credenciales inválidas");
       const u = data.user as APIUser;
-      if (u.id !== id) throw new Error("Esas credenciales no pertenecen a este enlace");
+      if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
       localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
       setTempUser(u);
 
@@ -102,13 +100,14 @@ export default function ManualPage() {
     }
   };
 
-  // 3) Recalcula edad y categorías
+  // 3️⃣ Recalcula edad y categorías
   useEffect(() => {
     if (!birthDate || !race) return;
     const bd = new Date(birthDate);
-    const basis = ageBasis === "endOfYear"
-      ? new Date(new Date(race.fecha as any).getFullYear(), 11, 31)
-      : new Date(race.fecha as any);
+    const basis =
+      ageBasis === "endOfYear"
+        ? new Date(new Date(race.fecha as any).getFullYear(), 11, 31)
+        : new Date(race.fecha as any);
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
     if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) age--;
@@ -117,23 +116,23 @@ export default function ManualPage() {
     setCategoria("");
   }, [birthDate, race, ageBasis, categorias]);
 
-  // 4) Envía la inscripción manual (sin paymentStatus aquí)
+  // 4️⃣ Envía la inscripción manual
   const handleSubmit = async () => {
     if (!tempUser) return;
     try {
       await registrarInscripcionManual({
-        carreraId:       tempUser.carreraId,
-        perfilNombre:    competidor.nombre,
-        perfilApPaterno: competidor.apellidoPaterno,
-        perfilApMaterno: competidor.apellidoMaterno,
-        birthDate:       new Date(birthDate),
+        carreraId:        tempUser.carreraId,
+        perfilNombre:     competidor.nombre,
+        perfilApPaterno:  competidor.apellidoPaterno,
+        perfilApMaterno:  competidor.apellidoMaterno,
+        birthDate:        new Date(birthDate),
         categoria,
-        email:           competidor.email,
-        celular:         competidor.celular,
-        ciudad:          competidor.ciudad,
-        estado:          competidor.estado,
-        pais:            competidor.pais,
-        club:            competidor.club,
+        email:            competidor.email,
+        celular:          competidor.celular,
+        ciudad:           competidor.ciudad,
+        estado:           competidor.estado,
+        pais:             competidor.pais,
+        club:             competidor.club,
         competitorNumber: numero,
       });
       alert("Competidor registrado correctamente");
@@ -143,7 +142,7 @@ export default function ManualPage() {
     }
   };
 
-  // VISTAS
+  // ── Vistas según estado ──
   if (step === "expired") {
     return <p className="p-6 text-center">Este enlace ha expirado.</p>;
   }
@@ -161,8 +160,8 @@ export default function ManualPage() {
         />
         <input
           className="w-full mb-4 p-2 border"
-          placeholder="Contraseña"
           type="password"
+          placeholder="Contraseña"
           value={userCreds.password}
           onChange={e => setUserCreds(u => ({ ...u, password: e.target.value }))}
         />
@@ -182,7 +181,6 @@ export default function ManualPage() {
         <h2 className="text-xl">Inscripción Manual</h2>
         {error && <p className="text-red-600">{error}</p>}
 
-        {/* Fecha de nacimiento */}
         <label>Fecha de nacimiento</label>
         <input
           type="date"
@@ -192,7 +190,6 @@ export default function ManualPage() {
         />
         <p>Edad calculada: {edad} años</p>
 
-        {/* Categoría */}
         <label>Categoría</label>
         <select
           className="w-full p-2 border"
@@ -208,7 +205,6 @@ export default function ManualPage() {
           ))}
         </select>
 
-        {/* Número */}
         <label>Número</label>
         <select
           className="w-full p-2 border"
@@ -232,17 +228,13 @@ export default function ManualPage() {
         <input
           className="w-full p-2 border"
           value={competidor.apellidoPaterno}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, apellidoPaterno: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, apellidoPaterno: e.target.value }))}
         />
         <label>Apellido Materno</label>
         <input
           className="w-full p-2 border"
           value={competidor.apellidoMaterno}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, apellidoMaterno: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, apellidoMaterno: e.target.value }))}
         />
 
         <label>Email</label>
@@ -250,50 +242,38 @@ export default function ManualPage() {
           type="email"
           className="w-full p-2 border"
           value={competidor.email}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, email: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, email: e.target.value }))}
         />
         <label>Celular</label>
         <input
           className="w-full p-2 border"
           value={competidor.celular}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, celular: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, celular: e.target.value }))}
         />
 
         <label>Ciudad</label>
         <input
           className="w-full p-2 border"
           value={competidor.ciudad}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, ciudad: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, ciudad: e.target.value }))}
         />
         <label>Estado</label>
         <input
           className="w-full p-2 border"
           value={competidor.estado}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, estado: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, estado: e.target.value }))}
         />
         <label>País</label>
         <input
           className="w-full p-2 border"
           value={competidor.pais}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, pais: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, pais: e.target.value }))}
         />
         <label>Club (opcional)</label>
         <input
           className="w-full p-2 border"
           value={competidor.club}
-          onChange={(e) =>
-            setCompetidor((c) => ({ ...c, club: e.target.value }))
-          }
+          onChange={e => setCompetidor(c => ({ ...c, club: e.target.value }))}
         />
 
         <button
