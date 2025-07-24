@@ -7,20 +7,17 @@ import AuthGuard from "@/components/AuthGuard";
 
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
-  // Rutas públicas:
-  const PUBLIC = ["/temp-login", "/inscripcion-manual/"];
-  const isPublic = PUBLIC.some(p => 
-    p.endsWith("/") 
-      ? pathname.startsWith(p) 
-      : pathname === p
+  // Rutas totalmente públicas:
+  const PUBLIC_PATHS = ["/temp-login", "/inscripcion-manual/"];
+  const isPublic = PUBLIC_PATHS.some(p =>
+    p.endsWith("/") ? pathname.startsWith(p) : pathname === p
   );
 
   if (isPublic) {
-    // Páginas públicas (no requieren usuario Firebase)
+    // Renderizas directamente (sin AuthGuard ni Layout)
     return <Component {...pageProps} />;
   }
 
-  // Todo lo demás va con Layout + AuthGuard
   return (
     <AuthProvider>
       <Layout>

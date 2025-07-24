@@ -10,9 +10,7 @@ type Data =
 export default async function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
-    return res
-      .status(405)
-      .json({ ok: false, error: "Method Not Allowed" });  // <-- JSON en todos los casos
+    return res.status(405).json({ ok: false, error: "Method Not Allowed" });
   }
 
   const { username, password } = req.body as { username?: string; password?: string };
@@ -32,20 +30,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const docSnap = snap.docs[0];
   const data = docSnap.data() as TempUsuario;
-  const expiresAt: Date = data.expiresAt;
-  if (expiresAt.getTime() < Date.now()) {
+  if ((data.expiresAt as any).toDate
+      ? (data.expiresAt as any).toDate().getTime() < Date.now()
+      : data.expiresAt.getTime() < Date.now()
+  ) {
     return res.status(403).json({ ok: false, error: "Cuenta temporal expirada" });
   }
 
-  // Excluimos password y el Date original, serializamos expiresAt a string
-  const { password: _pw, expiresAt: _exp, ...rest } = data;
+  // Eliminamos password, serializamos expiresAt
+  const { password: _pw, expiresAt: _exp, ...rest } = data as any;
   return res.status(200).json({
     ok: true,
     user: {
-      // primero “rest” (que no contiene id), luego lo tuyo
-      ...rest,
       id: docSnap.id,
-      expiresAt: expiresAt.toISOString(),
+      ...rest,
+      expiresAt: (data.expiresAt as any).toDate
+        ? (data.expiresAt as any).toDate().toISOString()
+        : data.expiresAt.toISOString()
     },
   });
 }

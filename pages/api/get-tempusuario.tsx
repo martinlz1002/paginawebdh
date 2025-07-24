@@ -2,25 +2,20 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import * as admin from "firebase-admin";
 
 if (!admin.apps.length) {
-  const raw = Buffer.from(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!,
-    "base64"
-  ).toString("utf8");
+  const raw = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!, "base64").toString("utf8");
   const serviceAccount = JSON.parse(raw);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
 }
+
 const firestore = admin.firestore();
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { id } = req.query;
   if (req.method !== "GET" || typeof id !== "string") {
     res.setHeader("Allow", ["GET"]);
-    return res.status(405).end("Method Not Allowed");
+    return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   const snap = await firestore.collection("tempusuarios").doc(id).get();
@@ -33,7 +28,7 @@ export default async function handler(
     return res.status(410).json({ error: "Enlace expirado" });
   }
 
-  res.status(200).json({
+  return res.status(200).json({
     id: snap.id,
     carreraId: data.carreraId,
     range: data.range,
