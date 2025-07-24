@@ -3,8 +3,7 @@ import * as admin from "firebase-admin";
 
 if (!admin.apps.length) {
   const raw = Buffer.from(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!,
-    "base64"
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!, "base64"
   ).toString("utf8");
   const serviceAccount = JSON.parse(raw);
   admin.initializeApp({
@@ -33,13 +32,11 @@ export default async function handler(
     return res.status(410).json({ error: "Enlace expirado" });
   }
 
-  // Aquí incluimos password en la respuesta
   return res.status(200).json({
     id: snap.id,
     carreraId: data.carreraId,
     range: data.range,
     username: data.username,
-    password: data.password,
     expiresAt: expiresAt.toISOString(),
   });
 }

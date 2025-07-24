@@ -8,21 +8,23 @@ import AuthGuard from "@/components/AuthGuard";
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
 
-  // Rutas que deben ser accesibles SIN AuthGuard:
+  // Rutas públicas: accesibles sin AuthGuard ni doble Layout
   const isPublic =
     pathname === "/temp-login" ||
     pathname.startsWith("/inscripcion-manual");
 
+  const Content = isPublic ? (
+    <Component {...pageProps} />
+  ) : (
+    <AuthGuard>
+      <Component {...pageProps} />
+    </AuthGuard>
+  );
+
   return (
     <AuthProvider>
       <Layout>
-        {isPublic ? (
-          <Component {...pageProps} />
-        ) : (
-          <AuthGuard>
-            <Component {...pageProps} />
-          </AuthGuard>
-        )}
+        {Content}
       </Layout>
     </AuthProvider>
   );
