@@ -1,266 +1,293 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import TempAuthGuard from "@/components/TempAuthGuard";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import type { CarreraData } from "@/types/carrera";
+import { Timestamp } from "firebase/firestore";
 
 interface APIUser {
   id: string;
   carreraId: string;
   range: { start: number; end: number };
   username: string;
-  password: string;
   expiresAt: string;
+}
+
+interface Categoria {
+  nombre: string;
+  minAge: number;
+  maxAge: number;
 }
 
 export default function ManualPage() {
   const router = useRouter();
-  const { id } = router.query as { id?: string };
+  const { id } = router.query as { id: string };
 
   const [step, setStep] = useState<"login" | "form" | "expired">("login");
   const [tempUser, setTempUser] = useState<APIUser | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [race, setRace] = useState<CarreraData & { id: string } | null>(null);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [ageBasis, setAgeBasis] = useState<"endOfYear"|"eventDate">("endOfYear");
 
-  // formulario de datos
-  const [form, setForm] = useState({
-    competitorNumber: 0,
-    nombre: "",
-    apellidoPaterno: "",
-    apellidoMaterno: "",
-    email: "",
-    celular: "",
-    ciudad: "",
-    estado: "",
-    pais: "",
-    club: "",
-  });
+  // login form
+  const [userCreds, setUserCreds] = useState({ username:"", password:"" });
+  const [error, setError] = useState<string|null>(null);
+
+  // for form
+  const [birthDate, setBirthDate] = useState<string>(""); // yyyy-MM-dd
+  const [edad, setEdad] = useState<number>(0);
+  const [dispCats, setDispCats] = useState<Categoria[]>([]);
+  const [categoria, setCategoria] = useState<string>("");
   const [available, setAvailable] = useState<number[]>([]);
+  const [numero, setNumero] = useState<number>(0);
+  const [competidor, setCompetidor] = useState({
+    nombre:"", apellidoPaterno:"", apellidoMaterno:"",
+    email:"", celular:"", ciudad:"", estado:"", pais:"", club:""
+  });
 
-  // login inputs
-  const [login, setLogin] = useState({ username: "", password: "" });
-
-  // 1️⃣ Cargo datos (incluyendo password) desde Firestore
+  // 1️⃣ Cargar tempUser público
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/get-tempusuario?id=${encodeURIComponent(id)}`)
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Enlace inválido o expirado");
+    fetch(`/api/get-tempusuario?id=${id}`)
+      .then(res => {
+        if (!res.ok) throw new Error();
         return res.json();
       })
-      .then((u: APIUser) => setTempUser(u))
+      .then((u: APIUser) => {
+        setTempUser(u);
+        // carga datos de carrera
+        return getDoc(doc(db, "carreras", u.carreraId));
+      })
+      .then(csnap => {
+        if (!csnap.exists()) throw new Error("Carrera no encontrada");
+        const d = csnap.data() as any;
+        setRace({ id: csnap.id, ...d });
+        setCategorias(d.categorias || []);
+        setAgeBasis(d.ageBasis || "endOfYear");
+      })
       .catch(() => setStep("expired"));
   }, [id]);
 
-  // 2️⃣ Login local contra tempUser.username|password
+  // 2️⃣ Login local
   const handleLogin = () => {
-    setError(null);
     if (!tempUser) return;
+    const stored = localStorage.getItem("tempUser");
+    if (!stored) {
+      setError("Primero debes loguearte en /temp-login");
+      return;
+    }
+    const u = JSON.parse(stored) as APIUser & { password:string };
     if (
-      login.username === tempUser.username &&
-      login.password === tempUser.password
+      userCreds.username === u.username &&
+      userCreds.password === u.password
     ) {
-      // obtengo los números disponibles
-      fetch(`/api/temp-avail?id=${encodeURIComponent(id!)}`)
-        .then(async (res) => {
-          if (!res.ok) throw new Error("No pude calcular disponibles");
-          return res.json();
-        })
-        .then(({ available }: { available: number[] }) => {
+      // calcular disponibles
+      const all = Array.from(
+        { length: tempUser.range.end - tempUser.range.start + 1 },
+        (_, i) => tempUser.range.start + i
+      );
+      fetch(`/api/temp-avail?id=${id}`)
+        .then(r => r.json())
+        .then(({ available }: { available:number[] }) => {
           setAvailable(available);
           setStep("form");
         })
-        .catch((e) => setError(e.message));
+        .catch(() => setError("No pude calcular disponibles"));
     } else {
       setError("Credenciales incorrectas");
     }
   };
 
-  // 3️⃣ Registro manual
+  // 3️⃣ Cuando cambia birthDate, recalcular edad y catego.
+  useEffect(() => {
+    if (!birthDate || !race) return;
+    const bd = new Date(birthDate);
+    const basis = ageBasis === "endOfYear"
+      ? new Date(new Date(race.fecha as any).getFullYear(), 11, 31)
+      : new Date(race.fecha as any);
+    let age = basis.getFullYear() - bd.getFullYear();
+    const m = basis.getMonth() - bd.getMonth();
+    if (m<0 || (m===0 && basis.getDate()<bd.getDate())) age--;
+    setEdad(age);
+    // filtrar categorías
+    setDispCats(categorias.filter(c=>age>=c.minAge && age<=c.maxAge));
+    setCategoria("");
+  }, [birthDate, race, ageBasis, categorias]);
+
+  // 4️⃣ Envío del formulario manual
   const handleSubmit = async () => {
-    setError(null);
-    if (!tempUser) return;
+    if (!tempUser || !race) return;
     try {
       await registrarInscripcionManual({
         carreraId: tempUser.carreraId,
-        competitorNumber: form.competitorNumber,
-        perfilNombre: form.nombre,
-        perfilApPaterno: form.apellidoPaterno,
-        perfilApMaterno: form.apellidoMaterno,
-        email: form.email,
-        celular: form.celular,
-        ciudad: form.ciudad,
-        estado: form.estado,
-        pais: form.pais,
-        club: form.club,
-        paymentStatus: "manual",
+        perfilNombre: competidor.nombre,
+        perfilApPaterno: competidor.apellidoPaterno,
+        perfilApMaterno: competidor.apellidoMaterno,
+        birthDate: new Date(birthDate),
+        categoria,
+        email: competidor.email,
+        celular: competidor.celular,
+        ciudad: competidor.ciudad,
+        estado: competidor.estado,
+        pais: competidor.pais,
+        club: competidor.club,
+        competitorNumber: numero,
+        paymentStatus: "manual"
       });
       alert("Competidor registrado correctamente");
-      // actualizo lista
-      setAvailable((prev) =>
-        prev.filter((n) => n !== form.competitorNumber)
-      );
-    } catch (e: any) {
+      setAvailable(av=>av.filter(n=>n!==numero));
+    } catch(e:any){
       setError(e.message);
     }
   };
 
-  // — renderizar según paso —
-  if (step === "expired") {
-    return <p className="p-6 text-center">Este enlace ha expirado.</p>;
+  if (step==="expired") {
+    return <TempAuthGuard><p className="p-6 text-center">Enlace expirado.</p></TempAuthGuard>;
   }
-
-  if (step === "login") {
+  if (step==="login") {
     return (
-      <div className="max-w-md mx-auto p-6">
-        <h2 className="text-2xl font-semibold mb-4">
-          Login Inscripción Manual
-        </h2>
-        {error && <p className="text-red-600 mb-2">{error}</p>}
-        <input
-          className="w-full mb-3 p-2 border rounded"
-          placeholder="Usuario"
-          value={login.username}
-          onChange={(e) =>
-            setLogin((l) => ({ ...l, username: e.target.value }))
-          }
-        />
-        <input
-          className="w-full mb-4 p-2 border rounded"
-          placeholder="Contraseña"
-          type="password"
-          value={login.password}
-          onChange={(e) =>
-            setLogin((l) => ({ ...l, password: e.target.value }))
-          }
-        />
-        <button
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
-          onClick={handleLogin}
-        >
-          Entrar
-        </button>
-      </div>
+      <TempAuthGuard>
+        <div className="max-w-md mx-auto p-6">
+          <h2 className="text-xl mb-4">Login Inscripción Manual</h2>
+          {error && <p className="text-red-600">{error}</p>}
+          <input
+            placeholder="Usuario"
+            className="w-full mb-2 p-2 border"
+            value={userCreds.username}
+            onChange={e=>setUserCreds(u=>({...u,username:e.target.value}))}
+          />
+          <input
+            placeholder="Contraseña"
+            type="password"
+            className="w-full mb-4 p-2 border"
+            value={userCreds.password}
+            onChange={e=>setUserCreds(u=>({...u,password:e.target.value}))}
+          />
+          <button
+            className="w-full bg-blue-600 text-white py-2 rounded"
+            onClick={handleLogin}
+          >Entrar</button>
+        </div>
+      </TempAuthGuard>
     );
   }
 
-  // step === "form"
+  // ── paso "form" ──
   return (
-    <div className="max-w-lg mx-auto p-6 space-y-4">
-      <h2 className="text-2xl font-semibold">Inscripción Manual</h2>
-      <p>
-        Competidores restantes: <strong>{available.length}</strong>
-      </p>
-      {error && <p className="text-red-600">{error}</p>}
+    <TempAuthGuard>
+      <div className="max-w-lg mx-auto p-6 space-y-4">
+        <h2 className="text-xl">Inscripción Manual</h2>
+        {error && <p className="text-red-600">{error}</p>}
 
-      {/* Número */}
-      <label className="block font-medium">Número de competidor</label>
-      <select
-        className="w-full p-2 border rounded"
-        value={form.competitorNumber}
-        onChange={(e) =>
-          setForm((f) => ({
-            ...f,
-            competitorNumber: Number(e.target.value),
-          }))
-        }
-      >
-        <option value={0}>-- elige --</option>
-        {available.map((n) => (
-          <option key={n} value={n}>
-            {n}
-          </option>
-        ))}
-      </select>
+        {/* 1. fecha de nacimiento */}
+        <label>Fecha de nacimiento</label>
+        <input
+          type="date"
+          className="w-full p-2 border"
+          value={birthDate}
+          onChange={e=>setBirthDate(e.target.value)}
+        />
+        <p>Edad calculada: {edad} años</p>
 
-      {/* Campos del competidor */}
-      <label className="block font-medium">Nombre</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.nombre}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, nombre: e.target.value }))
-        }
-      />
+        {/* 2. categoría filtrada */}
+        <label>Categoría</label>
+        <select
+          className="w-full p-2 border"
+          value={categoria}
+          onChange={e=>setCategoria(e.target.value)}
+          disabled={!dispCats.length}
+        >
+          <option value="">-- Elige categoría --</option>
+          {dispCats.map(c=>(
+            <option key={c.nombre} value={c.nombre}>
+              {c.nombre} ({c.minAge}–{c.maxAge} años)
+            </option>
+          ))}
+        </select>
 
-      <label className="block font-medium">Apellido Paterno</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.apellidoPaterno}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, apellidoPaterno: e.target.value }))
-        }
-      />
+        {/* 3. número libre */}
+        <label>Número</label>
+        <select
+          className="w-full p-2 border"
+          value={numero}
+          onChange={e=>setNumero(+e.target.value)}
+        >
+          <option value={0}>-- elige --</option>
+          {available.map(n=>(
+            <option key={n} value={n}>{n}</option>
+          ))}
+        </select>
 
-      <label className="block font-medium">Apellido Materno</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.apellidoMaterno}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, apellidoMaterno: e.target.value }))
-        }
-      />
+        {/* 4. datos competidor */}
+        <label>Nombre</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.nombre}
+          onChange={e=>setCompetidor(c=>({...c,nombre:e.target.value}))}
+        />
+        <label>Apellido Paterno</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.apellidoPaterno}
+          onChange={e=>setCompetidor(c=>({...c,apellidoPaterno:e.target.value}))}
+        />
+        <label>Apellido Materno</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.apellidoMaterno}
+          onChange={e=>setCompetidor(c=>({...c,apellidoMaterno:e.target.value}))}
+        />
+        <label>Email</label>
+        <input
+          type="email"
+          className="w-full p-2 border"
+          value={competidor.email}
+          onChange={e=>setCompetidor(c=>({...c,email:e.target.value}))}
+        />
+        <label>Celular</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.celular}
+          onChange={e=>setCompetidor(c=>({...c,celular:e.target.value}))}
+        />
 
-      {/* Contacto */}
-      <label className="block font-medium">Email</label>
-      <input
-        type="email"
-        className="w-full p-2 border rounded"
-        value={form.email}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, email: e.target.value }))
-        }
-      />
+        <label>Ciudad</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.ciudad}
+          onChange={e=>setCompetidor(c=>({...c,ciudad:e.target.value}))}
+        />
+        <label>Estado</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.estado}
+          onChange={e=>setCompetidor(c=>({...c,estado:e.target.value}))}
+        />
+        <label>País</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.pais}
+          onChange={e=>setCompetidor(c=>({...c,pais:e.target.value}))}
+        />
+        <label>Club (opcional)</label>
+        <input
+          className="w-full p-2 border"
+          value={competidor.club}
+          onChange={e=>setCompetidor(c=>({...c,club:e.target.value}))}
+        />
 
-      <label className="block font-medium">Celular</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.celular}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, celular: e.target.value }))
-        }
-      />
-
-      {/* Ubicación */}
-      <label className="block font-medium">Ciudad</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.ciudad}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, ciudad: e.target.value }))
-        }
-      />
-
-      <label className="block font-medium">Estado</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.estado}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, estado: e.target.value }))
-        }
-      />
-
-      <label className="block font-medium">País</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.pais}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, pais: e.target.value }))
-        }
-      />
-
-      <label className="block font-medium">Club (opcional)</label>
-      <input
-        className="w-full p-2 border rounded"
-        value={form.club}
-        onChange={(e) =>
-          setForm((f) => ({ ...f, club: e.target.value }))
-        }
-      />
-
-      <button
-        className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
-        onClick={handleSubmit}
-      >
-        Registrar Competidor
-      </button>
-    </div>
+        <button
+          className="w-full bg-green-600 text-white py-2 rounded"
+          onClick={handleSubmit}
+          disabled={
+            !birthDate || !categoria || numero===0
+          }
+        >
+          Registrar Competidor
+        </button>
+      </div>
+    </TempAuthGuard>
   );
 }
