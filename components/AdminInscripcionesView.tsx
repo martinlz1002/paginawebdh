@@ -31,16 +31,12 @@ interface InscripcionItem {
   id: string;
   perfil: PerfilData;
   categoria: string;
-  timestamp: Date;            // siempre Date para simplificar
+  timestamp: Date;
   sessionId?: string | null;
   payment_status?: string;
   competitorNumber: number;
-  // para manual:
-  email?: string;
 }
 
-// Nota: aquí aceptamos *cualquier* shape que venga de Firestore,
-// pero al final normalizamos a nuestro InscripcionItem.
 type RawData = Record<string, any>;
 
 export default function AdminInscripcionesView() {
@@ -49,14 +45,16 @@ export default function AdminInscripcionesView() {
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // 1) Cargo las carreras
+  // Cargo la lista de carreras
   useEffect(() => {
     getDocs(collection(db, 'carreras')).then(snap => {
-      setCarreras(snap.docs.map(d => ({ id: d.id, ...(d.data() as CarreraData) })));
+      setCarreras(
+        snap.docs.map(d => ({ id: d.id, ...(d.data() as CarreraData) }))
+      );
     });
   }, []);
 
-  // 2) Cuando cambia carrera, cargo inscripciones
+  // Cuando cambia la carrera, cargo inscripciones
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
@@ -65,25 +63,30 @@ export default function AdminInscripcionesView() {
     setLoading(true);
 
     (async () => {
-      const q = query(
-        collection(db, 'inscripciones'),
-        where('carreraId', '==', selectedCarrera)
+      // consulta inscripciones
+      const snap = await getDocs(
+        query(
+          collection(db, 'inscripciones'),
+          where('carreraId', '==', selectedCarrera)
+        )
       );
-      const snap = await getDocs(q);
+
+      // info de la carrera seleccionada
+      const carreraInfo = carreras.find(c => c.id === selectedCarrera);
 
       const items: InscripcionItem[] = await Promise.all(
         snap.docs.map(async d => {
           const raw = d.data() as RawData;
 
-          // 2.1) perfil
-          let perfil: PerfilData = {
+          // perfil
+          const perfil: PerfilData = {
             nombre: '',
             apellidoPaterno: '',
-            apellidoMaterno: '',
+            apellidoMaterno: ''
           };
 
           if (raw.perfilOwner === 'manual') {
-            // inscripcion manual: traigo los campos que guardaste
+            // manual
             perfil.nombre = raw.perfilNombre || '';
             perfil.apellidoPaterno = raw.perfilApPaterno || '';
             perfil.apellidoMaterno = raw.perfilApMaterno || '';
@@ -92,24 +95,42 @@ export default function AdminInscripcionesView() {
             perfil.estado = raw.estado;
             perfil.pais = raw.pais;
             perfil.club = raw.club;
+
+            // calcular edad según fecha de la carrera o fin de año
+            if (raw.birthDate && carreraInfo) {
+              const bd: Date =
+                raw.birthDate instanceof Timestamp
+                  ? raw.birthDate.toDate()
+                  : new Date(raw.birthDate);
+              // basis
+              const year = new Date(carreraInfo.fecha!).getFullYear();
+              const basis =
+                carreraInfo.ageBasis === 'eventDate'
+                  ? new Date(carreraInfo.fecha!)
+                  : new Date(year, 11, 31);
+              let age = basis.getFullYear() - bd.getFullYear();
+              const m = basis.getMonth() - bd.getMonth();
+              if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) {
+                age--;
+              }
+              perfil.edad = age;
+            }
           } else {
-            // inscripcion por pago: perfilId + perfilOwner
+            // pago via Stripe
             if (raw.perfilId === raw.perfilOwner) {
-              // perfil principal
+              // principal
               const main = await getDoc(doc(db, 'usuarios', raw.perfilOwner));
               if (main.exists()) {
                 const m = main.data() as any;
-                perfil = {
-                  nombre: m.nombre || '',
-                  apellidoPaterno: m.apPaterno || m.apellidoPaterno || '',
-                  apellidoMaterno: m.apMaterno || m.apellidoMaterno || '',
-                  celular:   m.celular,
-                  pais:      m.pais,
-                  estado:    m.estado,
-                  ciudad:    m.ciudad,
-                  club:      m.club,
-                  edad:      m.edad
-                };
+                perfil.nombre = m.nombre || '';
+                perfil.apellidoPaterno = m.apPaterno || m.apellidoPaterno || '';
+                perfil.apellidoMaterno = m.apMaterno || m.apellidoMaterno || '';
+                perfil.celular = m.celular;
+                perfil.pais = m.pais;
+                perfil.estado = m.estado;
+                perfil.ciudad = m.ciudad;
+                perfil.club = m.club;
+                perfil.edad = m.edad;
               }
             } else {
               // subperfil
@@ -118,49 +139,50 @@ export default function AdminInscripcionesView() {
               );
               if (sub.exists()) {
                 const s = sub.data() as any;
-                perfil = {
-                  nombre: s.nombre || '',
-                  apellidoPaterno: s.apPaterno || s.apellidoPaterno || '',
-                  apellidoMaterno: s.apMaterno || s.apellidoMaterno || '',
-                  celular:   s.celular,
-                  pais:      s.pais,
-                  estado:    s.estado,
-                  ciudad:    s.ciudad,
-                  club:      s.club,
-                  edad:      s.edad
-                };
+                perfil.nombre = s.nombre || '';
+                perfil.apellidoPaterno = s.apPaterno || s.apellidoPaterno || '';
+                perfil.apellidoMaterno = s.apMaterno || s.apellidoMaterno || '';
+                perfil.celular = s.celular;
+                perfil.pais = s.pais;
+                perfil.estado = s.estado;
+                perfil.ciudad = s.ciudad;
+                perfil.club = s.club;
+                perfil.edad = s.edad;
               }
             }
           }
 
-          // 2.2) payment_status desde Stripe si aplica
-          let payment_status: string | undefined;
-          if (raw.sessionId) {
+          // payment_status
+          let payment_status: string | undefined = raw.paymentStatus;
+          if (!payment_status && raw.sessionId) {
             try {
-              const res = await fetch(`/api/get-session?session_id=${raw.sessionId}`);
+              const res = await fetch(
+                `/api/get-session?session_id=${raw.sessionId}`
+              );
               if (res.ok) {
                 const js = await res.json();
                 payment_status = js.payment_status;
               }
             } catch {
-              // ignoro
+              /* ignore */
             }
           }
 
-          // 2.3) timestamp seguro: lo convierto a Date
-          let ts: Date = new Date();
+          // timestamp
+          let ts = new Date();
           if (raw.timestamp instanceof Timestamp) {
             ts = raw.timestamp.toDate();
           } else if (raw.timestamp?.toDate) {
             ts = raw.timestamp.toDate();
-          } else if (typeof raw.timestamp === 'string' || raw.timestamp instanceof String) {
-            ts = new Date(raw.timestamp as string);
+          } else if (typeof raw.timestamp === 'string') {
+            ts = new Date(raw.timestamp);
           }
 
-          // 2.4) número de competidor
-          const num: number = typeof raw.competitorNumber === 'number'
-            ? raw.competitorNumber
-            : (raw.competitorNumber || 0);
+          // número
+          const num: number =
+            typeof raw.competitorNumber === 'number'
+              ? raw.competitorNumber
+              : Number(raw.competitorNumber) || 0;
 
           return {
             id: d.id,
@@ -169,18 +191,22 @@ export default function AdminInscripcionesView() {
             timestamp: ts,
             sessionId: raw.sessionId ?? null,
             payment_status,
-            competitorNumber: num,
-            email: raw.email // opcional
+            competitorNumber: num
           };
         })
+      );
+
+      // ordenar ascendente por competitorNumber
+      items.sort(
+        (a, b) => a.competitorNumber - b.competitorNumber
       );
 
       setInscripciones(items);
       setLoading(false);
     })();
-  }, [selectedCarrera]);
+  }, [selectedCarrera, carreras]);
 
-  // 3) Exportar a Excel
+  // export Excel
   const exportExcel = () => {
     const rows = inscripciones.map(i => ({
       Número: i.competitorNumber,
@@ -196,7 +222,7 @@ export default function AdminInscripcionesView() {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Inscripciones');
-    XLSX.writeFile(wb, `inscripciones_${selectedCarrera || 'todas'}.xlsx`);
+    XLSX.writeFile(wb, `inscripciones_${selectedCarrera}.xlsx`);
   };
 
   return (
@@ -220,7 +246,9 @@ export default function AdminInscripcionesView() {
       >
         <option value="">-- Elige una carrera --</option>
         {carreras.map(c => (
-          <option key={c.id} value={c.id}>{c.titulo}</option>
+          <option key={c.id} value={c.id}>
+            {c.titulo}
+          </option>
         ))}
       </select>
 
