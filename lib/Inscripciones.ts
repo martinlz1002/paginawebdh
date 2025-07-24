@@ -5,8 +5,6 @@ import {
   getDocs,
   query,
   where,
-  doc,
-  getDoc,
   Timestamp
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
@@ -92,7 +90,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     perfilNombre: data.perfilNombre,
     perfilApPaterno: data.perfilApPaterno,
     perfilApMaterno: data.perfilApMaterno,
-    birthDate: Timestamp.fromDate(data.birthDate),  // guardamos timestamp
+    birthDate: Timestamp.fromDate(data.birthDate),  // guardamos Timestamp
     categoria: data.categoria,
     email: data.email,
     celular: data.celular,
@@ -102,7 +100,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     club: data.club,
     competitorNumber: data.competitorNumber,
     paymentStatus: data.paymentStatus,
-    perfilOwner: "manual",
+    perfilOwner: "manual",                          // esencial para las reglas
     sessionId: null,
     timestamp: serverTimestamp(),
   });

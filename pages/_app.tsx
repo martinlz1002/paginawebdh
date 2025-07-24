@@ -5,21 +5,14 @@ import { AuthProvider } from "@/context/authContext";
 import Layout from "@/components/Layout";
 import AuthGuard from "@/components/AuthGuard";
 
-const PUBLIC_PATHS = [
-  "/",
-  "/temp-login",
-  "/inscripcion-manual/", // dynamic prefix
-];
-
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
 
-  // Check if this path is public
-  const isPublic = PUBLIC_PATHS.some(path =>
-    path.endsWith("/") ? pathname.startsWith(path) : pathname === path
-  );
+  // Rutas que deben ser accesibles SIN AuthGuard:
+  const isPublic =
+    pathname === "/temp-login" ||
+    pathname.startsWith("/inscripcion-manual");
 
-  // Wrap protected pages in AuthGuard, but always inside Layout
   return (
     <AuthProvider>
       <Layout>
