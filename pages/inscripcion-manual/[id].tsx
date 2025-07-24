@@ -8,6 +8,7 @@ interface APIUser {
   carreraId: string;
   range: { start: number; end: number };
   username: string;
+  password: string;
   expiresAt: string;
 }
 
@@ -16,11 +17,14 @@ export default function ManualPage() {
   const rawId = router.query.id;
   const id = Array.isArray(rawId) ? rawId[0] : rawId;
 
-  const [step, setStep] = useState<"login" | "form" | "expired">("login");
   const [tempUser, setTempUser] = useState<APIUser | null>(null);
-  const [credentials, setCredentials] = useState({ username: "", password: "" });
+  const [step, setStep] = useState<"login" | "form" | "expired">("login");
   const [available, setAvailable] = useState<number[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [loadingAvail, setLoadingAvail] = useState(true);
+
   const [form, setForm] = useState({
+    competitorNumber: 0,
     nombre: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
@@ -30,51 +34,84 @@ export default function ManualPage() {
     estado: "",
     pais: "",
     club: "",
-    competitorNumber: 0,
   });
-  const [error, setError] = useState<string | null>(null);
 
-  // Si el enlace expiró (lo manejas en el login handler, o puedes pingear get-tempusuario aquí)
+  // Al montar: validamos tempUser en localStorage y luego cargamos disponibles
+  useEffect(() => {
+    if (!id) return;
 
-  // 1️⃣ Handle login contra /api/temp-login
-  const handleLogin = async () => {
-    setError(null);
-    if (!credentials.username || !credentials.password) {
-      setError("Ingresa usuario y contraseña");
+    async function init() {
+      // 1️⃣ Validar credenciales en localStorage
+      const js = localStorage.getItem("tempUser");
+      if (!js) {
+        router.replace("/temp-login");
+        return;
+      }
+      let u: APIUser & { password: string };
+      try {
+        u = JSON.parse(js);
+      } catch {
+        localStorage.removeItem("tempUser");
+        router.replace("/temp-login");
+        return;
+      }
+      if (u.id !== id || new Date(u.expiresAt).getTime() < Date.now()) {
+        localStorage.removeItem("tempUser");
+        router.replace("/temp-login");
+        return;
+      }
+      setTempUser(u);
+
+      // 2️⃣ Cargar números disponibles desde la API
+      try {
+        const res = await fetch(`/api/temp-avail?id=${id}`);
+        if (!res.ok) throw new Error("No pude obtener disponibles");
+        const { available } = await res.json();
+        setAvailable(available as number[]);
+      } catch (e: any) {
+        setError(e.message);
+      } finally {
+        setLoadingAvail(false);
+      }
+    }
+
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // Handler de login local (credenciales contra localStorage)
+  const handleLogin = () => {
+    if (!tempUser) return;
+    const stored = localStorage.getItem("tempUser");
+    if (!stored) {
+      setError("Primero debes loguearte en /temp-login");
       return;
     }
-    try {
-      const res = await fetch("/api/temp-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credentials),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Autenticación fallida");
-      }
-      // Guardo en localStorage para persistir
-      const userWithPw = { ...data.user, password: credentials.password };
-      localStorage.setItem("tempUser", JSON.stringify(userWithPw));
-      setTempUser(data.user);
-
-      // 2️⃣ Cargo números disponibles
-      const availRes = await fetch(`/api/temp-avail?id=${data.user.id}`);
-      const availJson = await availRes.json();
-      setAvailable(availJson.available);
-
+    const u = JSON.parse(stored) as APIUser & { password: string };
+    if (form.nombre /*usamos nombre únicamente para forzar re-render*/) {
+      /* no-op */
+    }
+    if (form.nombre /*otra no-op*/) {
+      /* no-op */
+    }
+    if (form.nombre /*...*/) {
+      /* no-op */
+    }
+    // Comparamos usuario/password
+    const enteredUser = (document.getElementById("login-username") as HTMLInputElement).value;
+    const enteredPass = (document.getElementById("login-password") as HTMLInputElement).value;
+    if (enteredUser === u.username && enteredPass === u.password) {
       setStep("form");
-    } catch (e: any) {
-      setError(e.message);
+    } else {
+      setError("Credenciales incorrectas");
     }
   };
 
-  // 3️⃣ Cuando ya estoy en form, envío la inscripción
+  // Handler de envío del formulario de inscripción manual
   const handleSubmit = async () => {
     if (!tempUser) return;
-    setError(null);
     if (!form.competitorNumber) {
-      setError("Selecciona un número");
+      setError("Selecciona un número válido");
       return;
     }
     try {
@@ -93,46 +130,45 @@ export default function ManualPage() {
         paymentStatus: "manual",
       });
       alert("Competidor registrado correctamente");
-      // Actualizo la lista de disponibles
       setAvailable(av => av.filter(n => n !== form.competitorNumber));
-      // Opcional: limpiar el número seleccionado
       setForm(f => ({ ...f, competitorNumber: 0 }));
     } catch (e: any) {
       setError(e.message);
     }
   };
 
-  // ── RENDERS ──
-
-  if (step === "expired") {
-    return <p className="p-6 text-center">Este enlace ha expirado.</p>;
+  if (loadingAvail) {
+    return <p className="text-center mt-10">Cargando…</p>;
   }
-
+  if (step === "expired") {
+    return <p className="p-6 text-center text-red-600">Este enlace ha expirado.</p>;
+  }
   if (step === "login") {
     return (
-      <div className="max-w-md mx-auto p-6">
-        <h2 className="text-2xl font-semibold mb-4">Login Inscripción Manual</h2>
-        {error && <p className="text-red-600 mb-2">{error}</p>}
-        <input
-          placeholder="Usuario"
-          className="w-full mb-2 p-2 border rounded"
-          value={credentials.username}
-          onChange={e => setCredentials(c => ({ ...c, username: e.target.value }))}
-        />
-        <input
-          placeholder="Contraseña"
-          type="password"
-          className="w-full mb-4 p-2 border rounded"
-          value={credentials.password}
-          onChange={e => setCredentials(c => ({ ...c, password: e.target.value }))}
-        />
-        <button
-          className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
-          onClick={handleLogin}
-        >
-          Entrar
-        </button>
-      </div>
+      <TempAuthGuard>
+        <div className="max-w-md mx-auto p-6 space-y-4">
+          <h2 className="text-xl font-semibold">Login Inscripción Manual</h2>
+          {error && <p className="text-red-600">{error}</p>}
+          <input
+            id="login-username"
+            type="text"
+            placeholder="Usuario"
+            className="w-full p-2 border rounded"
+          />
+          <input
+            id="login-password"
+            type="password"
+            placeholder="Contraseña"
+            className="w-full p-2 border rounded"
+          />
+          <button
+            onClick={handleLogin}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+          >
+            Entrar
+          </button>
+        </div>
+      </TempAuthGuard>
     );
   }
 
@@ -140,28 +176,30 @@ export default function ManualPage() {
   return (
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
-        <h2 className="text-2xl font-semibold">Inscripción Manual</h2>
-        <p>Competidores restantes: {available.length}</p>
+        <h2 className="text-xl font-semibold">Inscripción Manual</h2>
         {error && <p className="text-red-600">{error}</p>}
 
-        {/* Selecciona número */}
         <div>
-          <label className="block font-medium">Número</label>
+          <label className="block font-medium">Número de Competidor</label>
           <select
             className="w-full p-2 border rounded"
             value={form.competitorNumber}
             onChange={e =>
-              setForm(f => ({ ...f, competitorNumber: +e.target.value }))
+              setForm(f => ({
+                ...f,
+                competitorNumber: Number(e.target.value),
+              }))
             }
           >
-            <option value={0}>-- elige --</option>
+            <option value={0}>-- Elige --</option>
             {available.map(n => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
           </select>
         </div>
 
-        {/* Nombre */}
         <div>
           <label className="block font-medium">Nombre</label>
           <input
@@ -171,29 +209,29 @@ export default function ManualPage() {
           />
         </div>
 
-        {/* Apellidos */}
-        <div>
-          <label className="block font-medium">Apellido Paterno</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.apellidoPaterno}
-            onChange={e =>
-              setForm(f => ({ ...f, apellidoPaterno: e.target.value }))
-            }
-          />
-        </div>
-        <div>
-          <label className="block font-medium">Apellido Materno</label>
-          <input
-            className="w-full p-2 border rounded"
-            value={form.apellidoMaterno}
-            onChange={e =>
-              setForm(f => ({ ...f, apellidoMaterno: e.target.value }))
-            }
-          />
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block font-medium">Apellido Paterno</label>
+            <input
+              className="w-full p-2 border rounded"
+              value={form.apellidoPaterno}
+              onChange={e =>
+                setForm(f => ({ ...f, apellidoPaterno: e.target.value }))
+              }
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Apellido Materno</label>
+            <input
+              className="w-full p-2 border rounded"
+              value={form.apellidoMaterno}
+              onChange={e =>
+                setForm(f => ({ ...f, apellidoMaterno: e.target.value }))
+              }
+            />
+          </div>
         </div>
 
-        {/* Contacto */}
         <div>
           <label className="block font-medium">Email</label>
           <input
@@ -203,49 +241,44 @@ export default function ManualPage() {
             onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
           />
         </div>
+
         <div>
           <label className="block font-medium">Celular</label>
           <input
             className="w-full p-2 border rounded"
             value={form.celular}
-            onChange={e =>
-              setForm(f => ({ ...f, celular: e.target.value }))
-            }
+            onChange={e => setForm(f => ({ ...f, celular: e.target.value }))}
           />
         </div>
 
-        {/* Ubicación */}
         <div>
-          <label className="block font-medium">Ciudad, Estado, País</label>
-          <div className="grid grid-cols-3 gap-2">
+          <label className="block font-medium">Ciudad</label>
+          <input
+            className="w-full p-2 border rounded"
+            value={form.ciudad}
+            onChange={e => setForm(f => ({ ...f, ciudad: e.target.value }))}
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block font-medium">Estado</label>
             <input
-              placeholder="Ciudad"
-              className="p-2 border rounded"
-              value={form.ciudad}
-              onChange={e =>
-                setForm(f => ({ ...f, ciudad: e.target.value }))
-              }
-            />
-            <input
-              placeholder="Estado"
-              className="p-2 border rounded"
+              className="w-full p-2 border rounded"
               value={form.estado}
-              onChange={e =>
-                setForm(f => ({ ...f, estado: e.target.value }))
-              }
+              onChange={e => setForm(f => ({ ...f, estado: e.target.value }))}
             />
+          </div>
+          <div>
+            <label className="block font-medium">País</label>
             <input
-              placeholder="País"
-              className="p-2 border rounded"
+              className="w-full p-2 border rounded"
               value={form.pais}
-              onChange={e =>
-                setForm(f => ({ ...f, pais: e.target.value }))
-              }
+              onChange={e => setForm(f => ({ ...f, pais: e.target.value }))}
             />
           </div>
         </div>
 
-        {/* Club */}
         <div>
           <label className="block font-medium">Club (opcional)</label>
           <input
@@ -256,8 +289,8 @@ export default function ManualPage() {
         </div>
 
         <button
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
           onClick={handleSubmit}
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
         >
           Registrar Competidor
         </button>
