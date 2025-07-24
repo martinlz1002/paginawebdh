@@ -1,8 +1,9 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import AuthGuard from "@/components/AuthGuard";
+import Link from "next/link";
+import Layout from "@/components/Layout";
 import { app, db } from "@/lib/firebase";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import {
   doc,
   getDoc,
@@ -12,7 +13,7 @@ import {
   where,
   Timestamp,
 } from "firebase/firestore";
-import { registrarInscripcion } from "@/lib/Inscripciones";  // ahora apunta a la función Stripe
+import { registrarInscripcion } from "@/lib/Inscripciones";
 import {
   MapPinIcon,
   CalendarIcon,
@@ -28,13 +29,13 @@ interface Categoria {
   maxAge: number;
   price: number;
 }
-type AgeBasis = 'endOfYear' | 'eventDate';
+type AgeBasis = "endOfYear" | "eventDate";
 interface Carrera {
   id: string;
   titulo: string;
   descripcion?: string;
   lugar?: string;
-  fecha?: string;
+  fecha?: string; // YYYY-MM-DD
   horaSalida?: string;
   bannerUrl?: string;
   categorias: Categoria[];
@@ -70,8 +71,15 @@ export default function InscribirsePage() {
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const [procesandoPago, setProcesandoPago] = useState(false);
   const auth = getAuth(app);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  // Carga carrera
+  // Monitorea auth (para mostrar botón o enlace)
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
+    return () => unsub();
+  }, [auth]);
+
+  // Carga la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -103,52 +111,52 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // Carga perfiles
+  // Carga perfiles del usuario autenticado
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      if (!user) return router.replace("/login");
-      loadPerfiles(user.uid);
-    });
-    return () => unsub();
-  }, []);
+    if (!currentUser) return;
+    (async () => {
+      setLoadingPerfiles(true);
+      const lista: Perfil[] = [];
 
-  async function loadPerfiles(uid: string) {
-    setLoadingPerfiles(true);
-    const lista: Perfil[] = [];
-    const udoc = await getDoc(doc(db, "usuarios", uid));
-    if (udoc.exists()) {
-      const ud: any = udoc.data();
-      const bd = ud.fechaNacimiento instanceof Timestamp
-        ? ud.fechaNacimiento.toDate()
-        : new Date(ud.fechaNacimiento);
-      lista.push({
-        id: uid,
-        nombre: ud.nombre,
-        apellidoPaterno: ud.apPaterno || ud.apellidoPaterno,
-        apellidoMaterno: ud.apellidoMaterno || ud.apellidoMaterno,
-        birthDate: bd,
-      });
-    }
-    const snap = await getDocs(collection(db, "usuarios", uid, "perfiles"));
-    snap.docs.forEach((d) => {
-      const p: any = d.data();
-      const bd = p.fechaNacimiento instanceof Timestamp
-        ? p.fechaNacimiento.toDate()
-        : new Date(p.fechaNacimiento);
-      lista.push({
-        id: d.id,
-        nombre: p.nombre,
-        apellidoPaterno: p.apellidoPaterno || p.apPaterno,
-        apellidoMaterno: p.apellidoMaterno || p.apMaterno,
-        birthDate: bd,
-      });
-    });
-    setPerfiles(lista);
-    if (lista.length) setPerfilSeleccionado(lista[0].id);
-    setLoadingPerfiles(false);
-  }
+      // Perfil principal
+      const udoc = await getDoc(doc(db, "usuarios", currentUser.uid));
+      if (udoc.exists()) {
+        const ud: any = udoc.data();
+        const bd = ud.fechaNacimiento instanceof Timestamp
+          ? ud.fechaNacimiento.toDate()
+          : new Date(ud.fechaNacimiento);
+        lista.push({
+          id: currentUser.uid,
+          nombre: ud.nombre,
+          apellidoPaterno: ud.apPaterno ?? ud.apellidoPaterno ?? "",
+          apellidoMaterno: ud.apMaterno ?? ud.apellidoMaterno ?? "",
+          birthDate: bd,
+        });
+      }
 
-  // Reset al cambiar perfil
+      // Subperfiles
+      const snap = await getDocs(collection(db, "usuarios", currentUser.uid, "perfiles"));
+      snap.docs.forEach((d) => {
+        const p: any = d.data();
+        const bd = p.fechaNacimiento instanceof Timestamp
+          ? p.fechaNacimiento.toDate()
+          : new Date(p.fechaNacimiento);
+        lista.push({
+          id: d.id,
+          nombre: p.nombre,
+          apellidoPaterno: p.apPaterno ?? p.apellidoPaterno ?? "",
+          apellidoMaterno: p.apMaterno ?? p.apellidoMaterno ?? "",
+          birthDate: bd,
+        });
+      });
+
+      setPerfiles(lista);
+      if (lista.length) setPerfilSeleccionado(lista[0].id);
+      setLoadingPerfiles(false);
+    })();
+  }, [currentUser]);
+
+  // Reset cuando cambia perfil
   useEffect(() => {
     setCategoriaSeleccionada("");
     setCompetitorNumber(null);
@@ -156,21 +164,18 @@ export default function InscribirsePage() {
 
   const handlePagar = async () => {
     setMensaje("");
-    if (!perfilSeleccionado || !categoriaSeleccionada) {
-      setMensaje("Selecciona perfil y categoría");
+    if (!perfilSeleccionado || !categoriaSeleccionada || !currentUser) {
+      setMensaje("Selecciona perfil, categoría e inicia sesión");
       return;
     }
     if (!carrera) return;
-    const user = auth.currentUser;
-    if (!user) return;
-
-    // Duplicados
+    // Evitar duplicados
     const dupAny = await getDocs(
       query(
         collection(db, "inscripciones"),
         where("carreraId", "==", carrera.id),
         where("perfilId", "==", perfilSeleccionado),
-        where("perfilOwner", "==", user.uid)
+        where("perfilOwner", "==", currentUser.uid)
       )
     );
     if (!dupAny.empty) {
@@ -180,10 +185,7 @@ export default function InscribirsePage() {
 
     setProcesandoPago(true);
     try {
-      // Crear sesión de pago
-      const catObj = carrera.categorias.find(
-        (c) => c.nombre === categoriaSeleccionada
-      )!;
+      const catObj = carrera.categorias.find(c => c.nombre === categoriaSeleccionada)!;
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -197,7 +199,6 @@ export default function InscribirsePage() {
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // Registrar en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -206,7 +207,7 @@ export default function InscribirsePage() {
         sessionId,
       });
 
-      // Leer número asignado por el webhook
+      // Leer número asignado
       const insSnap = await getDocs(
         query(
           collection(db, "inscripciones"),
@@ -218,7 +219,6 @@ export default function InscribirsePage() {
         setCompetitorNumber(data.competitorNumber ?? null);
       }
 
-      // Ir al checkout
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -228,35 +228,31 @@ export default function InscribirsePage() {
     }
   };
 
+  // Mientras carga carrera…
   if (!carrera) {
     return (
-      <AuthGuard>
+      <Layout>
         <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
-      </AuthGuard>
+      </Layout>
     );
   }
 
-  // Fecha de corte
-  const eventYear = new Date(carrera.fecha as string).getFullYear();
-  const basisDate =
-    carrera.ageBasis === "endOfYear"
-      ? new Date(eventYear, 11, 31)
-      : new Date(carrera.fecha as string);
+  // Prepara fechas y categorías
+  const eventYear = new Date(carrera.fecha!).getFullYear();
+  const basisDate = carrera.ageBasis === "endOfYear"
+    ? new Date(eventYear, 11, 31)
+    : new Date(carrera.fecha!);
 
-  // Calcular edad y categorías
-  const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
-  const perfilAge = perfilData
-    ? computeAge(perfilData.birthDate, basisDate)
-    : 0;
+  const perfilData = perfiles.find(p => p.id === perfilSeleccionado);
+  const perfilAge = perfilData ? computeAge(perfilData.birthDate, basisDate) : 0;
   const categoriasPermitidas = carrera.categorias.filter(
-    (cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
+    cat => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
   );
   const precioSeleccionado =
-    categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada)
-      ?.price ?? 0;
+    categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)?.price ?? 0;
 
   return (
-    <AuthGuard>
+    <Layout>
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
         {carrera.bannerUrl && (
           <div
@@ -270,7 +266,6 @@ export default function InscribirsePage() {
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
 
-          {/* Tabla completa de categorías */}
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
@@ -286,44 +281,33 @@ export default function InscribirsePage() {
                 </tr>
               </thead>
               <tbody>
-                {carrera.categorias.map((cat) => (
+                {carrera.categorias.map(cat => (
                   <tr key={cat.nombre} className="hover:bg-gray-50">
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">
-                      ${cat.price.toFixed(2)}
-                    </td>
+                    <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {/* Verificación de edad y categorías */}
           <div className="p-4 bg-gray-100 rounded">
-            <p className="font-medium">
-              Edad en base a la convocatoria: {perfilAge} años
-            </p>
+            <p className="font-medium">Edad en base a la convocatoria: {perfilAge} años</p>
             <p className="text-sm text-gray-600">
-              Según{" "}
-              {carrera.ageBasis === "endOfYear"
+              Según { carrera.ageBasis === "endOfYear"
                 ? `corte al 31/12/${eventYear}`
-                : `fecha del evento (${carrera.fecha})`}
+                : `fecha del evento (${carrera.fecha})` }
             </p>
             <p className="text-sm mt-2">
-              Categorías disponibles:{" "}
-              {categoriasPermitidas.map((c) => c.nombre).join(", ") ||
-                "Ninguna"}
+              Categorías disponibles: {categoriasPermitidas.map(c => c.nombre).join(", ") || "Ninguna"}
             </p>
           </div>
 
-          {/* Número de competidor */}
           {competitorNumber !== null && (
             <div>
-              <label className="block font-medium">
-                Número de competidor
-              </label>
+              <label className="block font-medium">Número de competidor</label>
               <input
                 type="text"
                 value={competitorNumber}
@@ -333,7 +317,6 @@ export default function InscribirsePage() {
             </div>
           )}
 
-          {/* Selección de perfil y categoría */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block font-medium mb-1 flex items-center space-x-1">
@@ -346,14 +329,11 @@ export default function InscribirsePage() {
                 <select
                   className="w-full border p-2 rounded"
                   value={perfilSeleccionado}
-                  onChange={(e) => setPerfilSeleccionado(e.target.value)}
+                  onChange={e => setPerfilSeleccionado(e.target.value)}
                 >
-                  {perfiles.map((p) => (
+                  {perfiles.map(p => (
                     <option key={p.id} value={p.id}>
-                      {`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(
-                        p.birthDate,
-                        basisDate
-                      )} años)`}
+                      {`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(p.birthDate, basisDate)} años)`}
                     </option>
                   ))}
                 </select>
@@ -367,13 +347,11 @@ export default function InscribirsePage() {
               <select
                 className="w-full border p-2 rounded disabled:opacity-50"
                 value={categoriaSeleccionada}
-                onChange={(e) =>
-                  setCategoriaSeleccionada(e.target.value)
-                }
+                onChange={e => setCategoriaSeleccionada(e.target.value)}
                 disabled={!categoriasPermitidas.length}
               >
                 <option value="">-- Selecciona categoría --</option>
-                {categoriasPermitidas.map((cat) => (
+                {categoriasPermitidas.map(cat => (
                   <option key={cat.nombre} value={cat.nombre}>
                     {cat.nombre}
                   </option>
@@ -388,24 +366,29 @@ export default function InscribirsePage() {
             </div>
           )}
 
-          <button
-            onClick={handlePagar}
-            disabled={
-              !perfilSeleccionado || !categoriaSeleccionada || procesandoPago
-            }
-            className={`w-full py-3 rounded text-white transition ${
-              perfilSeleccionado && categoriaSeleccionada
-                ? "bg-purple-600 hover:bg-purple-700"
-                : "bg-gray-400 cursor-not-allowed"
-            }`}
-          >
-            {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
-          </button>
-          {mensaje && (
-            <p className="text-center text-red-600">{mensaje}</p>
+          {currentUser ? (
+            <button
+              onClick={handlePagar}
+              disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
+              className={`w-full py-3 rounded text-white transition ${
+                perfilSeleccionado && categoriaSeleccionada
+                  ? "bg-purple-600 hover:bg-purple-700"
+                  : "bg-gray-400 cursor-not-allowed"
+              }`}
+            >
+              {procesandoPago ? "Procesando..." : "Inscribirme y Pagar"}
+            </button>
+          ) : (
+            <div className="text-center">
+              <Link href="/login">
+                <a className="text-blue-600 underline">Inicia sesión para inscribirte</a>
+              </Link>
+            </div>
           )}
+
+          {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
         </div>
       </div>
-    </AuthGuard>
+    </Layout>
   );
 }

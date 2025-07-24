@@ -8,21 +8,21 @@ import AuthGuard from "@/components/AuthGuard";
 export default function App({ Component, pageProps }: AppProps) {
   const { pathname } = useRouter();
 
-  // Rutas completamente públicas (no requieren sesión)
+  // Estas rutas NO necesitan login
   const PUBLIC_PATHS = [
-    "/login",                // login de la app principal
-    "/temp-login",           // login temporal
-    "/inscripcion-manual/",  // inscripción manual
+    "/",               // homepage
+    "/temp-login",
+    "/inscripcion-manual/", // dinámica
   ];
-  const isPublic = PUBLIC_PATHS.some(path =>
-    path.endsWith("/") ? pathname.startsWith(path) : pathname === path
+  const isPublic = PUBLIC_PATHS.some(p =>
+    p.endsWith("/") ? pathname.startsWith(p) : pathname === p
   );
 
   if (isPublic) {
-    // Rutas públicas: renderiza directamente
+    // renderizas sin AuthGuard
     return <Component {...pageProps} />;
   } else {
-    // Rutas protegidas: envuelve en Layout + AuthGuard
+    // el resto con tu Layout + AuthGuard
     return (
       <AuthProvider>
         <Layout>
