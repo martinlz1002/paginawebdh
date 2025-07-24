@@ -31,7 +31,11 @@ export default function TempLoginPage() {
       if (!res.ok || !data.ok) {
         throw new Error(data.error || "Error de autenticación");
       }
-      const user: TempUser = data.user;
+      // Inyectamos la contraseña antes de almacenar en localStorage
+      const user: TempUser & { password: string } = {
+        ...data.user,
+        password,
+      };
       localStorage.setItem("tempUser", JSON.stringify(user));
       router.push(`/inscripcion-manual/${user.id}`);
     } catch (err: any) {
