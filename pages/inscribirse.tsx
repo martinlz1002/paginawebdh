@@ -299,7 +299,7 @@ const categoriasDisponibles = carrera?.distancias.flatMap((d) =>
 ) || [];
 
 const categoriaElegida = categoriasDisponibles.find((c) => c.nombre === categoriaSeleccionada);
-const precioSeleccionado = categoriaElegida?.price ?? 0;
+const precioSeleccionado = categoriaSeleccionada ? categoriaElegida?.price ?? 0 : 0;
 
   return (
   <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
