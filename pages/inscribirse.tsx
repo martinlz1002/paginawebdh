@@ -25,6 +25,7 @@ interface Categoria {
   minAge: number;
   maxAge: number;
   price: number;
+  distancia?: string;
 }
 type AgeBasis = "endOfYear" | "eventDate";
 interface Carrera {
@@ -122,11 +123,12 @@ export default function InscribirsePage() {
         horaSalida: d.horaSalida,
         bannerUrl: d.bannerUrl,
         categorias: (d.categorias || []).map((cat: any) => ({
-          nombre: cat.nombre,
-          minAge: cat.minAge,
-          maxAge: cat.maxAge,
-          price: typeof cat.price === "number" ? cat.price : 0,
-        })),
+  nombre: cat.nombre,
+  minAge: cat.minAge,
+  maxAge: cat.maxAge,
+  price: typeof cat.price === "number" ? cat.price : 0,
+  distancia: cat.distancia || "",
+})),
         ageBasis: d.ageBasis || "endOfYear",
       });
     })();
@@ -318,25 +320,29 @@ return (
             <span>Categorías y precios</span>
           </h2>
           <table className="w-full table-auto border text-gray-700">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="border px-4 py-2">Categoría</th>
-                <th className="border px-4 py-2">Edad mínima</th>
-                <th className="border px-4 py-2">Edad máxima</th>
-                <th className="border px-4 py-2">Precio (MXN + IVA)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {carrera.categorias.map((cat) => (
-                <tr key={cat.nombre} className="hover:bg-gray-50">
-                  <td className="border px-4 py-2">{cat.nombre}</td>
-                  <td className="border px-4 py-2">{cat.minAge}</td>
-                  <td className="border px-4 py-2">{cat.maxAge}</td>
-                  <td className="border px-4 py-2">${cat.price.toFixed(2)} + IVA</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+  <thead className="bg-gray-100">
+    <tr>
+      <th className="border px-4 py-2">Categoría</th>
+      <th className="border px-4 py-2">Distancia</th>
+      <th className="border px-4 py-2">Edad mínima</th>
+      <th className="border px-4 py-2">Edad máxima</th>
+      <th className="border px-4 py-2">Precio total (MXN)</th>
+    </tr>
+  </thead>
+  <tbody>
+    {carrera.categorias.map((cat) => (
+      <tr key={cat.nombre} className="hover:bg-gray-50">
+        <td className="border px-4 py-2">{cat.nombre}</td>
+        <td className="border px-4 py-2">{cat.distancia || "-"}</td>
+        <td className="border px-4 py-2">{cat.minAge}</td>
+        <td className="border px-4 py-2">{cat.maxAge}</td>
+        <td className="border px-4 py-2">
+          ${computeGross(cat.price).toFixed(2)}
+        </td>
+      </tr>
+    ))}
+  </tbody>
+</table>
         </div>
       )}
 
