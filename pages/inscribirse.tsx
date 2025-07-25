@@ -166,26 +166,18 @@ export default function InscribirsePage() {
     setCompetitorNumber(null);
   }, [perfilSeleccionado]);
 
-  // --- NUEVOS CONSTANTES para cálculo de comisiones Stripe + IVA ---
-  const STRIPE_RATE = 0.036; // 3.6%
-  const FIXED_FEE = 300;     // 3.00 MXN expresados en centavos
-  const IVA_RATE = 0.16;     // 16%
+  // --- Constantes para cálculo de comisión + IVA ---
+  const STRIPE_RATE = 0.036;   // 3.6%
+  const FIXED_FEE = 3;         // $3 MXN fijo
+  const IVA_RATE = 0.16;       // 16%
   const IVA_MULT = 1 + IVA_RATE;
 
-  /** 
-   * Dado un neto en pesos, calcula el bruto (= lo que paga el cliente)
-   *   comisiónSinIVA = gross * rate + tarifa_fija
-   *   IVA = comisiónSinIVA * IVA_RATE
-   *   neto = gross - comisiónSinIVA - IVA
-   * Resolvemos gross = (neto + FIXED_FEE/100 * IVA_MULT) / (1 - STRIPE_RATE * IVA_MULT)
-   * Retornamos truncado a centavos (para evitar redondeos arriba de la cuenta).
-   */
-  const computeGross = (netPesos: number) => {
-    const netCent = Math.round(netPesos * 100);
-    const numer = netCent + FIXED_FEE * IVA_MULT;
-    const denom = 1 - STRIPE_RATE * IVA_MULT;
-    const grossCent = Math.floor(numer / denom);
-    return grossCent / 100;
+  // Calcula el bruto necesario para que NETO = `net`
+  const computeGross = (net: number) => {
+    // net + fija*IVA  dividido entre (1 - rate*IVA)
+    const numerator = net + FIXED_FEE * IVA_MULT;
+    const denominator = 1 - STRIPE_RATE * IVA_MULT;
+    return parseFloat((numerator / denominator).toFixed(2));
   };
 
   const handlePagar = async () => {
@@ -222,8 +214,7 @@ export default function InscribirsePage() {
     const confirmar = window.confirm(
       `Vas a pagar $${gross.toFixed(
         2
-      )} MXN (incluye comisión + IVA) para que neto queden $${base.toFixed(
-        2
+      )} MXN (incluye comisión + IVA)
       )} MXN.\n¿Deseas continuar?`
     );
     if (!confirmar) return;
@@ -426,9 +417,11 @@ export default function InscribirsePage() {
             >
               {procesandoPago
                 ? "Procesando..."
-                : `Inscribirme y Pagar $${computeGross(
+                : categoriaSeleccionada
+                ? `Inscribirme y Pagar $${computeGross(
                     precioSeleccionado
-                  ).toFixed(2)}`}
+                  ).toFixed(2)}`
+                : "Inscribirme y Pagar"}
             </button>
           ) : (
             <div className="text-center">
