@@ -278,7 +278,7 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${computeGross(cat.price).toFixed(2)}</td>
+                    <td className="border px-4 py-2">${cat.price} + IVA</td>
                   </tr>
                 ))}
               </tbody>
@@ -329,7 +329,11 @@ export default function InscribirsePage() {
                 : "bg-gray-400 cursor-not-allowed"
             }`}
           >
-            {procesandoPago ? "Procesando..." : `Inscribirme y Pagar $${computeGross(precioSeleccionado).toFixed(2)}`}
+            {procesandoPago
+  ? "Procesando..."
+  : categoriaSeleccionada
+  ? `Inscribirme y Pagar $${computeGross(precioSeleccionado).toFixed(2)}`
+  : "Inscribirme y Pagar"}
           </button>
         ) : (
           <Link href="/login">
