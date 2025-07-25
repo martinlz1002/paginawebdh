@@ -227,7 +227,7 @@ const IVA_RATE = 0.16;       // 16%
 
   // bruto calculado
   const gross = computeGross(precio);
-
+    
 
     // Confirmación al usuario
     const confirmar = window.confirm(
