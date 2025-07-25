@@ -164,6 +164,7 @@ export default function ManualPage() {
         club: "",
       });
       setSuccessMessage("✓ Competidor registrado correctamente.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => setSuccessMessage(null), 4000);
     } catch (e: any) {
       setError(e.message);
@@ -190,10 +191,14 @@ export default function ManualPage() {
     <TempAuthGuard>
       <div className="max-w-lg mx-auto p-6 space-y-4">
         <h2 className="text-xl font-semibold text-purple-700">Inscripción Manual</h2>
+
+        {successMessage && (
+          <p className="flex items-center gap-2 text-green-600 text-sm font-medium transition-opacity duration-700 opacity-100 animate-fadeOut">
+            <span className="text-lg">✅</span>{successMessage}
+          </p>
+        )}
+
         {error && <p className="text-red-600 text-sm">{error}</p>}
-        {successMessage && <p className="flex items-center gap-2 text-green-600 text-sm font-medium transition-opacity duration-700 opacity-100 animate-fadeOut">
-          <span className="text-lg">✅</span>{successMessage}
-        </p>}
 
         <label className="block text-sm font-medium">Fecha de nacimiento</label>
         <input type="date" className="w-full p-2 border rounded" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
