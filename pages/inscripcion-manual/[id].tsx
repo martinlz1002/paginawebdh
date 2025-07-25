@@ -192,64 +192,6 @@ export default function ManualPage() {
         </select>
 
         {/* Datos del competidor */}
-        <label>Nombre</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.nombre}
-          onChange={e => setCompetidor(c => ({ ...c, nombre: e.target.value }))}
-        />
-        <label>Apellido Paterno</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.apellidoPaterno}
-          onChange={e => setCompetidor(c => ({ ...c, apellidoPaterno: e.target.value }))}
-        />
-        <label>Apellido Materno</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.apellidoMaterno}
-          onChange={e => setCompetidor(c => ({ ...c, apellidoMaterno: e.target.value }))}
-        />
-
-        <label>Email</label>
-        <input
-          type="email"
-          className="w-full p-2 border"
-          value={competidor.email}
-          onChange={e => setCompetidor(c => ({ ...c, email: e.target.value }))}
-        />
-        <label>Celular</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.celular}
-          onChange={e => setCompetidor(c => ({ ...c, celular: e.target.value }))}
-        />
-
-        <label>Ciudad</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.ciudad}
-          onChange={e => setCompetidor(c => ({ ...c, ciudad: e.target.value }))}
-        />
-        <label>Estado</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.estado}
-          onChange={e => setCompetidor(c => ({ ...c, estado: e.target.value }))}
-        />
-        <label>País</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.pais}
-          onChange={e => setCompetidor(c => ({ ...c, pais: e.target.value }))}
-        />
-        <label>Club (opcional)</label>
-        <input
-          className="w-full p-2 border"
-          value={competidor.club}
-          onChange={e => setCompetidor(c => ({ ...c, club: e.target.value }))}
-        />
-
         {Object.entries(competidor).map(([field, value]) => (
           <div key={field}>
             <label className="block text-sm font-medium capitalize">{field === 'club' ? 'Club (opcional)' : field}</label>
