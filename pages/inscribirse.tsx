@@ -14,8 +14,8 @@ import {
 import { app, db } from "@/lib/firebase";
 import { registrarInscripcion } from "@/lib/Inscripciones";
 import { ClipboardIcon, UserIcon } from "@heroicons/react/24/outline";
+import type { Carrera as CarreraFull } from "@/types/carrera";
 
-// --- Tipos ---
 interface Categoria {
   nombre: string;
   minAge: number;
@@ -28,18 +28,6 @@ interface DistanciaConCategorias {
 }
 type AgeBasis = "endOfYear" | "eventDate";
 
-interface Carrera {
-  id: string;
-  titulo: string;
-  descripcion?: string;
-  lugar?: string;
-  fecha?: string;
-  horaSalida?: string;
-  bannerUrl?: string;
-  distancias: DistanciaConCategorias[];
-  ageBasis: AgeBasis;
-}
-
 interface Perfil {
   id: string;
   nombre: string;
@@ -48,7 +36,6 @@ interface Perfil {
   birthDate: Date;
 }
 
-// --- Cálculo de edad ---
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -58,7 +45,6 @@ function computeAge(birthDate: Date, basisDate: Date): number {
   return age;
 }
 
-// --- Cálculo de precio bruto con comisión + IVA ---
 const STRIPE_RATE = 0.041;
 const FIXED_FEE = 3;
 const IVA_RATE = 0.16;
@@ -78,12 +64,12 @@ function computeGross(desiredNet: number): number {
 }
 
 export default function InscribirsePage() {
+  const [carrera, setCarrera] = useState<CarreraFull | null>(null);
   const router = useRouter();
   const { carreraId } = router.query;
   const auth = getAuth(app);
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [carrera, setCarrera] = useState<Carrera | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
@@ -93,13 +79,11 @@ export default function InscribirsePage() {
   const [categoriasPermitidas, setCategoriasPermitidas] = useState<Categoria[]>([]);
   const [procesandoPago, setProcesandoPago] = useState(false);
 
-  // Autenticación
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, setCurrentUser);
     return () => unsub();
   }, []);
 
-  // Carga carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -111,33 +95,19 @@ export default function InscribirsePage() {
       const d = snap.data();
       setCarrera({
         id: snap.id,
-        titulo: d.titulo,
-        descripcion: d.descripcion,
-        lugar: d.lugar || d.ubicacion,
-        fecha:
-          d.fecha instanceof Timestamp
-            ? d.fecha.toDate().toISOString().split("T")[0]
-            : d.fecha,
-        horaSalida: d.horaSalida,
-        bannerUrl: d.bannerUrl,
-        distancias: d.distancias || [],
-        ageBasis: d.ageBasis || "endOfYear",
-      });
+        ...d,
+      } as CarreraFull);
     })();
   }, [carreraId]);
 
-  // Carga perfiles del usuario
   useEffect(() => {
     if (!currentUser) return;
     (async () => {
       const lista: Perfil[] = [];
-
       const udoc = await getDoc(doc(db, "usuarios", currentUser.uid));
       if (udoc.exists()) {
         const ud = udoc.data();
-        const bd = ud.fechaNacimiento instanceof Timestamp
-          ? ud.fechaNacimiento.toDate()
-          : new Date(ud.fechaNacimiento);
+        const bd = ud.fechaNacimiento instanceof Timestamp ? ud.fechaNacimiento.toDate() : new Date(ud.fechaNacimiento);
         lista.push({
           id: currentUser.uid,
           nombre: ud.nombre,
@@ -146,13 +116,10 @@ export default function InscribirsePage() {
           birthDate: bd,
         });
       }
-
       const sub = await getDocs(collection(db, "usuarios", currentUser.uid, "perfiles"));
       sub.forEach(d => {
         const p = d.data();
-        const bd = p.fechaNacimiento instanceof Timestamp
-          ? p.fechaNacimiento.toDate()
-          : new Date(p.fechaNacimiento);
+        const bd = p.fechaNacimiento instanceof Timestamp ? p.fechaNacimiento.toDate() : new Date(p.fechaNacimiento);
         lista.push({
           id: d.id,
           nombre: p.nombre,
@@ -161,35 +128,25 @@ export default function InscribirsePage() {
           birthDate: bd,
         });
       });
-
       setPerfiles(lista);
       if (lista.length > 0) setPerfilSeleccionado(lista[0].id);
     })();
   }, [currentUser]);
 
-  // Calcula edad y categorías disponibles
   useEffect(() => {
     if (!perfilSeleccionado || !carrera || !distanciaSeleccionada) return;
-
     const perfil = perfiles.find(p => p.id === perfilSeleccionado);
     if (!perfil) return;
-
     const eventDate = carrera.ageBasis === "endOfYear"
       ? new Date(new Date(carrera.fecha!).getFullYear(), 11, 31)
       : new Date(carrera.fecha!);
-
     const edad = computeAge(perfil.birthDate, eventDate);
     setEdadPerfil(edad);
-
     const distancia = carrera.distancias.find(d => d.distancia === distanciaSeleccionada);
     if (!distancia) return;
-
-    const permitidas = distancia.categorias.filter(c =>
-      edad >= c.minAge && edad <= c.maxAge
-    );
-
+    const permitidas = distancia.categorias.filter(c => edad >= c.minAge && edad <= c.maxAge);
     setCategoriasPermitidas(permitidas);
-    setCategoriaSeleccionada(""); // reset categoría
+    setCategoriaSeleccionada("");
   }, [perfilSeleccionado, carrera, distanciaSeleccionada]);
 
   const categoriaElegida = categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada);
@@ -197,23 +154,14 @@ export default function InscribirsePage() {
 
   const handlePagar = async () => {
     setMensaje("");
-    if (!currentUser || !perfilSeleccionado || !distanciaSeleccionada || !categoriaSeleccionada) {
+    if (!currentUser || !perfilSeleccionado || !distanciaSeleccionada || !categoriaSeleccionada || !carrera) {
       setMensaje("Completa todos los campos.");
       return;
     }
-
     const netoDeseado = precioSeleccionado;
     const bruto = computeGross(netoDeseado);
-
-    if (!window.confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`)) {
-      return;
-    }
-
+    if (!window.confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`)) return;
     setProcesandoPago(true);
-    if (!carrera) {
-  setMensaje("Error: carrera no cargada.");
-  return;
-}
     try {
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
@@ -226,19 +174,16 @@ export default function InscribirsePage() {
           price: bruto,
         }),
       });
-
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
-
       await registrarInscripcion({
-  carreraId: carrera!.id,
-  carreraTitulo: carrera!.titulo,
-  perfilId: perfilSeleccionado,
-  categoria: categoriaSeleccionada,
-  distancia: distanciaSeleccionada,
-  sessionId,
-});
-
+        carreraId: carrera.id,
+        carreraTitulo: carrera.titulo,
+        perfilId: perfilSeleccionado,
+        categoria: categoriaSeleccionada,
+        distancia: distanciaSeleccionada,
+        sessionId,
+      });
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -258,6 +203,31 @@ export default function InscribirsePage() {
       <div className="p-6 space-y-6">
         <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
         {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
+
+        {/* Datos generales */}
+<div className="text-sm text-gray-700 space-y-1">
+  {carrera.fecha && (
+    <p><strong>Fecha del evento:</strong> {new Date(carrera.fecha).toLocaleDateString("es-MX", {
+      day: "numeric", month: "long", year: "numeric"
+    })}</p>
+  )}
+  {carrera.lugar && (
+    <p><strong>Lugar:</strong> {carrera.lugar}</p>
+  )}
+  {carrera.horaSalida && (
+    <p><strong>Hora de salida:</strong> {carrera.horaSalida}</p>
+  )}
+</div>
+
+{/* Entrega de kits */}
+{(carrera.kitFecha || carrera.kitLugar || carrera.kitHorario) && (
+  <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded text-sm text-gray-800">
+    <h3 className="font-semibold text-purple-700 mb-2">Entrega de kits</h3>
+    {carrera.kitFecha && <p><strong>Fecha:</strong> {carrera.kitFecha}</p>}
+    {carrera.kitLugar && <p><strong>Lugar:</strong> {carrera.kitLugar}</p>}
+    {carrera.kitHorario && <p><strong>Horario:</strong> {carrera.kitHorario}</p>}
+  </div>
+)}
 
         {/* Tabla de distancias y categorías */}
         {carrera.distancias.map((d) => (
