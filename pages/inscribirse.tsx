@@ -172,12 +172,13 @@ export default function InscribirsePage() {
   const IVA_RATE = 0.16;       // 16%
   const IVA_MULT = 1 + IVA_RATE;
 
-  // Calcula el bruto necesario para que NETO = `net`
+  // Calcula el bruto necesario para que NETO = `net`,
+  // redondeado siempre hacia arriba al siguiente centavo.
   const computeGross = (net: number) => {
-    // net + fija*IVA  dividido entre (1 - rate*IVA)
     const numerator = net + FIXED_FEE * IVA_MULT;
     const denominator = 1 - STRIPE_RATE * IVA_MULT;
-    return parseFloat((numerator / denominator).toFixed(2));
+    const raw = numerator / denominator;
+    return Math.ceil(raw * 100) / 100;
   };
 
   const handlePagar = async () => {
