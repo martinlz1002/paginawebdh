@@ -221,13 +221,13 @@ const IVA_RATE = 0.16;       // 16%
       return;
     }
 
-    // Precio base neto
-    const base = carrera.categorias.find(
-      (c) => c.nombre === categoriaSeleccionada
-    )!.price;
+    // neto deseado
+  const precio = carrera!.categorias
+    .find(c => c.nombre === categoriaSeleccionada)!.price;
 
-    // Calculamos bruto para que neto queden `base`
-    const gross = computeGross(base);
+  // bruto calculado
+  const gross = computeGross(precio);
+
 
     // Confirmación al usuario
     const confirmar = window.confirm(
