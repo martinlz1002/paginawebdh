@@ -19,16 +19,12 @@ import {
   UserIcon,
 } from "@heroicons/react/24/outline";
 
-// Tipos
+// --- Tipos ---
 interface Categoria {
   nombre: string;
   minAge: number;
   maxAge: number;
   price: number;
-}
-interface Distancia {
-  distancia: string;
-  categorias: Categoria[];
 }
 type AgeBasis = "endOfYear" | "eventDate";
 interface Carrera {
@@ -36,10 +32,10 @@ interface Carrera {
   titulo: string;
   descripcion?: string;
   lugar?: string;
-  fecha?: string;
+  fecha?: string; // YYYY-MM-DD
   horaSalida?: string;
   bannerUrl?: string;
-  distancias: Distancia[];
+  categorias: Categoria[];
   ageBasis: AgeBasis;
 }
 interface Perfil {
@@ -50,6 +46,7 @@ interface Perfil {
   birthDate: Date;
 }
 
+// Calcula edad
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -59,23 +56,29 @@ function computeAge(birthDate: Date, basisDate: Date): number {
   return age;
 }
 
-const STRIPE_RATE = 0.041;
-const FIXED_FEE = 3;
-const IVA_RATE = 0.16;
+// --- Ajustamos a 4.1% + $3 + IVA16% para cubrir comisión internacional ---
+  const STRIPE_RATE = 0.041;   // 4.1%
+  const FIXED_FEE   = 3;       // MXN$3
+  const IVA_RATE    = 0.16;    // 16%
 
+  /**
+   * Dado un neto deseado, busca el bruto mínimo tal que,
+   * tras comisión y IVA, el neto sea >= desiredNet.
+   */
 function computeGross(desiredNet: number): number {
-  const ivaMult = 1 + IVA_RATE;
-  const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
-  let gross = Math.ceil(raw * 100) / 100;
-  for (let i = 0; i < 500; i++) {
-    const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
-    const iva = parseFloat((commission * IVA_RATE).toFixed(2));
-    const netSim = gross - commission - iva;
-    if (netSim >= desiredNet) break;
-    gross = parseFloat((gross + 0.01).toFixed(2));
+    const ivaMult = 1 + IVA_RATE;
+    // aproximación inicial
+    const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
+    let gross = Math.ceil(raw * 100) / 100;
+    for (let i = 0; i < 500; i++) {
+      const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
+      const iva = parseFloat((commission * IVA_RATE).toFixed(2));
+      const netSim = gross - commission - iva;
+      if (netSim >= desiredNet) break;
+      gross = parseFloat((gross + 0.01).toFixed(2));
+    }
+    return gross;
   }
-  return gross;
-}
 
 export default function InscribirsePage() {
   const router = useRouter();
@@ -91,11 +94,13 @@ export default function InscribirsePage() {
   const auth = getAuth(app);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
+  // Monitorea auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
+    const unsub = onAuthStateChanged(auth, u => setCurrentUser(u));
     return () => unsub();
   }, [auth]);
 
+  // Carga la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -116,23 +121,16 @@ export default function InscribirsePage() {
             : d.fecha,
         horaSalida: d.horaSalida,
         bannerUrl: d.bannerUrl,
-        distancias: d.distancias || [],
+        categorias: (d.categorias || []).map((cat: any) => ({
+          nombre: cat.nombre,
+          minAge: cat.minAge,
+          maxAge: cat.maxAge,
+          price: typeof cat.price === "number" ? cat.price : 0,
+        })),
         ageBasis: d.ageBasis || "endOfYear",
       });
     })();
   }, [carreraId]);
-
-  const tablaCategorias = carrera?.distancias.flatMap((d) =>
-    d.categorias.map((cat) => (
-      <tr key={`${d.distancia}-${cat.nombre}`} className="hover:bg-gray-50">
-        <td className="border px-4 py-2">{d.distancia}</td>
-        <td className="border px-4 py-2">{cat.nombre}</td>
-        <td className="border px-4 py-2">{cat.minAge}</td>
-        <td className="border px-4 py-2">{cat.maxAge}</td>
-        <td className="border px-4 py-2">${cat.price.toFixed(2)}</td>
-      </tr>
-    ))
-  );
 
   // Carga perfiles del usuario autenticado
   useEffect(() => {
@@ -212,11 +210,12 @@ export default function InscribirsePage() {
     }
 
     // Precio base neto
-    const categoriaElegida = categoriasDisponibles.find((c) => c.nombre === categoriaSeleccionada);
-const precioSeleccionado = categoriaElegida?.price ?? 0;
+    const netoDeseado = carrera.categorias.find(
+      (c) => c.nombre === categoriaSeleccionada
+    )!.price;
 
     // Calculamos bruto para que neto queden `netoDeseado`
-    const bruto = computeGross(precioSeleccionado);
+    const bruto = computeGross(netoDeseado);
 
     // Confirmación al usuario
     if (
@@ -281,7 +280,7 @@ const precioSeleccionado = categoriaElegida?.price ?? 0;
     return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
   }
 
-  // Agrega cálculo de edad y categorías permitidas:
+ // Agrega cálculo de edad y categorías permitidas:
 const eventYear = carrera?.fecha ? new Date(carrera.fecha).getFullYear() : new Date().getFullYear();
 const basisDate = carrera?.ageBasis === "endOfYear"
   ? new Date(eventYear, 11, 31)
@@ -292,16 +291,15 @@ const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
 const perfilAge = perfilData ? computeAge(perfilData.birthDate, basisDate) : 0;
 
 // Encuentra categoría válida por edad
-const categoriasDisponibles = carrera?.distancias.flatMap((d) =>
-  d.categorias
-    .filter((cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge)
-    .map((cat) => ({ ...cat, distancia: d.distancia }))
-) || [];
+type CategoriaExtendida = Categoria & { distancia?: string };
+const categoriasPermitidas: CategoriaExtendida[] = carrera?.categorias
+  .filter((cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge)
+  .map((cat) => ({ ...cat })) || [];
 
-const categoriaElegida = categoriasDisponibles.find((c) => c.nombre === categoriaSeleccionada);
+const categoriaElegida = categoriasPermitidas.find((c) => c.nombre === categoriaSeleccionada);
 const precioSeleccionado = categoriaSeleccionada ? categoriaElegida?.price ?? 0 : 0;
 
-  return (
+return (
   <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
     {carrera?.bannerUrl && (
       <div
@@ -313,140 +311,142 @@ const precioSeleccionado = categoriaSeleccionada ? categoriaElegida?.price ?? 0 
       <h1 className="text-3xl font-bold">{carrera?.titulo}</h1>
       {carrera?.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
 
-      {/* Tabla de categorías ya existente */}
+      {carrera?.categorias?.length > 0 && (
+        <div>
+          <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
+            <ClipboardIcon className="w-6 h-6 text-green-700" />
+            <span>Categorías y precios</span>
+          </h2>
+          <table className="w-full table-auto border text-gray-700">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="border px-4 py-2">Categoría</th>
+                <th className="border px-4 py-2">Edad mínima</th>
+                <th className="border px-4 py-2">Edad máxima</th>
+                <th className="border px-4 py-2">Precio (MXN + IVA)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {carrera.categorias.map((cat) => (
+                <tr key={cat.nombre} className="hover:bg-gray-50">
+                  <td className="border px-4 py-2">{cat.nombre}</td>
+                  <td className="border px-4 py-2">{cat.minAge}</td>
+                  <td className="border px-4 py-2">{cat.maxAge}</td>
+                  <td className="border px-4 py-2">${cat.price.toFixed(2)} + IVA</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <div className="p-4 bg-gray-100 rounded">
         <p className="font-medium">Edad en base a la convocatoria: {perfilAge} años</p>
         <p className="text-sm text-gray-600">
-          Según {carrera?.ageBasis === "endOfYear"
+          Según { carrera?.ageBasis === "endOfYear"
             ? `corte al 31/12/${eventYear}`
-            : `fecha del evento (${carrera?.fecha})`}
+            : `fecha del evento (${carrera?.fecha})` }
         </p>
         <p className="text-sm mt-2">
-          Categorías disponibles: {categoriasDisponibles.map((c) => `${c.distancia} - ${c.nombre}`).join(", ") || "Ninguna"}
+          Categorías disponibles: {categoriasPermitidas.map(c => c.nombre).join(", ") || "Ninguna"}
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block font-medium mb-1 flex items-center space-x-1">
-            <UserIcon className="w-5 h-5 text-green-600" />
-            <span>Tu perfil</span>
-          </label>
-          {loadingPerfiles ? (
-            <p>Cargando perfiles…</p>
-          ) : (
-            <select
-              className="w-full border p-2 rounded"
-              value={perfilSeleccionado}
-              onChange={(e) => setPerfilSeleccionado(e.target.value)}
-            >
-              {perfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(p.birthDate, basisDate)} años)`}
-                </option>
-              ))}
-            </select>
+          {competitorNumber !== null && (
+            <div>
+              <label className="block font-medium">Número de competidor</label>
+              <input
+                type="text"
+                value={competitorNumber}
+                readOnly
+                className="w-full p-2 border rounded bg-gray-100"
+              />
+            </div>
           )}
-        </div>
 
-        <div>
-          <label className="block font-medium mb-1 flex items-center space-x-1">
-            <ClipboardIcon className="w-5 h-5 text-purple-700" />
-            <span>Categoría</span>
-          </label>
-          <select
-            className="w-full border p-2 rounded disabled:opacity-50"
-            value={categoriaSeleccionada}
-            onChange={(e) => setCategoriaSeleccionada(e.target.value)}
-            disabled={!categoriasDisponibles.length}
-          >
-            <option value="">-- Selecciona categoría --</option>
-            {categoriasDisponibles.map((cat) => (
-              <option key={`${cat.distancia}-${cat.nombre}`} value={cat.nombre}>
-                {`${cat.distancia} - ${cat.nombre}`}
-              </option>
-            ))}
-          </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <UserIcon className="w-5 h-5 text-green-600" />
+                <span>Tu perfil</span>
+              </label>
+              {loadingPerfiles ? (
+                <p>Cargando perfiles…</p>
+              ) : (
+                <select
+                  className="w-full border p-2 rounded"
+                  value={perfilSeleccionado}
+                  onChange={e => setPerfilSeleccionado(e.target.value)}
+                >
+                  {perfiles.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {`${p.nombre} ${p.apellidoPaterno} ${p.apellidoMaterno} (${computeAge(p.birthDate, basisDate)} años)`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div>
+              <label className="block font-medium mb-1 flex items-center space-x-1">
+                <ClipboardIcon className="w-5 h-5 text-purple-700" />
+                <span>Categoría</span>
+              </label>
+              <select
+                className="w-full border p-2 rounded disabled:opacity-50"
+                value={categoriaSeleccionada}
+                onChange={e => setCategoriaSeleccionada(e.target.value)}
+                disabled={!categoriasPermitidas.length}
+              >
+                <option value="">-- Selecciona categoría --</option>
+                {categoriasPermitidas.map(cat => (
+                  <option key={cat.nombre} value={cat.nombre}>
+                    {cat.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {categoriaSeleccionada && (
+            <div className="text-lg font-medium">
+              Precio seleccionado: ${precioSeleccionado.toFixed(2)}
+            </div>
+          )}
+
+            {currentUser ? (
+            <button
+              onClick={handlePagar}
+              disabled={
+                !perfilSeleccionado ||
+                !categoriaSeleccionada ||
+                procesandoPago
+              }
+              className={`w-full py-3 rounded text-white transition ${
+                perfilSeleccionado && categoriaSeleccionada
+                  ? "bg-purple-600 hover:bg-purple-700"
+                  : "bg-gray-400 cursor-not-allowed"
+              }`}
+            >
+              {procesandoPago
+                ? "Procesando..."
+                : categoriaSeleccionada
+                ? `Inscribirme y Pagar $${computeGross(
+                    precioSeleccionado
+                  ).toFixed(2)}`
+                : "Inscribirme y Pagar"}
+            </button>
+          ) : (
+            <div className="text-center">
+              <Link href="/login">
+                <a className="text-blue-600 underline">
+                  Inicia sesión para inscribirte
+                </a>
+              </Link>
+            </div>
+          )}
+
+          {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
         </div>
       </div>
-
-      {categoriaSeleccionada && (
-        <div className="text-lg font-medium">
-          Precio seleccionado: ${precioSeleccionado.toFixed(2)}
-        </div>
-      )}
-
-      {currentUser ? (
-        <button
-          onClick={async () => {
-            if (!perfilSeleccionado || !categoriaSeleccionada || !currentUser || !carrera) return;
-
-            const dup = await getDocs(
-              query(
-                collection(db, "inscripciones"),
-                where("carreraId", "==", carrera.id),
-                where("perfilId", "==", perfilSeleccionado),
-                where("perfilOwner", "==", currentUser.uid)
-              )
-            );
-            if (!dup.empty) {
-              setMensaje("Ya estás inscrito en esta carrera.");
-              return;
-            }
-
-            const bruto = computeGross(precioSeleccionado);
-            if (!window.confirm(`Vas a pagar $${bruto.toFixed(2)} MXN. ¿Deseas continuar?`)) return;
-
-            setProcesandoPago(true);
-            try {
-              const resp = await fetch("/api/checkout_sessions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  carreraId: carrera.id,
-                  perfilId: perfilSeleccionado,
-                  categoria: categoriaSeleccionada,
-                  price: bruto,
-                }),
-              });
-              const { url, sessionId } = await resp.json();
-
-              await registrarInscripcion({
-                carreraId: carrera.id,
-                carreraTitulo: carrera.titulo,
-                perfilId: perfilSeleccionado,
-                categoria: categoriaSeleccionada,
-                sessionId,
-              });
-              router.push("/mis-inscripciones");
-              window.open(url, "_blank")?.focus();
-            } catch (e: any) {
-              setMensaje(e.message);
-              setProcesandoPago(false);
-            }
-          }}
-          disabled={!perfilSeleccionado || !categoriaSeleccionada || procesandoPago}
-          className={`w-full py-3 rounded text-white transition ${
-            perfilSeleccionado && categoriaSeleccionada
-              ? "bg-purple-600 hover:bg-purple-700"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-        >
-          {procesandoPago
-            ? "Procesando…"
-            : `Inscribirme y pagar $${computeGross(precioSeleccionado).toFixed(2)}`}
-        </button>
-      ) : (
-        <div className="text-center">
-          <Link href="/login" className="text-blue-600 underline">
-            Inicia sesión para inscribirte
-          </Link>
-        </div>
-      )}
-
-      {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
-    </div>
-  </div>
-);
+  );
 }
