@@ -18,6 +18,7 @@ export interface StripeInscripcionData {
   perfilId: string;
   categoria: string;
   sessionId: string;
+  distancia?: string; // ← agrega esto
 }
 
 export async function registrarInscripcion(data: StripeInscripcionData) {
