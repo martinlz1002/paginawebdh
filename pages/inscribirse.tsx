@@ -15,7 +15,6 @@ import {
 } from "firebase/firestore";
 import { registrarInscripcion } from "@/lib/Inscripciones";
 import {
-  MapPinIcon,
   ClipboardIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
@@ -57,6 +56,34 @@ function computeAge(birthDate: Date, basisDate: Date): number {
   return age;
 }
 
+// --- Parámetros de Stripe + IVA ---
+const STRIPE_RATE = 0.036; // 3.6%
+const FIXED_FEE = 3;       // MXN$3
+const IVA_RATE = 0.16;     // 16%
+
+/**
+ * Calcula el monto bruto mínimo (MXN) tal que,
+ * descontando comisión (rate*gross + fixed) e IVA,
+ * el neto sea al menos desiredNet.
+ */
+function computeGross(desiredNet: number): number {
+  const ivaMult = 1 + IVA_RATE;
+  // fórmula analítica
+  const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
+  // redondear al centavo hacia arriba
+  let gross = Math.ceil(raw * 100) / 100;
+
+  // iterar hasta cumplir neto mínimo
+  for (let i = 0; i < 500; i++) {
+    const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
+    const iva = parseFloat((commission * IVA_RATE).toFixed(2));
+    const netSim = gross - commission - iva;
+    if (netSim >= desiredNet) break;
+    gross = parseFloat((gross + 0.01).toFixed(2));
+  }
+  return gross;
+}
+
 export default function InscribirsePage() {
   const router = useRouter();
   const { carreraId } = router.query;
@@ -64,9 +91,7 @@ export default function InscribirsePage() {
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
   const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
   const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
-  const [competitorNumber, setCompetitorNumber] = useState<number | null>(
-    null
-  );
+  const [competitorNumber, setCompetitorNumber] = useState<number | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [loadingPerfiles, setLoadingPerfiles] = useState(true);
   const [procesandoPago, setProcesandoPago] = useState(false);
@@ -75,7 +100,7 @@ export default function InscribirsePage() {
 
   // Monitorea auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setCurrentUser(u));
+    const unsub = onAuthStateChanged(auth, u => setCurrentUser(u));
     return () => unsub();
   }, [auth]);
 
@@ -139,7 +164,7 @@ export default function InscribirsePage() {
       const snap = await getDocs(
         collection(db, "usuarios", currentUser.uid, "perfiles")
       );
-      snap.docs.forEach((d) => {
+      snap.docs.forEach(d => {
         const p: any = d.data();
         const bd =
           p.fechaNacimiento instanceof Timestamp
@@ -166,39 +191,6 @@ export default function InscribirsePage() {
     setCompetitorNumber(null);
   }, [perfilSeleccionado]);
 
-  // Constantes de comisión + IVA
-const STRIPE_RATE = 0.036;   // 3.6%
-const FIXED_FEE = 3;         // $3 MXN fijo
-const IVA_RATE = 0.16;       // 16%
-
-/**
- * Dado un neto deseado, busca el
- * bruto mínimo (a centavo) tal que
- * net >= desired, simulando:
- *
- * commission = round(gross*rate + fixed, 2)
- * iva        = round(commission * IVA_RATE, 2)
- * netSim     = gross - commission - iva
- */
-
-  function computeGross(desiredNet: number): number {
-  const ivaMult = 1 + IVA_RATE;
-  // primera aproximación analítica
-  const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
-  // redondeo inicial al centavo hacia arriba
-  let gross = Math.ceil(raw * 100) / 100;
-
-  // iteramos hasta encontrar gross tal que netSim >= desiredNet
-  for (let i = 0; i < 200; i++) {
-    const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
-    const iva        = parseFloat((commission * IVA_RATE).toFixed(2));
-    const netSim     = gross - commission - iva;
-    if (netSim >= desiredNet) break;
-    gross = parseFloat((gross + 0.01).toFixed(2));
-  }
-  return gross;
-}
-
   const handlePagar = async () => {
     setMensaje("");
     if (!perfilSeleccionado || !categoriaSeleccionada || !currentUser) {
@@ -222,25 +214,28 @@ const IVA_RATE = 0.16;       // 16%
     }
 
     // neto deseado
-  const precio = carrera!.categorias
-    .find(c => c.nombre === categoriaSeleccionada)!.price;
+    const precioSeleccionado =
+      carrera.categorias.find(c => c.nombre === categoriaSeleccionada)!.price;
 
-  // bruto calculado
-  const gross = computeGross(precio);
-    
+    // bruto calculado
+    const gross = computeGross(precioSeleccionado);
 
     // Confirmación al usuario
-    const confirmar = window.confirm(
-      `Vas a pagar $${gross.toFixed(
-        2
-      )} MXN (incluye comisión + IVA)
-      )} MXN.\n¿Deseas continuar?`
-    );
-    if (!confirmar) return;
+    if (
+      !window.confirm(
+        `Vas a pagar $${gross.toFixed(
+          2
+        )} MXN (incluye comisión + IVA) para que neto queden $${precioSeleccionado.toFixed(
+          2
+        )} MXN.\n¿Deseas continuar?`
+      )
+    ) {
+      return;
+    }
 
     setProcesandoPago(true);
     try {
-      // Creamos sesión de pago pasando el bruto
+      // Creamos sesión de pago
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -254,7 +249,7 @@ const IVA_RATE = 0.16;       // 16%
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
 
-      // Guardamos la inscripción en Firestore
+      // Guardamos la inscripción
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -275,7 +270,7 @@ const IVA_RATE = 0.16;       // 16%
         setCompetitorNumber(data.competitorNumber ?? null);
       }
 
-      // Redirigimos al checkout
+      // Redirigimos
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -295,16 +290,16 @@ const IVA_RATE = 0.16;       // 16%
     carrera.ageBasis === "endOfYear"
       ? new Date(eventYear, 11, 31)
       : new Date(carrera.fecha!);
-  const perfilData = perfiles.find((p) => p.id === perfilSeleccionado);
+  const perfilData = perfiles.find(p => p.id === perfilSeleccionado);
   const perfilAge = perfilData
     ? computeAge(perfilData.birthDate, basisDate)
     : 0;
   const categoriasPermitidas = carrera.categorias.filter(
-    (cat) => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
+    cat => perfilAge >= cat.minAge && perfilAge <= cat.maxAge
   );
   const precioSeleccionado =
-  categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)
-    ?.price ?? 0;
+    categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)
+      ?.price ?? 0;
 
   return (
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
@@ -319,7 +314,6 @@ const IVA_RATE = 0.16;       // 16%
           {carrera.descripcion && (
             <p className="text-gray-700">{carrera.descripcion}</p>
           )}
-
           <div>
             <h2 className="text-xl font-semibold mb-2 flex items-center space-x-2">
               <ClipboardIcon className="w-6 h-6 text-green-700" />
