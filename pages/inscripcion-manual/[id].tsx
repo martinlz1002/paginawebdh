@@ -37,6 +37,7 @@ export default function ManualPage() {
 
   const [userCreds, setUserCreds] = useState({ username: "", password: "" });
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [birthDate, setBirthDate] = useState<string>("");
   const [edad, setEdad] = useState<number>(0);
@@ -117,7 +118,17 @@ export default function ManualPage() {
   }, [birthDate, distancia, race, ageBasis, distancias]);
 
   const handleSubmit = async () => {
-    if (!tempUser) return;
+    if (!tempUser || !birthDate || !distancia || !categoria || numero === 0) {
+      setError("Por favor, completa todos los campos obligatorios.");
+      return;
+    }
+    const campos = ["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular", "ciudad", "estado", "pais"];
+    for (const campo of campos) {
+      if (!competidor[campo as keyof typeof competidor]) {
+        setError(`El campo ${campo} es obligatorio.`);
+        return;
+      }
+    }
     try {
       await registrarInscripcionManual({
         carreraId: tempUser.carreraId,
@@ -134,8 +145,26 @@ export default function ManualPage() {
         club: competidor.club,
         competitorNumber: numero,
       });
-      alert("Competidor registrado correctamente");
       setAvailable(av => av.filter(n => n !== numero));
+      setNumero(0);
+      setCategoria("");
+      setDistancia("");
+      setBirthDate("");
+      setEdad(0);
+      setDispCats([]);
+      setCompetidor({
+        nombre: "",
+        apellidoPaterno: "",
+        apellidoMaterno: "",
+        email: "",
+        celular: "",
+        ciudad: "",
+        estado: "",
+        pais: "",
+        club: "",
+      });
+      setSuccessMessage("✓ Competidor registrado correctamente.");
+      setTimeout(() => setSuccessMessage(null), 4000);
     } catch (e: any) {
       setError(e.message);
     }
@@ -162,6 +191,9 @@ export default function ManualPage() {
       <div className="max-w-lg mx-auto p-6 space-y-4">
         <h2 className="text-xl font-semibold text-purple-700">Inscripción Manual</h2>
         {error && <p className="text-red-600 text-sm">{error}</p>}
+        {successMessage && <p className="flex items-center gap-2 text-green-600 text-sm font-medium transition-opacity duration-700 opacity-100 animate-fadeOut">
+          <span className="text-lg">✅</span>{successMessage}
+        </p>}
 
         <label className="block text-sm font-medium">Fecha de nacimiento</label>
         <input type="date" className="w-full p-2 border rounded" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
@@ -199,7 +231,7 @@ export default function ManualPage() {
           </div>
         ))}
 
-        <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400" onClick={handleSubmit} disabled={!birthDate || !categoria || numero === 0}>
+        <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400" onClick={handleSubmit}>
           Registrar Competidor
         </button>
       </div>
