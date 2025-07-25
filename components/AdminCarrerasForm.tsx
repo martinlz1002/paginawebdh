@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { db, storage } from '@/lib/firebase';
 import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { CarreraData, Categoria as BaseCategoria, AgeBasis } from '@/types/carrera';
+import { CarreraData, Categoria, DistanciaConCategorias, AgeBasis } from '@/types/carrera';
 import {
   PencilIcon,
   TrashIcon,
@@ -14,18 +14,12 @@ import {
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
 
-// Extend BaseCategoria to include price locally
-export interface Categoria extends BaseCategoria {
-  price: number;
-}
-
 export interface AdminCarrerasFormProps {
   initialValues?: CarreraData & { id: string; bannerUrl?: string; imagenUrl?: string };
   onSuccess?: () => void;
 }
 
 export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
-  // Estados iniciales a partir de initialValues
   const [titulo, setTitulo] = useState(initialValues?.titulo || '');
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || '');
   const [lugar, setLugar] = useState(initialValues?.lugar || '');
@@ -34,25 +28,23 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const [maxCompetitors, setMaxCompetitors] = useState<number>(initialValues?.maxCompetitors || 0);
   const [ageBasis, setAgeBasis] = useState<AgeBasis>(initialValues?.ageBasis || 'endOfYear');
 
-  // Imágenes
+  const [kitFecha, setKitFecha] = useState(initialValues?.kitFecha || '');
+  const [kitLugar, setKitLugar] = useState(initialValues?.kitLugar || '');
+  const [kitHorario, setKitHorario] = useState(initialValues?.kitHorario || '');
+
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string|undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string|undefined>(initialValues?.bannerUrl);
 
-  // Categorías con precio
-  const [categorias, setCategorias] = useState<Categoria[]>(
-    (initialValues?.categorias ?? []).map((c: any) => ({
-      nombre: c.nombre,
-      minAge: c.minAge,
-      maxAge: c.maxAge,
-      price: c.price ?? 0,
-    }))
-  );
-  const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
-  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [distancias, setDistancias] = useState<DistanciaConCategorias[]>(initialValues?.distancias || []);
+  const [nuevaDistancia, setNuevaDistancia] = useState('');
+  const [distanciaSeleccionada, setDistanciaSeleccionada] = useState('');
 
-  // Helper para subir archivos
+  const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
+  const [editDistIndex, setEditDistIndex] = useState<number | null>(null);
+  const [editCatIndex, setEditCatIndex] = useState<number | null>(null);
+
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -60,30 +52,41 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     return getDownloadURL(snap.ref);
   };
 
-  const handleAddOrSaveCategoria = () => {
-    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge || nuevaCat.price < 0) return;
-    setCategorias(prev => {
-      if (editIndex !== null) {
-        const copy = [...prev];
-        copy[editIndex] = nuevaCat;
-        return copy;
-      }
-      return [...prev, nuevaCat];
-    });
-    setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
-    setEditIndex(null);
+  const handleAddDistancia = () => {
+    const d = nuevaDistancia.trim();
+    if (!d) return;
+    if (distancias.find(dd => dd.distancia === d)) return;
+    setDistancias(prev => [...prev, { distancia: d, categorias: [] }]);
+    setNuevaDistancia('');
   };
 
-  const handleEditCategoria = (idx: number) => {
-    setNuevaCat(categorias[idx]);
-    setEditIndex(idx);
+  const handleAddOrSaveCategoria = () => {
+    if (!distanciaSeleccionada) return;
+    if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge || nuevaCat.price < 0) return;
+    setDistancias(prev => prev.map(d => {
+      if (d.distancia !== distanciaSeleccionada) return d;
+      const nuevasCats = [...d.categorias];
+      if (editCatIndex !== null) nuevasCats[editCatIndex] = nuevaCat;
+      else nuevasCats.push(nuevaCat);
+      return { ...d, categorias: nuevasCats };
+    }));
+    setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
+    setEditCatIndex(null);
   };
-  const handleDeleteCategoria = (idx: number) => {
-    setCategorias(prev => prev.filter((_, i) => i !== idx));
-    if (editIndex === idx) {
-      setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
-      setEditIndex(null);
-    }
+
+  const handleEditCategoria = (dIndex: number, cIndex: number) => {
+    const cat = distancias[dIndex].categorias[cIndex];
+    setNuevaCat(cat);
+    setDistanciaSeleccionada(distancias[dIndex].distancia);
+    setEditCatIndex(cIndex);
+  };
+
+  const handleDeleteCategoria = (dIndex: number, cIndex: number) => {
+    setDistancias(prev => prev.map((d, i) => {
+      if (i !== dIndex) return d;
+      const categorias = d.categorias.filter((_, j) => j !== cIndex);
+      return { ...d, categorias };
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,19 +104,21 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
 
-    // Payload usando 'ubicacion' y nuevos campos
     const payload = {
       titulo,
       descripcion,
       lugar,
       fecha,
       horaSalida,
-      categorias,
       maxCompetitors,
       ageBasis,
+      distancias,
+      kitFecha: kitFecha || 'Por definir',
+      kitLugar: kitLugar || 'Por definir',
+      kitHorario: kitHorario || 'Por definir',
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
-    } as any;
+    };
 
     if (initialValues?.id) {
       await updateDoc(doc(db, 'carreras', initialValues.id), payload);
@@ -285,78 +290,69 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         />
       </div>
 
-      {/* CATEGORÍAS */}
-      <div className="border-t pt-4">
-        <h3 className="font-medium text-green-600 flex items-center space-x-2">
-          <PlusCircleIcon className="w-5 h-5" />
-          <span>Categorías</span>
-        </h3>
-        <ul className="mt-2 space-y-2">
-          {categorias.map((c, i) => (
-            <li key={i} className="flex justify-between items-center">
-              <span>• {c.nombre} ({c.minAge}–{c.maxAge} años) — ${c.price.toFixed(2)}</span>
-              <div className="flex space-x-2">
-                <button type="button" onClick={() => handleEditCategoria(i)}>
-                  <PencilIcon className="w-5 h-5 text-blue-600" />
-                </button>
-                <button type="button" onClick={() => handleDeleteCategoria(i)}>
-                  <TrashIcon className="w-5 h-5 text-red-600" />
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        <div className="grid grid-cols-4 gap-2 mt-4">
+      {/* DISTANCIAS */}
+      <div>
+        <h3 className="font-medium text-green-600">Distancias</h3>
+        <div className="flex space-x-2 mt-2">
           <input
             type="text"
-            placeholder="Nombre categoría"
-            value={nuevaCat.nombre}
-            onChange={e => setNuevaCat(s => ({ ...s, nombre: e.target.value }))}
+            value={nuevaDistancia}
+            onChange={e => setNuevaDistancia(e.target.value)}
+            placeholder="Ej. 5K, 10K"
             className="border p-2 rounded"
           />
-          <input
-            type="number"
-            placeholder="Mín edad"
-            value={nuevaCat.minAge}
-            onChange={e => setNuevaCat(s => ({ ...s, minAge: +e.target.value }))}
-            className="border p-2 rounded"
-          />
-          <input
-            type="number"
-            placeholder="Máx edad"
-            value={nuevaCat.maxAge}
-            onChange={e => setNuevaCat(s => ({ ...s, maxAge: +e.target.value }))}
-            className="border p-2 rounded"
-          />
+          <button type="button" onClick={handleAddDistancia} className="bg-green-600 text-white px-3 py-1 rounded">Agregar</button>
+        </div>
+        <div className="space-y-4 mt-4">
+          {distancias.map((d, dIndex) => (
+            <div key={d.distancia} className="border p-4 rounded">
+              <h4 className="text-purple-700 font-semibold">Distancia: {d.distancia}</h4>
+              <ul className="mt-2 space-y-1">
+                {d.categorias.map((c, cIndex) => (
+                  <li key={cIndex} className="flex justify-between items-center">
+                    <span>{c.nombre} ({c.minAge}-{c.maxAge}) - ${c.price.toFixed(2)}</span>
+                    <div className="space-x-2">
+                      <button type="button" onClick={() => handleEditCategoria(dIndex, cIndex)}><PencilIcon className="w-4 h-4 text-blue-600" /></button>
+                      <button type="button" onClick={() => handleDeleteCategoria(dIndex, cIndex)}><TrashIcon className="w-4 h-4 text-red-600" /></button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FORMULARIO PARA CATEGORÍA */}
+      <div className="mt-4">
+        <h4 className="text-green-700 font-semibold">Agregar categoría</h4>
+        <select value={distanciaSeleccionada} onChange={e => setDistanciaSeleccionada(e.target.value)} className="mt-2 w-full border p-2 rounded">
+          <option value="">Selecciona una distancia</option>
+          {distancias.map(d => <option key={d.distancia} value={d.distancia}>{d.distancia}</option>)}
+        </select>
+        <div className="grid grid-cols-4 gap-2 mt-2">
+          <input type="text" placeholder="Nombre" value={nuevaCat.nombre} onChange={e => setNuevaCat(s => ({ ...s, nombre: e.target.value }))} className="border p-2 rounded" />
+          <input type="number" placeholder="Edad min" value={nuevaCat.minAge} onChange={e => setNuevaCat(s => ({ ...s, minAge: +e.target.value }))} className="border p-2 rounded" />
+          <input type="number" placeholder="Edad max" value={nuevaCat.maxAge} onChange={e => setNuevaCat(s => ({ ...s, maxAge: +e.target.value }))} className="border p-2 rounded" />
           <div className="flex items-center space-x-1">
             <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
-            <input
-              type="number"
-              step="0.01"
-              placeholder="Precio"
-              value={nuevaCat.price}
-              onChange={e => setNuevaCat(s => ({ ...s, price: +e.target.value }))}
-              className="flex-1 border p-2 rounded"
-            />
+            <input type="number" placeholder="Precio" value={nuevaCat.price} onChange={e => setNuevaCat(s => ({ ...s, price: +e.target.value }))} className="flex-1 border p-2 rounded" />
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleAddOrSaveCategoria}
-          className="mt-2 w-full flex justify-center items-center bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition"
-        >
-          <PlusCircleIcon className="w-5 h-5 mr-1" />
-          {editIndex !== null ? "Guardar categoría" : "Agregar categoría"}
+        <button type="button" onClick={handleAddOrSaveCategoria} className="mt-2 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition">
+          <PlusCircleIcon className="w-5 h-5 mr-1" />{editCatIndex !== null ? "Guardar categoría" : "Agregar categoría"}
         </button>
       </div>
 
-      {/* BOTÓN GUARDAR */}
-      <button
-        type="submit"
-        className="mt-4 w-full bg-green-600 text:white py-3 rounded hover:bg-green-700 transition"
-      >
-        Guardar
-      </button>
+      {/* ENTREGA DE KITS */}
+      <div className="border-t pt-4">
+        <h3 className="font-medium text-green-600">Entrega de Kits</h3>
+        <input type="date" value={kitFecha} onChange={e => setKitFecha(e.target.value)} placeholder="Fecha" className="mt-2 w-full border p-2 rounded" />
+        <input type="text" value={kitLugar} onChange={e => setKitLugar(e.target.value)} placeholder="Lugar de entrega" className="mt-2 w-full border p-2 rounded" />
+        <input type="text" value={kitHorario} onChange={e => setKitHorario(e.target.value)} placeholder="Horario de entrega" className="mt-2 w-full border p-2 rounded" />
+      </div>
+
+      <button type="submit" className="mt-6 w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition">Guardar</button>
     </form>
   );
 }

@@ -5,6 +5,11 @@ export interface Categoria {
   price: number;
 }
 
+export interface DistanciaConCategorias {
+  distancia: string; // Ej. "5K", "10K", "300m"
+  categorias: Categoria[];
+}
+
 export type AgeBasis = 'endOfYear' | 'eventDate';
 
 export interface CarreraData {
@@ -15,22 +20,15 @@ export interface CarreraData {
   horaSalida: string;   // HH:MM
   imagenUrl?: string;
   bannerUrl?: string;
-  categorias: Categoria[];
+  distancias: DistanciaConCategorias[];
   maxCompetitors: number;
   ageBasis: AgeBasis;
+  kitFecha?: string;     // opcional
+  kitLugar?: string;     // opcional
+  kitHorario?: string;   // opcional
 }
 
-export interface Carrera {
+export interface Carrera extends CarreraData {
   id: string;
-  titulo: string;
-  descripcion: string;
-  lugar: string;         // coincida con tu formulario
-  ubicacion?: string;    // si sigues usando este campo en algunos sitios
-  fecha: string;         // ISO date YYYY-MM-DD
-  horaSalida: string;    // HH:MM
-  imagenUrl?: string;
-  bannerUrl?: string;
-  categorias: Categoria[];
-  maxCompetitors: number;
-  ageBasis: AgeBasis;
+  ubicacion?: string;    // si lo usas en otro lado, sigue opcional
 }

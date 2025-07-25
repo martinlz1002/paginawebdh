@@ -5,6 +5,7 @@ export interface InscripcionData {
   carreraTitulo: string;
   perfilId: string;
   perfilOwner: string;
+  distancia?: string; 
   categoria: string;
   sessionId: string;
   competitorNumber?: number;

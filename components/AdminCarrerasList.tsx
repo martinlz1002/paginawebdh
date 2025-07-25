@@ -42,6 +42,16 @@ export default function AdminCarrerasList({ onEdit }: Props) {
             <p className="text-sm text-gray-500">
               Fecha: <time>{formatDate(c.fecha)}</time>
             </p>
+            {c.distancias && (
+              <p className="text-sm text-gray-500">
+                Distancias: {c.distancias.map(d => d.distancia).join(', ')}
+              </p>
+            )}
+            {(c.kitFecha || c.kitLugar || c.kitHorario) && (
+              <p className="text-sm text-gray-500">
+                Kit: {c.kitFecha || 'Fecha indefinida'} – {c.kitLugar || 'Lugar indefinida'} – {c.kitHorario || 'Horario indefinido'}
+              </p>
+            )}
           </div>
           <div className="flex space-x-2">
             <button
