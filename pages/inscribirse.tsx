@@ -166,20 +166,38 @@ export default function InscribirsePage() {
     setCompetitorNumber(null);
   }, [perfilSeleccionado]);
 
-  // --- Constantes para cálculo de comisión + IVA ---
-  const STRIPE_RATE = 0.036;   // 3.6%
-  const FIXED_FEE = 3;         // $3 MXN fijo
-  const IVA_RATE = 0.16;       // 16%
-  const IVA_MULT = 1 + IVA_RATE;
+  // Constantes de comisión + IVA
+const STRIPE_RATE = 0.036;   // 3.6%
+const FIXED_FEE = 3;         // $3 MXN fijo
+const IVA_RATE = 0.16;       // 16%
 
-  // Calcula el bruto necesario para que NETO = `net`,
-  // redondeado siempre hacia arriba al siguiente centavo.
-  const computeGross = (net: number) => {
-    const numerator = net + FIXED_FEE * IVA_MULT;
-    const denominator = 1 - STRIPE_RATE * IVA_MULT;
-    const raw = numerator / denominator;
-    return Math.ceil(raw * 100) / 100;
-  };
+/**
+ * Dado un neto deseado, busca el
+ * bruto mínimo (a centavo) tal que
+ * net >= desired, simulando:
+ *
+ * commission = round(gross*rate + fixed, 2)
+ * iva        = round(commission * IVA_RATE, 2)
+ * netSim     = gross - commission - iva
+ */
+
+  function computeGross(desiredNet: number): number {
+  const ivaMult = 1 + IVA_RATE;
+  // primera aproximación analítica
+  const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
+  // redondeo inicial al centavo hacia arriba
+  let gross = Math.ceil(raw * 100) / 100;
+
+  // iteramos hasta encontrar gross tal que netSim >= desiredNet
+  for (let i = 0; i < 200; i++) {
+    const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
+    const iva        = parseFloat((commission * IVA_RATE).toFixed(2));
+    const netSim     = gross - commission - iva;
+    if (netSim >= desiredNet) break;
+    gross = parseFloat((gross + 0.01).toFixed(2));
+  }
+  return gross;
+}
 
   const handlePagar = async () => {
     setMensaje("");
