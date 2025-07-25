@@ -56,33 +56,29 @@ function computeAge(birthDate: Date, basisDate: Date): number {
   return age;
 }
 
-// --- Parámetros de Stripe + IVA ---
-const STRIPE_RATE = 0.036; // 3.6%
-const FIXED_FEE = 3;       // MXN$3
-const IVA_RATE = 0.16;     // 16%
+// --- Ajustamos a 4.1% + $3 + IVA16% para cubrir comisión internacional ---
+  const STRIPE_RATE = 0.041;   // 4.1%
+  const FIXED_FEE   = 3;       // MXN$3
+  const IVA_RATE    = 0.16;    // 16%
 
-/**
- * Calcula el monto bruto mínimo (MXN) tal que,
- * descontando comisión (rate*gross + fixed) e IVA,
- * el neto sea al menos desiredNet.
- */
+  /**
+   * Dado un neto deseado, busca el bruto mínimo tal que,
+   * tras comisión y IVA, el neto sea >= desiredNet.
+   */
 function computeGross(desiredNet: number): number {
-  const ivaMult = 1 + IVA_RATE;
-  // fórmula analítica
-  const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
-  // redondear al centavo hacia arriba
-  let gross = Math.ceil(raw * 100) / 100;
-
-  // iterar hasta cumplir neto mínimo
-  for (let i = 0; i < 500; i++) {
-    const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
-    const iva = parseFloat((commission * IVA_RATE).toFixed(2));
-    const netSim = gross - commission - iva;
-    if (netSim >= desiredNet) break;
-    gross = parseFloat((gross + 0.01).toFixed(2));
+    const ivaMult = 1 + IVA_RATE;
+    // aproximación inicial
+    const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
+    let gross = Math.ceil(raw * 100) / 100;
+    for (let i = 0; i < 500; i++) {
+      const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
+      const iva = parseFloat((commission * IVA_RATE).toFixed(2));
+      const netSim = gross - commission - iva;
+      if (netSim >= desiredNet) break;
+      gross = parseFloat((gross + 0.01).toFixed(2));
+    }
+    return gross;
   }
-  return gross;
-}
 
 export default function InscribirsePage() {
   const router = useRouter();
@@ -213,21 +209,21 @@ export default function InscribirsePage() {
       return;
     }
 
-    // neto deseado
-    const precioSeleccionado =
-      carrera.categorias.find(c => c.nombre === categoriaSeleccionada)!.price;
+    // Precio base neto
+    const netoDeseado = carrera.categorias.find(
+      (c) => c.nombre === categoriaSeleccionada
+    )!.price;
 
-    // bruto calculado
-    const gross = computeGross(precioSeleccionado);
+    // Calculamos bruto para que neto queden `netoDeseado`
+    const bruto = computeGross(netoDeseado);
 
     // Confirmación al usuario
     if (
       !window.confirm(
-        `Vas a pagar $${gross.toFixed(
+        `Vas a pagar $${bruto.toFixed(
           2
-        )} MXN (incluye comisión + IVA) para que neto queden $${precioSeleccionado.toFixed(
-          2
-        )} MXN.\n¿Deseas continuar?`
+        )} MXN (incluye comisión + IVA)
+        \n¿Deseas continuar?`
       )
     ) {
       return;
@@ -243,7 +239,7 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId: perfilSeleccionado,
           categoria: categoriaSeleccionada,
-          price: gross,
+          price: bruto,
         }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
