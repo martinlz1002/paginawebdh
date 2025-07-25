@@ -21,7 +21,7 @@ export default async function generarPDF(insc: InscView) {
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const fontSize = 12;
 
-  const logoUrl = "/logo.png";
+  const logoUrl = "/mi-logo.png";
   const logoBytes = await fetch(logoUrl).then((res) => res.arrayBuffer()).catch(() => null);
   if (logoBytes) {
     const logoImg = await doc.embedPng(logoBytes);
