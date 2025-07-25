@@ -17,7 +17,9 @@ import {
   CalendarIcon,
   ClockIcon,
   ClipboardIcon,
+  DocumentArrowDownIcon,
 } from "@heroicons/react/24/outline";
+import generarPDF from "@/lib/pdfConfirmacion";
 
 interface InscRaw {
   carreraId: string;
@@ -41,6 +43,7 @@ interface InscView {
   imagenUrl?: string;
   precio: number;
   categoria: string;
+  distancia?: string;
   perfilId: string;
   perfilNombre: string;
   perfilApPaterno: string;
@@ -50,6 +53,9 @@ interface InscView {
   sessionId?: string;
   paymentStatus?: string;
   competitorNumber?: number;
+  kitFecha?: string;
+  kitLugar?: string;
+  kitHorario?: string;
 }
 
 function pad(n: number) {
@@ -82,15 +88,33 @@ export default function MisInscripcionesPage() {
             const src = d.data() as InscRaw;
             const carreraId = src.carreraId;
 
-            // Datos de la carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
-            const categoriaObj = Array.isArray(cdata.categorias)
-              ? cdata.categorias.find((cat: any) => cat.nombre === src.categoria)
-              : null;
-            const precio: number = categoriaObj?.price ?? 0;
+            let distancia = "";
+            if (Array.isArray(cdata.distancias)) {
+              for (const dist of cdata.distancias) {
+                if (Array.isArray(dist.categorias)) {
+                  const match = dist.categorias.find((cat: any) => cat.nombre === src.categoria);
+                  if (match) {
+                    distancia = dist.distancia;
+                    break;
+                  }
+                }
+              }
+            }
+            let precio = 0;
+            if (Array.isArray(cdata.distancias)) {
+              for (const dist of cdata.distancias) {
+                if (Array.isArray(dist.categorias)) {
+                  const match = dist.categorias.find((cat: any) => cat.nombre === src.categoria);
+                  if (match) {
+                    precio = match.price ?? 0;
+                    break;
+                  }
+                }
+              }
+            }
 
-            // Formatear fecha de la carrera
             let fechaCarr = "";
             let carreraDate = today;
             if (cdata.fecha instanceof Timestamp) {
@@ -105,7 +129,6 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
 
-            // Datos del perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -133,7 +156,6 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // Fecha de inscripción
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -149,6 +171,7 @@ export default function MisInscripcionesPage() {
               imagenUrl: cdata.imagenUrl,
               precio,
               categoria: src.categoria,
+              distancia,
               perfilId: src.perfilId,
               perfilNombre,
               perfilApPaterno,
@@ -158,6 +181,9 @@ export default function MisInscripcionesPage() {
               sessionId: src.sessionId,
               paymentStatus: src.paymentStatus ?? "desconocido",
               competitorNumber: src.competitorNumber,
+              kitFecha: cdata.kitFecha,
+              kitLugar: cdata.kitLugar,
+              kitHorario: cdata.kitHorario,
             } as InscView;
           })
         );
@@ -211,7 +237,6 @@ export default function MisInscripcionesPage() {
                 key={i.id}
                 className="border rounded-lg shadow-lg overflow-hidden flex flex-col"
               >
-                {/* Imagen principal */}
                 {i.imagenUrl && (
                   <div className="w-full h-40 overflow-hidden">
                     <img
@@ -227,10 +252,13 @@ export default function MisInscripcionesPage() {
                   <p className="text-lg font-semibold mb-1">
                     Número: #{i.competitorNumber ?? "-"}
                   </p>
-                  <p className="text-base text-gray-700 mb-2">
+                  <p className="text-base text-gray-700 mb-1">
                     <ClipboardIcon className="inline w-5 h-5 mr-1" />
                     {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
                   </p>
+                  <p className="text-sm text-gray-600 mb-1">Categoría: {i.categoria}</p>
+                  <p className="text-sm text-gray-600 mb-2">Distancia: {i.distancia || '-'}</p>
+
                   <div className="text-base text-gray-600 mb-2 flex flex-wrap gap-4">
                     <span className="flex items-center">
                       <MapPinIcon className="w-5 h-5 mr-1" />
@@ -257,7 +285,15 @@ export default function MisInscripcionesPage() {
                     >
                       {i.paymentStatus}
                     </span>
-                    {i.paymentStatus !== "paid" && (
+                    {i.paymentStatus === "paid" ? (
+                      <button
+                        onClick={() => generarPDF(i)}
+                        className="text-sm text-green-700 hover:underline flex items-center gap-1"
+                      >
+                        <DocumentArrowDownIcon className="w-4 h-4" />
+                        Confirmación
+                      </button>
+                    ) : (
                       <button
                         onClick={() => reintentarPago(i)}
                         className="text-sm text-purple-600 hover:underline"
