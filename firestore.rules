@@ -2,50 +2,59 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // helper que detecta admins
+    // — helper para admin —
     function isAdmin() {
       return request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.admin == true;
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+            .data.admin == true;
     }
 
-    // Carreras: lectura pública, sólo admin escribe
+    // 1) Carreras: lectura pública, sólo admin escribe
     match /carreras/{carreraId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow read:  if true;
+      allow write: if isAdmin();
     }
 
-    // Usuarios y subperfiles: cada quien solo sus propios docs
+    // 2) Usuarios y subperfiles (cada uno sobre su propio doc)
     match /usuarios/{userId} {
-      allow get, list, create, update, delete:
+      allow read, write:
         if request.auth != null && request.auth.uid == userId;
       match /perfiles/{perfilId} {
-        allow get, list, create, update, delete:
+        allow read, write:
           if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // TempUsuarios: lectura abierta, solo admin escribe
+    // 3) TempUsuarios (login temporal)
     match /tempusuarios/{tempId} {
-      allow get, list: if true;
-      allow create, update, delete: if isAdmin();
+      allow read:                   if true;      // cualquiera lee
+      allow create, update, delete: if isAdmin(); // sólo admin escribe
     }
 
-    // Inscripciones:
+    // 4) Inscripciones: Stripe (auth) o Manual (abierto)
     match /inscripciones/{inscId} {
-      // Stripe: cualquier usuario autenticado
-      // Manual: cualquiera, siempre que ponga perfilOwner="manual" y paymentStatus="manual"
-      allow create: if request.auth != null
-                  || ( request.resource.data.perfilOwner == "manual"
-                     && request.resource.data.paymentStatus == "manual" );
-      // Leer: admin o dueño de la inscripción
-      allow get, list: if isAdmin()
-                    || ( request.auth != null
-                       && resource.data.perfilOwner == request.auth.uid );
-      // Actualizar/Borrar: solo admin
-      allow update, delete: if isAdmin();
+      // CREAR:
+      // — Stripe: auth != null, perfilOwner = uid, status pending|paid
+      // — Manual: venga quien venga con perfilOwner="manual"
+      allow create: if (
+           request.auth != null
+        && request.resource.data.perfilOwner == request.auth.uid
+        && (request.resource.data.paymentStatus == "pending"
+         || request.resource.data.paymentStatus == "paid")
+      ) || (
+           request.resource.data.perfilOwner == "manual"
+        && request.resource.data.paymentStatus == "manual"
+      );
+
+      // LEER: para asignar números y para mis-inscripciones
+      allow read: if request.auth != null;
+
+      // (Opcional) permitir que cada usuario actualice sólo SU inscripción
+      allow update: if request.auth != null
+        && resource.data.perfilOwner == request.auth.uid;
     }
 
-    // Por defecto, todo lo demás solo admin
+    // 5) Override global: admin puede TODO
     match /{document=**} {
       allow read, write: if isAdmin();
     }
