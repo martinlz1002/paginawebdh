@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import AuthGuard from '@/components/AuthGuard';
-import { app, db } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import {
   collection,
   getDocs,
@@ -37,7 +37,6 @@ export default function InscripcionesManualesAdmin() {
   // 1) Cargar carreras y accesos existentes
   useEffect(() => {
     (async () => {
-      // Carreras
       const snapC = await getDocs(collection(db, 'carreras'));
       setCarreras(
         snapC.docs.map(d => ({
@@ -45,7 +44,6 @@ export default function InscripcionesManualesAdmin() {
           titulo: (d.data() as any).titulo || '(sin título)'
         }))
       );
-      // Accesos temporales
       const snapT = await getDocs(collection(db, 'tempusuarios'));
       const accs: TempAccessRecord[] = snapT.docs.map(d => {
         const data = d.data() as any;
@@ -79,24 +77,21 @@ export default function InscripcionesManualesAdmin() {
     }
     setLoading(true);
     try {
-      // 1️⃣ Crear documento
-      const docRef = await addDoc(
+      const docRef = (await addDoc(
         collection(db, 'tempusuarios'),
         {
           carreraId,
           range: { start: startNumber, end: endNumber },
           expiresAt: new Date(expiresAt),
           username: username.trim(),
-          password, // en producción deberías hashear
+          password,
           createdAt: serverTimestamp()
         }
-      ) as DocumentReference;
+      )) as DocumentReference;
 
-      // 2️⃣ Generar y guardar el link
       const url = `${window.location.origin}/inscripcion-manual/${docRef.id}`;
       await updateDoc(docRef, { link: url });
 
-      // 3️⃣ Refrescar la lista local
       setAccesses(prev => [
         ...prev,
         {
@@ -127,17 +122,20 @@ export default function InscripcionesManualesAdmin() {
           onClick={() => router.back()}
           className="flex items-center text-gray-600 hover:text-gray-800"
         >
-          <ChevronLeftIcon className="w-5 h-5 mr-1" /> Volver
+          <ChevronLeftIcon className="w-5 h-5 mr-1" />{' '}
+          <span className="text-gray-800">Volver</span>
         </button>
 
         {/* Formulario de creación */}
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold">Crear Inscripciones Manuales</h2>
+          <h2 className="text-xl font-semibold text-gray-800">
+            Crear Inscripciones Manuales
+          </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block font-medium">Carrera</label>
+              <label className="block font-medium text-gray-800">Carrera</label>
               <select
-                className="w-full border p-2 rounded"
+                className="w-full border p-2 rounded text-gray-900"
                 value={carreraId}
                 onChange={e => setCarreraId(e.target.value)}
               >
@@ -151,50 +149,60 @@ export default function InscripcionesManualesAdmin() {
             </div>
             <div className="flex space-x-4">
               <div className="flex-1">
-                <label className="block font-medium">Número inicio</label>
+                <label className="block font-medium text-gray-800">
+                  Número inicio
+                </label>
                 <input
                   type="number"
                   min={1}
-                  className="w-full border p-2 rounded"
+                  className="w-full border p-2 rounded text-gray-900"
                   value={startNumber}
                   onChange={e => setStartNumber(Number(e.target.value))}
                 />
               </div>
               <div className="flex-1">
-                <label className="block font-medium">Número fin</label>
+                <label className="block font-medium text-gray-800">
+                  Número fin
+                </label>
                 <input
                   type="number"
                   min={startNumber}
-                  className="w-full border p-2 rounded"
+                  className="w-full border p-2 rounded text-gray-900"
                   value={endNumber}
                   onChange={e => setEndNumber(Number(e.target.value))}
                 />
               </div>
             </div>
             <div>
-              <label className="block font-medium">Expiración</label>
+              <label className="block font-medium text-gray-800">
+                Expiración
+              </label>
               <input
                 type="datetime-local"
-                className="w-full border p-2 rounded"
+                className="w-full border p-2 rounded text-gray-900"
                 value={expiresAt}
                 onChange={e => setExpiresAt(e.target.value)}
               />
             </div>
             <div className="flex space-x-4">
               <div className="flex-1">
-                <label className="block font-medium">Usuario</label>
+                <label className="block font-medium text-gray-800">
+                  Usuario
+                </label>
                 <input
                   type="text"
-                  className="w-full border p-2 rounded"
+                  className="w-full border p-2 rounded text-gray-900"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                 />
               </div>
               <div className="flex-1">
-                <label className="block font-medium">Contraseña</label>
+                <label className="block font-medium text-gray-800">
+                  Contraseña
+                </label>
                 <input
                   type="password"
-                  className="w-full border p-2 rounded"
+                  className="w-full border p-2 rounded text-gray-900"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                 />
@@ -214,7 +222,7 @@ export default function InscripcionesManualesAdmin() {
 
           {link && (
             <div className="bg-green-50 border border-green-200 p-4 rounded">
-              <p className="font-medium">Link generado:</p>
+              <p className="font-medium text-gray-800">Link generado:</p>
               <a
                 href={link}
                 target="_blank"
@@ -229,7 +237,9 @@ export default function InscripcionesManualesAdmin() {
 
         {/* Tabla de accesos ya creados */}
         <section>
-          <h2 className="text-xl font-semibold">Accesos Temporales Creados</h2>
+          <h2 className="text-xl font-semibold text-gray-800">
+            Accesos Temporales Creados
+          </h2>
           {accesses.length === 0 ? (
             <p className="text-gray-500">No hay accesos temporales.</p>
           ) : (
@@ -237,12 +247,12 @@ export default function InscripcionesManualesAdmin() {
               <table className="w-full table-auto border-collapse rounded-lg shadow">
                 <thead className="bg-gray-100">
                   <tr>
-                    <th className="p-2 text-left">Carrera</th>
-                    <th className="p-2 text-left">Usuario</th>
-                    <th className="p-2 text-left">Contraseña</th>
-                    <th className="p-2 text-left">Rango</th>
-                    <th className="p-2 text-left">Expira</th>
-                    <th className="p-2 text-left">Link</th>
+                    <th className="p-2 text-left text-gray-800">Carrera</th>
+                    <th className="p-2 text-left text-gray-800">Usuario</th>
+                    <th className="p-2 text-left text-gray-800">Contraseña</th>
+                    <th className="p-2 text-left text-gray-800">Rango</th>
+                    <th className="p-2 text-left text-gray-800">Expira</th>
+                    <th className="p-2 text-left text-gray-800">Link</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -250,14 +260,18 @@ export default function InscripcionesManualesAdmin() {
                     const carrera = carreras.find(c => c.id === acc.carreraId);
                     return (
                       <tr key={acc.id} className="hover:bg-gray-50">
-                        <td className="p-2">{carrera?.titulo || acc.carreraId}</td>
-                        <td className="p-2">{acc.username}</td>
-                        <td className="p-2">{acc.password}</td>
-                        <td className="p-2">{`${acc.range.start}–${acc.range.end}`}</td>
-                        <td className="p-2">
+                        <td className="p-2 text-gray-800">
+                          {carrera?.titulo || acc.carreraId}
+                        </td>
+                        <td className="p-2 text-gray-800">{acc.username}</td>
+                        <td className="p-2 text-gray-800">{acc.password}</td>
+                        <td className="p-2 text-gray-800">
+                          {`${acc.range.start}–${acc.range.end}`}
+                        </td>
+                        <td className="p-2 text-gray-800">
                           {(acc.expiresAt as Date).toLocaleString()}
                         </td>
-                        <td className="p-2">
+                        <td className="p-2 text-gray-800">
                           {acc.link ? (
                             <a
                               href={acc.link}
