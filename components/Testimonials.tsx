@@ -1,53 +1,63 @@
-import { useEffect, useState } from 'react'
-import { getAuth, onAuthStateChanged } from 'firebase/auth'
-import SectionHeader from './SectionHeader'
+import { useEffect, useState } from "react";
+import { getAuth, onAuthStateChanged, User } from "firebase/auth";
+import SectionHeader from "./SectionHeader";
 
 interface Testimonial {
-  id: string
-  author: string
-  text: string
-  avatarUrl?: string
+  id: string;
+  author: string;
+  text: string;
+  avatarUrl?: string;
+  timestamp?: { seconds: number; nanoseconds: number };
 }
 
 export default function Testimonials() {
-  const [items, setItems] = useState<Testimonial[]>([])
-  const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const [newText, setNewText] = useState('')
+  const [items, setItems] = useState<Testimonial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(null);
+  const [newText, setNewText] = useState("");
 
-  // Carga inicial
+  // Traer testimonios
   const fetchTestimonials = async () => {
-    const res = await fetch('/api/testimonials')
-    const data = await res.json()
-    setItems(data)
-    setLoading(false)
-  }
+    try {
+      const res = await fetch("/api/testimonials");
+      if (!res.ok) throw new Error(`GET /api/testimonials → ${res.status}`);
+      const data: Testimonial[] = await res.json();
+      setItems(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchTestimonials()
-    const auth = getAuth()
-    return onAuthStateChanged(auth, u => setUser(u))
-  }, [])
+    fetchTestimonials();
+    const auth = getAuth();
+    return onAuthStateChanged(auth, setUser);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!user || !newText.trim()) return
-    const token = await user.getIdToken()
-    await fetch('/api/testimonials', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        author: user.displayName || user.email!.split('@')[0],
-        text: newText.trim(),
-        avatarUrl: user.photoURL || null,
-      }),
-    })
-    setNewText('')
-    await fetchTestimonials()
-  }
+    e.preventDefault();
+    if (!user || !newText.trim()) return;
+    const author = user.displayName || user.email!.split("@")[0];
+    const payload = { author, text: newText.trim(), avatarUrl: user.photoURL || null };
+
+    try {
+      const res = await fetch("/api/testimonials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || res.statusText);
+      }
+      setNewText("");
+      fetchTestimonials();
+    } catch (e) {
+      console.error("POST /api/testimonials:", e);
+    }
+  };
 
   return (
     <section className="space-y-6">
@@ -58,8 +68,8 @@ export default function Testimonials() {
           <textarea
             value={newText}
             onChange={e => setNewText(e.target.value)}
-            placeholder="Escribe tu testimonio...."
-            className="w-full border rounded-xl p-3 resize-none focus:ring-2 focus:ring-blue-400"
+            placeholder="Escribe tu testimonio..."
+            className="w-full border rounded-xl p-3 resize-none focus:ring-2 focus:ring-blue-400 text-gray-900"
             rows={3}
           />
           <button
@@ -104,5 +114,5 @@ export default function Testimonials() {
         </div>
       )}
     </section>
-  )
+  );
 }
