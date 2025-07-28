@@ -60,7 +60,7 @@ export default async function generarPDF(insc: InscView) {
   const logoImg    = await doc.embedPng(logoBytes);
 
   // Ancho y alto independientes
-  const logoWidth  = 170;  // más ancho
+  const logoWidth  = 150;  // más ancho
   const logoHeight = 40;   // menos alto (aplanado)
 
   // Si tu variable `y` es la posición actual del cursor de texto,
