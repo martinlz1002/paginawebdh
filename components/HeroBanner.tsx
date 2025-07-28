@@ -18,7 +18,7 @@ export default function HeroBanner() {
         {/* Imagen atleta */}
         <div className="md:w-1/2 mt-6 md:mt-0 flex justify-center">
           <Image
-            src="/runner-hero.png"
+            src="/Corredor.png"
             alt="Corredor"
             width={400}
             height={400}
