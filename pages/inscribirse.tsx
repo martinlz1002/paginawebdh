@@ -16,6 +16,7 @@ import { registrarInscripcion } from "@/lib/Inscripciones";
 import { ClipboardIcon, UserIcon } from "@heroicons/react/24/outline";
 import type { Carrera as CarreraFull } from "@/types/carrera";
 
+// --- Tipos ---
 interface Categoria {
   nombre: string;
   minAge: number;
@@ -27,7 +28,6 @@ interface DistanciaConCategorias {
   categorias: Categoria[];
 }
 type AgeBasis = "endOfYear" | "eventDate";
-
 interface Perfil {
   id: string;
   nombre: string;
@@ -36,6 +36,7 @@ interface Perfil {
   birthDate: Date;
 }
 
+// --- Helpers ---
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -48,7 +49,6 @@ function computeAge(birthDate: Date, basisDate: Date): number {
 const STRIPE_RATE = 0.041;
 const FIXED_FEE = 3;
 const IVA_RATE = 0.16;
-
 function computeGross(desiredNet: number): number {
   const ivaMult = 1 + IVA_RATE;
   const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
@@ -79,11 +79,13 @@ export default function InscribirsePage() {
   const [categoriasPermitidas, setCategoriasPermitidas] = useState<Categoria[]>([]);
   const [procesandoPago, setProcesandoPago] = useState(false);
 
+  // Monitorea auth
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, setCurrentUser);
     return () => unsub();
-  }, []);
+  }, [auth]);
 
+  // Carga la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
@@ -92,7 +94,7 @@ export default function InscribirsePage() {
         setMensaje("Carrera no encontrada");
         return;
       }
-      const d = snap.data();
+      const d: any = snap.data();
       setCarrera({
         id: snap.id,
         ...d,
@@ -100,14 +102,19 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
+  // Carga perfiles del usuario
   useEffect(() => {
     if (!currentUser) return;
     (async () => {
       const lista: Perfil[] = [];
+      // Perfil principal
       const udoc = await getDoc(doc(db, "usuarios", currentUser.uid));
       if (udoc.exists()) {
-        const ud = udoc.data();
-        const bd = ud.fechaNacimiento instanceof Timestamp ? ud.fechaNacimiento.toDate() : new Date(ud.fechaNacimiento);
+        const ud: any = udoc.data();
+        const bd =
+          ud.fechaNacimiento instanceof Timestamp
+            ? ud.fechaNacimiento.toDate()
+            : new Date(ud.fechaNacimiento);
         lista.push({
           id: currentUser.uid,
           nombre: ud.nombre,
@@ -116,10 +123,14 @@ export default function InscribirsePage() {
           birthDate: bd,
         });
       }
+      // Subperfiles
       const sub = await getDocs(collection(db, "usuarios", currentUser.uid, "perfiles"));
-      sub.forEach(d => {
-        const p = d.data();
-        const bd = p.fechaNacimiento instanceof Timestamp ? p.fechaNacimiento.toDate() : new Date(p.fechaNacimiento);
+      sub.forEach((d) => {
+        const p: any = d.data();
+        const bd =
+          p.fechaNacimiento instanceof Timestamp
+            ? p.fechaNacimiento.toDate()
+            : new Date(p.fechaNacimiento);
         lista.push({
           id: d.id,
           nombre: p.nombre,
@@ -129,40 +140,83 @@ export default function InscribirsePage() {
         });
       });
       setPerfiles(lista);
-      if (lista.length > 0) setPerfilSeleccionado(lista[0].id);
+      if (lista.length) setPerfilSeleccionado(lista[0].id);
     })();
   }, [currentUser]);
 
+  // Calcula edad y categorías disponibles
   useEffect(() => {
     if (!perfilSeleccionado || !carrera || !distanciaSeleccionada) return;
-    const perfil = perfiles.find(p => p.id === perfilSeleccionado);
+    const perfil = perfiles.find((p) => p.id === perfilSeleccionado);
     if (!perfil) return;
-    const eventDate = carrera.ageBasis === "endOfYear"
-      ? new Date(new Date(carrera.fecha!).getFullYear(), 11, 31)
-      : new Date(carrera.fecha!);
+    const eventDate =
+      carrera.ageBasis === "endOfYear"
+        ? new Date(new Date(carrera.fecha).getFullYear(), 11, 31)
+        : new Date(carrera.fecha);
     const edad = computeAge(perfil.birthDate, eventDate);
     setEdadPerfil(edad);
-    const distancia = carrera.distancias.find(d => d.distancia === distanciaSeleccionada);
-    if (!distancia) return;
-    const permitidas = distancia.categorias.filter(c => edad >= c.minAge && edad <= c.maxAge);
+    const distObj = carrera.distancias.find(
+      (d) => d.distancia === distanciaSeleccionada
+    );
+    if (!distObj) return;
+    const permitidas = distObj.categorias.filter(
+      (cat: Categoria) => edad >= cat.minAge && edad <= cat.maxAge
+    );
     setCategoriasPermitidas(permitidas);
     setCategoriaSeleccionada("");
-  }, [perfilSeleccionado, carrera, distanciaSeleccionada]);
+  }, [perfilSeleccionado, carrera, distanciaSeleccionada, perfiles]);
 
-  const categoriaElegida = categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada);
+  const categoriaElegida = categoriasPermitidas.find(
+    (c) => c.nombre === categoriaSeleccionada
+  );
   const precioSeleccionado = categoriaElegida?.price ?? 0;
 
   const handlePagar = async () => {
     setMensaje("");
-    if (!currentUser || !perfilSeleccionado || !distanciaSeleccionada || !categoriaSeleccionada || !carrera) {
+    if (
+      !currentUser ||
+      !perfilSeleccionado ||
+      !distanciaSeleccionada ||
+      !categoriaSeleccionada ||
+      !carrera
+    ) {
       setMensaje("Completa todos los campos.");
       return;
     }
-    const netoDeseado = precioSeleccionado;
-    const bruto = computeGross(netoDeseado);
-    if (!window.confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`)) return;
+
     setProcesandoPago(true);
+
+    //  🚫 Evitar duplicados: misma carrera/distancia/categoría
+    const dupSnap = await getDocs(
+      query(
+        collection(db, "inscripciones"),
+        where("carreraId", "==", carrera.id),
+        where("perfilOwner", "==", currentUser.uid),
+        where("distancia", "==", distanciaSeleccionada),
+        where("categoria", "==", categoriaSeleccionada)
+      )
+    );
+    if (!dupSnap.empty) {
+      setMensaje(
+        "Ya tienes una inscripción en esta carrera, distancia y categoría."
+      );
+      setProcesandoPago(false);
+      return;
+    }
+
+    // Calcular monto bruto
+    const bruto = computeGross(precioSeleccionado);
+    if (
+      !window.confirm(
+        `Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`
+      )
+    ) {
+      setProcesandoPago(false);
+      return;
+    }
+
     try {
+      // Crear sesión Stripe
       const resp = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -176,6 +230,8 @@ export default function InscribirsePage() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const { url, sessionId } = await resp.json();
+
+      // Registrar en Firestore
       await registrarInscripcion({
         carreraId: carrera.id,
         carreraTitulo: carrera.titulo,
@@ -184,6 +240,8 @@ export default function InscribirsePage() {
         distancia: distanciaSeleccionada,
         sessionId,
       });
+
+      // Redirigir
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
     } catch (e: any) {
@@ -193,53 +251,90 @@ export default function InscribirsePage() {
     }
   };
 
-  if (!carrera) return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
+  if (!carrera)
+    return (
+      <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
+    );
 
   return (
     <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
       {carrera.bannerUrl && (
-        <div className="h-56 bg-cover bg-center" style={{ backgroundImage: `url(${carrera.bannerUrl})` }} />
+        <div
+          className="h-56 bg-cover bg-center"
+          style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
+        />
       )}
       <div className="p-6 space-y-6">
         <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-        {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
+        {carrera.descripcion && (
+          <p className="text-gray-700">{carrera.descripcion}</p>
+        )}
 
         {/* Datos generales */}
-<div className="text-sm text-gray-700 space-y-1">
-  {carrera.fecha && (
-    <p><strong>Fecha del evento:</strong> {new Date(carrera.fecha).toLocaleDateString("es-MX", {
-      day: "numeric", month: "long", year: "numeric"
-    })}</p>
-  )}
-  {carrera.lugar && (
-    <p><strong>Lugar:</strong> {carrera.lugar}</p>
-  )}
-  {carrera.horaSalida && (
-    <p><strong>Hora de salida:</strong> {carrera.horaSalida}</p>
-  )}
-</div>
+        <div className="text-sm text-gray-700 space-y-1">
+          {carrera.fecha && (
+            <p>
+              <strong>Fecha del evento:</strong>{" "}
+              {new Date(carrera.fecha).toLocaleDateString("es-MX", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </p>
+          )}
+          {carrera.lugar && (
+            <p>
+              <strong>Lugar:</strong> {carrera.lugar}
+            </p>
+          )}
+          {carrera.horaSalida && (
+            <p>
+              <strong>Hora de salida:</strong> {carrera.horaSalida}
+            </p>
+          )}
+        </div>
 
-{/* Entrega de kits */}
-{(carrera.kitFecha || carrera.kitLugar || carrera.kitHorario) && (
-  <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded text-sm text-gray-800">
-    <h3 className="font-semibold text-purple-700 mb-2">Entrega de kits</h3>
-    {carrera.kitFecha && <p><strong>Fecha:</strong> {carrera.kitFecha}</p>}
-    {carrera.kitLugar && <p><strong>Lugar:</strong> {carrera.kitLugar}</p>}
-    {carrera.kitHorario && <p><strong>Horario:</strong> {carrera.kitHorario}</p>}
-  </div>
-)}
+        {/* Entrega de kits */}
+        {(carrera.kitFecha ||
+          carrera.kitLugar ||
+          carrera.kitHorario) && (
+          <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded text-sm text-gray-800">
+            <h3 className="font-semibold text-purple-700 mb-2">
+              Entrega de kits
+            </h3>
+            {carrera.kitFecha && (
+              <p>
+                <strong>Fecha:</strong> {carrera.kitFecha}
+              </p>
+            )}
+            {carrera.kitLugar && (
+              <p>
+                <strong>Lugar:</strong> {carrera.kitLugar}
+              </p>
+            )}
+            {carrera.kitHorario && (
+              <p>
+                <strong>Horario:</strong> {carrera.kitHorario}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Tabla de distancias y categorías */}
         {carrera.distancias.map((d) => (
           <div key={d.distancia}>
-            <h3 className="text-lg font-semibold mt-4 mb-1 text-purple-700">{d.distancia}</h3>
+            <h3 className="text-lg font-semibold mt-4 mb-1 text-purple-700">
+              {d.distancia}
+            </h3>
             <table className="w-full table-auto border text-gray-700 mb-4">
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border px-4 py-2">Categoría</th>
                   <th className="border px-4 py-2">Edad mínima</th>
                   <th className="border px-4 py-2">Edad máxima</th>
-                  <th className="border px-4 py-2">Precio (MXN + IVA)</th>
+                  <th className="border px-4 py-2">
+                    Precio (MXN + IVA)
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -248,7 +343,9 @@ export default function InscribirsePage() {
                     <td className="border px-4 py-2">{cat.nombre}</td>
                     <td className="border px-4 py-2">{cat.minAge}</td>
                     <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">${cat.price} + IVA</td>
+                    <td className="border px-4 py-2">
+                      ${cat.price.toFixed(2)} + IVA
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -258,41 +355,100 @@ export default function InscribirsePage() {
 
         {/* Selección de perfil, distancia y categoría */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <select className="p-2 border rounded" value={perfilSeleccionado} onChange={e => setPerfilSeleccionado(e.target.value)}>
-            <option value="">Selecciona perfil</option>
-            {perfiles.map(p => (
-              <option key={p.id} value={p.id}>
-                {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno}
+          <div>
+            <label className="block font-medium mb-1 flex items-center space-x-1">
+              <UserIcon className="w-5 h-5 text-green-600" />
+              <span>Tu perfil</span>
+            </label>
+            <select
+              className="w-full border p-2 rounded"
+              value={perfilSeleccionado}
+              onChange={(e) =>
+                setPerfilSeleccionado(e.target.value)
+              }
+            >
+              {perfiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno} (
+                  {computeAge(
+                    p.birthDate,
+                    carrera.ageBasis === "endOfYear"
+                      ? new Date(
+                          new Date(carrera.fecha).getFullYear(),
+                          11,
+                          31
+                        )
+                      : new Date(carrera.fecha)
+                  )}{" "}
+                  años)
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block font-medium mb-1">
+              Distancia
+            </label>
+            <select
+              className="w-full border p-2 rounded"
+              value={distanciaSeleccionada}
+              onChange={(e) =>
+                setDistanciaSeleccionada(e.target.value)
+              }
+            >
+              <option value="">-- Selecciona distancia --</option>
+              {carrera.distancias.map((d) => (
+                <option key={d.distancia} value={d.distancia}>
+                  {d.distancia}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block font-medium mb-1">
+              Categoría
+            </label>
+            <select
+              className="w-full border p-2 rounded disabled:opacity-50"
+              value={categoriaSeleccionada}
+              onChange={(e) =>
+                setCategoriaSeleccionada(e.target.value)
+              }
+              disabled={!categoriasPermitidas.length}
+            >
+              <option value="">
+                -- Selecciona categoría --
               </option>
-            ))}
-          </select>
-
-          <select className="p-2 border rounded" value={distanciaSeleccionada} onChange={e => setDistanciaSeleccionada(e.target.value)}>
-            <option value="">Selecciona distancia</option>
-            {carrera.distancias.map(d => (
-              <option key={d.distancia} value={d.distancia}>{d.distancia}</option>
-            ))}
-          </select>
-
-          <select className="p-2 border rounded" value={categoriaSeleccionada} onChange={e => setCategoriaSeleccionada(e.target.value)} disabled={!categoriasPermitidas.length}>
-            <option value="">Selecciona categoría</option>
-            {categoriasPermitidas.map(c => (
-              <option key={c.nombre} value={c.nombre}>{c.nombre}</option>
-            ))}
-          </select>
+              {categoriasPermitidas.map((c) => (
+                <option key={c.nombre} value={c.nombre}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Edad y precio */}
-        <p className="text-sm text-gray-600">Edad calculada: {edadPerfil} años</p>
+        <p className="text-sm text-gray-600">
+          Edad calculada: {edadPerfil} años
+        </p>
         {categoriaSeleccionada && (
-          <p className="text-lg font-medium">Precio seleccionado: ${computeGross(precioSeleccionado).toFixed(2)}</p>
+          <p className="text-lg font-medium">
+            Precio seleccionado: $
+            {computeGross(precioSeleccionado).toFixed(2)}
+          </p>
         )}
 
         {/* Botón de pago */}
         {currentUser ? (
           <button
             onClick={handlePagar}
-            disabled={!perfilSeleccionado || !distanciaSeleccionada || !categoriaSeleccionada || procesandoPago}
+            disabled={
+              !perfilSeleccionado ||
+              !distanciaSeleccionada ||
+              !categoriaSeleccionada ||
+              procesandoPago
+            }
             className={`w-full py-3 rounded text-white transition ${
               perfilSeleccionado && categoriaSeleccionada
                 ? "bg-purple-600 hover:bg-purple-700"
@@ -300,18 +456,24 @@ export default function InscribirsePage() {
             }`}
           >
             {procesandoPago
-  ? "Procesando..."
-  : categoriaSeleccionada
-  ? `Inscribirme y Pagar $${computeGross(precioSeleccionado).toFixed(2)}`
-  : "Inscribirme y Pagar"}
+              ? "Procesando..."
+              : categoriaSeleccionada
+              ? `Inscribirme y Pagar $${computeGross(
+                  precioSeleccionado
+                ).toFixed(2)}`
+              : "Inscribirme y Pagar"}
           </button>
         ) : (
           <Link href="/login">
-            <a className="text-blue-600 underline block text-center">Inicia sesión para inscribirte</a>
+            <a className="text-blue-600 underline block text-center">
+              Inicia sesión para inscribirte
+            </a>
           </Link>
         )}
 
-        {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
+        {mensaje && (
+          <p className="text-center text-red-600">{mensaje}</p>
+        )}
       </div>
     </div>
   );
