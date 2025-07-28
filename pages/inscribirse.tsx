@@ -27,7 +27,6 @@ interface DistanciaConCategorias {
   distancia: string;
   categorias: Categoria[];
 }
-type AgeBasis = "endOfYear" | "eventDate";
 interface Perfil {
   id: string;
   nombre: string;
@@ -94,11 +93,7 @@ export default function InscribirsePage() {
         setMensaje("Carrera no encontrada");
         return;
       }
-      const d: any = snap.data();
-      setCarrera({
-        id: snap.id,
-        ...d,
-      } as CarreraFull);
+      setCarrera({ id: snap.id, ...(snap.data() as any) } as CarreraFull);
     })();
   }, [carreraId]);
 
@@ -110,11 +105,10 @@ export default function InscribirsePage() {
       // Perfil principal
       const udoc = await getDoc(doc(db, "usuarios", currentUser.uid));
       if (udoc.exists()) {
-        const ud: any = udoc.data();
-        const bd =
-          ud.fechaNacimiento instanceof Timestamp
-            ? ud.fechaNacimiento.toDate()
-            : new Date(ud.fechaNacimiento);
+        const ud = udoc.data() as any;
+        const bd = ud.fechaNacimiento instanceof Timestamp
+          ? ud.fechaNacimiento.toDate()
+          : new Date(ud.fechaNacimiento);
         lista.push({
           id: currentUser.uid,
           nombre: ud.nombre,
@@ -125,12 +119,11 @@ export default function InscribirsePage() {
       }
       // Subperfiles
       const sub = await getDocs(collection(db, "usuarios", currentUser.uid, "perfiles"));
-      sub.forEach((d) => {
-        const p: any = d.data();
-        const bd =
-          p.fechaNacimiento instanceof Timestamp
-            ? p.fechaNacimiento.toDate()
-            : new Date(p.fechaNacimiento);
+      sub.forEach(d => {
+        const p = d.data() as any;
+        const bd = p.fechaNacimiento instanceof Timestamp
+          ? p.fechaNacimiento.toDate()
+          : new Date(p.fechaNacimiento);
         lista.push({
           id: d.id,
           nombre: p.nombre,
@@ -147,72 +140,48 @@ export default function InscribirsePage() {
   // Calcula edad y categorías disponibles
   useEffect(() => {
     if (!perfilSeleccionado || !carrera || !distanciaSeleccionada) return;
-    const perfil = perfiles.find((p) => p.id === perfilSeleccionado);
-    if (!perfil) return;
-    const eventDate =
-      carrera.ageBasis === "endOfYear"
-        ? new Date(new Date(carrera.fecha).getFullYear(), 11, 31)
-        : new Date(carrera.fecha);
-    const edad = computeAge(perfil.birthDate, eventDate);
-    setEdadPerfil(edad);
-    const distObj = carrera.distancias.find(
-      (d) => d.distancia === distanciaSeleccionada
+    const perfil = perfiles.find(p => p.id === perfilSeleccionado)!;
+    const eventDate = carrera.ageBasis === "endOfYear"
+      ? new Date(new Date(carrera.fecha).getFullYear(), 11, 31)
+      : new Date(carrera.fecha);
+    setEdadPerfil(computeAge(perfil.birthDate, eventDate));
+    const distObj = carrera.distancias.find(d => d.distancia === distanciaSeleccionada)!;
+    setCategoriasPermitidas(
+      distObj.categorias.filter(cat =>
+        edadPerfil >= cat.minAge && edadPerfil <= cat.maxAge
+      )
     );
-    if (!distObj) return;
-    const permitidas = distObj.categorias.filter(
-      (cat: Categoria) => edad >= cat.minAge && edad <= cat.maxAge
-    );
-    setCategoriasPermitidas(permitidas);
     setCategoriaSeleccionada("");
-  }, [perfilSeleccionado, carrera, distanciaSeleccionada, perfiles]);
+  }, [perfilSeleccionado, carrera, distanciaSeleccionada, perfiles, edadPerfil]);
 
-  const categoriaElegida = categoriasPermitidas.find(
-    (c) => c.nombre === categoriaSeleccionada
-  );
-  const precioSeleccionado = categoriaElegida?.price ?? 0;
+  const precioSeleccionado = categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)?.price ?? 0;
 
   const handlePagar = async () => {
     setMensaje("");
-    if (
-      !currentUser ||
-      !perfilSeleccionado ||
-      !distanciaSeleccionada ||
-      !categoriaSeleccionada ||
-      !carrera
-    ) {
+    if (!currentUser || !perfilSeleccionado || !distanciaSeleccionada || !categoriaSeleccionada || !carrera) {
       setMensaje("Completa todos los campos.");
       return;
     }
 
     setProcesandoPago(true);
 
-    // 🚫 Evitar duplicados: mismo perfil en misma carrera/distancia/categoría
+    // 🚫 Evitar duplicados: mismo perfil en misma carrera (independiente de distancia/categoría)
     const dupSnap = await getDocs(
       query(
         collection(db, "inscripciones"),
         where("carreraId", "==", carrera.id),
-        where("perfilId", "==", perfilSeleccionado),
-        where("distancia", "==", distanciaSeleccionada),
-        where("categoria", "==", categoriaSeleccionada)
+        where("perfilId", "==", perfilSeleccionado)
       )
     );
     if (!dupSnap.empty) {
-      setMensaje(
-        "Tu perfil ya tiene una inscripción en esta carrera, distancia y categoría."
-      );
+      setMensaje("Ya estás inscrito en esta carrera.");
       setProcesandoPago(false);
       return;
     }
 
     // Calcular monto bruto
     const bruto = computeGross(precioSeleccionado);
-    if (
-      !window.confirm(
-        `Vas a pagar $${bruto.toFixed(
-          2
-        )} MXN (incluye comisión + IVA)\n¿Deseas continuar?`
-      )
-    ) {
+    if (!window.confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`)) {
       setProcesandoPago(false);
       return;
     }
@@ -253,10 +222,9 @@ export default function InscribirsePage() {
     }
   };
 
-  if (!carrera)
-    return (
-      <p className="text-center mt-10">{mensaje || "Cargando…"}</p>
-    );
+  if (!carrera) {
+    return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
+  }
 
   return (
     <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
@@ -268,67 +236,10 @@ export default function InscribirsePage() {
       )}
       <div className="p-6 space-y-6">
         <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
-        {carrera.descripcion && (
-          <p className="text-gray-700">{carrera.descripcion}</p>
-        )}
-
-        {/* Datos generales */}
-        <div className="text-sm text-gray-700 space-y-1">
-          {carrera.fecha && (
-            <p>
-              <strong>Fecha del evento:</strong>{" "}
-              {new Date(carrera.fecha).toLocaleDateString("es-MX", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </p>
-          )}
-          {carrera.lugar && (
-            <p>
-              <strong>Lugar:</strong> {carrera.lugar}
-            </p>
-          )}
-          {carrera.horaSalida && (
-            <p>
-              <strong>Hora de salida:</strong> {carrera.horaSalida}
-            </p>
-          )}
-        </div>
-
-        {/* Tabla de distancias y categorías */}
-        {carrera.distancias.map((d) => (
-          <div key={d.distancia}>
-            <h3 className="text-lg font-semibold mt-4 mb-1 text-purple-700">
-              {d.distancia}
-            </h3>
-            <table className="w-full table-auto border text-gray-700 mb-4">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="border px-4 py-2">Categoría</th>
-                  <th className="border px-4 py-2">Edad mínima</th>
-                  <th className="border px-4 py-2">Edad máxima</th>
-                  <th className="border px-4 py-2">Precio (MXN + IVA)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {d.categorias.map((cat) => (
-                  <tr key={cat.nombre}>
-                    <td className="border px-4 py-2">{cat.nombre}</td>
-                    <td className="border px-4 py-2">{cat.minAge}</td>
-                    <td className="border px-4 py-2">{cat.maxAge}</td>
-                    <td className="border px-4 py-2">
-                      ${cat.price.toFixed(2)} + IVA
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))}
 
         {/* Selección de perfil, distancia y categoría */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Perfil */}
           <div>
             <label className="block font-medium mb-1 flex items-center space-x-1">
               <UserIcon className="w-5 h-5 text-green-600" />
@@ -337,51 +248,42 @@ export default function InscribirsePage() {
             <select
               className="w-full border p-2 rounded"
               value={perfilSeleccionado}
-              onChange={(e) => setPerfilSeleccionado(e.target.value)}
+              onChange={e => setPerfilSeleccionado(e.target.value)}
             >
-              {perfiles.map((p) => (
+              {perfiles.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno} (
-                  {computeAge(
-                    p.birthDate,
-                    carrera.ageBasis === "endOfYear"
-                      ? new Date(
-                          new Date(carrera.fecha).getFullYear(),
-                          11,
-                          31
-                        )
-                      : new Date(carrera.fecha)
-                  )}{" "}
-                  años)
+                  {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno}
                 </option>
               ))}
             </select>
           </div>
+          {/* Distancia */}
           <div>
             <label className="block font-medium mb-1">Distancia</label>
             <select
               className="w-full border p-2 rounded"
               value={distanciaSeleccionada}
-              onChange={(e) => setDistanciaSeleccionada(e.target.value)}
+              onChange={e => setDistanciaSeleccionada(e.target.value)}
             >
               <option value="">-- Selecciona distancia --</option>
-              {carrera.distancias.map((d) => (
+              {carrera.distancias.map(d => (
                 <option key={d.distancia} value={d.distancia}>
                   {d.distancia}
                 </option>
               ))}
             </select>
           </div>
+          {/* Categoría */}
           <div>
             <label className="block font-medium mb-1">Categoría</label>
             <select
-              className="w-full border p-2 rounded disabled:opacity-50"
+              className="w-full border p-2 rounded"
               value={categoriaSeleccionada}
-              onChange={(e) => setCategoriaSeleccionada(e.target.value)}
+              onChange={e => setCategoriaSeleccionada(e.target.value)}
               disabled={!categoriasPermitidas.length}
             >
               <option value="">-- Selecciona categoría --</option>
-              {categoriasPermitidas.map((c) => (
+              {categoriasPermitidas.map(c => (
                 <option key={c.nombre} value={c.nombre}>
                   {c.nombre}
                 </option>
@@ -390,49 +292,21 @@ export default function InscribirsePage() {
           </div>
         </div>
 
-        {/* Edad y precio */}
-        <p className="text-sm text-gray-600">Edad calculada: {edadPerfil} años</p>
-        {categoriaSeleccionada && (
-          <p className="text-lg font-medium">
-            Precio seleccionado: ${computeGross(precioSeleccionado).toFixed(2)}
-          </p>
-        )}
-
-        {/* Botón de pago */}
-        {currentUser ? (
-          <button
-            onClick={handlePagar}
-            disabled={
-              !perfilSeleccionado ||
-              !distanciaSeleccionada ||
-              !categoriaSeleccionada ||
-              procesandoPago
-            }
-            className={`w-full py-3 rounded text-white transition ${
-              perfilSeleccionado && categoriaSeleccionada
-                ? "bg-purple-600 hover:bg-purple-700"
-                : "bg-gray-400 cursor-not-allowed"
-            }`}
-          >
-            {procesandoPago
-              ? "Procesando..."
-              : categoriaSeleccionada
-              ? `Inscribirme y Pagar $${computeGross(
-                  precioSeleccionado
-                ).toFixed(2)}`
-              : "Inscribirme y Pagar"}
-          </button>
-        ) : (
-          <Link href="/login">
-            <a className="text-blue-600 underline block text-center">
-              Inicia sesión para inscribirte
-            </a>
-          </Link>
-        )}
-
-        {mensaje && (
-          <p className="text-center text-red-600">{mensaje}</p>
-        )}
+        {/* Botón de pago y mensaje */}
+        <button
+          onClick={handlePagar}
+          disabled={!perfilSeleccionado || procesandoPago}
+          className={`w-full py-3 rounded text-white transition ${
+            perfilSeleccionado && categoriaSeleccionada
+              ? "bg-purple-600 hover:bg-purple-700"
+              : "bg-gray-400 cursor-not-allowed"
+          }`}
+        >
+          {procesandoPago
+            ? "Procesando..."
+            : `Inscribirme y Pagar $${computeGross(precioSeleccionado).toFixed(2)}`}
+        </button>
+        {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
       </div>
     </div>
   );
