@@ -64,33 +64,54 @@ export default function Header() {
     router.push("/");
   };
 
+  const scrollToProximas = () => {
+    setMenuOpen(false);
+    document.getElementById("proximas-carreras")?.scrollIntoView({ behavior: "smooth" });
+  };
+
   return (
     <header className="bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white sticky top-0 z-50 shadow-lg">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
         {/* Logo */}
         <Link href="/" className="flex items-center space-x-2">
           <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
-          <span className="text-xl font-extrabold tracking-tight"></span>
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center space-x-6">
           <Link href="/" className="hover:text-green-400 transition">Home</Link>
-          <Link href="/mis-inscripciones" className="hover:text-green-400 transition">Mis Inscripciones</Link>
-          <Link href="/perfil" className="hover:text-green-400 transition">Perfil</Link>
+          {user && emailVerified && (
+            <>
+              <Link href="/mis-inscripciones" className="hover:text-green-400 transition">Mis Inscripciones</Link>
+              <Link href="/perfil" className="hover:text-green-400 transition">Perfil</Link>
+            </>
+          )}
           {esAdmin && (
             <Link href="/admin" className="hover:text-green-400 transition">Admin</Link>
+          )}
+          {user ? (
+            <button
+              onClick={handleLogout}
+              className="hover:text-red-400 transition"
+            >
+              Cerrar sesión
+            </button>
+          ) : (
+            <>
+              <Link href="/login" className="hover:text-green-400 transition">Iniciar sesión</Link>
+              <Link href="/signup" className="hover:text-green-400 transition">Regístrate</Link>
+            </>
           )}
         </nav>
 
         {/* Call-to-action */}
         <div className="hidden md:block">
-          <Link
-            href="/inscribirse"
+          <button
+            onClick={scrollToProximas}
             className="bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
           >
             Inscribirme
-          </Link>
+          </button>
         </div>
 
         {/* Mobile menu button */}
@@ -136,15 +157,15 @@ export default function Header() {
               </button>
             )}
             {/* CTA móvil */}
-            <Link
-              href="/inscribirse"
-              className="mt-2 block text-center bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
+            <button
+              onClick={scrollToProximas}
+              className="mt-2 block w-full text-center bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
             >
               Inscribirme
-            </Link>
+            </button>
           </div>
         </div>
       )}
     </header>
-  );
+);
 }

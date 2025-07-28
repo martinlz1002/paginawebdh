@@ -15,7 +15,7 @@ export default function SearchCard() {
           value={q}
           onChange={e => setQ(e.target.value)}
           placeholder="Buscar carrera..."
-          className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400"
+          className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400"
         />
       </div>
       <div className="relative">

@@ -114,7 +114,7 @@ export default function HomePage() {
         <Gallery photos={photos} />
 
         {/* repetir tu grid de próximas carreras */}
-        <section className="space-y-6">
+        <section id="proximas-carreras" className="space-y-6">
           <h1 className="text-4xl font-extrabold text-center text-green-800">
             Próximas Carreras
           </h1>
