@@ -68,157 +68,101 @@ export default function InscribirsePage() {
   const { carreraId } = router.query;
   const auth = getAuth(app);
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [mensaje, setMensaje] = useState("");
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
-  const [perfilSeleccionado, setPerfilSeleccionado] = useState("");
-  const [edadPerfil, setEdadPerfil] = useState<number>(0);
-  const [distanciaSeleccionada, setDistanciaSeleccionada] = useState("");
-  const [categoriaSeleccionada, setCategoriaSeleccionada] = useState("");
+  const [perfilId, setPerfilId] = useState("");
+  const [distancia, setDistancia] = useState("");
+  const [categoria, setCategoria] = useState("");
   const [categoriasPermitidas, setCategoriasPermitidas] = useState<Categoria[]>([]);
-  const [procesandoPago, setProcesandoPago] = useState(false);
+  const [procesando, setProcesando] = useState(false);
 
-  // Monitorea auth
+  // Auth listener
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, setCurrentUser);
+    const unsub = onAuthStateChanged(auth, u => setUser(u));
     return () => unsub();
   }, [auth]);
 
-  // Carga la carrera
+  // Carga datos de la carrera
   useEffect(() => {
     if (!carreraId) return;
     (async () => {
       const snap = await getDoc(doc(db, "carreras", carreraId as string));
-      if (!snap.exists()) {
-        setMensaje("Carrera no encontrada");
-        return;
-      }
-      setCarrera({ id: snap.id, ...(snap.data() as any) } as CarreraFull);
+      if (snap.exists()) setCarrera({ id: snap.id, ...(snap.data() as any) } as CarreraFull);
+      else setMensaje("Carrera no encontrada");
     })();
   }, [carreraId]);
 
-  // Carga perfiles del usuario
+  // Carga perfiles
   useEffect(() => {
-    if (!currentUser) return;
+    if (!user) return;
     (async () => {
       const lista: Perfil[] = [];
-      // Perfil principal
-      const udoc = await getDoc(doc(db, "usuarios", currentUser.uid));
-      if (udoc.exists()) {
-        const ud = udoc.data() as any;
-        const bd = ud.fechaNacimiento instanceof Timestamp
-          ? ud.fechaNacimiento.toDate()
-          : new Date(ud.fechaNacimiento);
-        lista.push({
-          id: currentUser.uid,
-          nombre: ud.nombre,
-          apellidoPaterno: ud.apPaterno ?? ud.apellidoPaterno ?? "",
-          apellidoMaterno: ud.apMaterno ?? ud.apellidoMaterno ?? "",
-          birthDate: bd,
-        });
+      const main = await getDoc(doc(db, "usuarios", user.uid));
+      if (main.exists()) {
+        const d = main.data() as any;
+        const bd = d.fechaNacimiento instanceof Timestamp ? d.fechaNacimiento.toDate() : new Date(d.fechaNacimiento);
+        lista.push({ id: user.uid, nombre: d.nombre, apellidoPaterno: d.apPaterno || d.apellidoPaterno || "", apellidoMaterno: d.apMaterno || d.apellidoMaterno || "", birthDate: bd });
       }
-      // Subperfiles
-      const sub = await getDocs(collection(db, "usuarios", currentUser.uid, "perfiles"));
-      sub.forEach(d => {
+      const subs = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
+      subs.forEach(d => {
         const p = d.data() as any;
-        const bd = p.fechaNacimiento instanceof Timestamp
-          ? p.fechaNacimiento.toDate()
-          : new Date(p.fechaNacimiento);
-        lista.push({
-          id: d.id,
-          nombre: p.nombre,
-          apellidoPaterno: p.apPaterno ?? p.apellidoPaterno ?? "",
-          apellidoMaterno: p.apMaterno ?? p.apellidoMaterno ?? "",
-          birthDate: bd,
-        });
+        const bd = p.fechaNacimiento instanceof Timestamp ? p.fechaNacimiento.toDate() : new Date(p.fechaNacimiento);
+        lista.push({ id: d.id, nombre: p.nombre, apellidoPaterno: p.apPaterno || p.apellidoPaterno || "", apellidoMaterno: p.apMaterno || p.apellidoMaterno || "", birthDate: bd });
       });
       setPerfiles(lista);
-      if (lista.length) setPerfilSeleccionado(lista[0].id);
+      if (lista.length) setPerfilId(lista[0].id);
     })();
-  }, [currentUser]);
+  }, [user]);
 
-  // Calcula edad y categorías disponibles
+  // Filtra categorías según edad/distancia
   useEffect(() => {
-    if (!perfilSeleccionado || !carrera || !distanciaSeleccionada) return;
-    const perfil = perfiles.find(p => p.id === perfilSeleccionado)!;
-    const eventDate = carrera.ageBasis === "endOfYear"
-      ? new Date(new Date(carrera.fecha).getFullYear(), 11, 31)
-      : new Date(carrera.fecha);
-    setEdadPerfil(computeAge(perfil.birthDate, eventDate));
-    const distObj = carrera.distancias.find(d => d.distancia === distanciaSeleccionada)!;
-    setCategoriasPermitidas(
-      distObj.categorias.filter(cat =>
-        edadPerfil >= cat.minAge && edadPerfil <= cat.maxAge
-      )
-    );
-    setCategoriaSeleccionada("");
-  }, [perfilSeleccionado, carrera, distanciaSeleccionada, perfiles, edadPerfil]);
+    if (!carrera || !perfilId || !distancia) return;
+    const perfil = perfiles.find(p => p.id === perfilId)!;
+    const basis = carrera.ageBasis === 'endOfYear' ? new Date(new Date(carrera.fecha).getFullYear(),11,31) : new Date(carrera.fecha);
+    const age = computeAge(perfil.birthDate, basis);
+    const distObj = carrera.distancias.find(d => d.distancia === distancia)!;
+    setCategoriasPermitidas(distObj.categorias.filter(cat => age >= cat.minAge && age <= cat.maxAge));
+    setCategoria('');
+  }, [perfilId, distancia, carrera, perfiles]);
 
-  const precioSeleccionado = categoriasPermitidas.find(c => c.nombre === categoriaSeleccionada)?.price ?? 0;
-
+  // Maneja pago e inscripción
   const handlePagar = async () => {
     setMensaje("");
-    if (!currentUser || !perfilSeleccionado || !distanciaSeleccionada || !categoriaSeleccionada || !carrera) {
-      setMensaje("Completa todos los campos.");
-      return;
-    }
+    if (!user || !perfilId || !distancia || !categoria || !carrera) { setMensaje("Completa todos los campos."); return; }
+    setProcesando(true);
 
-    setProcesandoPago(true);
-
-    // 🚫 Evitar duplicados: mismo perfil en misma carrera (independiente de distancia/categoría)
-    const dupSnap = await getDocs(
-      query(
-        collection(db, "inscripciones"),
-        where("carreraId", "==", carrera.id),
-        where("perfilId", "==", perfilSeleccionado)
-      )
-    );
-    if (!dupSnap.empty) {
+    // Evita duplicados por carrera+perfil
+    const dup = await getDocs(query(
+      collection(db, "inscripciones"),
+      where("carreraId", "==", carrera.id),
+      where("perfilId", "==", perfilId)
+    ));
+    if (!dup.empty) {
       setMensaje("Ya estás inscrito en esta carrera.");
-      setProcesandoPago(false);
+      setProcesando(false);
       return;
     }
 
-    // Calcular monto bruto
-    const bruto = computeGross(precioSeleccionado);
-    if (!window.confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`)) {
-      setProcesandoPago(false);
-      return;
-    }
+    const price = categoriasPermitidas.find(c => c.nombre === categoria)?.price ?? 0;
+    const bruto = computeGross(price);
+    if (!confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (comisión+IVA).
+¿Continuar?`)) { setProcesando(false); return; }
 
     try {
-      // Crear sesión Stripe
-      const resp = await fetch("/api/checkout_sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          carreraId: carrera.id,
-          perfilId: perfilSeleccionado,
-          categoria: categoriaSeleccionada,
-          distancia: distanciaSeleccionada,
-          price: bruto,
-        }),
+      const res = await fetch("/api/checkout_sessions", {
+        method: "POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ carreraId: carrera.id, perfilId, categoria, distancia, price: bruto })
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const { url, sessionId } = await resp.json();
-
-      // Registrar en Firestore
-      await registrarInscripcion({
-        carreraId: carrera.id,
-        carreraTitulo: carrera.titulo,
-        perfilId: perfilSeleccionado,
-        categoria: categoriaSeleccionada,
-        distancia: distanciaSeleccionada,
-        sessionId,
-      });
-
-      // Redirigir
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const { url, sessionId } = await res.json();
+      await registrarInscripcion({ carreraId: carrera.id, carreraTitulo: carrera.titulo, perfilId, categoria, distancia, sessionId });
       window.open(url, "_blank")?.focus();
       router.push("/mis-inscripciones");
-    } catch (e: any) {
-      setMensaje("Error al iniciar pago: " + e.message);
+    } catch(err:any) {
+      setMensaje("Error al iniciar pago: " + err.message);
     } finally {
-      setProcesandoPago(false);
+      setProcesando(false);
     }
   };
 
@@ -227,87 +171,65 @@ export default function InscribirsePage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto bg-white rounded-lg shadow overflow-hidden">
-      {carrera.bannerUrl && (
-        <div
-          className="h-56 bg-cover bg-center"
-          style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
-        />
-      )}
-      <div className="p-6 space-y-6">
-        <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
+    <div className="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow space-y-6">
+      {/* Información general */}
+      <h1 className="text-3xl font-bold">{carrera.titulo}</h1>
+      {carrera.descripcion && <p className="text-gray-700">{carrera.descripcion}</p>}
+      <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+        <div><strong>Fecha:</strong> {new Date(carrera.fecha).toLocaleDateString("es-MX")}</div>
+        <div><strong>Lugar:</strong> {carrera.lugar}</div>
+        <div><strong>Hora:</strong> {carrera.horaSalida}</div>
+        {(carrera.kitFecha||carrera.kitLugar||carrera.kitHorario) && <div><strong>Kit:</strong> {carrera.kitFecha} {carrera.kitLugar} {carrera.kitHorario}</div>}
+              </div>
 
-        {/* Selección de perfil, distancia y categoría */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Perfil */}
-          <div>
-            <label className="block font-medium mb-1 flex items-center space-x-1">
-              <UserIcon className="w-5 h-5 text-green-600" />
-              <span>Tu perfil</span>
-            </label>
-            <select
-              className="w-full border p-2 rounded"
-              value={perfilSeleccionado}
-              onChange={e => setPerfilSeleccionado(e.target.value)}
-            >
-              {perfiles.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} {p.apellidoPaterno} {p.apellidoMaterno}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Distancia */}
-          <div>
-            <label className="block font-medium mb-1">Distancia</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={distanciaSeleccionada}
-              onChange={e => setDistanciaSeleccionada(e.target.value)}
-            >
-              <option value="">-- Selecciona distancia --</option>
-              {carrera.distancias.map(d => (
-                <option key={d.distancia} value={d.distancia}>
-                  {d.distancia}
-                </option>
-              ))}
-            </select>
-          </div>
-          {/* Categoría */}
-          <div>
-            <label className="block font-medium mb-1">Categoría</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={categoriaSeleccionada}
-              onChange={e => setCategoriaSeleccionada(e.target.value)}
-              disabled={!categoriasPermitidas.length}
-            >
-              <option value="">-- Selecciona categoría --</option>
-              {categoriasPermitidas.map(c => (
-                <option key={c.nombre} value={c.nombre}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+      {/* Tabla única de distancias y categorías */}
+      <table className="w-full table-auto border text-gray-700">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="border px-3 py-1">Distancia</th>
+            <th className="border px-3 py-1">Categoría</th>
+            <th className="border px-3 py-1">Edad Mín</th>
+            <th className="border px-3 py-1">Edad Máx</th>
+            <th className="border px-3 py-1">Precio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {carrera.distancias.flatMap(d =>
+            d.categorias.map(cat => (
+              <tr key={`${d.distancia}-${cat.nombre}`}>             
+                <td className="border px-3 py-1">{d.distancia}</td>
+                <td className="border px-3 py-1">{cat.nombre}</td>
+                <td className="border px-3 py-1">{cat.minAge}</td>
+                <td className="border px-3 py-1">{cat.maxAge}</td>
+                <td className="border px-3 py-1">${cat.price} + IVA</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
 
-        {/* Botón de pago y mensaje */}
-        <button
-          onClick={handlePagar}
-          disabled={!perfilSeleccionado || procesandoPago}
-          className={`w-full py-3 rounded text-white transition ${
-            perfilSeleccionado && categoriaSeleccionada
-              ? "bg-purple-600 hover:bg-purple-700"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-        >
-          {procesandoPago
-            ? "Procesando..."
-            : `Inscribirme y Pagar $${computeGross(precioSeleccionado).toFixed(2)}`}
-        </button>
-        {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
+      {/* Formulario de inscripción */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <select className="border p-2 rounded" value={perfilId} onChange={e => setPerfilId(e.target.value)}>
+          {perfiles.map(p => <option key={p.id} value={p.id}>{p.nombre} {p.apellidoPaterno}</option>)}
+        </select>
+        <select className="border p-2 rounded" value={distancia} onChange={e => setDistancia(e.target.value)}>
+          <option value="">Selecciona distancia</option>
+          {carrera.distancias.map(d => <option key={d.distancia} value={d.distancia}>{d.distancia}</option>)}
+        </select>
+        <select className="border p-2 rounded" value={categoria} onChange={e => setCategoria(e.target.value)} disabled={!categoriasPermitidas.length}>
+          <option value="">Selecciona categoría</option>
+          {categoriasPermitidas.map(c => <option key={c.nombre} value={c.nombre}>{c.nombre}</option>)}
+        </select>
       </div>
+
+      <button
+        onClick={handlePagar}
+        disabled={!perfilId || !categoria || procesando}
+        className={`w-full py-2 rounded text-white ${perfilId && categoria ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-400 cursor-not-allowed'}`}>
+        {procesando ? 'Procesando...' : `Inscribirme y Pagar $${computeGross(categoriasPermitidas.find(c=>c.nombre===categoria)?.price||0).toFixed(2)}`}
+      </button>
+      {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
     </div>
   );
 }
