@@ -12,6 +12,7 @@ import { doc, getDoc } from "firebase/firestore";
 import {
   ChevronDownIcon,
   XMarkIcon,
+  Bars3Icon,
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
@@ -27,6 +28,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Escucha Firebase Auth
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
@@ -46,6 +48,7 @@ export default function Header() {
     return unsub;
   }, [auth]);
 
+  // Cierra menú al clicar fuera
   useEffect(() => {
     function onClick(e: MouseEvent) {
       if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -62,78 +65,86 @@ export default function Header() {
   };
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 bg-white border-b shadow-sm sticky top-0 z-50">
-      {/* Logo */}
-      <Link href="/" className="flex items-center space-x-2">
-        <Image src="/mi-logo.png" alt="Logo" width={150} height={150} />
-        <span className="text-2xl font-bold text-green-800"></span>
-      </Link>
+    <header className="bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white sticky top-0 z-50 shadow-lg">
+      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
+        {/* Logo */}
+        <Link href="/" className="flex items-center space-x-2">
+          <Image src="/mi-logo.png" alt="Logo" width={40} height={40} />
+          <span className="text-xl font-extrabold tracking-tight">DH Time</span>
+        </Link>
 
-      {/* Tagline */}
-      <div className="hidden md:block">
-        <span className="text-gray-600 italic">Medimos lo que te apasiona</span>
+        {/* Desktop nav */}
+        <nav className="hidden md:flex items-center space-x-6">
+          <Link href="/" className="hover:text-green-400 transition">Home</Link>
+          <Link href="/mis-inscripciones" className="hover:text-green-400 transition">Mis Inscripciones</Link>
+          <Link href="/perfil" className="hover:text-green-400 transition">Perfil</Link>
+          {esAdmin && (
+            <Link href="/admin" className="hover:text-green-400 transition">Admin</Link>
+          )}
+        </nav>
+
+        {/* Call-to-action */}
+        <div className="hidden md:block">
+          <Link
+            href="/inscribirse"
+            className="bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
+          >
+            Inscribirme
+          </Link>
+        </div>
+
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setMenuOpen((o) => !o)}
+          className="block md:hidden p-2 rounded-md hover:bg-gray-800 transition"
+        >
+          {menuOpen ? (
+            <XMarkIcon className="w-6 h-6" />
+          ) : (
+            <Bars3Icon className="w-6 h-6" />
+          )}
+        </button>
       </div>
 
-      {/* User Menu */}
-      <div className="relative" ref={menuRef}>
-        {user ? (
-          <>
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              className="flex items-center space-x-1 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full transition"
-            >
-              <UserCircleIcon className="w-6 h-6 text-green-700" />
-              <span className="text-gray-700 font-medium">{nombre}</span>
-              {menuOpen ? (
-                <XMarkIcon className="w-4 h-4 text-gray-600" />
-              ) : (
-                <ChevronDownIcon className="w-4 h-4 text-gray-600" />
-              )}
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border rounded-lg shadow-lg py-2">
-                {emailVerified ? (
-                  <>
-                    <Link href="/mis-inscripciones" className="block px-4 py-2 text-gray-700 hover:bg-gray-50">
-                      Mis inscripciones
-                    </Link>
-                    <Link href="/perfil" className="block px-4 py-2 text-gray-700 hover:bg-gray-50">
-                      Perfil
-                    </Link>
-                  </>
-                ) : (
-                  <p className="px-4 py-2 text-sm text-gray-500">
-                    Confirma tu correo para más opciones
-                  </p>
-                )}
-                {esAdmin && (
-                  <Link href="/admin" className="block px-4 py-2 text-gray-700 hover:bg-gray-50">
-                    Panel Admin
-                  </Link>
-                )}
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 text-red-600 hover:bg-gray-50"
-                >
-                  Cerrar sesión
-                </button>
-              </div>
+      {/* Mobile menu */}
+      {menuOpen && (
+        <div ref={menuRef} className="md:hidden bg-gray-800">
+          <div className="flex flex-col space-y-1 px-4 py-3">
+            <Link href="/" className="block px-2 py-1 rounded hover:bg-gray-700">Home</Link>
+            {user && emailVerified ? (
+              <>
+                <Link href="/mis-inscripciones" className="block px-2 py-1 rounded hover:bg-gray-700">Mis Inscripciones</Link>
+                <Link href="/perfil" className="block px-2 py-1 rounded hover:bg-gray-700">Perfil</Link>
+              </>
+            ) : (
+              <p className="px-2 py-1 text-gray-400 text-sm">Confirma tu correo</p>
             )}
-          </>
-        ) : (
-          <div className="flex items-center space-x-4">
-            <Link href="/login" className="text-gray-700 hover:text-green-700">
-              Iniciar sesión
-            </Link>
+            {esAdmin && (
+              <Link href="/admin" className="block px-2 py-1 rounded hover:bg-gray-700">Admin</Link>
+            )}
+            {!user ? (
+              <>
+                <Link href="/login" className="block px-2 py-1 rounded hover:bg-gray-700">Iniciar sesión</Link>
+                <Link href="/signup" className="block px-2 py-1 rounded bg-green-500 text-black text-center hover:bg-green-400">Regístrate</Link>
+              </>
+            ) : (
+              <button
+                onClick={handleLogout}
+                className="w-full text-left px-2 py-1 rounded text-red-400 hover:bg-gray-700"
+              >
+                Cerrar sesión
+              </button>
+            )}
+            {/* CTA móvil */}
             <Link
-              href="/signup"
-              className="bg-green-700 text-white px-4 py-1 rounded-full hover:bg-green-800 transition"
+              href="/inscribirse"
+              className="mt-2 block text-center bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
             >
-              Regístrate
+              Inscribirme
             </Link>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </header>
   );
 }
