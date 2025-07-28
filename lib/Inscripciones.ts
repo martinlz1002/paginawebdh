@@ -75,29 +75,23 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
     assigned++;
   }
 
-  // 4️⃣ Debug: payload que se enviará a Firestore
-  console.log("Firestore payload:", {
+  // 🔔 Alert de debug con el payload real
+  const payload = {
     carreraId: data.carreraId,
     carreraTitulo: data.carreraTitulo,
     perfilId: data.perfilId,
     perfilOwner: user.uid,
     categoria: data.categoria,
     sessionId: data.sessionId,
-    paymentStatus: "pending",
+    paymentStatus: "pending" as const,
     competitorNumber: assigned
-  });
+  };
+  alert("Firestore payload:\n" + JSON.stringify(payload, null, 2));
 
-  // 5️⃣ Guardar la inscripción de pago
+  // 4️⃣ Guardar la inscripción de pago
   await addDoc(collection(db, "inscripciones"), {
-    carreraId:        data.carreraId,
-    carreraTitulo:    data.carreraTitulo,
-    perfilId:         data.perfilId,
-    perfilOwner:      user.uid,
-    categoria:        data.categoria,
-    sessionId:        data.sessionId,
-    paymentStatus:    "pending",
-    competitorNumber: assigned,
-    timestamp:        serverTimestamp(),
+    ...payload,
+    timestamp: serverTimestamp(),
   });
 }
 
@@ -135,7 +129,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     pais:             data.pais,
     club:             data.club || null,
     competitorNumber: data.competitorNumber,
-    paymentStatus:    "manual",
+    paymentStatus:    "manual" as const,
     perfilOwner:      "manual",
     sessionId:        null,
     timestamp:        serverTimestamp(),
