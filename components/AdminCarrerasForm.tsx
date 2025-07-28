@@ -42,7 +42,6 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const [distanciaSeleccionada, setDistanciaSeleccionada] = useState('');
 
   const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
-  const [editDistIndex, setEditDistIndex] = useState<number | null>(null);
   const [editCatIndex, setEditCatIndex] = useState<number | null>(null);
 
   const uploadIfNeeded = async (file: File, prefix: string) => {
@@ -54,8 +53,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
 
   const handleAddDistancia = () => {
     const d = nuevaDistancia.trim();
-    if (!d) return;
-    if (distancias.find(dd => dd.distancia === d)) return;
+    if (!d || distancias.some(dd => dd.distancia === d)) return;
     setDistancias(prev => [...prev, { distancia: d, categorias: [] }]);
     setNuevaDistancia('');
   };
@@ -65,10 +63,10 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge || nuevaCat.price < 0) return;
     setDistancias(prev => prev.map(d => {
       if (d.distancia !== distanciaSeleccionada) return d;
-      const nuevasCats = [...d.categorias];
-      if (editCatIndex !== null) nuevasCats[editCatIndex] = nuevaCat;
-      else nuevasCats.push(nuevaCat);
-      return { ...d, categorias: nuevasCats };
+      const cats = [...d.categorias];
+      if (editCatIndex !== null) cats[editCatIndex] = nuevaCat;
+      else cats.push(nuevaCat);
+      return { ...d, categorias: cats };
     }));
     setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
     setEditCatIndex(null);
@@ -80,30 +78,25 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     setDistanciaSeleccionada(distancias[dIndex].distancia);
     setEditCatIndex(cIndex);
   };
-
   const handleDeleteCategoria = (dIndex: number, cIndex: number) => {
     setDistancias(prev => prev.map((d, i) => {
       if (i !== dIndex) return d;
-      const categorias = d.categorias.filter((_, j) => j !== cIndex);
-      return { ...d, categorias };
+      return { ...d, categorias: d.categorias.filter((_, j) => j !== cIndex) };
     }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     let newImagenUrl = imagenUrl;
     let newBannerUrl = bannerUrl;
-
     if (imagenFile) {
-      if (newImagenUrl) try { await deleteObject(ref(storage, newImagenUrl)); } catch {}
+      if (newImagenUrl) await deleteObject(ref(storage, newImagenUrl)).catch(() => {});
       newImagenUrl = await uploadIfNeeded(imagenFile, 'carreras');
     }
     if (bannerFile) {
-      if (newBannerUrl) try { await deleteObject(ref(storage, newBannerUrl)); } catch {}
+      if (newBannerUrl) await deleteObject(ref(storage, newBannerUrl)).catch(() => {});
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
-
     const payload = {
       titulo,
       descripcion,
@@ -119,13 +112,11 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
-
     if (initialValues?.id) {
       await updateDoc(doc(db, 'carreras', initialValues.id), payload);
     } else {
       await addDoc(collection(db, 'carreras'), payload);
     }
-
     setImagenUrl(newImagenUrl);
     setBannerUrl(newBannerUrl);
     onSuccess?.();
@@ -133,88 +124,96 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
-      <h2 className=" text-gray-800 text-xl font-semibold text-green-700">
-        {initialValues ? '✏️ Editar carrera' : '+ Crear carrera'}
+      <h2 className="text-2xl font-semibold text-gray-800">
+        {initialValues ? 'Editar Carrera' : 'Nueva Carrera'}
       </h2>
 
       {/* TÍTULO */}
       <div>
-        <label className="block font-medium">Título</label>
+        <label className="block mb-1 font-medium text-gray-700">Título</label>
         <input
           type="text"
           value={titulo}
           onChange={e => setTitulo(e.target.value)}
           required
-          className="mt-1 w-full border p-2 rounded focus:ring-green-300"
+          className="w-full border p-2 rounded text-gray-800 focus:ring-green-300"
         />
       </div>
 
       {/* DESCRIPCIÓN */}
       <div>
-        <label className="block font-medium">Descripción</label>
+        <label className="block mb-1 font-medium text-gray-700">Descripción</label>
         <textarea
           value={descripcion}
           onChange={e => setDescripcion(e.target.value)}
           required
-          className="mt-1 w-full border p-2 rounded focus:ring-green-300"
+          className="w-full border p-2 rounded text-gray-800 focus:ring-green-300"
         />
       </div>
 
       {/* LUGAR */}
-      <div className="flex items-center space-x-2">
-        <MapPinIcon className="w-5 h-5 text-gray-500" />
+      <div>
+        <label className="block mb-1 font-medium text-gray-700 flex items-center">
+          <MapPinIcon className="w-5 h-5 mr-2 text-gray-600" />
+          Lugar
+        </label>
         <input
           type="text"
           value={lugar}
           onChange={e => setLugar(e.target.value)}
-          placeholder="Lugar"
           required
-          className="flex-1 border p-2 rounded focus:ring-green-300"
+          className="w-full border p-2 rounded text-gray-800 focus:ring-green-300"
         />
       </div>
 
       {/* FECHA & HORA */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="flex items-center space-x-2">
-          <CalendarIcon className="w-5 h-5 text-purple-600" />
+        <div>
+          <label className="block mb-1 font-medium text-gray-700 flex items-center">
+            <CalendarIcon className="w-5 h-5 mr-2 text-gray-600" />
+            Fecha
+          </label>
           <input
             type="date"
             value={fecha}
             onChange={e => setFecha(e.target.value)}
             required
-            className="flex-1 border p-2 rounded focus:ring-green-300"
+            className="w-full border p-2 rounded text-gray-800 focus:ring-green-300"
           />
         </div>
-        <div className="flex items-center space-x-2">
-          <ClockIcon className="w-5 h-5 text-purple-600" />
+        <div>
+          <label className="block mb-1 font-medium text-gray-700 flex items-center">
+            <ClockIcon className="w-5 h-5 mr-2 text-gray-600" />
+            Hora de salida
+          </label>
           <input
             type="time"
             value={horaSalida}
             onChange={e => setHoraSalida(e.target.value)}
             required
-            className="flex-1 border p-2 rounded focus:ring-green-300"
+            className="w-full border p-2 rounded text-gray-800 focus:ring-green-300"
           />
         </div>
       </div>
 
       {/* CUPO MÁXIMO */}
       <div>
-        <label className="block font-medium">Cupo máximo de competidores</label>
+        <label className="block mb-1 font-medium text-gray-700">Cupo máximo</label>
         <input
           type="number"
           min="1"
           value={maxCompetitors}
           onChange={e => setMaxCompetitors(+e.target.value)}
           required
-          className="mt-1 w-full border p-2 rounded focus:ring-green-300"
+          className="w-full border p-2 rounded text-gray-800 focus:ring-green-300"
         />
       </div>
 
       {/* CÁLCULO DE EDAD */}
       <div>
-        <label className="block font-medium">Cálculo de edad</label>
-        <div className="mt-1 space-x-4">
-          <label className="inline-flex items-center">
+        <label className="block mb-1 font-medium text-gray-700">Cálculo de edad</label>
+        <div className="space-x-4">
+          <label className="inline-flex items-center text-gray-800">
             <input
               type="radio"
               value="endOfYear"
@@ -222,9 +221,9 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
               onChange={() => setAgeBasis('endOfYear')}
               className="form-radio"
             />
-            <span className="ml-2">Al término del año ({new Date().getFullYear()}/12/31)</span>
+            <span className="ml-2">Fin de año</span>
           </label>
-          <label className="inline-flex items-center">
+          <label className="inline-flex items-center text-gray-800">
             <input
               type="radio"
               value="eventDate"
@@ -237,21 +236,16 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         </div>
       </div>
 
-
       {/* IMAGEN PRINCIPAL */}
       <div>
-        <label className="block font-medium flex items-center space-x-2">
-          <PhotoIcon className="w-5 h-5 text-green-600" />
-          <span>Imagen principal (opcional)</span>
+        <label className="block mb-1 font-medium text-gray-700 flex items-center">
+          <PhotoIcon className="w-5 h-5 mr-2 text-gray-600" />
+          Imagen principal
         </label>
         {imagenUrl && (
-          <div className="mt-2 flex items-center space-x-4">
-            <img src={imagenUrl} alt="Principal" className="h-24 rounded" />
-            <button
-              type="button"
-              onClick={() => setImagenUrl(undefined)}
-              className="text-red-600"
-            >
+          <div className="flex items-center mb-2">
+            <img src={imagenUrl} alt="Principal" className="h-24 rounded mr-4" />
+            <button type="button" onClick={() => setImagenUrl(undefined)} className="text-red-600">
               <TrashIcon className="w-5 h-5" />
             </button>
           </div>
@@ -260,24 +254,20 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           type="file"
           accept="image/*"
           onChange={e => setImagenFile(e.target.files?.[0] ?? null)}
-          className="mt-2"
+          className="text-gray-800"
         />
       </div>
 
-      {/* BANNER SUPERIOR */}
+      {/* BANNER */}
       <div>
-        <label className="block font-medium flex items-center space-x-2">
-          <PhotoIcon className="w-5 h-5 text-green-600" />
-          <span>Banner superior (opcional)</span>
+        <label className="block mb-1 font-medium text-gray-700 flex items-center">
+          <PhotoIcon className="w-5 h-5 mr-2 text-gray-600" />
+          Banner superior
         </label>
         {bannerUrl && (
-          <div className="mt-2 flex items-center space-x-4">
-            <img src={bannerUrl} alt="Banner" className="h-32 rounded w-full object-cover" />
-            <button
-              type="button"
-              onClick={() => setBannerUrl(undefined)}
-              className="text-red-600"
-            >
+          <div className="flex items-center mb-2">
+            <img src={bannerUrl} alt="Banner" className="h-32 rounded mr-4 object-cover w-full" />
+            <button type="button" onClick={() => setBannerUrl(undefined)} className="text-red-600">
               <TrashIcon className="w-5 h-5" />
             </button>
           </div>
@@ -286,34 +276,40 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           type="file"
           accept="image/*"
           onChange={e => setBannerFile(e.target.files?.[0] ?? null)}
-          className="mt-2"
+          className="text-gray-800"
         />
       </div>
 
       {/* DISTANCIAS */}
       <div>
-        <h3 className="font-medium text-green-600">Distancias</h3>
-        <div className="flex space-x-2 mt-2">
+        <h3 className="font-medium text-gray-800">Distancias</h3>
+        <div className="flex mt-2">
           <input
             type="text"
             value={nuevaDistancia}
             onChange={e => setNuevaDistancia(e.target.value)}
             placeholder="Ej. 5K, 10K"
-            className="border p-2 rounded"
+            className="flex-1 border p-2 rounded text-gray-800"
           />
-          <button type="button" onClick={handleAddDistancia} className="bg-green-600 text-white px-3 py-1 rounded">Agregar</button>
+          <button type="button" onClick={handleAddDistancia} className="ml-2 bg-green-600 text-white px-3 py-1 rounded">
+            Agregar
+          </button>
         </div>
-        <div className="space-y-4 mt-4">
+        <div className="mt-4 space-y-4">
           {distancias.map((d, dIndex) => (
             <div key={d.distancia} className="border p-4 rounded">
-              <h4 className="text-purple-700 font-semibold">Distancia: {d.distancia}</h4>
+              <h4 className="text-gray-800 font-semibold">Distancia: {d.distancia}</h4>
               <ul className="mt-2 space-y-1">
                 {d.categorias.map((c, cIndex) => (
-                  <li key={cIndex} className="flex justify-between items-center">
-                    <span>{c.nombre} ({c.minAge}-{c.maxAge}) - ${c.price.toFixed(2)}</span>
-                    <div className="space-x-2">
-                      <button type="button" onClick={() => handleEditCategoria(dIndex, cIndex)}><PencilIcon className="w-4 h-4 text-blue-600" /></button>
-                      <button type="button" onClick={() => handleDeleteCategoria(dIndex, cIndex)}><TrashIcon className="w-4 h-4 text-red-600" /></button>
+                  <li key={cIndex} className="flex justify-between items-center text-gray-800">
+                    <span>{c.nombre} ({c.minAge}-{c.maxAge}) – ${c.price.toFixed(2)}</span>
+                    <div className="flex space-x-2">
+                      <button type="button" onClick={() => handleEditCategoria(dIndex, cIndex)}>
+                        <PencilIcon className="w-4 h-4 text-blue-600" />
+                      </button>
+                      <button type="button" onClick={() => handleDeleteCategoria(dIndex, cIndex)}>
+                        <TrashIcon className="w-4 h-4 text-red-600" />
+                      </button>
                     </div>
                   </li>
                 ))}
@@ -323,36 +319,77 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         </div>
       </div>
 
-      {/* FORMULARIO PARA CATEGORÍA */}
-      <div className="mt-4">
-        <h4 className="text-green-700 font-semibold">Agregar categoría</h4>
-        <select value={distanciaSeleccionada} onChange={e => setDistanciaSeleccionada(e.target.value)} className="mt-2 w-full border p-2 rounded">
+      {/* AGREGAR CATEGORÍA */}
+      <div>
+        <h4 className="font-medium text-gray-800">Agregar / Editar Categoría</h4>
+        <select
+          value={distanciaSeleccionada}
+          onChange={e => setDistanciaSeleccionada(e.target.value)}
+          className="w-full border p-2 rounded text-gray-800"
+        >
           <option value="">Selecciona una distancia</option>
-          {distancias.map(d => <option key={d.distancia} value={d.distancia}>{d.distancia}</option>)}
+          {distancias.map(d => (
+            <option key={d.distancia} value={d.distancia}>{d.distancia}</option>
+          ))}
         </select>
         <div className="grid grid-cols-4 gap-2 mt-2">
-          <input type="text" placeholder="Nombre" value={nuevaCat.nombre} onChange={e => setNuevaCat(s => ({ ...s, nombre: e.target.value }))} className="border p-2 rounded" />
-          <input type="number" placeholder="Edad min" value={nuevaCat.minAge} onChange={e => setNuevaCat(s => ({ ...s, minAge: +e.target.value }))} className="border p-2 rounded" />
-          <input type="number" placeholder="Edad max" value={nuevaCat.maxAge} onChange={e => setNuevaCat(s => ({ ...s, maxAge: +e.target.value }))} className="border p-2 rounded" />
-          <div className="flex items-center space-x-1">
-            <CurrencyDollarIcon className="w-5 h-5 text-gray-500" />
-            <input type="number" placeholder="Precio" value={nuevaCat.price} onChange={e => setNuevaCat(s => ({ ...s, price: +e.target.value }))} className="flex-1 border p-2 rounded" />
+          <input type="text" placeholder="Nombre" value={nuevaCat.nombre}
+            onChange={e => setNuevaCat(s => ({ ...s, nombre: e.target.value }))}
+            className="border p-2 rounded text-gray-800" />
+          <input type="number" placeholder="Edad min" value={nuevaCat.minAge}
+            onChange={e => setNuevaCat(s => ({ ...s, minAge: +e.target.value }))}
+            className="border p-2 rounded text-gray-800" />
+          <input type="number" placeholder="Edad max" value={nuevaCat.maxAge}
+            onChange={e => setNuevaCat(s => ({ ...s, maxAge: +e.target.value }))}
+            className="border p-2 rounded text-gray-800" />
+          <div className="flex items-center border p-2 rounded">
+            <CurrencyDollarIcon className="w-5 h-5 mr-1 text-gray-600" />
+            <input type="number" placeholder="Precio" value={nuevaCat.price}
+              onChange={e => setNuevaCat(s => ({ ...s, price: +e.target.value }))}
+              className="flex-1 text-gray-800" />
           </div>
         </div>
-        <button type="button" onClick={handleAddOrSaveCategoria} className="mt-2 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition">
-          <PlusCircleIcon className="w-5 h-5 mr-1" />{editCatIndex !== null ? "Guardar categoría" : "Agregar categoría"}
+        <button
+          type="button"
+          onClick={handleAddOrSaveCategoria}
+          className="mt-2 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition"
+        >
+          <PlusCircleIcon className="w-5 h-5 inline-block mr-1" />
+          {editCatIndex !== null ? 'Guardar Categoría' : 'Agregar Categoría'}
         </button>
       </div>
 
       {/* ENTREGA DE KITS */}
-      <div className="border-t pt-4">
-        <h3 className="font-medium text-green-600">Entrega de Kits</h3>
-        <input type="date" value={kitFecha} onChange={e => setKitFecha(e.target.value)} placeholder="Fecha" className="mt-2 w-full border p-2 rounded" />
-        <input type="text" value={kitLugar} onChange={e => setKitLugar(e.target.value)} placeholder="Lugar de entrega" className="mt-2 w-full border p-2 rounded" />
-        <input type="text" value={kitHorario} onChange={e => setKitHorario(e.target.value)} placeholder="Horario de entrega" className="mt-2 w-full border p-2 rounded" />
+      <div>
+        <h3 className="font-medium text-gray-800">Entrega de Kits</h3>
+        <input
+          type="date"
+          value={kitFecha}
+          onChange={e => setKitFecha(e.target.value)}
+          className="w-full border p-2 rounded mt-2 text-gray-800"
+        />
+        <input
+          type="text"
+          value={kitLugar}
+          onChange={e => setKitLugar(e.target.value)}
+          placeholder="Lugar de entrega"
+          className="w-full border p-2 rounded mt-2 text-gray-800"
+        />
+        <input
+          type="text"
+          value={kitHorario}
+          onChange={e => setKitHorario(e.target.value)}
+          placeholder="Horario de entrega"
+          className="w-full border p-2 rounded mt-2 text-gray-800"
+        />
       </div>
 
-      <button type="submit" className="mt-6 w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition">Guardar</button>
+      <button
+        type="submit"
+        className="w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition"
+      >
+        Guardar Carrera
+      </button>
     </form>
   );
 }
