@@ -55,15 +55,23 @@ export default async function generarPDF(insc: InscView) {
 
   // 1) Logo
   try {
-    const logoUrl   = '/mi-logo.png';
-    const logoBytes = await fetch(logoUrl).then(r => r.arrayBuffer());
-    const logoImg   = await doc.embedPng(logoBytes);
-    const logoSize  = 50;
-    page.drawImage(logoImg, {
-      x: margin,
-      y: y - logoSize,
-      width: logoSize,
-      height: logoSize,
+    const logoUrl    = '/mi-logo.png';
+  const logoBytes  = await fetch(logoUrl).then(r => r.arrayBuffer());
+  const logoImg    = await doc.embedPng(logoBytes);
+
+  // Ancho y alto independientes
+  const logoWidth  = 180;  // más ancho
+  const logoHeight = 40;   // menos alto (aplanado)
+
+  // Si tu variable `y` es la posición actual del cursor de texto,
+  // mejor sitúa el logo respecto al top de la página:
+  const logoY = height - margin - logoHeight;
+
+  page.drawImage(logoImg, {
+    x: margin,
+    y: logoY,
+    width:  logoWidth,
+    height: logoHeight,
     });
   } catch {
     // si falla, seguimos sin logo
@@ -79,7 +87,7 @@ export default async function generarPDF(insc: InscView) {
     font: boldFont,
     size: fontSize,
   });
-  y -= lineHeight;
+  y -= lineHeight * 2.0;
 
   // 3) Subtítulo (título de la carrera) centrado
   const subtitle = insc.titulo;
