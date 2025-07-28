@@ -1,4 +1,4 @@
-import { PDFDocument, rgb, StandardFonts, PDFFont } from 'pdf-lib';
+import { PDFDocument, StandardFonts, PDFFont } from 'pdf-lib';
 
 export interface InscView {
   id: string;
@@ -21,161 +21,124 @@ export default async function generarPDF(insc: InscView) {
 
   // Fuentes
   const regularFont = await doc.embedFont(StandardFonts.Helvetica);
-  const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
-  const fontSize = 12;
-  const margin = 40;
-  const logoSize = 60;
-  const lineHeight = fontSize * 1.5;
-  const maxWidth = width - margin * 2;
+  const boldFont    = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontSize    = 12;
+  const margin      = 40;
+  const logoSize    = 60;
+  const lineHeight  = fontSize * 1.5;
+  const maxWidth    = width - margin * 2;
 
-  // Helper para envolver texto
-  function wrapText(
-    text: string,
-    font: PDFFont,
-    size: number,
-    maxWidth: number
-  ): string[] {
-    const words = text.split(' ');
+  // Helper para texto envuelto
+  function wrapText(text: string, font: PDFFont, size: number): string[] {
+    const words = text.split(/\s+/);
     const lines: string[] = [];
     let line = '';
-
-    for (const word of words) {
-      const testLine = line ? line + ' ' + word : word;
-      const testWidth = font.widthOfTextAtSize(testLine, size);
-      if (testWidth <= maxWidth) {
-        line = testLine;
+    for (const w of words) {
+      const test = line ? line + ' ' + w : w;
+      if (font.widthOfTextAtSize(test, size) <= maxWidth) {
+        line = test;
       } else {
-        if (line) lines.push(line);
-        line = word;
+        lines.push(line);
+        line = w;
       }
     }
     if (line) lines.push(line);
     return lines;
   }
 
-  // 1) Logo en esquina superior izquierda
+  // 1) Logo
   try {
     const logoBytes = await fetch('/mi-logo.png').then(r => r.arrayBuffer());
-    const logoImg = await doc.embedPng(logoBytes);
+    const logoImg   = await doc.embedPng(logoBytes);
     page.drawImage(logoImg, {
       x: margin,
       y: height - margin - logoSize,
       width: logoSize,
       height: logoSize,
     });
-  } catch {
-    // si falla, lo omitimos
-  }
+  } catch { /* ignora */ }
 
-  // 2) Posición inicial del texto (justo debajo del logo)
-  let cursorY = height - margin - logoSize - 20;
+  // 2) Posición inicial
+  let y = height - margin - logoSize - 20;
 
-  // 3) Bloques de contenido (título, datos, exoneración, kits, requisitos)
-  const blocks: { font: PDFFont; lines: string[] }[] = [
-    {
-      font: boldFont,
-      lines: wrapText(
-        'Ha completado con éxito el registro en:',
-        boldFont,
-        fontSize,
-        maxWidth
-      ),
-    },
-    {
-      font: boldFont,
-      lines: wrapText(insc.titulo, boldFont, fontSize + 2, maxWidth),
-    },
-    {
-      font: regularFont,
-      lines: wrapText(
-        'Favor de imprimir, firmar y llevar este comprobante al registro para recolectar su paquete.',
-        regularFont,
-        fontSize,
-        maxWidth
-      ),
-    },
-    {
-      font: boldFont,
-      lines: [
-        `Nombre:`,
-        `Distancia:`,
-        `Categoría:`,
-        `Número de competidor:`,
-        `Ficha de Inscripción:`,
-      ],
-    },
-    {
-      font: regularFont,
-      lines: [
-        `${insc.perfilNombre} ${insc.perfilApPaterno} ${insc.perfilApMaterno}`,
-        insc.distancia || '-',
-        insc.categoria,
-        `${insc.competitorNumber ?? '-'}`,
-        insc.id,
-      ],
-    },
-    {
-      font: boldFont,
-      lines: ['Exoneración de Responsabilidad:'],
-    },
-    {
-      font: regularFont,
-      lines: wrapText(
-        `Yo, por el solo hecho de firmar este documento, acepto cualquier y todos los riesgos y peligros que sobre mi persona recaigan en cuanto a mi participación en ${insc.titulo}, en adelante el 'Evento'. Por lo tanto, yo soy el único responsable de mi salud, cualquier consecuencia, accidente, perjuicios, deficiencias que puedan causar, de cualquier manera posible alteraciones a mi salud, integridad física o inclusive la muerte. Por esta razón libero de cualquier responsabilidad al respecto a la Empresa/Comité Organizador, sus directores, patrocinadores, accionistas, representantes, y renuncio a cualquier derecho o demanda al respecto. También reconozco y acepto que autorizo al Comité Organizador el uso de mi imagen y voz en relación con el Evento.`,
-        regularFont,
-        fontSize,
-        maxWidth
-      ),
-    },
-    {
-      font: boldFont,
-      lines: ['Entrega de Kits:'],
-    },
-    {
-      font: regularFont,
-      lines: [
-        `• Fecha: ${insc.kitFecha ?? 'Por definir'}`,
-        `• Lugar: ${insc.kitLugar ?? 'Por definir'}`,
-        `• Horario: ${insc.kitHorario ?? 'Por definir'}`,
-      ],
-    },
-    {
-      font: boldFont,
-      lines: ['Requisitos:'],
-    },
-    {
-      font: regularFont,
-      lines: ['• Hoja de confirmación impresa', '• Identificación del corredor'],
-    },
+  // 3) Títulos y párrafos
+  const headerLines = [
+    { text: 'Ha completado con éxito el registro en:', font: boldFont, size: fontSize },
+    { text: insc.titulo,                         font: boldFont, size: fontSize + 2 },
   ];
-
-  // 4) Dibujar cada bloque, línea por línea
-  for (const block of blocks) {
-    for (const text of block.lines) {
-      // Si llegamos al margen inferior, creamos nueva página
-      if (cursorY < margin + lineHeight) {
-        page = doc.addPage([595, 842]);
-        cursorY = height - margin;
-      }
-      page.drawText(text, {
-        x: margin,
-        y: cursorY,
-        size: fontSize,
-        font: block.font,
-      });
-      cursorY -= lineHeight;
+  for (const hl of headerLines) {
+    const wrapped = wrapText(hl.text, hl.font, hl.size);
+    for (const l of wrapped) {
+      page.drawText(l, { x: margin, y, font: hl.font, size: hl.size });
+      y -= lineHeight;
     }
-    // Espacio extra entre bloques
-    cursorY -= lineHeight;
+    y -= lineHeight / 2;
   }
 
-  // 5) Generar y descargar
-  const pdfBytes = await doc.save();
-  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Confirmación-${insc.id}.pdf`;
+  // 4) Línea formal para cada campo
+  const fields: Array<[string, string]> = [
+    ['Nombre:',            `${insc.perfilNombre} ${insc.perfilApPaterno} ${insc.perfilApMaterno}`],
+    ['Distancia:',         insc.distancia || '-'],
+    ['Categoría:',         insc.categoria],
+    ['Número de competidor:', `${insc.competitorNumber ?? '-'}`],
+    ['Ficha de Inscripción:', insc.id],
+  ];
+  for (const [label, val] of fields) {
+    // etiqueta en negrita
+    page.drawText(label, { x: margin, y, font: boldFont, size: fontSize });
+    // valor justificado a la derecha de la etiqueta
+    const labelWidth = boldFont.widthOfTextAtSize(label + ' ', fontSize);
+    page.drawText(val, { x: margin + labelWidth, y, font: regularFont, size: fontSize });
+    y -= lineHeight;
+  }
+  y -= lineHeight / 2;
+
+  // 5) Exoneración
+  page.drawText('Exoneración de Responsabilidad:', { x: margin, y, font: boldFont, size: fontSize });
+  y -= lineHeight;
+  const exo = wrapText(
+    `Yo, por el solo hecho de firmar este documento, acepto todos los riesgos y peligros inherentes al Evento "${insc.titulo}"…`,
+    regularFont,
+    fontSize
+  );
+  for (const l of exo) {
+    page.drawText(l, { x: margin, y, font: regularFont, size: fontSize });
+    y -= lineHeight;
+    if (y < margin) {
+      page = doc.addPage([595, 842]);
+      y = height - margin;
+    }
+  }
+  y -= lineHeight / 2;
+
+  // 6) Entrega de kits
+  page.drawText('Entrega de Kits:', { x: margin, y, font: boldFont, size: fontSize });
+  y -= lineHeight;
+  for (const line of [
+    `• Fecha: ${insc.kitFecha ?? 'Por definir'}`,
+    `• Lugar: ${insc.kitLugar ?? 'Por definir'}`,
+    `• Horario: ${insc.kitHorario ?? 'Por definir'}`,
+  ]) {
+    page.drawText(line, { x: margin + 10, y, font: regularFont, size: fontSize });
+    y -= lineHeight;
+  }
+  y -= lineHeight / 2;
+
+  // 7) Requisitos
+  page.drawText('Requisitos:', { x: margin, y, font: boldFont, size: fontSize });
+  y -= lineHeight;
+  for (const line of ['• Hoja de confirmación impresa', '• Identificación del corredor']) {
+    page.drawText(line, { x: margin + 10, y, font: regularFont, size: fontSize });
+    y -= lineHeight;
+  }
+
+  // 8) Guardar y descargar
+  const bytes = await doc.save();
+  const blob  = new Blob([bytes], { type: 'application/pdf' });
+  const url   = URL.createObjectURL(blob);
+  const a     = document.createElement('a');
+  a.href      = url;
+  a.download  = `Confirmación-${insc.id}.pdf`;
   a.click();
   URL.revokeObjectURL(url);
 }
