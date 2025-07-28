@@ -132,7 +132,7 @@ export default function HomePage() {
 
         <FeaturedCarreras carreras={destacados} />
 
-        <Testimonials items={testimonials} />
+        <Testimonials />
 
        <Gallery limit={6} showAllButton />
 
