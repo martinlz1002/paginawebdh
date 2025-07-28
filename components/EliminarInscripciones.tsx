@@ -27,7 +27,7 @@ export default function EliminarInscripciones({
 
   return (
     <div className="bg-white p-6 rounded shadow max-w-md">
-      <h2 className="text-2xl font-semibold mb-4">Eliminar Inscripciones</h2>
+      <h2 className="text-gray-800 text-2xl font-semibold mb-4">Eliminar Inscripciones</h2>
       {feedback && <p className="mb-4 text-green-700">{feedback}</p>}
       <select
         value={selectedId}

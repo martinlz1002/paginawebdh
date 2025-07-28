@@ -228,7 +228,7 @@ export default function AdminInscripcionesView() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-gray-800 text-xl font-semibold">Ver Inscripciones</h2>
+        <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
         <button
           onClick={exportExcel}
           disabled={!inscripciones.length}
@@ -272,7 +272,7 @@ export default function AdminInscripcionesView() {
             </thead>
             <tbody>
               {inscripciones.map(i => (
-                <tr key={i.id} className="hover:bg-gray-50">
+                <tr key={i.id} className="bg-blue-900 text-white hover:bg-blue-800 transition-colors">
                   <td className="p-2">{i.competitorNumber}</td>
                   <td className="p-2">{i.perfil.nombre}</td>
                   <td className="p-2">{i.perfil.apellidoPaterno}</td>
