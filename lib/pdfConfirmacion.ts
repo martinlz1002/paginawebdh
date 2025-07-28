@@ -60,7 +60,7 @@ export default async function generarPDF(insc: InscView) {
   const logoImg    = await doc.embedPng(logoBytes);
 
   // Ancho y alto independientes
-  const logoWidth  = 180;  // más ancho
+  const logoWidth  = 170;  // más ancho
   const logoHeight = 40;   // menos alto (aplanado)
 
   // Si tu variable `y` es la posición actual del cursor de texto,
@@ -151,7 +151,7 @@ export default async function generarPDF(insc: InscView) {
   });
   y -= lineHeight;
 
-  const exText = `Yo, por el solo hecho de firmar este documento, acepto cualquier y todos los riesgos y peligros que sobre mi persona recaigan en cuanto a mi participación en ${insc.titulo}, en adelante el 'Evento'. Por lo tanto, yo soy el único responsable de mi salud, cualquier consecuencia, accidente, perjuicios o deficiencias que puedan [sic] causar, de cualquier manera posible alteraciones a mi salud, integridad física o inclusive la muerte. Por esta razón libero de cualquier responsabilidad al respecto a la Empresa/Comité Organizador, sus directores, patrocinadores, accionistas y representantes, y renuncio a cualquier derecho o demanda al respecto. También reconozco y acepto el uso de mi imagen y voz en relación con el Evento.`;
+  const exText = `Yo, por el solo hecho de firmar este documento, acepto cualquier y todos los riesgos y peligros que sobre mi persona recaigan en cuanto a mi participación en ${insc.titulo}, en adelante el 'Evento'. Por lo tanto, yo soy el único responsable de mi salud, cualquier consecuencia, accidente, perjuicios o deficiencias que puedan causar, de cualquier manera posible alteraciones a mi salud, integridad física o inclusive la muerte. Por esta razón libero de cualquier responsabilidad al respecto a la Empresa/Comité Organizador, sus directores, patrocinadores, accionistas y representantes, directores financieros y consejeros de las compañías y por medio de este conducto renuncio sin limitación alguna a cualquier derecho, demanda o indemnización al respecto.  También reconozco y acepto que todas las personas y entidades referidas no son ni serán consideradas responsables de mi salud. Así mismo, autorizo al Comité Organizador y/o a quien ésta designe, el uso de mi imagen y voz, ya sea parcial o totalmente, en cuanto a todo lo relacionado en el Evento, de cualquier manera y en cualquier momento. Por este conducto reconozco que sé y entiendo todas las regulaciones del Evento. Igualmente, manifiesto bajo protesta de decir verdad que mi equipo reúne y cumple con todos los requisitos reglamentarios aplicables y los temas establecidos en la mencionada normatividad.`;
 
   const exLines = wrapText(exText, normalFont, fontSize, maxWidth);
   ensureSpace(exLines.length);
