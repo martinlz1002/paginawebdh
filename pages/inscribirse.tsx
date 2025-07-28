@@ -186,19 +186,19 @@ export default function InscribirsePage() {
 
     setProcesandoPago(true);
 
-    //  🚫 Evitar duplicados: misma carrera/distancia/categoría
+    // 🚫 Evitar duplicados: mismo perfil en misma carrera/distancia/categoría
     const dupSnap = await getDocs(
       query(
         collection(db, "inscripciones"),
         where("carreraId", "==", carrera.id),
-        where("perfilOwner", "==", currentUser.uid),
+        where("perfilId", "==", perfilSeleccionado),
         where("distancia", "==", distanciaSeleccionada),
         where("categoria", "==", categoriaSeleccionada)
       )
     );
     if (!dupSnap.empty) {
       setMensaje(
-        "Ya tienes una inscripción en esta carrera, distancia y categoría."
+        "Tu perfil ya tiene una inscripción en esta carrera, distancia y categoría."
       );
       setProcesandoPago(false);
       return;
@@ -208,7 +208,9 @@ export default function InscribirsePage() {
     const bruto = computeGross(precioSeleccionado);
     if (
       !window.confirm(
-        `Vas a pagar $${bruto.toFixed(2)} MXN (incluye comisión + IVA)\n¿Deseas continuar?`
+        `Vas a pagar $${bruto.toFixed(
+          2
+        )} MXN (incluye comisión + IVA)\n¿Deseas continuar?`
       )
     ) {
       setProcesandoPago(false);
@@ -294,32 +296,6 @@ export default function InscribirsePage() {
           )}
         </div>
 
-        {/* Entrega de kits */}
-        {(carrera.kitFecha ||
-          carrera.kitLugar ||
-          carrera.kitHorario) && (
-          <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded text-sm text-gray-800">
-            <h3 className="font-semibold text-purple-700 mb-2">
-              Entrega de kits
-            </h3>
-            {carrera.kitFecha && (
-              <p>
-                <strong>Fecha:</strong> {carrera.kitFecha}
-              </p>
-            )}
-            {carrera.kitLugar && (
-              <p>
-                <strong>Lugar:</strong> {carrera.kitLugar}
-              </p>
-            )}
-            {carrera.kitHorario && (
-              <p>
-                <strong>Horario:</strong> {carrera.kitHorario}
-              </p>
-            )}
-          </div>
-        )}
-
         {/* Tabla de distancias y categorías */}
         {carrera.distancias.map((d) => (
           <div key={d.distancia}>
@@ -332,9 +308,7 @@ export default function InscribirsePage() {
                   <th className="border px-4 py-2">Categoría</th>
                   <th className="border px-4 py-2">Edad mínima</th>
                   <th className="border px-4 py-2">Edad máxima</th>
-                  <th className="border px-4 py-2">
-                    Precio (MXN + IVA)
-                  </th>
+                  <th className="border px-4 py-2">Precio (MXN + IVA)</th>
                 </tr>
               </thead>
               <tbody>
@@ -363,9 +337,7 @@ export default function InscribirsePage() {
             <select
               className="w-full border p-2 rounded"
               value={perfilSeleccionado}
-              onChange={(e) =>
-                setPerfilSeleccionado(e.target.value)
-              }
+              onChange={(e) => setPerfilSeleccionado(e.target.value)}
             >
               {perfiles.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -386,15 +358,11 @@ export default function InscribirsePage() {
             </select>
           </div>
           <div>
-            <label className="block font-medium mb-1">
-              Distancia
-            </label>
+            <label className="block font-medium mb-1">Distancia</label>
             <select
               className="w-full border p-2 rounded"
               value={distanciaSeleccionada}
-              onChange={(e) =>
-                setDistanciaSeleccionada(e.target.value)
-              }
+              onChange={(e) => setDistanciaSeleccionada(e.target.value)}
             >
               <option value="">-- Selecciona distancia --</option>
               {carrera.distancias.map((d) => (
@@ -405,20 +373,14 @@ export default function InscribirsePage() {
             </select>
           </div>
           <div>
-            <label className="block font-medium mb-1">
-              Categoría
-            </label>
+            <label className="block font-medium mb-1">Categoría</label>
             <select
               className="w-full border p-2 rounded disabled:opacity-50"
               value={categoriaSeleccionada}
-              onChange={(e) =>
-                setCategoriaSeleccionada(e.target.value)
-              }
+              onChange={(e) => setCategoriaSeleccionada(e.target.value)}
               disabled={!categoriasPermitidas.length}
             >
-              <option value="">
-                -- Selecciona categoría --
-              </option>
+              <option value="">-- Selecciona categoría --</option>
               {categoriasPermitidas.map((c) => (
                 <option key={c.nombre} value={c.nombre}>
                   {c.nombre}
@@ -429,13 +391,10 @@ export default function InscribirsePage() {
         </div>
 
         {/* Edad y precio */}
-        <p className="text-sm text-gray-600">
-          Edad calculada: {edadPerfil} años
-        </p>
+        <p className="text-sm text-gray-600">Edad calculada: {edadPerfil} años</p>
         {categoriaSeleccionada && (
           <p className="text-lg font-medium">
-            Precio seleccionado: $
-            {computeGross(precioSeleccionado).toFixed(2)}
+            Precio seleccionado: ${computeGross(precioSeleccionado).toFixed(2)}
           </p>
         )}
 
