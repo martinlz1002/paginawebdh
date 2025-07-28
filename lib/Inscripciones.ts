@@ -8,6 +8,22 @@ import {
   Timestamp
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
+
+// Función para asegurar que auth.currentUser esté disponible
+async function getAuthenticatedUser(): Promise<User> {
+  if (auth.currentUser) return auth.currentUser;
+  return new Promise((resolve, reject) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        unsubscribe();
+        resolve(user);
+      } else {
+        reject(new Error("No estás autenticado"));
+      }
+    });
+  });
+}
 
 //
 // 1) Función para registrar la inscripción desde Stripe (pago)
@@ -18,12 +34,11 @@ export interface StripeInscripcionData {
   perfilId: string;
   categoria: string;
   sessionId: string;
-  distancia?: string; // ← agrega esto
+  distancia?: string;
 }
 
 export async function registrarInscripcion(data: StripeInscripcionData) {
-  const user = auth.currentUser;
-  if (!user) throw new Error("No estás autenticado");
+  const user = await getAuthenticatedUser();
 
   // 1️⃣ Obtener todos los números ya asignados (pagos + manuales ya guardadas)
   const usedSnap = await getDocs(
@@ -46,7 +61,6 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
   const reservedNumbers: number[] = [];
   tempSnap.docs.forEach(doc => {
     const rng = doc.data().range as { start: number; end: number };
-    // Validar que start y end sean numbers
     if (typeof rng.start === "number" && typeof rng.end === "number") {
       for (let n = rng.start; n <= rng.end; n++) {
         reservedNumbers.push(n);
@@ -77,7 +91,6 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
 
 //
 // 2) Función para registrar la inscripción manual (sin pago)
-//    Sólo escribe; la validación de disponibilidad viene del endpoint /api/temp-avail
 //
 export interface ManualInscripcionData {
   carreraId: string;
@@ -111,7 +124,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     club:             data.club || null,
     competitorNumber: data.competitorNumber,
     paymentStatus:    "manual",
-    perfilOwner:      "manual",   // esencial para las reglas de seguridad
+    perfilOwner:      "manual",
     sessionId:        null,
     timestamp:        serverTimestamp(),
   });
