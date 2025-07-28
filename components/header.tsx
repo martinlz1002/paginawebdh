@@ -69,15 +69,17 @@ export default function Header() {
   const isHome = router.pathname === "/";
 
   return (
-    <header className="bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white sticky top-0 z-50 shadow-lg">
-      <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
-        {/* Logo */}
-        <Link href="/" className="flex items-center space-x-2">
-          <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
-        </Link>
+    <header className="relative bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white sticky top-0 z-50 shadow-lg">
+      <div className="max-w-6xl mx-auto flex items-center px-6 py-3">
+        {/* Logo (lado izq) */}
+        <div className="flex-shrink-0">
+          <Link href="/">
+            <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
+          </Link>
+        </div>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center space-x-6">
+        {/* Nav centrado */}
+        <nav className="flex-1 text-center hidden md:flex space-x-6">
           <Link href="/" className="hover:text-green-400 transition">Home</Link>
           {user && emailVerified && (
             <>
@@ -100,28 +102,28 @@ export default function Header() {
           )}
         </nav>
 
-        {/* Call-to-action (solo en Home) */}
+        {/* Botón absoluto (lado derecho) */}
         {isHome && (
-          <div className="hidden md:block">
-            <button
-              onClick={scrollToProximas}
-              className="bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
-            >
-              Inscribirme
-            </button>
-          </div>
+          <button
+            onClick={scrollToProximas}
+            className="absolute right-6 top-1/2 transform -translate-y-1/2 bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition hidden md:block"
+          >
+            Inscribirme
+          </button>
         )}
 
-        {/* Mobile menu button */}
-        <button
-          onClick={() => setMenuOpen((o) => !o)}
-          className="block md:hidden p-2 rounded-md hover:bg-gray-800 transition"
-        >
-          {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
-        </button>
+        {/* Menú móvil */}
+        <div className="ml-auto md:hidden">
+          <button
+            onClick={() => setMenuOpen(o => !o)}
+            className="p-2 rounded-md hover:bg-gray-800 transition"
+          >
+            {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
+          </button>
+        </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* Mobile menu items (igual que antes, sin “Confirma tu correo”) */}
       {menuOpen && (
         <div ref={menuRef} className="md:hidden bg-gray-800">
           <div className="flex flex-col space-y-1 px-4 py-3">
@@ -149,7 +151,6 @@ export default function Header() {
               </button>
             )}
 
-            {/* CTA móvil sólo en Home */}
             {isHome && (
               <button
                 onClick={scrollToProximas}
