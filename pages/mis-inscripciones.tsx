@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import AuthGuard from "@/components/AuthGuard";
+import SectionHeader from "@/components/SectionHeader";
 import {
   MapPinIcon,
   CalendarIcon,
@@ -25,7 +26,7 @@ interface InscRaw {
   carreraId: string;
   perfilOwner: string;
   perfilId: string;
-  distancia?: string;    // ← ahora lo leemos directo
+  distancia?: string;
   categoria: string;
   timestamp: any;
   sessionId?: string;
@@ -69,17 +70,15 @@ export default function MisInscripcionesPage() {
   const auth = getAuth(app);
 
   useEffect(() => {
-    const unsubAuth = onAuthStateChanged(auth, (user: User | null) => {
+    const unsubAuth = onAuthStateChanged(auth, async (user: User | null) => {
       if (!user) {
         setLoading(false);
         return;
       }
-
       const q = query(
         collection(db, "inscripciones"),
         where("perfilOwner", "==", user.uid)
       );
-
       const unsubSnap = onSnapshot(q, async (snap) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -87,63 +86,54 @@ export default function MisInscripcionesPage() {
         const all = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
-            const carreraId = src.carreraId;
-
-            // Datos de la carrera
-            const cDoc = await getDoc(doc(db, "carreras", carreraId));
-            const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
-
-            // 1) DISTANCIA: usamos src.distancia si existe
+            // --- obtener datos de carrera & perfil igual que antes ---
+            const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
+            const c = cDoc.exists() ? (cDoc.data() as any) : {};
+            // distancia
             let distancia = src.distancia ?? "";
-            // si no está guardada, caemos al cálculo antiguo:
-            if (!distancia && Array.isArray(cdata.distancias)) {
-              for (const dist of cdata.distancias) {
-                if (Array.isArray(dist.categorias)) {
-                  if (dist.categorias.some((cat: any) => cat.nombre === src.categoria)) {
-                    distancia = dist.distancia;
-                    break;
-                  }
+            if (!distancia && Array.isArray(c.distancias)) {
+              for (const dist of c.distancias) {
+                if (
+                  Array.isArray(dist.categorias) &&
+                  dist.categorias.some((cat: any) => cat.nombre === src.categoria)
+                ) {
+                  distancia = dist.distancia;
+                  break;
                 }
               }
             }
-
-            // 2) PRECIO: igual que antes
+            // precio
             let precio = 0;
-            if (Array.isArray(cdata.distancias)) {
-              for (const dist of cdata.distancias) {
-                if (Array.isArray(dist.categorias)) {
-                  const match = dist.categorias.find(
-                    (cat: any) => cat.nombre === src.categoria
-                  );
-                  if (match) {
-                    precio = match.price ?? 0;
-                    break;
-                  }
+            if (Array.isArray(c.distancias)) {
+              for (const dist of c.distancias) {
+                const match = dist.categorias?.find(
+                  (cat: any) => cat.nombre === src.categoria
+                );
+                if (match) {
+                  precio = match.price ?? 0;
+                  break;
                 }
               }
             }
-
-            // Fecha de la carrera
+            // fecha de carrera
             let fechaCarr = "";
             let carreraDate = today;
-            if (cdata.fecha instanceof Timestamp) {
-              const dt = (cdata.fecha as Timestamp).toDate();
+            if (c.fecha instanceof Timestamp) {
+              const dt = c.fecha.toDate();
               carreraDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
               fechaCarr = `${pad(carreraDate.getDate())}/${pad(
                 carreraDate.getMonth() + 1
               )}/${carreraDate.getFullYear()}`;
-            } else if (typeof cdata.fecha === "string") {
-              const [y, m, d] = (cdata.fecha as string).split("-").map(Number);
+            } else if (typeof c.fecha === "string") {
+              const [y, m, d] = c.fecha.split("-").map(Number);
               carreraDate = new Date(y, m - 1, d);
               fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
-
-            // Datos del perfil
+            // perfil info
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
               perfilClub: string | undefined;
-
             if (src.perfilId === src.perfilOwner) {
               const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
               if (uDoc.exists()) {
@@ -165,24 +155,22 @@ export default function MisInscripcionesPage() {
                 perfilClub = sd.club;
               }
             }
-
-            // Fecha de inscripción
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
 
             return {
               id: d.id,
-              carreraId,
-              titulo: cdata.titulo || "(sin título)",
+              carreraId: src.carreraId,
+              titulo: c.titulo || "(sin título)",
               fechaCarr,
               carreraDate,
-              horaSalida: cdata.horaSalida,
-              ubicacion: cdata.lugar || cdata.ubicacion,
-              imagenUrl: cdata.imagenUrl,
+              horaSalida: c.horaSalida,
+              ubicacion: c.lugar,
+              imagenUrl: c.imagenUrl,
               precio,
-              categoria: src.categoria,   // usamos la categoría guardada
-              distancia,                  // y la distancia guardada
+              categoria: src.categoria,
+              distancia,
               perfilId: src.perfilId,
               perfilNombre,
               perfilApPaterno,
@@ -192,14 +180,14 @@ export default function MisInscripcionesPage() {
               sessionId: src.sessionId,
               paymentStatus: src.paymentStatus ?? "desconocido",
               competitorNumber: src.competitorNumber,
-              kitFecha: cdata.kitFecha,
-              kitLugar: cdata.kitLugar,
-              kitHorario: cdata.kitHorario,
+              kitFecha: c.kitFecha,
+              kitLugar: c.kitLugar,
+              kitHorario: c.kitHorario,
             } as InscView;
           })
         );
 
-        setList(all.filter(i => i.carreraDate >= today));
+        setList(all.filter((i) => i.carreraDate >= today));
         setLoading(false);
       });
 
@@ -238,7 +226,12 @@ export default function MisInscripcionesPage() {
 
   return (
     <AuthGuard>
-      <div className="max-w-5xl mx-auto p-6">
+      <section className="max-w-5xl mx-auto p-6">
+        <SectionHeader
+          title="Mis Inscripciones"
+          subtitle="Aquí encontrarás todos tus registros activos"
+        />
+
         {list.length === 0 ? (
           <p className="text-center text-gray-500">No hay inscripciones.</p>
         ) : (
@@ -246,10 +239,10 @@ export default function MisInscripcionesPage() {
             {list.map((i) => (
               <div
                 key={i.id}
-                className="border rounded-lg shadow-lg overflow-hidden flex flex-col"
+                className="bg-white rounded-2xl shadow-md overflow-hidden flex flex-col"
               >
                 {i.imagenUrl && (
-                  <div className="w-full h-40 overflow-hidden">
+                  <div className="h-40 bg-gray-100 overflow-hidden">
                     <img
                       src={i.imagenUrl}
                       alt={i.titulo}
@@ -257,27 +250,29 @@ export default function MisInscripcionesPage() {
                     />
                   </div>
                 )}
-
                 <div className="p-4 flex-1 flex flex-col">
                   <h2 className="text-2xl font-bold mb-2">{i.titulo}</h2>
                   <p className="text-lg font-semibold mb-1">
-                    Número: #{i.competitorNumber ?? "-"}
+                    Número: <span className="text-purple-600">#{i.competitorNumber}</span>
                   </p>
-                  <p className="text-base text-gray-700 mb-1">
-                    <ClipboardIcon className="inline w-5 h-5 mr-1" />
+                  <p className="text-base text-gray-700 mb-2 flex items-center">
+                    <ClipboardIcon className="w-5 h-5 mr-1 text-green-600" />
                     {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
                   </p>
-                  <p className="text-sm text-gray-600 mb-1">
-                    Categoría: {i.categoria}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-2">
-                    Distancia: {i.distancia}
-                  </p>
 
-                  <div className="text-base text-gray-600 mb-2 flex flex-wrap gap-4">
+                  <div className="space-y-1 mb-4">
+                    <p className="text-sm text-gray-600">
+                      <strong>Distancia:</strong> {i.distancia}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      <strong>Categoría:</strong> {i.categoria}
+                    </p>
+                  </div>
+
+                  <div className="flex-1 text-gray-600 mb-4 flex flex-wrap gap-4">
                     <span className="flex items-center">
                       <MapPinIcon className="w-5 h-5 mr-1" />
-                      {i.ubicacion || "-"}
+                      {i.ubicacion}
                     </span>
                     <span className="flex items-center">
                       <CalendarIcon className="w-5 h-5 mr-1" />
@@ -285,9 +280,10 @@ export default function MisInscripcionesPage() {
                     </span>
                     <span className="flex items-center">
                       <ClockIcon className="w-5 h-5 mr-1" />
-                      {i.horaSalida || "-"}
+                      {i.horaSalida}
                     </span>
                   </div>
+
                   <div className="mt-auto flex items-center justify-between">
                     <span
                       className={`px-3 py-1 rounded-full text-sm ${
@@ -322,7 +318,7 @@ export default function MisInscripcionesPage() {
             ))}
           </div>
         )}
-      </div>
+      </section>
     </AuthGuard>
   );
 }

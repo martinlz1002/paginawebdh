@@ -31,11 +31,10 @@ interface UserData {
 export default function PerfilPage() {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [loading, setLoading] = useState(true);
-
+  const [profiles, setProfiles] = useState<UserData[]>([]);
+  const [selectedProfile, setSelectedProfile] = useState<UserData | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const formRef = useRef<HTMLDivElement>(null);
-
+  const [editingProfile, setEditingProfile] = useState<UserData | null>(null);
   const [newProfile, setNewProfile] = useState<UserData>({
     nombre: "",
     apPaterno: "",
@@ -48,15 +47,15 @@ export default function PerfilPage() {
     club: "",
     fechaNacimiento: "",
   });
-  const [profiles, setProfiles] = useState<UserData[]>([]);
-  const [selectedProfile, setSelectedProfile] = useState<UserData | null>(null);
-  const [editingProfile, setEditingProfile] = useState<UserData | null>(null);
-
+  const [loading, setLoading] = useState(true);
+  const formRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const auth = getAuth(app);
 
   useEffect(() => {
-    if (showForm && formRef.current) formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (showForm && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   }, [showForm]);
 
   useEffect(() => {
@@ -68,20 +67,35 @@ export default function PerfilPage() {
       const mainSnap = await getDoc(mainRef);
       if (mainSnap.exists()) {
         const data = mainSnap.data() as any;
-        const mainData: UserData = { id: u.uid, nombre: data.nombre, apPaterno: data.apPaterno, apMaterno: data.apMaterno, email: data.email, celular: data.celular, pais: data.pais, estado: data.estado, ciudad: data.ciudad, club: data.club, fechaNacimiento: data.fechaNacimiento, edad: data.edad };
+        const mainData: UserData = {
+          id: u.uid,
+          nombre: data.nombre,
+          apPaterno: data.apPaterno,
+          apMaterno: data.apMaterno,
+          email: data.email,
+          celular: data.celular,
+          pais: data.pais,
+          estado: data.estado,
+          ciudad: data.ciudad,
+          club: data.club,
+          fechaNacimiento: data.fechaNacimiento,
+          edad: data.edad,
+        };
         setUserData(mainData);
         setSelectedProfile(mainData);
       }
       // sub-perfiles
       const snap = await getDocs(collection(db, "usuarios", u.uid, "perfiles"));
-      setProfiles(snap.docs.map(d => ({ id: d.id, ...(d.data() as UserData) })));
+      const saved = snap.docs.map((d) => ({ id: d.id, ...(d.data() as UserData) }));
+      setProfiles(saved);
       setLoading(false);
     });
     return () => unsub();
   }, [auth, router]);
 
   const calcAge = (date: string) => {
-    const today = new Date(); const birth = new Date(date);
+    const today = new Date();
+    const birth = new Date(date);
     let age = today.getFullYear() - birth.getFullYear();
     const m = today.getMonth() - birth.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
@@ -89,43 +103,61 @@ export default function PerfilPage() {
   };
 
   const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault(); if (!user) return;
+    e.preventDefault();
+    if (!user) return;
     const profileWithAge = { ...newProfile, edad: calcAge(newProfile.fechaNacimiento) } as any;
     if (editingProfile?.id) {
-      if (editingProfile.id === user.uid) await updateDoc(doc(db, "usuarios", user.uid), profileWithAge);
-      else await updateDoc(doc(db, "usuarios", user.uid, "perfiles", editingProfile.id), profileWithAge);
+      // update existing
+      const path =
+        editingProfile.id === user.uid
+          ? doc(db, "usuarios", user.uid)
+          : doc(db, "usuarios", user.uid, "perfiles", editingProfile.id);
+      await updateDoc(path, profileWithAge);
       setEditingProfile(null);
-    } else await addDoc(collection(db, "usuarios", user.uid, "perfiles"), profileWithAge);
-    setNewProfile({ nombre:"", apPaterno:"", apMaterno:"", email:"", celular:"", pais:"", estado:"", ciudad:"", club:"", fechaNacimiento:"" });
+    } else {
+      await addDoc(collection(db, "usuarios", user.uid, "perfiles"), profileWithAge);
+    }
+    // reset form and reload
+    setNewProfile({ nombre: "", apPaterno: "", apMaterno: "", email: "", celular: "", pais: "", estado: "", ciudad: "", club: "", fechaNacimiento: "" });
     setShowForm(false);
-    const s = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
-    setProfiles(s.docs.map(d=>({ id:d.id, ...(d.data() as UserData) })));
+    const snap = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
+    setProfiles(snap.docs.map((d) => ({ id: d.id, ...(d.data() as UserData) })));
   };
 
-  const startEdit = (p: UserData) => { setEditingProfile(p); setNewProfile(p); setShowForm(true); };
-  const handleDelete = async (id:string) => { if(!user||!confirm("¿Eliminar este perfil?")) return; await deleteDoc(doc(db,"usuarios",user.uid,"perfiles",id)); setProfiles(profiles.filter(x=>x.id!==id)); };
-  const logout = async()=>{ await signOut(auth); router.push("/login"); };
+  const startEdit = (p: UserData) => {
+    setEditingProfile(p);
+    setNewProfile(p);
+    setShowForm(true);
+  };
 
-  if (loading||!userData) return <p className="text-center mt-10">Cargando perfil…</p>;
+  const handleDelete = async (id: string) => {
+    if (!user || !confirm("¿Eliminar este perfil?")) return;
+    await deleteDoc(doc(db, "usuarios", user.uid, "perfiles", id));
+    setProfiles(profiles.filter((x) => x.id !== id));
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
+
+  if (loading || !userData) {
+    return <p className="text-center mt-10">Cargando perfil…</p>;
+  }
 
   return (
     <AuthGuard>
-      <div className="max-w-4xl mx-auto space-y-8 p-4 sm:p-6 lg:p-8">
-        {/* Top */}
-        <div className="flex flex-col md:flex-row gap-6">
-          {/* Sección principal */}
-          <div className="flex-1 bg-white rounded-lg shadow-md p-6 space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-semibold">Mi Perfil</h2>
-              <button
-                onClick={logout}
-                className="text-red-500 hover:text-red-700 transition"
-              >
-                Cerrar sesión
-              </button>
-            </div>
-
-            <div className="space-y-2">
+      <div className="max-w-5xl mx-auto p-6 space-y-8">
+        {/* Mi Perfil Card */}
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
+          <div className="flex items-center justify-between px-6 py-4 border-b">
+            <h1 className="text-3xl font-bold text-green-800">Mi Perfil</h1>
+            <button onClick={logout} className="text-red-500 hover:text-red-700">
+              Cerrar sesión
+            </button>
+          </div>
+          <div className="px-6 py-8 space-y-6">
+            <div className="space-y-3">
               <label className="block text-sm font-medium">Ver como:</label>
               <select
                 className="w-full border rounded-md p-2"
@@ -133,10 +165,7 @@ export default function PerfilPage() {
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === userData.id) setSelectedProfile(userData);
-                  else
-                    setSelectedProfile(
-                      profiles.find((x) => x.id === val) || null
-                    );
+                  else setSelectedProfile(profiles.find((x) => x.id === val) || null);
                 }}
               >
                 <option value={userData.id}>
@@ -149,20 +178,18 @@ export default function PerfilPage() {
                 ))}
               </select>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <p>
-                <span className="font-medium">Nombre:</span> {selectedProfile?.nombre}{" "}
-                {selectedProfile?.apPaterno} {selectedProfile?.apMaterno}
+                <span className="font-medium">Nombre:</span> {selectedProfile?.nombre}{" "}{selectedProfile?.apPaterno} {selectedProfile?.apMaterno}
               </p>
               <p>
-                <span className="font-medium">Email:</span> {selectedProfile?.email}
+                <span className="font-medium">Email:</span> {selectedProfile?.email || "-"}
               </p>
               <p>
-                <span className="font-medium">Celular:</span> {selectedProfile?.celular}
+                <span className="font-medium">Celular:</span> {selectedProfile?.celular || "-"}
               </p>
               <p>
-                <span className="font-medium">Ubicación:</span> {selectedProfile?.ciudad}, {selectedProfile?.estado}, {selectedProfile?.pais}
+                <span className="font-medium">Ubicación:</span> {selectedProfile?.ciudad || "-"}, {selectedProfile?.estado || "-"}, {selectedProfile?.pais || "-"}
               </p>
               <p>
                 <span className="font-medium">Nacimiento:</span> {selectedProfile?.fechaNacimiento}
@@ -177,98 +204,72 @@ export default function PerfilPage() {
               )}
             </div>
           </div>
+        </div>
 
-          {/* Formulario perfiles */}
-          <div className="w-full md:w-1/3 bg-white rounded-lg shadow-md p-6">
+        {/* Formulario y Lista de Perfiles */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Formulario */}
+          <div className="bg-white rounded-2xl shadow-md p-6" ref={formRef}>
             <button
-              onClick={() => {
-                setShowForm((prev) => !prev);
-                setEditingProfile(null);
-              }}
-              className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
+              onClick={() => { setShowForm((prev) => !prev); setEditingProfile(null); }}
+              className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition"
             >
               {showForm ? "Cancelar" : "Agregar Perfil"}
             </button>
-
             {showForm && (
-              <div ref={formRef} className="mt-4 space-y-3">
-                <form onSubmit={handleSave} className="space-y-4">
-                  {[
-                    "nombre",
-                    "apPaterno",
-                    "apMaterno",
-                    "email",
-                    "celular",
-                    "pais",
-                    "estado",
-                    "ciudad",
-                    "club",
-                  ].map((field) => (
-                    <input
-                      key={field}
-                      type={field === "email" ? "email" : "text"}
-                      placeholder={
-                        field.charAt(0).toUpperCase() + field.slice(1)
-                      }
-                      value={(newProfile as any)[field] || ""}
-                      onChange={(e) =>
-                        setNewProfile((prev) => ({
-                          ...prev,
-                          [field]: e.target.value,
-                        }))
-                      }
-                      className="w-full border rounded-md p-2"
-                      required={field !== "club"}
-                    />
-                  ))}
+              <form onSubmit={handleSave} className="mt-4 space-y-4">
+                {[
+                  "nombre",
+                  "apPaterno",
+                  "apMaterno",
+                  "email",
+                  "celular",
+                  "pais",
+                  "estado",
+                  "ciudad",
+                  "club",
+                ].map((field) => (
                   <input
-                    type="date"
-                    value={newProfile.fechaNacimiento}
-                    onChange={(e) =>
-                      setNewProfile((prev) => ({
-                        ...prev,
-                        fechaNacimiento: e.target.value,
-                      }))
-                    }
+                    key={field}
+                    type={field === "email" ? "email" : "text"}
+                    placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                    value={(newProfile as any)[field] || ""}
+                    onChange={(e) => setNewProfile((prev) => ({ ...prev, [field]: e.target.value }))}
                     className="w-full border rounded-md p-2"
-                    required
+                    required={field !== "club"}
                   />
-                  <button
-                    type="submit"
-                    className="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 transition"
-                  >
-                    {editingProfile ? "Actualizar" : "Guardar"}
-                  </button>
-                </form>
-              </div>
+                ))}
+                <input
+                  type="date"
+                  value={newProfile.fechaNacimiento}
+                  onChange={(e) => setNewProfile((prev) => ({ ...prev, fechaNacimiento: e.target.value }))}
+                  className="w-full border rounded-md p-2"
+                  required
+                />
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
+                >
+                  {editingProfile ? "Actualizar" : "Guardar"}
+                </button>
+              </form>
             )}
           </div>
-        </div>
 
-        {/* Lista de perfiles */}
-        {profiles.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold mb-4">Perfiles Guardados</h3>
-            <ul className="space-y-3">
+          {/* Lista de perfiles */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-6">
+            <h2 className="text-2xl font-semibold mb-4">Perfiles Guardados</h2>
+            <ul className="space-y-4">
               {profiles.map((p) => (
-                <li
-                  key={p.id}
-                  className="flex justify-between items-center border-b pb-2"
-                >
+                <li key={p.id} className="flex justify-between items-center border-b pb-3">
                   <span>
                     {p.nombre} {p.apPaterno} {p.apMaterno}
                   </span>
                   <div className="space-x-4">
-                    <button
-                      onClick={() => startEdit(p)}
-                      className="text-blue-500 hover:underline"
-                    >
+                    <button onClick={() => startEdit(p)} className="text-green-600 hover:underline">
                       Editar
                     </button>
-                    <button
-                      onClick={() => handleDelete(p.id!)}
-                      className="text-red-500 hover:underline"
-                    >
+                    <button onClick={() => handleDelete(p.id!)} className="text-red-600 hover:underline">
                       Eliminar
                     </button>
                   </div>
@@ -276,7 +277,7 @@ export default function PerfilPage() {
               ))}
             </ul>
           </div>
-        )}
+        </div>
       </div>
     </AuthGuard>
   );
