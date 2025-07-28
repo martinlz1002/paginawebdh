@@ -228,7 +228,7 @@ export default function AdminInscripcionesView() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
+        <h2 className="text-gray-800 text-xl font-semibold">Ver Inscripciones</h2>
         <button
           onClick={exportExcel}
           disabled={!inscripciones.length}
@@ -259,15 +259,15 @@ export default function AdminInscripcionesView() {
           <table className="w-full table-auto border-collapse rounded-lg shadow">
             <thead className="bg-gray-100">
               <tr>
-                <th className="p-2 text-left">Número</th>
-                <th className="p-2 text-left">Nombre</th>
-                <th className="p-2 text-left">Apellido P</th>
-                <th className="p-2 text-left">Apellido M</th>
-                <th className="p-2 text-left">Edad</th>
-                <th className="p-2 text-left">Celular</th>
-                <th className="p-2 text-left">Categoría</th>
-                <th className="p-2 text-left">Estado Pago</th>
-                <th className="p-2 text-left">Registrado</th>
+                <th className="text-gray-800 p-2 text-left">Número</th>
+                <th className="text-gray-800 p-2 text-left">Nombre</th>
+                <th className="text-gray-800 p-2 text-left">Apellido P</th>
+                <th className="text-gray-800 p-2 text-left">Apellido M</th>
+                <th className="text-gray-800 p-2 text-left">Edad</th>
+                <th className="text-gray-800 p-2 text-left">Celular</th>
+                <th className="text-gray-800 p-2 text-left">Categoría</th>
+                <th className="text-gray-800 p-2 text-left">Estado Pago</th>
+                <th className="text-gray-800 p-2 text-left">Registrado</th>
               </tr>
             </thead>
             <tbody>

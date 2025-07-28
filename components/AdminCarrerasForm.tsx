@@ -133,7 +133,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
-      <h2 className="text-xl font-semibold text-green-700">
+      <h2 className=" text-gray-800 text-xl font-semibold text-green-700">
         {initialValues ? '✏️ Editar carrera' : '+ Crear carrera'}
       </h2>
 
