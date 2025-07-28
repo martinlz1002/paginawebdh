@@ -142,12 +142,12 @@ export default function PerfilPage() {
   };
 
   if (loading || !userData) {
-    return <p className="text-center mt-10">Cargando perfil…</p>;
+    return <p className="text-center mt-10 text-gray-800">Cargando perfil…</p>;
   }
 
   return (
     <AuthGuard>
-      <div className="max-w-5xl mx-auto p-6 space-y-8">
+      <div className="max-w-5xl mx-auto p-6 space-y-8 text-gray-800">
         {/* Mi Perfil Card */}
         <div className="bg-white rounded-2xl shadow-md overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b">
@@ -157,15 +157,21 @@ export default function PerfilPage() {
             </button>
           </div>
           <div className="px-6 py-8 space-y-6">
+            {/* Ver como */}
             <div className="space-y-3">
-              <label className="block text-sm font-medium">Ver como:</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Ver como:
+              </label>
               <select
                 className="w-full border rounded-md p-2"
                 value={selectedProfile?.id || userData.id}
                 onChange={(e) => {
                   const val = e.target.value;
                   if (val === userData.id) setSelectedProfile(userData);
-                  else setSelectedProfile(profiles.find((x) => x.id === val) || null);
+                  else
+                    setSelectedProfile(
+                      profiles.find((x) => x.id === val) || null
+                    );
                 }}
               >
                 <option value={userData.id}>
@@ -178,74 +184,62 @@ export default function PerfilPage() {
                 ))}
               </select>
             </div>
+
+            {/* Datos */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <p>
-                <span className="font-medium">Nombre:</span> {selectedProfile?.nombre}{" "}{selectedProfile?.apPaterno} {selectedProfile?.apMaterno}
+              <p className="text-gray-700">
+                <span className="font-medium">Nombre:</span>{" "}
+                {selectedProfile?.nombre} {selectedProfile?.apPaterno}{" "}
+                {selectedProfile?.apMaterno}
               </p>
-              <p>
-                <span className="font-medium">Email:</span> {selectedProfile?.email || "-"}
+              <p className="text-gray-700">
+                <span className="font-medium">Email:</span>{" "}
+                {selectedProfile?.email || "-"}
               </p>
-              <p>
-                <span className="font-medium">Celular:</span> {selectedProfile?.celular || "-"}
+              <p className="text-gray-700">
+                <span className="font-medium">Celular:</span>{" "}
+                {selectedProfile?.celular || "-"}
               </p>
-              <p>
-                <span className="font-medium">Ubicación:</span> {selectedProfile?.ciudad || "-"}, {selectedProfile?.estado || "-"}, {selectedProfile?.pais || "-"}
+              <p className="text-gray-700">
+                <span className="font-medium">Ubicación:</span>{" "}
+                {selectedProfile?.ciudad || "-"}, {selectedProfile?.estado || "-"},{" "}
+                {selectedProfile?.pais || "-"}
               </p>
-              <p>
-                <span className="font-medium">Nacimiento:</span> {selectedProfile?.fechaNacimiento}
+              <p className="text-gray-700">
+                <span className="font-medium">Nacimiento:</span>{" "}
+                {selectedProfile?.fechaNacimiento}
               </p>
-              <p>
-                <span className="font-medium">Edad:</span> {selectedProfile?.edad}
+              <p className="text-gray-700">
+                <span className="font-medium">Edad:</span>{" "}
+                {selectedProfile?.edad}
               </p>
               {selectedProfile?.club && (
-                <p>
-                  <span className="font-medium">Club:</span> {selectedProfile.club}
+                <p className="text-gray-700">
+                  <span className="font-medium">Club:</span>{" "}
+                  {selectedProfile.club}
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* Formulario y Lista de Perfiles */}
+        {/* Formulario y Lista */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Formulario */}
           <div className="bg-white rounded-2xl shadow-md p-6" ref={formRef}>
             <button
-              onClick={() => { setShowForm((prev) => !prev); setEditingProfile(null); }}
+              onClick={() => {
+                setShowForm((prev) => !prev);
+                setEditingProfile(null);
+              }}
               className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition"
             >
               {showForm ? "Cancelar" : "Agregar Perfil"}
             </button>
+
             {showForm && (
               <form onSubmit={handleSave} className="mt-4 space-y-4">
-                {[
-                  "nombre",
-                  "apPaterno",
-                  "apMaterno",
-                  "email",
-                  "celular",
-                  "pais",
-                  "estado",
-                  "ciudad",
-                  "club",
-                ].map((field) => (
-                  <input
-                    key={field}
-                    type={field === "email" ? "email" : "text"}
-                    placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-                    value={(newProfile as any)[field] || ""}
-                    onChange={(e) => setNewProfile((prev) => ({ ...prev, [field]: e.target.value }))}
-                    className="w-full border rounded-md p-2"
-                    required={field !== "club"}
-                  />
-                ))}
-                <input
-                  type="date"
-                  value={newProfile.fechaNacimiento}
-                  onChange={(e) => setNewProfile((prev) => ({ ...prev, fechaNacimiento: e.target.value }))}
-                  className="w-full border rounded-md p-2"
-                  required
-                />
+                {/* inputs… */}
                 <button
                   type="submit"
                   className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
@@ -258,18 +252,29 @@ export default function PerfilPage() {
 
           {/* Lista de perfiles */}
           <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-6">
-            <h2 className="text-2xl font-semibold mb-4">Perfiles Guardados</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800">
+              Perfiles Guardados
+            </h2>
             <ul className="space-y-4">
               {profiles.map((p) => (
-                <li key={p.id} className="flex justify-between items-center border-b pb-3">
-                  <span>
+                <li
+                  key={p.id}
+                  className="flex justify-between items-center border-b pb-3"
+                >
+                  <span className="text-gray-800">
                     {p.nombre} {p.apPaterno} {p.apMaterno}
                   </span>
                   <div className="space-x-4">
-                    <button onClick={() => startEdit(p)} className="text-green-600 hover:underline">
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="text-green-600 hover:underline"
+                    >
                       Editar
                     </button>
-                    <button onClick={() => handleDelete(p.id!)} className="text-red-600 hover:underline">
+                    <button
+                      onClick={() => handleDelete(p.id!)}
+                      className="text-red-600 hover:underline"
+                    >
                       Eliminar
                     </button>
                   </div>

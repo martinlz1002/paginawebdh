@@ -219,14 +219,14 @@ export default function MisInscripcionesPage() {
   if (loading) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10">Cargando inscripciones…</p>
+        <p className="text-center mt-10 text-gray-800">Cargando inscripciones…</p>
       </AuthGuard>
     );
   }
 
   return (
     <AuthGuard>
-      <section className="max-w-5xl mx-auto p-6">
+      <section className="max-w-5xl mx-auto p-6 text-gray-800">
         <SectionHeader
           title="Mis Inscripciones"
           subtitle="Aquí encontrarás todos tus registros activos"
@@ -251,25 +251,28 @@ export default function MisInscripcionesPage() {
                   </div>
                 )}
                 <div className="p-4 flex-1 flex flex-col">
-                  <h2 className="text-2xl font-bold mb-2">{i.titulo}</h2>
-                  <p className="text-lg font-semibold mb-1">
-                    Número: <span className="text-purple-600">#{i.competitorNumber}</span>
+                  <h2 className="text-2xl font-bold mb-2 text-gray-800">
+                    {i.titulo}
+                  </h2>
+                  <p className="text-lg font-semibold mb-1 text-gray-800">
+                    Número:{" "}
+                    <span className="text-purple-600">#{i.competitorNumber}</span>
                   </p>
-                  <p className="text-base text-gray-700 mb-2 flex items-center">
+                  <p className="text-base mb-2 flex items-center text-gray-700">
                     <ClipboardIcon className="w-5 h-5 mr-1 text-green-600" />
                     {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
                   </p>
 
                   <div className="space-y-1 mb-4">
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-700">
                       <strong>Distancia:</strong> {i.distancia}
                     </p>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-700">
                       <strong>Categoría:</strong> {i.categoria}
                     </p>
                   </div>
 
-                  <div className="flex-1 text-gray-600 mb-4 flex flex-wrap gap-4">
+                  <div className="flex-1 mb-4 flex flex-wrap gap-4 text-gray-600">
                     <span className="flex items-center">
                       <MapPinIcon className="w-5 h-5 mr-1" />
                       {i.ubicacion}
