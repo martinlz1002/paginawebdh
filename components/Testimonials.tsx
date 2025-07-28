@@ -1,54 +1,58 @@
-import { useEffect, useState } from 'react';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
-import SectionHeader from './SectionHeader';
+import { useEffect, useState } from 'react'
+import { getAuth, onAuthStateChanged } from 'firebase/auth'
+import SectionHeader from './SectionHeader'
 
 interface Testimonial {
-  id: string;
-  author: string;
-  text: string;
-  avatarUrl?: string;
+  id: string
+  author: string
+  text: string
+  avatarUrl?: string
 }
 
 export default function Testimonials() {
-  const [items, setItems] = useState<Testimonial[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
-  const [newText, setNewText] = useState('');
+  const [items, setItems] = useState<Testimonial[]>([])
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+  const [newText, setNewText] = useState('')
 
-  // Carga inicial de testimonios
+  // Carga inicial
   const fetchTestimonials = async () => {
-    const res = await fetch('/api/testimonials');
-    const data: Testimonial[] = await res.json();
-    setItems(data);
-    setLoading(false);
-  };
+    const res = await fetch('/api/testimonials')
+    const data = await res.json()
+    setItems(data)
+    setLoading(false)
+  }
 
   useEffect(() => {
-    fetchTestimonials();
-
-    const auth = getAuth();
-    return onAuthStateChanged(auth, setUser);
-  }, []);
+    fetchTestimonials()
+    const auth = getAuth()
+    return onAuthStateChanged(auth, u => setUser(u))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user || !newText.trim()) return;
-    const author = user.displayName || user.email!.split('@')[0];
-    const avatarUrl = null; // podrías usar user.photoURL si existe
+    e.preventDefault()
+    if (!user || !newText.trim()) return
+    const token = await user.getIdToken()
     await fetch('/api/testimonials', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ author, text: newText.trim(), avatarUrl }),
-    });
-    setNewText('');
-    fetchTestimonials();
-  };
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        author: user.displayName || user.email!.split('@')[0],
+        text: newText.trim(),
+        avatarUrl: user.photoURL || null,
+      }),
+    })
+    setNewText('')
+    await fetchTestimonials()
+  }
 
   return (
     <section className="space-y-6">
       <SectionHeader title="Testimonios de Corredores" />
 
-      {/* Formulario (sólo usuarios autenticados) */}
       {user && (
         <form onSubmit={handleSubmit} className="space-y-2">
           <textarea
@@ -67,7 +71,6 @@ export default function Testimonials() {
         </form>
       )}
 
-      {/* Lista */}
       {loading ? (
         <p>Cargando testimonios…</p>
       ) : items.length === 0 ? (
@@ -101,5 +104,5 @@ export default function Testimonials() {
         </div>
       )}
     </section>
-  );
+  )
 }
