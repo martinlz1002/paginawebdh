@@ -25,9 +25,7 @@ async function getAuthenticatedUser(): Promise<User> {
   });
 }
 
-//
 // 1) Función para registrar la inscripción desde Stripe (pago)
-//
 export interface StripeInscripcionData {
   carreraId: string;
   carreraTitulo: string;
@@ -40,7 +38,7 @@ export interface StripeInscripcionData {
 export async function registrarInscripcion(data: StripeInscripcionData) {
   const user = await getAuthenticatedUser();
 
-  // 1️⃣ Obtener todos los números ya asignados (pagos + manuales ya guardadas)
+  // 1️⃣ Números ya usados
   const usedSnap = await getDocs(
     query(
       collection(db, "inscripciones"),
@@ -50,7 +48,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
   );
   const usedNumbers = usedSnap.docs.map(d => d.data().competitorNumber as number);
 
-  // 2️⃣ Obtener rangos activos de inscripciones manuales (no expirados)
+  // 2️⃣ Rangos de inscripciones manuales
   const now = new Date();
   const tempSnap = await getDocs(
     query(
@@ -68,36 +66,34 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
     }
   });
 
-  // 3️⃣ Combinar y buscar el primer número libre
+  // 3️⃣ Combinar y asignar primer número libre
   const blocked = new Set<number>([...usedNumbers, ...reservedNumbers]);
   let assigned = 1;
   while (blocked.has(assigned)) {
     assigned++;
   }
 
-  // 🔔 Alert de debug con el payload real
+  // 4️⃣ Payload para debug en alert
   const payload = {
-    carreraId: data.carreraId,
-    carreraTitulo: data.carreraTitulo,
-    perfilId: data.perfilId,
-    perfilOwner: user.uid,
-    categoria: data.categoria,
-    sessionId: data.sessionId,
-    paymentStatus: "pending" as const,
+    carreraId:       data.carreraId,
+    carreraTitulo:   data.carreraTitulo,
+    perfilId:        data.perfilId,
+    perfilOwner:     user.uid,
+    categoria:       data.categoria,
+    sessionId:       data.sessionId,
+    paymentStatus:   "pending" as const,
     competitorNumber: assigned
   };
   alert("Firestore payload:\n" + JSON.stringify(payload, null, 2));
 
-  // 4️⃣ Guardar la inscripción de pago
+  // 5️⃣ Guardar la inscripción de pago
   await addDoc(collection(db, "inscripciones"), {
     ...payload,
     timestamp: serverTimestamp(),
   });
 }
 
-//
 // 2) Función para registrar la inscripción manual (sin pago)
-//
 export interface ManualInscripcionData {
   carreraId: string;
   perfilNombre: string;

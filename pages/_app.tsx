@@ -8,10 +8,18 @@ import AuthGuard from "@/components/AuthGuard";
 export default function App({ Component, pageProps }: AppProps) {
   const { asPath } = useRouter();
 
-  // Rutas públicas (sin AuthGuard):
-  const isPublic =
-    asPath === "/temp-login" ||
-    asPath.startsWith("/inscripcion-manual");
+  // Rutas públicas (sin AuthGuard)
+  const publicPaths = [
+    "/temp-login",
+    "/login",
+    "/register",
+    "/signup",
+    "/registro",
+    "/inscribir",            // página de registro de carrera pública
+    "/inscripcion-manual"
+  ];
+
+  const isPublic = publicPaths.some((path) => asPath.startsWith(path));
 
   return (
     <AuthProvider>
