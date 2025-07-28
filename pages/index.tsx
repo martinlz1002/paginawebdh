@@ -1,18 +1,18 @@
-import { useEffect, useState } from "react";
-import { collection, getDocs, Timestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import Link from "next/link";
+import { useEffect, useState } from 'react';
+import { collection, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import Link from 'next/link';
 import {
   CalendarIcon,
   MapPinIcon,
   ArrowRightIcon,
-} from "@heroicons/react/24/outline";
+} from '@heroicons/react/24/outline';
 
-import HeroBanner from "@/components/HeroBanner";
-import SearchCard from "@/components/SearchCard";
-import FeaturedCarreras from "@/components/FeaturedCarreras";
-import Testimonials from "@/components/Testimonials";
-import Gallery from "@/components/Gallery";
+import HeroBanner from '@/components/HeroBanner';
+import SearchCard from '@/components/SearchCard';
+import FeaturedCarreras from '@/components/FeaturedCarreras';
+import Testimonials from '@/components/Testimonials';
+import Gallery from '@/components/Gallery';
 
 interface Carrera {
   id: string;
@@ -24,7 +24,7 @@ interface Carrera {
 }
 
 function pad(n: number) {
-  return n.toString().padStart(2, "0");
+  return n.toString().padStart(2, '0');
 }
 
 export default function HomePage() {
@@ -32,14 +32,14 @@ export default function HomePage() {
 
   useEffect(() => {
     (async () => {
-      const snapshot = await getDocs(collection(db, "carreras"));
+      const snapshot = await getDocs(collection(db, 'carreras'));
       const hoy = new Date();
       const today = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
 
       const data = snapshot.docs
         .map((doc) => {
           const c = doc.data() as any;
-          let fechaFormateada = "";
+          let fechaFormateada = '';
           let carreraDate: Date | null = null;
 
           if (c.fecha instanceof Timestamp) {
@@ -48,8 +48,8 @@ export default function HomePage() {
             fechaFormateada = `${pad(carreraDate.getDate())}/${pad(
               carreraDate.getMonth() + 1
             )}/${carreraDate.getFullYear()}`;
-          } else if (typeof c.fecha === "string") {
-            const [y, m, d] = c.fecha.split("-").map(Number);
+          } else if (typeof c.fecha === 'string') {
+            const [y, m, d] = c.fecha.split('-').map(Number);
             carreraDate = new Date(y, m - 1, d);
             fechaFormateada = `${pad(d)}/${pad(m)}/${y}`;
           }
@@ -74,27 +74,20 @@ export default function HomePage() {
     })();
   }, []);
 
-  // for demo, take first 3 as "destacadas"
+  // para demo, primeras 3 como destacadas
   const destacados = carreras.slice(0, 3).map((c) => ({
     id: c.id,
     titulo: c.titulo,
     fecha: c.fecha,
-    imagenUrl: c.imagenUrl || "/fallback.png",
+    imagenUrl: c.imagenUrl || '/fallback.png',
     destacado: true,
   }));
 
-  // placeholder testimonials
+  // testimonio de ejemplo
   const testimonials = [
-    { id: "1", author: "María López", text: "¡Una experiencia inolvidable!" },
-    { id: "2", author: "Jorge Ramírez", text: "La mejor carrera en la que he participado." },
+    { id: '1', author: 'María López', text: '¡Una experiencia inolvidable!' },
+    { id: '2', author: 'Jorge Ramírez', text: 'La mejor carrera en la que he participado.' },
   ];
-
-  // placeholder gallery photos
-  const photos = carreras.slice(0, 6).map((c, i) => ({
-    id: String(i),
-    src: c.imagenUrl || "/fallback.png",
-    alt: c.titulo,
-  }));
 
   return (
     <>
@@ -110,10 +103,10 @@ export default function HomePage() {
         {/* Testimonios */}
         <Testimonials items={testimonials} />
 
-        {/* Galería */}
-        <Gallery photos={photos} />
+        {/* Galería de Storage */}
+        <Gallery />
 
-        {/* repetir tu grid de próximas carreras */}
+        {/* Próximas Carreras */}
         <section id="proximas-carreras" className="space-y-6">
           <h1 className="text-4xl font-extrabold text-center text-green-800">
             Próximas Carreras
@@ -136,13 +129,9 @@ export default function HomePage() {
                     )}
                   </div>
                   <div className="p-4 space-y-2">
-                    <h3 className="text-xl font-semibold text-gray-800">
-                      {c.titulo}
-                    </h3>
+                    <h3 className="text-xl font-semibold text-gray-800">{c.titulo}</h3>
                     {c.descripcion && (
-                      <p className="text-gray-600 line-clamp-3">
-                        {c.descripcion}
-                      </p>
+                      <p className="text-gray-600 line-clamp-3">{c.descripcion}</p>
                     )}
                     <div className="flex items-center text-gray-500 text-sm space-x-4">
                       <time className="flex items-center space-x-1">
