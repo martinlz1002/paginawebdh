@@ -58,7 +58,7 @@ export default function Testimonials() {
           <textarea
             value={newText}
             onChange={e => setNewText(e.target.value)}
-            placeholder="Escribe tu testimonio..."
+            placeholder="Escribe tu testimonio...."
             className="w-full border rounded-xl p-3 resize-none focus:ring-2 focus:ring-blue-400"
             rows={3}
           />
