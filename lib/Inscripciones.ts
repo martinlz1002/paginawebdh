@@ -75,7 +75,19 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
     assigned++;
   }
 
-  // 4️⃣ Guardar la inscripción de pago
+  // 4️⃣ Debug: payload que se enviará a Firestore
+  console.log("Firestore payload:", {
+    carreraId: data.carreraId,
+    carreraTitulo: data.carreraTitulo,
+    perfilId: data.perfilId,
+    perfilOwner: user.uid,
+    categoria: data.categoria,
+    sessionId: data.sessionId,
+    paymentStatus: "pending",
+    competitorNumber: assigned
+  });
+
+  // 5️⃣ Guardar la inscripción de pago
   await addDoc(collection(db, "inscripciones"), {
     carreraId:        data.carreraId,
     carreraTitulo:    data.carreraTitulo,
