@@ -35,14 +35,15 @@ export default function HomePage() {
   const [raw, setRaw] = useState<Carrera[]>([]);
   const [carreras, setCarreras] = useState<Carrera[]>([]);
 
+  // Carga inicial de carreras
   useEffect(() => {
     (async () => {
       const snapshot = await getDocs(collection(db, "carreras"));
-      const hoy = new Date();
-      const today = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+      const today = new Date();
+      today.setHours(0,0,0,0);
 
       const data = snapshot.docs
-        .map((doc) => {
+        .map(doc => {
           const c = doc.data() as any;
           let fechaFormateada = "";
           let carreraDate: Date | null = null;
@@ -50,12 +51,10 @@ export default function HomePage() {
           if (c.fecha instanceof Timestamp) {
             const dt = c.fecha.toDate();
             carreraDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
-            fechaFormateada = `${pad(carreraDate.getDate())}/${pad(
-              carreraDate.getMonth() + 1
-            )}/${carreraDate.getFullYear()}`;
+            fechaFormateada = `${pad(carreraDate.getDate())}/${pad(carreraDate.getMonth()+1)}/${carreraDate.getFullYear()}`;
           } else if (typeof c.fecha === "string") {
-            const [y, m, d] = c.fecha.split("-").map(Number);
-            carreraDate = new Date(y, m - 1, d);
+            const [y,m,d] = c.fecha.split("-").map(Number);
+            carreraDate = new Date(y, m-1, d);
             fechaFormateada = `${pad(d)}/${pad(m)}/${y}`;
           }
 
@@ -69,9 +68,8 @@ export default function HomePage() {
             carreraDate,
           } as Carrera & { carreraDate: Date | null };
         })
-        .filter(
-          (c): c is Carrera & { carreraDate: Date } =>
-            c.carreraDate !== null && c.carreraDate >= today
+        .filter((c): c is Carrera & { carreraDate: Date } =>
+          c.carreraDate !== null && c.carreraDate >= today
         )
         .map(({ carreraDate, ...rest }) => rest);
 
@@ -79,25 +77,28 @@ export default function HomePage() {
     })();
   }, []);
 
+  // Filtrado dinámico según query params
   useEffect(() => {
     let filtered = raw;
+
     if (typeof qTitulo === "string" && qTitulo.trim()) {
-      filtered = filtered.filter((c) =>
+      filtered = filtered.filter(c =>
         c.titulo.toLowerCase().includes(qTitulo.toLowerCase())
       );
     }
     if (typeof qCiudad === "string" && qCiudad.trim()) {
-      filtered = filtered.filter((c) =>
+      filtered = filtered.filter(c =>
         c.ubicacion?.toLowerCase().includes(qCiudad.toLowerCase())
       );
     }
     if (typeof qFecha === "string" && qFecha.trim()) {
-      filtered = filtered.filter((c) => c.fecha === qFecha);
+      filtered = filtered.filter(c => c.fecha === qFecha);
     }
+
     setCarreras(filtered);
   }, [raw, qTitulo, qCiudad, qFecha]);
 
-  const destacados = carreras.slice(0, 3).map((c) => ({
+  const destacados = carreras.slice(0, 3).map(c => ({
     id: c.id,
     titulo: c.titulo,
     fecha: c.fecha,
@@ -105,15 +106,9 @@ export default function HomePage() {
     destacado: true,
   }));
 
-  const testimonials = [
-    { id: "1", author: "María López", text: "¡Una experiencia inolvidable!" },
-    { id: "2", author: "Jorge Ramírez", text: "La mejor carrera en la que he participado." },
-  ];
-
-  // Muestra solo las 6 más recientes en la galería
+  // Galería: solo las 6 primeras
   const [allPhotos, setAllPhotos] = useState<{ id: string; src: string; alt: string }[]>([]);
   useEffect(() => {
-    // Gallery component ahora recibe `limit` y obtiene de Storage (ver Gallery.tsx)
     setAllPhotos(
       carreras.slice(0, 6).map((c, i) => ({
         id: String(i),
@@ -132,19 +127,23 @@ export default function HomePage() {
 
         <FeaturedCarreras carreras={destacados} />
 
+        {/* Ahora sin props */}
         <Testimonials />
 
-       <Gallery limit={6} showAllButton />
+        <Gallery limit={6} showAllButton />
 
         <section id="proximas-carreras" className="space-y-6">
           <h1 className="text-4xl font-extrabold text-center text-green-800">
             Próximas Carreras
           </h1>
+
           {carreras.length === 0 ? (
-            <p className="text-center text-gray-500">No hay carreras que coincidan.</p>
+            <p className="text-center text-gray-500">
+              No hay carreras que coincidan.
+            </p>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {carreras.map((c) => (
+              {carreras.map(c => (
                 <Link key={c.id} href={`/inscribirse?carreraId=${c.id}`}>
                   <a className="block bg-white rounded-2xl shadow-md overflow-hidden transition-transform hover:scale-105 hover:shadow-xl">
                     <div className="aspect-w-16 aspect-h-9 bg-gray-100">
