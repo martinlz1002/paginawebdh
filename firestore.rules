@@ -58,5 +58,15 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if isAdmin();
     }
+    
+    match /testimonios/{docId} {
+      // cualquiera (incluso anónimo) puede leer los testimonios
+      allow read: if true;
+      // solo usuarios autenticados pueden agregar uno nuevo
+      allow create: if request.auth != null;
+      // no permitimos update ni delete desde el cliente
+      allow update, delete: if false;
+    }
+    
   }
 }
