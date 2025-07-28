@@ -69,8 +69,8 @@ export default function Header() {
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-3">
         {/* Logo */}
         <Link href="/" className="flex items-center space-x-2">
-          <Image src="/mi-logo.png" alt="Logo" width={40} height={40} />
-          <span className="text-xl font-extrabold tracking-tight">DH Time</span>
+          <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
+          <span className="text-xl font-extrabold tracking-tight"></span>
         </Link>
 
         {/* Desktop nav */}
