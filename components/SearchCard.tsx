@@ -22,23 +22,24 @@ export default function SearchCard() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [filtered, setFiltered] = useState<Carrera[]>([]);
 
-  // Carga todas las carreras al montar
+  // 1️⃣ Cargo todas las carreras
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "carreras"));
       const lista = snap.docs.map((d) => {
         const c = d.data() as any;
+        // aquí leo c.lugar (no c.ubicacion)
+        const ubicacion = c.lugar || c.ubicacion || "";
         let fechaStr = "";
         if (c.fecha instanceof Timestamp) {
-          const dt = c.fecha.toDate();
-          fechaStr = dt.toLocaleDateString("es-MX");
+          fechaStr = c.fecha.toDate().toLocaleDateString("es-MX");
         } else {
           fechaStr = new Date(c.fecha).toLocaleDateString("es-MX");
         }
         return {
           id: d.id,
           titulo: c.titulo,
-          ubicacion: c.ubicacion,
+          ubicacion,
           fecha: fechaStr,
         } as Carrera;
       });
@@ -46,24 +47,27 @@ export default function SearchCard() {
     })();
   }, []);
 
-  // Filtra en vivo
+  // 2️⃣ Filtro en vivo cada vez que cambian q, city o date
   useEffect(() => {
-    const term = q.trim().toLowerCase();
+    const term     = q.trim().toLowerCase();
     const cityTerm = city.trim().toLowerCase();
     const dateTerm = date ? new Date(date).toLocaleDateString("es-MX") : "";
 
-    const res = carreras.filter((c) => {
-      const matchText = term === "" || c.titulo.toLowerCase().includes(term);
-      const matchCity = cityTerm === "" || (c.ubicacion || "").toLowerCase().includes(cityTerm);
-      const matchDate = dateTerm === "" || c.fecha === dateTerm;
-      return matchText && matchCity && matchDate;
-    });
-    setFiltered(res);
+    setFiltered(
+      carreras.filter((c) => {
+        const matchText = term === "" || c.titulo.toLowerCase().includes(term);
+        // ahora sí compara contra c.ubicacion
+        const matchCity = cityTerm === "" || (c.ubicacion || "").toLowerCase().includes(cityTerm);
+        const matchDate = dateTerm === "" || c.fecha === dateTerm;
+        return matchText && matchCity && matchDate;
+      })
+    );
   }, [q, city, date, carreras]);
 
   return (
     <div className="relative max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
+        {/* Input texto */}
         <div className="relative md:col-span-2">
           <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
           <input
@@ -74,6 +78,7 @@ export default function SearchCard() {
             className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400 bg-white"
           />
         </div>
+        {/* Input ciudad */}
         <div className="relative">
           <MapPinIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
           <input
@@ -84,6 +89,7 @@ export default function SearchCard() {
             className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400 bg-white"
           />
         </div>
+        {/* Input fecha */}
         <div className="relative">
           <CalendarIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
           <input
@@ -95,7 +101,7 @@ export default function SearchCard() {
         </div>
       </div>
 
-      {/* Resultados */}
+      {/* Resultados filtrados */}
       {(q || city || date) && (
         <ul className="mt-2 max-h-64 overflow-auto border-t pt-2 bg-white rounded-b-2xl">
           {filtered.length > 0 ? (
