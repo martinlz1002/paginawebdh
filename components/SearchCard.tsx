@@ -46,7 +46,7 @@ export default function SearchCard() {
     })();
   }, []);
 
-  // Cada vez que cambian los filtros, recalcula resultados
+  // Filtra en vivo
   useEffect(() => {
     const term = q.trim().toLowerCase();
     const cityTerm = city.trim().toLowerCase();
@@ -64,7 +64,6 @@ export default function SearchCard() {
   return (
     <div className="relative max-w-4xl mx-auto bg-white rounded-2xl shadow-lg p-6 space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
-        {/* Texto */}
         <div className="relative md:col-span-2">
           <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
           <input
@@ -72,10 +71,9 @@ export default function SearchCard() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar carrera..."
-            className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400"
+            className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400 bg-white"
           />
         </div>
-        {/* Ciudad */}
         <div className="relative">
           <MapPinIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
           <input
@@ -83,37 +81,39 @@ export default function SearchCard() {
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder="Ciudad"
-            className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400"
+            className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400 bg-white"
           />
         </div>
-        {/* Fecha */}
         <div className="relative">
           <CalendarIcon className="w-5 h-5 text-gray-400 absolute top-1/2 left-3 -translate-y-1/2" />
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400"
+            className="w-full pl-10 pr-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-400 text-gray-900 placeholder-gray-400 bg-white"
           />
         </div>
       </div>
 
-      {/* Lista de resultados */}
-      { (q || city || date) && (
-        <ul className="mt-2 max-h-64 overflow-auto border-t pt-2 space-y-1">
+      {/* Resultados */}
+      {(q || city || date) && (
+        <ul className="mt-2 max-h-64 overflow-auto border-t pt-2 bg-white rounded-b-2xl">
           {filtered.length > 0 ? (
             filtered.map((c) => (
-              <li key={c.id} className="px-3 py-2 hover:bg-gray-100 rounded">
+              <li
+                key={c.id}
+                className="px-4 py-2 hover:bg-gray-100 rounded transition"
+              >
                 <Link href={`/inscribirse?carreraId=${c.id}`}>
-                  <a className="flex justify-between">
+                  <a className="flex justify-between text-gray-900">
                     <span>{c.titulo}</span>
-                    <span className="text-sm text-gray-500">{c.fecha}</span>
+                    <span className="text-sm text-gray-600">{c.fecha}</span>
                   </a>
                 </Link>
               </li>
             ))
           ) : (
-            <li className="px-3 py-2 text-gray-500">No se encontraron carreras.</li>
+            <li className="px-4 py-2 text-gray-500">No se encontraron carreras.</li>
           )}
         </ul>
       )}
