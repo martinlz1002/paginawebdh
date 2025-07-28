@@ -91,7 +91,7 @@ export default async function generarPDF(insc: InscView) {
     font: boldFont,
     size: fontSize,
   });
-  y -= lineHeight * 1.5;
+  y -= lineHeight * 2.0;
 
   // 4) Texto introductorio
   const intro = 'Favor de imprimir, firmar y llevar este comprobante al registro para recolectar su paquete.';
@@ -102,7 +102,7 @@ export default async function generarPDF(insc: InscView) {
     page.drawText(line, { x: margin, y, font: normalFont, size: fontSize });
     y -= lineHeight;
   }
-  y -= lineHeight * 0.5;
+  y -= lineHeight * 1.5;
 
   // Helper para campos etiqueta:valor
   function drawField(label: string, value: string) {
@@ -121,7 +121,7 @@ export default async function generarPDF(insc: InscView) {
       font: boldFont,
       size: fontSize,
     });
-    y -= lineHeight * 0.8;
+    y -= lineHeight * 1.6;
   }
 
   // 5) Campos
@@ -131,7 +131,7 @@ export default async function generarPDF(insc: InscView) {
   drawField('Número de competidor', (insc.competitorNumber ?? '-').toString());
   drawField('Ficha de Inscripción', insc.id);
 
-  y -= lineHeight * 0.5;
+  y -= lineHeight * 1.0;
 
   // 6) Sección Exoneración
   ensureSpace();
@@ -151,7 +151,7 @@ export default async function generarPDF(insc: InscView) {
     page.drawText(line, { x: margin, y, font: normalFont, size: fontSize });
     y -= lineHeight;
   }
-  y -= lineHeight * 0.5;
+  y -= lineHeight * 1.0;
 
   // 7) Sección Entrega de kits
   ensureSpace();
@@ -167,7 +167,7 @@ export default async function generarPDF(insc: InscView) {
   drawField('Lugar', insc.kitLugar || 'Por definir');
   drawField('Horario', insc.kitHorario || 'Por definir');
 
-  y -= lineHeight * 0.5;
+  y -= lineHeight * 1.0;
 
   // 8) Sección Requisitos
   ensureSpace();
@@ -182,7 +182,7 @@ export default async function generarPDF(insc: InscView) {
   for (const r of reqs) {
     ensureSpace();
     page.drawText('• ' + r, { x: margin + 10, y, font: normalFont, size: fontSize });
-    y -= lineHeight * 0.8;
+    y -= lineHeight * 1.6;
   }
 
   // 9) Guardar y descargar
