@@ -25,6 +25,7 @@ interface InscRaw {
   carreraId: string;
   perfilOwner: string;
   perfilId: string;
+  distancia?: string;    // ← ahora lo leemos directo
   categoria: string;
   timestamp: any;
   sessionId?: string;
@@ -43,7 +44,7 @@ interface InscView {
   imagenUrl?: string;
   precio: number;
   categoria: string;
-  distancia?: string;
+  distancia: string;
   perfilId: string;
   perfilNombre: string;
   perfilApPaterno: string;
@@ -88,25 +89,32 @@ export default function MisInscripcionesPage() {
             const src = d.data() as InscRaw;
             const carreraId = src.carreraId;
 
+            // Datos de la carrera
             const cDoc = await getDoc(doc(db, "carreras", carreraId));
             const cdata = cDoc.exists() ? (cDoc.data() as any) : {};
-            let distancia = "";
-            if (Array.isArray(cdata.distancias)) {
+
+            // 1) DISTANCIA: usamos src.distancia si existe
+            let distancia = src.distancia ?? "";
+            // si no está guardada, caemos al cálculo antiguo:
+            if (!distancia && Array.isArray(cdata.distancias)) {
               for (const dist of cdata.distancias) {
                 if (Array.isArray(dist.categorias)) {
-                  const match = dist.categorias.find((cat: any) => cat.nombre === src.categoria);
-                  if (match) {
+                  if (dist.categorias.some((cat: any) => cat.nombre === src.categoria)) {
                     distancia = dist.distancia;
                     break;
                   }
                 }
               }
             }
+
+            // 2) PRECIO: igual que antes
             let precio = 0;
             if (Array.isArray(cdata.distancias)) {
               for (const dist of cdata.distancias) {
                 if (Array.isArray(dist.categorias)) {
-                  const match = dist.categorias.find((cat: any) => cat.nombre === src.categoria);
+                  const match = dist.categorias.find(
+                    (cat: any) => cat.nombre === src.categoria
+                  );
                   if (match) {
                     precio = match.price ?? 0;
                     break;
@@ -115,6 +123,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
+            // Fecha de la carrera
             let fechaCarr = "";
             let carreraDate = today;
             if (cdata.fecha instanceof Timestamp) {
@@ -129,6 +138,7 @@ export default function MisInscripcionesPage() {
               fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
 
+            // Datos del perfil
             let perfilNombre = "",
               perfilApPaterno = "",
               perfilApMaterno = "",
@@ -156,6 +166,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
+            // Fecha de inscripción
             const fechaIns = src.timestamp?.toDate
               ? src.timestamp.toDate().toLocaleString()
               : "";
@@ -170,8 +181,8 @@ export default function MisInscripcionesPage() {
               ubicacion: cdata.lugar || cdata.ubicacion,
               imagenUrl: cdata.imagenUrl,
               precio,
-              categoria: src.categoria,
-              distancia,
+              categoria: src.categoria,   // usamos la categoría guardada
+              distancia,                  // y la distancia guardada
               perfilId: src.perfilId,
               perfilNombre,
               perfilApPaterno,
@@ -256,8 +267,12 @@ export default function MisInscripcionesPage() {
                     <ClipboardIcon className="inline w-5 h-5 mr-1" />
                     {i.perfilNombre} {i.perfilApPaterno} {i.perfilApMaterno}
                   </p>
-                  <p className="text-sm text-gray-600 mb-1">Categoría: {i.categoria}</p>
-                  <p className="text-sm text-gray-600 mb-2">Distancia: {i.distancia || '-'}</p>
+                  <p className="text-sm text-gray-600 mb-1">
+                    Categoría: {i.categoria}
+                  </p>
+                  <p className="text-sm text-gray-600 mb-2">
+                    Distancia: {i.distancia}
+                  </p>
 
                   <div className="text-base text-gray-600 mb-2 flex flex-wrap gap-4">
                     <span className="flex items-center">
