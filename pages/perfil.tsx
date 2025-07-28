@@ -239,7 +239,49 @@ export default function PerfilPage() {
 
             {showForm && (
               <form onSubmit={handleSave} className="mt-4 space-y-4">
-                {/* inputs… */}
+                {[
+  "nombre",
+  "apPaterno",
+  "apMaterno",
+  "email",
+  "celular",
+  "pais",
+  "estado",
+  "ciudad",
+  "club",
+].map((field) => (
+  <input
+    key={field}
+    type={field === "email" ? "email" : "text"}
+    name={field}
+    placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+    value={(newProfile as any)[field] || ""}
+    onChange={(e) =>
+      setNewProfile((prev) => ({
+        ...prev,
+        [field]: e.target.value,
+      }))
+    }
+    className="w-full border rounded-md px-3 py-2 text-gray-900 placeholder-gray-400"
+    required={field !== "club"}
+  />
+))}
+
+{/* Fecha de nacimiento */}
+<input
+  type="date"
+  name="fechaNacimiento"
+  value={newProfile.fechaNacimiento}
+  onChange={(e) =>
+    setNewProfile((prev) => ({
+      ...prev,
+      fechaNacimiento: e.target.value,
+    }))
+  }
+  className="w-full border rounded-md px-3 py-2 text-gray-900 placeholder-gray-400"
+  required
+/>
+
                 <button
                   type="submit"
                   className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
