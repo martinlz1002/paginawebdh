@@ -58,6 +58,7 @@ export default function ManualPage() {
     club: "",
   });
 
+  // Fetch and verify temp user link
   useEffect(() => {
     if (!id) return;
     fetch(`/api/get-tempusuario?id=${id}`)
@@ -66,21 +67,32 @@ export default function ManualPage() {
         return res.json();
       })
       .then((u: APIUser) => {
+        const exp = new Date(u.expiresAt).getTime();
+        if (Date.now() > exp) {
+          setStep("expired");
+          return;
+        }
         setTempUser(u);
-        return getDoc(doc(db, "carreras", u.carreraId));
-      })
-      .then(csnap => {
-        if (!csnap.exists()) throw new Error("Carrera no encontrada");
-        const d = csnap.data() as any;
-        setRace({ id: csnap.id, ...d });
-        setDistancias(d.distancias || []);
-        setAgeBasis(d.ageBasis || "endOfYear");
+        // auto-expire after timeout
+        const timeout = setTimeout(() => setStep("expired"), exp - Date.now());
+        // load race data
+        getDoc(doc(db, "carreras", u.carreraId))
+          .then(csnap => {
+            if (!csnap.exists()) throw new Error("Carrera no encontrada");
+            const d = csnap.data() as any;
+            setRace({ id: csnap.id, ...d });
+            setDistancias(d.distancias || []);
+            setAgeBasis(d.ageBasis || "endOfYear");
+          })
+          .catch(() => setStep("expired"));
+        return () => clearTimeout(timeout);
       })
       .catch(() => setStep("expired"));
   }, [id]);
 
   const handleLogin = async () => {
     setError(null);
+    if (!tempUser) return;
     try {
       const res = await fetch("/api/temp-login", {
         method: "POST",
@@ -91,6 +103,12 @@ export default function ManualPage() {
       if (!res.ok || !data.ok) throw new Error(data.error || "Credenciales inválidas");
       const u = data.user as APIUser;
       if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
+      // check expiration again
+      const exp = new Date(u.expiresAt).getTime();
+      if (Date.now() > exp) {
+        setStep("expired");
+        return;
+      }
       localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
       setTempUser(u);
 
@@ -103,10 +121,14 @@ export default function ManualPage() {
     }
   };
 
+  // Calculate age and available categories
   useEffect(() => {
     if (!birthDate || !distancia || !race) return;
     const bd = new Date(birthDate);
-    const basis = ageBasis === "endOfYear" ? new Date(new Date(race.fecha).getFullYear(), 11, 31) : new Date(race.fecha);
+    const basis =
+      ageBasis === "endOfYear"
+        ? new Date(new Date(race.fecha).getFullYear(), 11, 31)
+        : new Date(race.fecha);
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
     if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) age--;
@@ -118,13 +140,28 @@ export default function ManualPage() {
   }, [birthDate, distancia, race, ageBasis, distancias]);
 
   const handleSubmit = async () => {
-    if (!tempUser || !birthDate || !distancia || !categoria || numero === 0) {
+    if (!tempUser) return;
+    // final expiration check
+    if (Date.now() > new Date(tempUser.expiresAt).getTime()) {
+      setStep("expired");
+      return;
+    }
+    if (!birthDate || !distancia || !categoria || numero === 0) {
       setError("Por favor, completa todos los campos obligatorios.");
       return;
     }
-    const campos = ["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular", "ciudad", "estado", "pais"];
+    const campos = [
+      "nombre",
+      "apellidoPaterno",
+      "apellidoMaterno",
+      "email",
+      "celular",
+      "ciudad",
+      "estado",
+      "pais",
+    ];
     for (const campo of campos) {
-      if (!competidor[campo as keyof typeof competidor]) {
+      if (!(competidor as any)[campo]) {
         setError(`El campo ${campo} es obligatorio.`);
         return;
       }
@@ -179,9 +216,25 @@ export default function ManualPage() {
         <div className="w-full max-w-sm bg-white shadow-md p-6 rounded-md">
           <h2 className="text-xl font-bold mb-4 text-center text-purple-700">Acceso Temporal</h2>
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-          <input className="w-full mb-2 p-2 border rounded" placeholder="Usuario" value={userCreds.username} onChange={e => setUserCreds(u => ({ ...u, username: e.target.value }))} />
-          <input className="w-full mb-4 p-2 border rounded" type="password" placeholder="Contraseña" value={userCreds.password} onChange={e => setUserCreds(u => ({ ...u, password: e.target.value }))} />
-          <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold" onClick={handleLogin}>Entrar</button>
+          <input
+            className="w-full mb-2 p-2 border rounded"
+            placeholder="Usuario"
+            value={userCreds.username}
+            onChange={e => setUserCreds(u => ({ ...u, username: e.target.value }))}
+          />
+          <input
+            className="w-full mb-4 p-2 border rounded"
+            type="password"
+            placeholder="Contraseña"
+            value={userCreds.password}
+            onChange={e => setUserCreds(u => ({ ...u, password: e.target.value }))}
+          />
+          <button
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold"
+            onClick={handleLogin}
+          >
+            Entrar
+          </button>
         </div>
       </div>
     );
@@ -201,11 +254,20 @@ export default function ManualPage() {
         {error && <p className="text-red-600 text-sm">{error}</p>}
 
         <label className="block text-sm font-medium">Fecha de nacimiento</label>
-        <input type="date" className="w-full p-2 border rounded" value={birthDate} onChange={e => setBirthDate(e.target.value)} />
+        <input
+          type="date"
+          className="w-full p-2 border rounded"
+          value={birthDate}
+          onChange={e => setBirthDate(e.target.value)}
+        />
         <p className="text-sm">Edad calculada: {edad} años</p>
 
         <label className="block text-sm font-medium">Distancia</label>
-        <select className="w-full p-2 border rounded" value={distancia} onChange={e => setDistancia(e.target.value)}>
+        <select
+          className="w-full p-2 border rounded"
+          value={distancia}
+          onChange={e => setDistancia(e.target.value)}
+        >
           <option value="">-- Elige distancia --</option>
           {distancias.map(d => (
             <option key={d.distancia} value={d.distancia}>{d.distancia}</option>
@@ -213,7 +275,12 @@ export default function ManualPage() {
         </select>
 
         <label className="block text-sm font-medium">Categoría</label>
-        <select className="w-full p-2 border rounded" value={categoria} onChange={e => setCategoria(e.target.value)} disabled={!dispCats.length}>
+        <select
+          className="w-full p-2 border rounded"
+          value={categoria}
+          onChange={e => setCategoria(e.target.value)}
+          disabled={!dispCats.length}
+        >
           <option value="">-- Elige categoría --</option>
           {dispCats.map(c => (
             <option key={c.nombre} value={c.nombre}>{c.nombre} ({c.minAge}–{c.maxAge} años)</option>
@@ -221,7 +288,11 @@ export default function ManualPage() {
         </select>
 
         <label className="block text-sm font-medium">Número</label>
-        <select className="w-full p-2 border rounded" value={numero} onChange={e => setNumero(+e.target.value)}>
+        <select
+          className="w-full p-2 border rounded"
+          value={numero}
+          onChange={e => setNumero(+e.target.value)}
+        >
           <option value={0}>-- elige --</option>
           {available.map(n => (
             <option key={n} value={n}>{n}</option>
@@ -231,12 +302,21 @@ export default function ManualPage() {
         {/* Datos del competidor */}
         {Object.entries(competidor).map(([field, value]) => (
           <div key={field}>
-            <label className="block text-sm font-medium capitalize">{field === 'club' ? 'Club (opcional)' : field}</label>
-            <input className="w-full p-2 border rounded" value={value} onChange={e => setCompetidor(c => ({ ...c, [field]: e.target.value }))} />
+            <label className="block text-sm font-medium capitalize">
+              {field === 'club' ? 'Club (opcional)' : field}
+            </label>
+            <input
+              className="w-full p-2 border rounded"
+              value={value}
+              onChange={e => setCompetidor(c => ({ ...c, [field]: e.target.value }))}
+            />
           </div>
         ))}
 
-        <button className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400" onClick={handleSubmit}>
+        <button
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400"
+          onClick={handleSubmit}
+        >
           Registrar Competidor
         </button>
       </div>
