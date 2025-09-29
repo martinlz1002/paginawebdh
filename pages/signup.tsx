@@ -37,6 +37,7 @@ export default function RegistroUsuarioPage() {
     apPaterno: "",
     apMaterno: "",
     email: "",
+    confirmEmail: "",
     password: "",
     confirmPassword: "",
     celular: "",
@@ -84,6 +85,9 @@ export default function RegistroUsuarioPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
+
+    if (formData.email !== formData.confirmEmail)
+  return setMensaje({ type: "error", text: "Los correos electrónicos no coinciden." });
 
     if (formData.password.length < 6)
       return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
@@ -173,6 +177,20 @@ export default function RegistroUsuarioPage() {
             onChange={handleChange}
             required
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+          />
+        </div>
+
+        {/* Confirmar Email */}
+        <div className="relative">
+          <EnvelopeIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              name="confirmEmail"
+              type="email"
+              placeholder="Confirmar Correo Electrónico"
+              value={formData.confirmEmail}
+              onChange={handleChange}
+              required
+          className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
         {/* Contraseña */}
