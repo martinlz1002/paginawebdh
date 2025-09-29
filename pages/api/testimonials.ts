@@ -79,7 +79,7 @@ export default async function handler(
         .status(201)
         .json([{ id: newDoc.id, ...(newDoc.data() as any) }]);
     }
-
+    
     res.setHeader("Allow", ["GET", "POST"]);
     return res
       .status(405)
