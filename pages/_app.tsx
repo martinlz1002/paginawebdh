@@ -8,28 +8,26 @@ import AuthGuard from "@/components/AuthGuard";
 export default function App({ Component, pageProps }: AppProps) {
   const { asPath } = useRouter();
 
-  // Rutas públicas (sin AuthGuard)
-  const publicPaths = [
-    "/temp-login",
-    "/login",
-    "/register",
-    "/signup",
-    "/registro",
-    "/inscribir",            // página de registro de carrera pública
-    "/inscripcion-manual"
+  // Solo estas rutas requieren login
+  const protectedPaths = [
+    "/pago",
+    "/checkout",
+    "/mis-inscripciones",
+    "/perfil",
+    "/admin",
   ];
 
-  const isPublic = publicPaths.some((path) => asPath.startsWith(path));
+  const isProtected = protectedPaths.some((path) => asPath.startsWith(path));
 
   return (
     <AuthProvider>
       <Layout>
-        {isPublic ? (
-          <Component {...pageProps} />
-        ) : (
+        {isProtected ? (
           <AuthGuard>
             <Component {...pageProps} />
           </AuthGuard>
+        ) : (
+          <Component {...pageProps} />
         )}
       </Layout>
     </AuthProvider>
