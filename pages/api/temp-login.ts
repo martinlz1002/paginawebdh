@@ -14,9 +14,14 @@ type Data =
   | { ok: false; error: string };
 
 export default async function handler(
+
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ ok: false, error: "Method Not Allowed" });

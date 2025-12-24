@@ -61,7 +61,7 @@ export default function ManualPage() {
 
   const timeoutRef = useRef<number | null>(null);
 
-  // Fetch and verify temp user link (con cleanup correcto)
+  // Fetch and verify temp user link (SIN CACHE y con errores reales)
   useEffect(() => {
     if (!id) return;
 
@@ -71,18 +71,27 @@ export default function ManualPage() {
       setError(null);
 
       try {
-        const res = await fetch(`/api/get-tempusuario?id=${id}`);
+        // 🔥 Anti-304: no-store + cache-buster
+        const res = await fetch(`/api/get-tempusuario?id=${id}&t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+
         if (!res.ok) {
-          setStep("expired");
-          return;
+          const msg = await res.text().catch(() => "");
+          // Si viene 410, sí es expired real
+          if (res.status === 410) {
+            setStep("expired");
+            return;
+          }
+          throw new Error(`Error cargando enlace (${res.status}). ${msg}`);
         }
 
         const u = (await res.json()) as APIUser;
         const exp = Number(u.expiresAtMs);
 
         if (!Number.isFinite(exp)) {
-          setStep("expired");
-          return;
+          throw new Error("expiresAtMs inválido en respuesta.");
         }
 
         const msLeft = exp - Date.now();
@@ -99,11 +108,10 @@ export default function ManualPage() {
         if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
         timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
 
-        // Cargar carrera
+        // Cargar carrera (si falla, NO es “expired”, es error real)
         const csnap = await getDoc(doc(db, "carreras", u.carreraId));
         if (!csnap.exists()) {
-          setStep("expired");
-          return;
+          throw new Error("Carrera no encontrada (ID inválido o eliminada).");
         }
 
         if (cancelled) return;
@@ -112,8 +120,11 @@ export default function ManualPage() {
         setRace({ id: csnap.id, ...d });
         setDistancias(d.distancias || []);
         setAgeBasis(d.ageBasis || "endOfYear");
-      } catch {
-        setStep("expired");
+      } catch (e: any) {
+        console.error(e);
+        // 👇 no lo marques como expired por default
+        setError(e?.message || "Error cargando enlace temporal.");
+        setStep("login");
       }
     };
 
@@ -133,14 +144,18 @@ export default function ManualPage() {
     if (!tempUser) return;
 
     try {
-      const res = await fetch("/api/temp-login", {
+      const res = await fetch(`/api/temp-login?t=${Date.now()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
         body: JSON.stringify(userCreds),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Credenciales inválidas");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Credenciales inválidas");
 
       const u = data.user as APIUser;
       if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
@@ -159,9 +174,22 @@ export default function ManualPage() {
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
 
-      const availRes = await fetch(`/api/temp-avail?id=${id}`);
+      const availRes = await fetch(`/api/temp-avail?id=${id}&t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+
+      if (!availRes.ok) {
+        if (availRes.status === 410) {
+          setStep("expired");
+          return;
+        }
+        const msg = await availRes.text().catch(() => "");
+        throw new Error(`Error obteniendo disponibilidad (${availRes.status}). ${msg}`);
+      }
+
       const availJson = await availRes.json();
-      setAvailable(availJson.available as number[]);
+      setAvailable((availJson.available || []) as number[]);
       setStep("form");
     } catch (e: any) {
       setError(e.message);
@@ -173,6 +201,7 @@ export default function ManualPage() {
     if (!birthDate || !distancia || !race) return;
 
     const bd = new Date(birthDate);
+
     const basis =
       ageBasis === "endOfYear"
         ? new Date(new Date(race.fecha).getFullYear(), 11, 31)
@@ -183,10 +212,10 @@ export default function ManualPage() {
     if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) age--;
     setEdad(age);
 
-    const dist = distancias.find(d => d.distancia === distancia);
+    const dist = distancias.find((d) => d.distancia === distancia);
     if (!dist) return;
 
-    setDispCats(dist.categorias.filter(c => age >= c.minAge && age <= c.maxAge));
+    setDispCats(dist.categorias.filter((c) => age >= c.minAge && age <= c.maxAge));
     setCategoria("");
   }, [birthDate, distancia, race, ageBasis, distancias]);
 
@@ -204,7 +233,17 @@ export default function ManualPage() {
       return;
     }
 
-    const campos = ["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular", "ciudad", "estado", "pais"];
+    const campos = [
+      "nombre",
+      "apellidoPaterno",
+      "apellidoMaterno",
+      "email",
+      "celular",
+      "ciudad",
+      "estado",
+      "pais",
+    ];
+
     for (const campo of campos) {
       if (!(competidor as any)[campo]) {
         setError(`El campo ${campo} es obligatorio.`);
@@ -229,7 +268,7 @@ export default function ManualPage() {
         competitorNumber: numero,
       });
 
-      setAvailable(av => av.filter(n => n !== numero));
+      setAvailable((av) => av.filter((n) => n !== numero));
       setNumero(0);
       setCategoria("");
       setDistancia("");
@@ -268,14 +307,14 @@ export default function ManualPage() {
             className="w-full mb-2 p-2 border rounded"
             placeholder="Usuario"
             value={userCreds.username}
-            onChange={e => setUserCreds(u => ({ ...u, username: e.target.value }))}
+            onChange={(e) => setUserCreds((u) => ({ ...u, username: e.target.value }))}
           />
           <input
             className="w-full mb-4 p-2 border rounded"
             type="password"
             placeholder="Contraseña"
             value={userCreds.password}
-            onChange={e => setUserCreds(u => ({ ...u, password: e.target.value }))}
+            onChange={(e) => setUserCreds((u) => ({ ...u, password: e.target.value }))}
           />
           <button
             className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold"
@@ -307,7 +346,7 @@ export default function ManualPage() {
           type="date"
           className="w-full p-2 border rounded"
           value={birthDate}
-          onChange={e => setBirthDate(e.target.value)}
+          onChange={(e) => setBirthDate(e.target.value)}
         />
         <p className="text-sm">Edad calculada: {edad} años</p>
 
@@ -315,10 +354,10 @@ export default function ManualPage() {
         <select
           className="w-full p-2 border rounded"
           value={distancia}
-          onChange={e => setDistancia(e.target.value)}
+          onChange={(e) => setDistancia(e.target.value)}
         >
           <option value="">-- Elige distancia --</option>
-          {distancias.map(d => (
+          {distancias.map((d) => (
             <option key={d.distancia} value={d.distancia}>
               {d.distancia}
             </option>
@@ -329,11 +368,11 @@ export default function ManualPage() {
         <select
           className="w-full p-2 border rounded"
           value={categoria}
-          onChange={e => setCategoria(e.target.value)}
+          onChange={(e) => setCategoria(e.target.value)}
           disabled={!dispCats.length}
         >
           <option value="">-- Elige categoría --</option>
-          {dispCats.map(c => (
+          {dispCats.map((c) => (
             <option key={c.nombre} value={c.nombre}>
               {c.nombre} ({c.minAge}–{c.maxAge} años)
             </option>
@@ -344,10 +383,10 @@ export default function ManualPage() {
         <select
           className="w-full p-2 border rounded"
           value={numero}
-          onChange={e => setNumero(+e.target.value)}
+          onChange={(e) => setNumero(+e.target.value)}
         >
           <option value={0}>-- elige --</option>
-          {available.map(n => (
+          {available.map((n) => (
             <option key={n} value={n}>
               {n}
             </option>
@@ -362,7 +401,7 @@ export default function ManualPage() {
             <input
               className="w-full p-2 border rounded"
               value={value}
-              onChange={e => setCompetidor(c => ({ ...c, [field]: e.target.value }))}
+              onChange={(e) => setCompetidor((c) => ({ ...c, [field]: e.target.value }))}
             />
           </div>
         ))}

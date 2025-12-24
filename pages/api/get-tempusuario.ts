@@ -14,6 +14,10 @@ if (!admin.apps.length) {
 const firestore = admin.firestore();
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  res.setHeader("Cache-Control", "no-store, max-age=0");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  
   const { id } = req.query;
 
   if (req.method !== "GET" || typeof id !== "string") {
