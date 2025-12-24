@@ -2,8 +2,6 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import TempAuthGuard from "@/components/TempAuthGuard";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
-import { doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import type { CarreraData } from "@/types/carrera";
 
 interface APIUser {
@@ -24,6 +22,27 @@ interface Categoria {
 interface DistanciaConCategorias {
   distancia: string;
   categorias: Categoria[];
+}
+
+// ✅ helper: convertir fecha de carrera a Date sin llorar
+function toDateSafe(input: any): Date | null {
+  if (!input) return null;
+  if (input instanceof Date) return input;
+  if (typeof input === "string") {
+    const d = new Date(input);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  // Firestore Timestamp (client or admin serialized)
+  if (typeof input === "object" && typeof input.toDate === "function") {
+    const d = input.toDate();
+    return d instanceof Date && !isNaN(d.getTime()) ? d : null;
+  }
+  // { seconds, nanoseconds }
+  if (typeof input === "object" && typeof input.seconds === "number") {
+    const d = new Date(input.seconds * 1000);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
 }
 
 export default function ManualPage() {
@@ -71,19 +90,18 @@ export default function ManualPage() {
       setError(null);
 
       try {
-        // 🔥 Anti-304: no-store + cache-buster
+        // 1) tempusuario
         const res = await fetch(`/api/get-tempusuario?id=${id}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
         });
 
         if (!res.ok) {
-          const msg = await res.text().catch(() => "");
-          // Si viene 410, sí es expired real
           if (res.status === 410) {
             setStep("expired");
             return;
           }
+          const msg = await res.text().catch(() => "");
           throw new Error(`Error cargando enlace (${res.status}). ${msg}`);
         }
 
@@ -108,21 +126,26 @@ export default function ManualPage() {
         if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
         timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
 
-        // Cargar carrera (si falla, NO es “expired”, es error real)
-        const csnap = await getDoc(doc(db, "carreras", u.carreraId));
-        if (!csnap.exists()) {
-          throw new Error("Carrera no encontrada (ID inválido o eliminada).");
+        // 2) carrera (✅ ADMIN SDK)
+        const raceRes = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+
+        if (!raceRes.ok) {
+          const msg = await raceRes.text().catch(() => "");
+          throw new Error(`No pude cargar la carrera (${raceRes.status}). ${msg}`);
         }
+
+        const d = await raceRes.json();
 
         if (cancelled) return;
 
-        const d = csnap.data() as any;
-        setRace({ id: csnap.id, ...d });
+        setRace(d);
         setDistancias(d.distancias || []);
         setAgeBasis(d.ageBasis || "endOfYear");
       } catch (e: any) {
         console.error(e);
-        // 👇 no lo marques como expired por default
         setError(e?.message || "Error cargando enlace temporal.");
         setStep("login");
       }
@@ -201,11 +224,17 @@ export default function ManualPage() {
     if (!birthDate || !distancia || !race) return;
 
     const bd = new Date(birthDate);
+    const raceDate = toDateSafe((race as any).fecha);
+
+    if (!raceDate) {
+      setError("La carrera no tiene fecha válida (campo 'fecha').");
+      return;
+    }
 
     const basis =
       ageBasis === "endOfYear"
-        ? new Date(new Date(race.fecha).getFullYear(), 11, 31)
-        : new Date(race.fecha);
+        ? new Date(raceDate.getFullYear(), 11, 31)
+        : raceDate;
 
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
@@ -222,7 +251,6 @@ export default function ManualPage() {
   const handleSubmit = async () => {
     if (!tempUser) return;
 
-    // final expiration check (con ms)
     if (Date.now() > Number(tempUser.expiresAtMs)) {
       setStep("expired");
       return;
@@ -233,17 +261,7 @@ export default function ManualPage() {
       return;
     }
 
-    const campos = [
-      "nombre",
-      "apellidoPaterno",
-      "apellidoMaterno",
-      "email",
-      "celular",
-      "ciudad",
-      "estado",
-      "pais",
-    ];
-
+    const campos = ["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular", "ciudad", "estado", "pais"];
     for (const campo of campos) {
       if (!(competidor as any)[campo]) {
         setError(`El campo ${campo} es obligatorio.`);

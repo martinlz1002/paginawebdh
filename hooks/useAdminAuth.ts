@@ -10,14 +10,17 @@ export const useAdminAuth = () => {
   useEffect(() => {
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
-        const data = userDoc.data();
-        if (!data?.esAdmin) {
-          router.push("/login");
-        }
-      } else {
-        router.push("/login");
+      if (!user) {
+        router.replace("/login");
+        return;
+      }
+
+      const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+      const data = userDoc.data();
+
+      // ✅ tu campo real
+      if (!data?.admin) {
+        router.replace("/");
       }
     });
 

@@ -13,7 +13,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user: User | null) => {
+      // si estás en login, no redirijas al login otra vez
       if (!user) {
+        if (router.pathname === "/login") {
+          setLoading(false);
+          return;
+        }
         const next = encodeURIComponent(router.asPath);
         router.replace(`/login?next=${next}`);
         return;
@@ -22,7 +27,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     });
 
     return unsubscribe;
-  }, [auth, router]);
+  }, [auth, router.pathname, router.asPath]);
 
   if (loading) return <p className="text-center mt-10">Cargando…</p>;
   return <>{children}</>;

@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -16,25 +16,32 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userRef = doc(db, 'usuarios', user.uid);
-        const userDoc = await getDoc(userRef);
-        if (userDoc.exists() && userDoc.data()?.admin === true) {
-          setIsAdmin(true);
-        } else {
-          router.push('/'); // Redirige si no es admin
+      try {
+        if (!user) {
+          const next = encodeURIComponent(router.asPath);
+          router.replace(`/login?next=${next}`);
+          return;
         }
-      } else {
-        router.push('/login'); // Redirige si no está logueado
+
+        const userRef = doc(db, "usuarios", user.uid);
+        const userDoc = await getDoc(userRef);
+
+        const adminFlag = userDoc.exists() && userDoc.data()?.admin === true;
+        if (!adminFlag) {
+          router.replace("/");
+          return;
+        }
+
+        setIsAdmin(true);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [auth, router]);
+  }, [auth, router.asPath]);
 
-  if (loading) return <p>Loading...</p>;
-
+  if (loading) return <p className="text-center mt-10">Cargando…</p>;
   return isAdmin ? <>{children}</> : null;
 };
 
