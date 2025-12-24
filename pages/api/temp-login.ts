@@ -3,11 +3,20 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import type { TempUsuario } from "@/types/tempusuario";
 
+type SafeUser = Omit<TempUsuario, "password" | "expiresAt"> & {
+  id: string;
+  expiresAt: string;
+  expiresAtMs: number;
+};
+
 type Data =
-  | { ok: true; user: Omit<TempUsuario, "password" | "expiresAt"> & { id: string; expiresAt: string } }
+  | { ok: true; user: SafeUser }
   | { ok: false; error: string };
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse<Data>) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<Data>
+) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).json({ ok: false, error: "Method Not Allowed" });
@@ -23,6 +32,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     where("username", "==", username),
     where("password", "==", password)
   );
+
   const snap = await getDocs(q);
   if (snap.empty) {
     return res.status(401).json({ ok: false, error: "Credenciales inválidas" });
@@ -30,23 +40,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   const docSnap = snap.docs[0];
   const data = docSnap.data() as TempUsuario;
-  if ((data.expiresAt as any).toDate
-      ? (data.expiresAt as any).toDate().getTime() < Date.now()
-      : data.expiresAt.getTime() < Date.now()
-  ) {
+
+  const expDate: Date =
+    (data.expiresAt as any)?.toDate
+      ? (data.expiresAt as any).toDate()
+      : (data.expiresAt as any);
+
+  const expiresAtMs = expDate.getTime();
+
+  if (expiresAtMs < Date.now()) {
     return res.status(403).json({ ok: false, error: "Cuenta temporal expirada" });
   }
 
-  // Eliminamos password, serializamos expiresAt
+  // quitamos password, serializamos expiresAt + ms
   const { password: _pw, expiresAt: _exp, ...rest } = data as any;
+
   return res.status(200).json({
     ok: true,
     user: {
       id: docSnap.id,
       ...rest,
-      expiresAt: (data.expiresAt as any).toDate
-        ? (data.expiresAt as any).toDate().toISOString()
-        : data.expiresAt.toISOString()
+      expiresAt: expDate.toISOString(),
+      expiresAtMs,
     },
   });
 }

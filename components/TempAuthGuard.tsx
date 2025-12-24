@@ -11,18 +11,30 @@ export default function TempAuthGuard({ children }: TempAuthGuardProps) {
 
   useEffect(() => {
     const json = localStorage.getItem("tempUser");
+
     if (!json) {
       router.replace("/temp-login");
       return;
     }
+
     try {
       const u = JSON.parse(json);
-      if (new Date(u.expiresAt).getTime() < Date.now()) {
+
+      // ✅ Preferir expiresAtMs (sin bronca de timezone)
+      const expMs =
+        typeof u.expiresAtMs === "number"
+          ? u.expiresAtMs
+          : typeof u.expiresAt === "string"
+            ? new Date(u.expiresAt).getTime()
+            : NaN;
+
+      if (!Number.isFinite(expMs) || expMs < Date.now()) {
         localStorage.removeItem("tempUser");
         router.replace("/temp-login");
-      } else {
-        setLoading(false);
+        return;
       }
+
+      setLoading(false);
     } catch {
       localStorage.removeItem("tempUser");
       router.replace("/temp-login");

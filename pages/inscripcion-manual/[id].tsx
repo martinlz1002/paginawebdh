@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import TempAuthGuard from "@/components/TempAuthGuard";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import { doc, getDoc } from "firebase/firestore";
@@ -12,6 +12,7 @@ interface APIUser {
   range: { start: number; end: number };
   username: string;
   expiresAt: string;
+  expiresAtMs: number;
 }
 
 interface Categoria {
@@ -58,59 +59,105 @@ export default function ManualPage() {
     club: "",
   });
 
-  // Fetch and verify temp user link
+  const timeoutRef = useRef<number | null>(null);
+
+  // Fetch and verify temp user link (con cleanup correcto)
   useEffect(() => {
     if (!id) return;
-    fetch(`/api/get-tempusuario?id=${id}`)
-      .then(res => {
-        if (!res.ok) throw new Error();
-        return res.json();
-      })
-      .then((u: APIUser) => {
-        const exp = new Date(u.expiresAt).getTime();
-        if (Date.now() > exp) {
+
+    let cancelled = false;
+
+    const run = async () => {
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/get-tempusuario?id=${id}`);
+        if (!res.ok) {
           setStep("expired");
           return;
         }
+
+        const u = (await res.json()) as APIUser;
+        const exp = Number(u.expiresAtMs);
+
+        if (!Number.isFinite(exp)) {
+          setStep("expired");
+          return;
+        }
+
+        const msLeft = exp - Date.now();
+        if (msLeft <= 0) {
+          setStep("expired");
+          return;
+        }
+
+        if (cancelled) return;
+
         setTempUser(u);
-        // auto-expire after timeout
-        const timeout = setTimeout(() => setStep("expired"), exp - Date.now());
-        // load race data
-        getDoc(doc(db, "carreras", u.carreraId))
-          .then(csnap => {
-            if (!csnap.exists()) throw new Error("Carrera no encontrada");
-            const d = csnap.data() as any;
-            setRace({ id: csnap.id, ...d });
-            setDistancias(d.distancias || []);
-            setAgeBasis(d.ageBasis || "endOfYear");
-          })
-          .catch(() => setStep("expired"));
-        return () => clearTimeout(timeout);
-      })
-      .catch(() => setStep("expired"));
+
+        // Programar expiración
+        if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
+
+        // Cargar carrera
+        const csnap = await getDoc(doc(db, "carreras", u.carreraId));
+        if (!csnap.exists()) {
+          setStep("expired");
+          return;
+        }
+
+        if (cancelled) return;
+
+        const d = csnap.data() as any;
+        setRace({ id: csnap.id, ...d });
+        setDistancias(d.distancias || []);
+        setAgeBasis(d.ageBasis || "endOfYear");
+      } catch {
+        setStep("expired");
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
   }, [id]);
 
   const handleLogin = async () => {
     setError(null);
     if (!tempUser) return;
+
     try {
       const res = await fetch("/api/temp-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(userCreds),
       });
+
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Credenciales inválidas");
+
       const u = data.user as APIUser;
       if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
-      // check expiration again
-      const exp = new Date(u.expiresAt).getTime();
-      if (Date.now() > exp) {
+
+      const exp = Number(u.expiresAtMs);
+      if (!Number.isFinite(exp) || Date.now() > exp) {
         setStep("expired");
         return;
       }
+
       localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
       setTempUser(u);
+
+      // actualizar timeout con el exp correcto
+      const msLeft = exp - Date.now();
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
 
       const availRes = await fetch(`/api/temp-avail?id=${id}`);
       const availJson = await availRes.json();
@@ -124,48 +171,47 @@ export default function ManualPage() {
   // Calculate age and available categories
   useEffect(() => {
     if (!birthDate || !distancia || !race) return;
+
     const bd = new Date(birthDate);
     const basis =
       ageBasis === "endOfYear"
         ? new Date(new Date(race.fecha).getFullYear(), 11, 31)
         : new Date(race.fecha);
+
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
     if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) age--;
     setEdad(age);
+
     const dist = distancias.find(d => d.distancia === distancia);
     if (!dist) return;
+
     setDispCats(dist.categorias.filter(c => age >= c.minAge && age <= c.maxAge));
     setCategoria("");
   }, [birthDate, distancia, race, ageBasis, distancias]);
 
   const handleSubmit = async () => {
     if (!tempUser) return;
-    // final expiration check
-    if (Date.now() > new Date(tempUser.expiresAt).getTime()) {
+
+    // final expiration check (con ms)
+    if (Date.now() > Number(tempUser.expiresAtMs)) {
       setStep("expired");
       return;
     }
+
     if (!birthDate || !distancia || !categoria || numero === 0) {
       setError("Por favor, completa todos los campos obligatorios.");
       return;
     }
-    const campos = [
-      "nombre",
-      "apellidoPaterno",
-      "apellidoMaterno",
-      "email",
-      "celular",
-      "ciudad",
-      "estado",
-      "pais",
-    ];
+
+    const campos = ["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular", "ciudad", "estado", "pais"];
     for (const campo of campos) {
       if (!(competidor as any)[campo]) {
         setError(`El campo ${campo} es obligatorio.`);
         return;
       }
     }
+
     try {
       await registrarInscripcionManual({
         carreraId: tempUser.carreraId,
@@ -182,6 +228,7 @@ export default function ManualPage() {
         club: competidor.club,
         competitorNumber: numero,
       });
+
       setAvailable(av => av.filter(n => n !== numero));
       setNumero(0);
       setCategoria("");
@@ -200,6 +247,7 @@ export default function ManualPage() {
         pais: "",
         club: "",
       });
+
       setSuccessMessage("✓ Competidor registrado correctamente.");
       window.scrollTo({ top: 0, behavior: "smooth" });
       setTimeout(() => setSuccessMessage(null), 4000);
@@ -247,7 +295,8 @@ export default function ManualPage() {
 
         {successMessage && (
           <p className="flex items-center gap-2 text-green-600 text-sm font-medium transition-opacity duration-700 opacity-100 animate-fadeOut">
-            <span className="text-lg">✅</span>{successMessage}
+            <span className="text-lg">✅</span>
+            {successMessage}
           </p>
         )}
 
@@ -270,7 +319,9 @@ export default function ManualPage() {
         >
           <option value="">-- Elige distancia --</option>
           {distancias.map(d => (
-            <option key={d.distancia} value={d.distancia}>{d.distancia}</option>
+            <option key={d.distancia} value={d.distancia}>
+              {d.distancia}
+            </option>
           ))}
         </select>
 
@@ -283,7 +334,9 @@ export default function ManualPage() {
         >
           <option value="">-- Elige categoría --</option>
           {dispCats.map(c => (
-            <option key={c.nombre} value={c.nombre}>{c.nombre} ({c.minAge}–{c.maxAge} años)</option>
+            <option key={c.nombre} value={c.nombre}>
+              {c.nombre} ({c.minAge}–{c.maxAge} años)
+            </option>
           ))}
         </select>
 
@@ -295,15 +348,16 @@ export default function ManualPage() {
         >
           <option value={0}>-- elige --</option>
           {available.map(n => (
-            <option key={n} value={n}>{n}</option>
+            <option key={n} value={n}>
+              {n}
+            </option>
           ))}
         </select>
 
-        {/* Datos del competidor */}
         {Object.entries(competidor).map(([field, value]) => (
           <div key={field}>
             <label className="block text-sm font-medium capitalize">
-              {field === 'club' ? 'Club (opcional)' : field}
+              {field === "club" ? "Club (opcional)" : field}
             </label>
             <input
               className="w-full p-2 border rounded"
