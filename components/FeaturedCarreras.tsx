@@ -12,13 +12,13 @@ interface Carrera {
 export default function FeaturedCarreras({ carreras }: { carreras: Carrera[] }) {
   return (
     <section className="space-y-6">
-      <h2 className="text-2xl font-bold text-yellow-400">Carreras Destacadas</h2>
+      <h2 className="text-2xl font-extrabold text-dh-purple">Carreras Destacadas <span className="text-dh-green"></span></h2>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {carreras
           .filter(c => c.destacado)
           .map((c) => (
             <Link key={c.id} href={`/inscribirse?carreraId=${c.id}`}>
-              <a className="block bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-xl transition">
+              <a className="block bg-white rounded-2xl shadow-md overflow-hidden hover:shadow-dh transition border border-dh-purple/10">
                 <div className="h-48 bg-gray-100 overflow-hidden">
                   <img
                     src={c.imagenUrl}

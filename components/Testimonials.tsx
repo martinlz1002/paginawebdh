@@ -69,12 +69,12 @@ export default function Testimonials() {
             value={newText}
             onChange={e => setNewText(e.target.value)}
             placeholder="Escribe tu testimonio..."
-            className="w-full border rounded-xl p-3 resize-none focus:ring-2 focus:ring-blue-400 text-gray-900"
+            className="w-full border rounded-xl p-3 resize-none focus:ring-2 focus:ring-dh-purple/50 focus:border-dh-purple text-gray-900 placeholder-gray-400 bg-white"
             rows={3}
           />
           <button
             type="submit"
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold px-4 py-2 rounded-xl transition"
+            className="bg-dh-green hover:bg-dh-green/90 text-dh-dark font-semibold px-4 py-2 rounded-xl transition shadow"
           >
             Enviar Testimonio
           </button>

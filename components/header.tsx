@@ -69,7 +69,7 @@ export default function Header() {
   const isHome = router.pathname === "/";
 
   return (
-    <header className="relative bg-gradient-to-r from-gray-900 via-black to-gray-900 text-white sticky top-0 z-50 shadow-lg">
+    <header className="relative bg-gradient-to-r from-dh-dark via-dh-purple to-dh-green text-white sticky top-0 z-50 shadow-dh">
       <div className="max-w-6xl mx-auto flex items-center px-6 py-3">
         {/* Logo (lado izq) */}
         <div className="flex-shrink-0">
@@ -80,15 +80,15 @@ export default function Header() {
 
         {/* Nav centrado */}
         <nav className="flex-1 text-center hidden md:flex space-x-6">
-          <Link href="/" className="hover:text-green-400 transition">Home</Link>
+          <Link href="/" className="hover:text-dh-green/90 transition">Home</Link>
           {user && emailVerified && (
             <>
-              <Link href="/mis-inscripciones" className="hover:text-green-400 transition">Mis Inscripciones</Link>
-              <Link href="/perfil" className="hover:text-green-400 transition">Perfil</Link>
+              <Link href="/mis-inscripciones" className="hover:text-dh-green/90 transition">Mis Inscripciones</Link>
+              <Link href="/perfil" className="hover:text-dh-green/90 transition">Perfil</Link>
             </>
           )}
           {esAdmin && (
-            <Link href="/admin" className="hover:text-green-400 transition">Admin</Link>
+            <Link href="/admin" className="hover:text-dh-green/90 transition">Admin</Link>
           )}
           {user ? (
             <button onClick={handleLogout} className="hover:text-red-400 transition">
@@ -96,8 +96,8 @@ export default function Header() {
             </button>
           ) : (
             <>
-              <Link href="/login" className="hover:text-green-400 transition">Iniciar sesión</Link>
-              <Link href="/signup" className="hover:text-green-400 transition">Regístrate</Link>
+              <Link href="/login" className="hover:text-dh-green/90 transition">Iniciar sesión</Link>
+              <Link href="/signup" className="hover:text-dh-green/90 transition">Regístrate</Link>
             </>
           )}
         </nav>
@@ -125,7 +125,7 @@ export default function Header() {
 
       {/* Mobile menu items (igual que antes, sin “Confirma tu correo”) */}
       {menuOpen && (
-        <div ref={menuRef} className="md:hidden bg-gray-800">
+        <div ref={menuRef} className="md:hidden bg-dh-dark/95 backdrop-blur">
           <div className="flex flex-col space-y-1 px-4 py-3">
             <Link href="/" className="block px-2 py-1 rounded hover:bg-gray-700">Home</Link>
             {user && emailVerified && (
@@ -140,7 +140,7 @@ export default function Header() {
             {!user ? (
               <>
                 <Link href="/login" className="block px-2 py-1 rounded hover:bg-gray-700">Iniciar sesión</Link>
-                <Link href="/signup" className="block px-2 py-1 rounded bg-green-500 text-black text-center hover:bg-green-400">Regístrate</Link>
+                <Link href="/signup" className="block px-2 py-1 rounded bg-dh-green text-dh-dark text-center hover:bg-dh-green/90">Regístrate</Link>
               </>
             ) : (
               <button
@@ -154,7 +154,7 @@ export default function Header() {
             {isHome && (
               <button
                 onClick={scrollToProximas}
-                className="mt-2 block w-full text-center bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition"
+                className="absolute right-6 top-1/2 -translate-y-1/2 bg-dh-green hover:bg-dh-green/90 text-dh-dark font-semibold px-4 py-2 rounded-full transition shadow"
               >
                 Inscribirme
               </button>

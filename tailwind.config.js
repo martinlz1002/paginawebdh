@@ -8,10 +8,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: "#0f0f2a",   // fondo oscuro principal
-        accent:  "#c6ff00",   // neón verde
-        highlight: "#6610f2", // morado
-      }
+        dh: {
+          purple: "#6A1B9A",   // morado DH (ajústalo si tu logo usa otro)
+          green:  "#7CC242",   // verde DH
+          dark:   "#0B0B10",   // negro elegante
+          ink:    "#111827",   // texto oscuro
+          soft:   "#F7F7FB",   // fondo clarito
+        },
+      },
+      boxShadow: {
+        dh: "0 10px 30px rgba(0,0,0,0.15)",
+      },
     },
   },
   plugins: [
