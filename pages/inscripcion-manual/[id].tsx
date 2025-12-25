@@ -24,11 +24,13 @@ interface DistanciaConCategorias {
   categorias: Categoria[];
 }
 
+type Step = "loading" | "login" | "form" | "expired";
+
 export default function ManualPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
 
-  const [step, setStep] = useState<"login" | "form" | "expired">("login");
+  const [step, setStep] = useState<Step>("loading");
   const [tempUser, setTempUser] = useState<APIUser | null>(null);
   const [race, setRace] = useState<(CarreraData & { id: string }) | null>(null);
   const [distancias, setDistancias] = useState<DistanciaConCategorias[]>([]);
@@ -59,35 +61,60 @@ export default function ManualPage() {
 
   const timeoutRef = useRef<number | null>(null);
 
-  // 1) Cargar tempusuario + carrera (por API admin)
+  // 🔎 DEBUG
+  const [debug, setDebug] = useState<any>(null);
+
+  // 1) Cargar tempusuario + carrera
   useEffect(() => {
+    if (!router.isReady) return;
     if (!id) return;
 
     let cancelled = false;
 
     const run = async () => {
       setError(null);
+      setDebug(null);
+      setStep("loading");
 
       try {
-        // ✅ tempusuario (anti-cache)
-        const res = await fetch(`/api/get-tempusuario?id=${id}&t=${Date.now()}`, {
+        const now = Date.now();
+        const res = await fetch(`/api/get-tempusuario?id=${id}&t=${now}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
         });
 
-        if (!res.ok) {
-          if (res.status === 410) {
-            setStep("expired");
-            return;
-          }
-          const msg = await res.text().catch(() => "");
-          throw new Error(`Error cargando enlace (${res.status}). ${msg}`);
+        const rawText = await res.text().catch(() => "");
+        let payload: any = null;
+        try {
+          payload = rawText ? JSON.parse(rawText) : null;
+        } catch {
+          payload = null;
         }
 
-        const u = (await res.json()) as APIUser;
-        const exp = Number(u.expiresAtMs);
+        setDebug({
+          phase: "get-tempusuario",
+          status: res.status,
+          ok: res.ok,
+          nowMs: now,
+          payload,
+        });
 
-        if (!Number.isFinite(exp)) throw new Error("expiresAtMs inválido.");
+        // ✅ Expirado REAL: 410
+        if (res.status === 410) {
+          setStep("expired");
+          return;
+        }
+
+        if (!res.ok || !payload) {
+          throw new Error(`Error cargando enlace (${res.status}).`);
+        }
+
+        const u = payload as APIUser;
+        const exp = Number(u.expiresAtMs);
+        if (!Number.isFinite(exp)) {
+          throw new Error("expiresAtMs inválido (NaN).");
+        }
+
         const msLeft = exp - Date.now();
         if (msLeft <= 0) {
           setStep("expired");
@@ -95,37 +122,53 @@ export default function ManualPage() {
         }
 
         if (cancelled) return;
+
         setTempUser(u);
 
         // Programar expiración
         if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
         timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
 
-        // ✅ carrera por API admin (evita problemas de permisos/proyecto equivocado)
-        const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
+        // ✅ Cargar carrera por API (evita problemas del SDK cliente)
+        const resRace = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
         });
 
-        if (!rc.ok) {
-          const msg = await rc.text().catch(() => "");
-          throw new Error(`No se pudo cargar la carrera (${rc.status}). ${msg}`);
+        const raceText = await resRace.text().catch(() => "");
+        let raceJson: any = null;
+        try {
+          raceJson = raceText ? JSON.parse(raceText) : null;
+        } catch {
+          raceJson = null;
         }
 
-        const carreraJson = await rc.json();
+        setDebug((d: any) => ({
+          ...(d || {}),
+          phase2: "get-carrera",
+          carreraStatus: resRace.status,
+          carreraOk: resRace.ok,
+          carreraPayload: raceJson,
+        }));
+
+        if (!resRace.ok || !raceJson?.id) {
+          throw new Error(`Carrera no encontrada (${resRace.status}).`);
+        }
+
         if (cancelled) return;
 
-        const d = carreraJson as any;
-        setRace({ id: d.id, ...(d as any) });
+        const d = raceJson as any;
+        setRace({ id: d.id, ...d });
+        setDistancias(d.distancias || []);
+        setAgeBasis(d.ageBasis || "endOfYear");
 
-        // distancias + ageBasis seguras
-        setDistancias(Array.isArray(d.distancias) ? d.distancias : []);
-        setAgeBasis(d.ageBasis === "eventDate" ? "eventDate" : "endOfYear");
+        // ✅ Ya podemos mostrar login
+        setStep("login");
       } catch (e: any) {
         console.error(e);
-        // ❌ NO marcar expired por errores que no son expiración
-        setError(e?.message || "Error cargando el enlace temporal.");
-        setStep("login");
+        // ❗ No lo marques "expired" por default
+        setError(e?.message || "Error cargando enlace.");
+        setStep("login"); // para que al menos veas el error arriba
       }
     };
 
@@ -138,12 +181,11 @@ export default function ManualPage() {
         timeoutRef.current = null;
       }
     };
-  }, [id]);
+  }, [router.isReady, id]);
 
+  // 2) Login
   const handleLogin = async () => {
     setError(null);
-    if (!tempUser) return;
-
     try {
       const res = await fetch(`/api/temp-login?t=${Date.now()}`, {
         method: "POST",
@@ -159,6 +201,8 @@ export default function ManualPage() {
       if (!res.ok || !data?.ok) throw new Error(data?.error || "Credenciales inválidas");
 
       const u = data.user as APIUser;
+
+      // ✅ Validación fuerte: esas credenciales deben ser de ESTE link
       if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
 
       const exp = Number(u.expiresAtMs);
@@ -170,7 +214,7 @@ export default function ManualPage() {
       localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
       setTempUser(u);
 
-      // actualizar timeout con el exp correcto
+      // actualiza timeout
       const msLeft = exp - Date.now();
       if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
       timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
@@ -180,11 +224,11 @@ export default function ManualPage() {
         headers: { "Cache-Control": "no-cache" },
       });
 
+      if (availRes.status === 410) {
+        setStep("expired");
+        return;
+      }
       if (!availRes.ok) {
-        if (availRes.status === 410) {
-          setStep("expired");
-          return;
-        }
         const msg = await availRes.text().catch(() => "");
         throw new Error(`Error obteniendo disponibilidad (${availRes.status}). ${msg}`);
       }
@@ -197,21 +241,15 @@ export default function ManualPage() {
     }
   };
 
-  // Calcular edad + categorías
+  // 3) Calcular edad + categorías
   useEffect(() => {
     if (!birthDate || !distancia || !race) return;
 
     const bd = new Date(birthDate);
-
-    const raceFecha =
-      (race as any)?.fecha?.toDate
-        ? (race as any).fecha.toDate()
-        : new Date((race as any).fecha);
-
     const basis =
       ageBasis === "endOfYear"
-        ? new Date(raceFecha.getFullYear(), 11, 31)
-        : raceFecha;
+        ? new Date(new Date(race.fecha).getFullYear(), 11, 31)
+        : new Date(race.fecha);
 
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
@@ -225,6 +263,7 @@ export default function ManualPage() {
     setCategoria("");
   }, [birthDate, distancia, race, ageBasis, distancias]);
 
+  // 4) Submit
   const handleSubmit = async () => {
     if (!tempUser) return;
 
@@ -290,14 +329,40 @@ export default function ManualPage() {
     }
   };
 
-  if (step === "expired") return <p className="p-6 text-center">Este enlace ha expirado.</p>;
+  if (step === "expired") {
+    return <p className="p-6 text-center">Este enlace ha expirado.</p>;
+  }
+
+  if (step === "loading") {
+    return (
+      <div className="p-6 max-w-xl mx-auto">
+        <p className="text-center">Cargando enlace…</p>
+
+        {/* Debug visible (borra después) */}
+        {debug && (
+          <pre className="mt-4 text-xs bg-gray-100 p-3 rounded overflow-auto">
+            {JSON.stringify(debug, null, 2)}
+          </pre>
+        )}
+      </div>
+    );
+  }
 
   if (step === "login") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-sm bg-white shadow-md p-6 rounded-md">
           <h2 className="text-xl font-bold mb-4 text-center text-purple-700">Acceso Temporal</h2>
+
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+
+          {/* Debug visible (borra después) */}
+          {debug && (
+            <pre className="mb-3 text-xs bg-gray-100 p-3 rounded overflow-auto">
+              {JSON.stringify(debug, null, 2)}
+            </pre>
+          )}
+
           <input
             className="w-full mb-2 p-2 border rounded"
             placeholder="Usuario"
