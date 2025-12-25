@@ -24,27 +24,6 @@ interface DistanciaConCategorias {
   categorias: Categoria[];
 }
 
-// ✅ helper: convertir fecha de carrera a Date sin llorar
-function toDateSafe(input: any): Date | null {
-  if (!input) return null;
-  if (input instanceof Date) return input;
-  if (typeof input === "string") {
-    const d = new Date(input);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  // Firestore Timestamp (client or admin serialized)
-  if (typeof input === "object" && typeof input.toDate === "function") {
-    const d = input.toDate();
-    return d instanceof Date && !isNaN(d.getTime()) ? d : null;
-  }
-  // { seconds, nanoseconds }
-  if (typeof input === "object" && typeof input.seconds === "number") {
-    const d = new Date(input.seconds * 1000);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  return null;
-}
-
 export default function ManualPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
@@ -80,7 +59,7 @@ export default function ManualPage() {
 
   const timeoutRef = useRef<number | null>(null);
 
-  // Fetch and verify temp user link (SIN CACHE y con errores reales)
+  // 1) Cargar tempusuario + carrera (por API admin)
   useEffect(() => {
     if (!id) return;
 
@@ -90,7 +69,7 @@ export default function ManualPage() {
       setError(null);
 
       try {
-        // 1) tempusuario
+        // ✅ tempusuario (anti-cache)
         const res = await fetch(`/api/get-tempusuario?id=${id}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
@@ -108,10 +87,7 @@ export default function ManualPage() {
         const u = (await res.json()) as APIUser;
         const exp = Number(u.expiresAtMs);
 
-        if (!Number.isFinite(exp)) {
-          throw new Error("expiresAtMs inválido en respuesta.");
-        }
-
+        if (!Number.isFinite(exp)) throw new Error("expiresAtMs inválido.");
         const msLeft = exp - Date.now();
         if (msLeft <= 0) {
           setStep("expired");
@@ -119,34 +95,36 @@ export default function ManualPage() {
         }
 
         if (cancelled) return;
-
         setTempUser(u);
 
         // Programar expiración
         if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
         timeoutRef.current = window.setTimeout(() => setStep("expired"), msLeft);
 
-        // 2) carrera (✅ ADMIN SDK)
-        const raceRes = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
+        // ✅ carrera por API admin (evita problemas de permisos/proyecto equivocado)
+        const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
         });
 
-        if (!raceRes.ok) {
-          const msg = await raceRes.text().catch(() => "");
-          throw new Error(`No pude cargar la carrera (${raceRes.status}). ${msg}`);
+        if (!rc.ok) {
+          const msg = await rc.text().catch(() => "");
+          throw new Error(`No se pudo cargar la carrera (${rc.status}). ${msg}`);
         }
 
-        const d = await raceRes.json();
-
+        const carreraJson = await rc.json();
         if (cancelled) return;
 
-        setRace(d);
-        setDistancias(d.distancias || []);
-        setAgeBasis(d.ageBasis || "endOfYear");
+        const d = carreraJson as any;
+        setRace({ id: d.id, ...(d as any) });
+
+        // distancias + ageBasis seguras
+        setDistancias(Array.isArray(d.distancias) ? d.distancias : []);
+        setAgeBasis(d.ageBasis === "eventDate" ? "eventDate" : "endOfYear");
       } catch (e: any) {
         console.error(e);
-        setError(e?.message || "Error cargando enlace temporal.");
+        // ❌ NO marcar expired por errores que no son expiración
+        setError(e?.message || "Error cargando el enlace temporal.");
         setStep("login");
       }
     };
@@ -219,22 +197,21 @@ export default function ManualPage() {
     }
   };
 
-  // Calculate age and available categories
+  // Calcular edad + categorías
   useEffect(() => {
     if (!birthDate || !distancia || !race) return;
 
     const bd = new Date(birthDate);
-    const raceDate = toDateSafe((race as any).fecha);
 
-    if (!raceDate) {
-      setError("La carrera no tiene fecha válida (campo 'fecha').");
-      return;
-    }
+    const raceFecha =
+      (race as any)?.fecha?.toDate
+        ? (race as any).fecha.toDate()
+        : new Date((race as any).fecha);
 
     const basis =
       ageBasis === "endOfYear"
-        ? new Date(raceDate.getFullYear(), 11, 31)
-        : raceDate;
+        ? new Date(raceFecha.getFullYear(), 11, 31)
+        : raceFecha;
 
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
@@ -351,7 +328,7 @@ export default function ManualPage() {
         <h2 className="text-xl font-semibold text-purple-700">Inscripción Manual</h2>
 
         {successMessage && (
-          <p className="flex items-center gap-2 text-green-600 text-sm font-medium transition-opacity duration-700 opacity-100 animate-fadeOut">
+          <p className="flex items-center gap-2 text-green-600 text-sm font-medium">
             <span className="text-lg">✅</span>
             {successMessage}
           </p>
@@ -425,7 +402,7 @@ export default function ManualPage() {
         ))}
 
         <button
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400"
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold"
           onClick={handleSubmit}
         >
           Registrar Competidor
