@@ -18,12 +18,14 @@ if (!admin.apps.length) {
 
 const firestore = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2025-05-28.basil",
 });
+
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-// Asigna número si falta, agrega competitorNumber al confirmar pago
+// Asigna número si falta, agrega competitorNumber/ficha/bib al confirmar pago
 async function markPaymentStatus(
   sessionId: string,
   status: "paid" | "pending" | "unpaid" | "expired"
@@ -32,6 +34,7 @@ async function markPaymentStatus(
     .collection("inscripciones")
     .where("sessionId", "==", sessionId)
     .get();
+
   if (snap.empty) return;
 
   const batch = firestore.batch();
@@ -39,37 +42,58 @@ async function markPaymentStatus(
   for (const docSnap of snap.docs) {
     const ref = docSnap.ref;
     const data = docSnap.data() as any;
-    // En paid o pending, asignar número si aún no tiene
+
     if (status === "paid" || status === "pending") {
       if (!data.competitorNumber) {
         // Leer cupo máximo
-        const carreraDoc = await firestore.collection("carreras").doc(data.carreraId).get();
+        const carreraDoc = await firestore
+          .collection("carreras")
+          .doc(data.carreraId)
+          .get();
+
         const maxCupo = carreraDoc.get("maxCompetitors") || 0;
+
         // Inscripciones con número ya asignado
         const usedSnap = await firestore
           .collection("inscripciones")
           .where("carreraId", "==", data.carreraId)
           .where("competitorNumber", ">", 0)
           .get();
-        const used = usedSnap.docs.map(d => d.data().competitorNumber as number);
+
+        const used = usedSnap.docs.map(
+          (d) => d.data().competitorNumber as number
+        );
+
         let assigned = 1;
         while (used.includes(assigned) && assigned <= maxCupo) {
           assigned++;
         }
+
         if (assigned <= maxCupo) {
-          batch.update(ref, { paymentStatus: status, competitorNumber: assigned });
+          batch.update(ref, {
+            paymentStatus: status,
+            competitorNumber: assigned,
+            ficha: assigned,
+            bib: assigned,
+          });
         } else {
           // si se agotó cupo, solo actualiza status
           batch.update(ref, { paymentStatus: status });
         }
       } else {
-        batch.update(ref, { paymentStatus: status });
+        // Ya tenía competitorNumber: asegura ficha/bib si faltan (cura docs viejos)
+        const updates: any = { paymentStatus: status };
+        if (!data.ficha) updates.ficha = data.competitorNumber;
+        if (!data.bib) updates.bib = data.competitorNumber;
+        batch.update(ref, updates);
       }
     } else if (status === "unpaid" || status === "expired") {
       // liberar número
       batch.update(ref, {
         paymentStatus: status,
         competitorNumber: FieldValue.delete(),
+        ficha: FieldValue.delete(),
+        bib: FieldValue.delete(),
       });
     } else {
       batch.update(ref, { paymentStatus: status });
@@ -79,10 +103,7 @@ async function markPaymentStatus(
   await batch.commit();
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);
     return res.status(405).end("Method Not Allowed");
@@ -141,5 +162,5 @@ export default async function handler(
       break;
   }
 
-  res.status(200).json({ received: true });
+  return res.status(200).json({ received: true });
 }

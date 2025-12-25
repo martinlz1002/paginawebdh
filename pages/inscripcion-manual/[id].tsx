@@ -25,6 +25,12 @@ interface DistanciaConCategorias {
 
 type Step = "checking" | "login" | "form" | "expired";
 
+function fullName(nombre: string, paterno: string, materno: string) {
+  return `${(nombre || "").trim()} ${(paterno || "").trim()} ${(materno || "").trim()}`
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export default function ManualPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
@@ -52,6 +58,7 @@ export default function ManualPage() {
     nombre: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
+    rama: "", // ✅ NUEVO: Femenil / Varonil
     email: "",
     celular: "",
     ciudad: "",
@@ -68,7 +75,6 @@ export default function ManualPage() {
   // ✅ Forzar login SIEMPRE al entrar a un link
   useEffect(() => {
     if (!id) return;
-    // Limpia sesión previa (evita “permanece abierto”)
     try {
       localStorage.removeItem("tempUser");
     } catch {}
@@ -117,8 +123,10 @@ export default function ManualPage() {
         if (cancelledRef.current) return;
         setLinkUser(u);
 
-        // ✅ Timer de expiración (solo después de validar)
-        timeoutRef.current = window.setTimeout(() => setStep("expired"), u.expiresAtMs - Date.now());
+        timeoutRef.current = window.setTimeout(
+          () => setStep("expired"),
+          u.expiresAtMs - Date.now()
+        );
 
         // Cargar carrera por API admin
         const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
@@ -138,12 +146,10 @@ export default function ManualPage() {
         setDistancias(Array.isArray(d.distancias) ? d.distancias : []);
         setAgeBasis(d.ageBasis === "eventDate" ? "eventDate" : "endOfYear");
 
-        // ✅ SIEMPRE login al entrar
         setStep("login");
       } catch (e: any) {
         console.error(e);
         setError(e?.message || "Error cargando enlace temporal.");
-        // NO expired por errores no relacionados
         setStep("login");
       }
     };
@@ -188,7 +194,6 @@ export default function ManualPage() {
         return;
       }
 
-      // Guardar sesión temporal (solo para validación durante esa visita)
       localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
 
       const availRes = await fetch(`/api/temp-avail?id=${id}&t=${Date.now()}`, {
@@ -222,10 +227,13 @@ export default function ManualPage() {
     const bd = new Date(birthDate);
 
     const raceFecha =
-      (race as any)?.fecha?.toDate ? (race as any).fecha.toDate() : new Date((race as any).fecha);
+      (race as any)?.fecha?.toDate
+        ? (race as any).fecha.toDate()
+        : new Date((race as any).fecha);
 
-    const basis =
-      ageBasis === "endOfYear" ? new Date(raceFecha.getFullYear(), 11, 31) : raceFecha;
+    const basis = ageBasis === "endOfYear"
+      ? new Date(raceFecha.getFullYear(), 11, 31)
+      : raceFecha;
 
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
@@ -233,13 +241,19 @@ export default function ManualPage() {
     setEdad(age);
 
     const dist = distancias.find((d) => d.distancia === distancia);
-    if (!dist) return;
+    if (!dist) {
+      setDispCats([]);
+      setCategoria("");
+      return;
+    }
 
     setDispCats(dist.categorias.filter((c) => age >= c.minAge && age <= c.maxAge));
     setCategoria("");
   }, [birthDate, distancia, race, ageBasis, distancias]);
 
   const handleSubmit = async () => {
+    setError(null);
+
     if (!linkUser) return;
 
     if (Date.now() > linkUser.expiresAtMs) {
@@ -252,7 +266,18 @@ export default function ManualPage() {
       return;
     }
 
-    const campos = ["nombre", "apellidoPaterno", "apellidoMaterno", "email", "celular", "ciudad", "estado", "pais"];
+    // ✅ obligatorios (incluye rama)
+    const campos = [
+      "nombre",
+      "apellidoPaterno",
+      "apellidoMaterno",
+      "rama",
+      "email",
+      "celular",
+      "ciudad",
+      "estado",
+      "pais",
+    ];
     for (const campo of campos) {
       if (!(competidor as any)[campo]) {
         setError(`El campo ${campo} es obligatorio.`);
@@ -260,21 +285,41 @@ export default function ManualPage() {
       }
     }
 
+    if (!race?.titulo) {
+      setError("No se pudo obtener el nombre del evento (carreraTitulo).");
+      return;
+    }
+
+    const nombre = competidor.nombre.trim();
+    const paterno = competidor.apellidoPaterno.trim();
+    const materno = competidor.apellidoMaterno.trim();
+    const nombres = fullName(nombre, paterno, materno);
+
     try {
       await registrarInscripcionManual({
         carreraId: linkUser.carreraId,
-        perfilNombre: competidor.nombre,
-        perfilApPaterno: competidor.apellidoPaterno,
-        perfilApMaterno: competidor.apellidoMaterno,
-        birthDate: new Date(birthDate),
+        carreraTitulo: race.titulo,          // ✅ Evento
+        manualAdminId: linkUser.id,          // ✅ referencia del tempusuario
+
+        competitorNumber: numero,
+
+        nombre,
+        paterno,
+        materno,
+        nombres,
+
+        rama: competidor.rama,
+        ruta: distancia,                     // ✅ Ruta = distancia
         categoria,
+
         email: competidor.email,
         celular: competidor.celular,
         ciudad: competidor.ciudad,
         estado: competidor.estado,
         pais: competidor.pais,
         club: competidor.club,
-        competitorNumber: numero,
+
+        fechaNacimiento: new Date(birthDate),
       });
 
       setAvailable((av) => av.filter((n) => n !== numero));
@@ -288,6 +333,7 @@ export default function ManualPage() {
         nombre: "",
         apellidoPaterno: "",
         apellidoMaterno: "",
+        rama: "",
         email: "",
         celular: "",
         ciudad: "",
@@ -312,7 +358,9 @@ export default function ManualPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-sm bg-white shadow-md p-6 rounded-md">
-          <h2 className="text-xl font-bold mb-4 text-center text-purple-700">Acceso Temporal</h2>
+          <h2 className="text-xl font-bold mb-4 text-center text-purple-700">
+            Acceso Temporal
+          </h2>
 
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
 
@@ -355,6 +403,12 @@ export default function ManualPage() {
   return (
     <div className="max-w-lg mx-auto p-6 space-y-4">
       <h2 className="text-xl font-semibold text-purple-700">Inscripción Manual</h2>
+
+      {race?.titulo && (
+        <p className="text-sm text-gray-600">
+          <strong>Evento:</strong> {race.titulo}
+        </p>
+      )}
 
       {successMessage && (
         <p className="flex items-center gap-2 text-green-600 text-sm font-medium">
@@ -417,18 +471,33 @@ export default function ManualPage() {
         ))}
       </select>
 
-      {Object.entries(competidor).map(([field, value]) => (
-        <div key={field}>
-          <label className="block text-sm font-medium capitalize">
-            {field === "club" ? "Club (opcional)" : field}
-          </label>
-          <input
-            className="w-full p-2 border rounded"
-            value={value}
-            onChange={(e) => setCompetidor((c) => ({ ...c, [field]: e.target.value }))}
-          />
-        </div>
-      ))}
+      {/* ✅ Rama como select */}
+      <label className="block text-sm font-medium">Rama</label>
+      <select
+        className="w-full p-2 border rounded"
+        value={competidor.rama}
+        onChange={(e) => setCompetidor((c) => ({ ...c, rama: e.target.value }))}
+      >
+        <option value="">-- elige --</option>
+        <option value="Femenil">Femenil</option>
+        <option value="Varonil">Varonil</option>
+      </select>
+
+      {/* Inputs (sin rama, porque ya la capturamos arriba) */}
+      {Object.entries(competidor)
+        .filter(([field]) => field !== "rama")
+        .map(([field, value]) => (
+          <div key={field}>
+            <label className="block text-sm font-medium capitalize">
+              {field === "club" ? "Club (opcional)" : field}
+            </label>
+            <input
+              className="w-full p-2 border rounded"
+              value={value}
+              onChange={(e) => setCompetidor((c) => ({ ...c, [field]: e.target.value }))}
+            />
+          </div>
+        ))}
 
       <button
         className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold"
