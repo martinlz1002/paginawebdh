@@ -22,9 +22,11 @@ import { Usuario } from "@/lib/usuarios";
 type Estado = ReturnType<typeof State.getStatesOfCountry>[number];
 type Ciudad = ReturnType<typeof City.getCitiesOfState>[number];
 
+type Rama = "Femenil" | "Varonil" | "";
+
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
-  const nacimiento = new Date(fechaNacimiento);
+  const nacimiento = new Date(fechaNacimiento + "T00:00:00"); // ✅ evita desfase
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
   if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
@@ -46,40 +48,40 @@ export default function RegistroUsuarioPage() {
     ciudad: "",
     club: "",
     fechaNacimiento: "",
+    rama: "" as Rama, // ✅ NUEVO
   });
+
   const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const router = useRouter();
   const auth = getAuth(app);
 
   // Listas dinámicas
-  const [paises, setPaises] = useState(Country.getAllCountries());
+  const [paises] = useState(Country.getAllCountries());
   const [estados, setEstados] = useState<Estado[]>([]);
   const [ciudades, setCiudades] = useState<Ciudad[]>([]);
 
-  // Cuando cambia el país, cargamos sus estados y limpiamos abajo
   useEffect(() => {
-    if (formData.pais) {
-      setEstados(State.getStatesOfCountry(formData.pais));
-    } else {
-      setEstados([]);
-    }
-    setFormData(fd => ({ ...fd, estado: "", ciudad: "" }));
+    if (formData.pais) setEstados(State.getStatesOfCountry(formData.pais));
+    else setEstados([]);
+
+    setFormData((fd) => ({ ...fd, estado: "", ciudad: "" }));
     setCiudades([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.pais]);
 
-  // Cuando cambia el estado, cargamos sus ciudades
   useEffect(() => {
     if (formData.pais && formData.estado) {
       setCiudades(City.getCitiesOfState(formData.pais, formData.estado));
     } else {
       setCiudades([]);
     }
-    setFormData(fd => ({ ...fd, ciudad: "" }));
+    setFormData((fd) => ({ ...fd, ciudad: "" }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.estado]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(p => ({ ...p, [name]: value }));
+    setFormData((p) => ({ ...p, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,12 +89,17 @@ export default function RegistroUsuarioPage() {
     setMensaje(null);
 
     if (formData.email !== formData.confirmEmail)
-  return setMensaje({ type: "error", text: "Los correos electrónicos no coinciden." });
+      return setMensaje({ type: "error", text: "Los correos electrónicos no coinciden." });
 
     if (formData.password.length < 6)
       return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+
     if (formData.password !== formData.confirmPassword)
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
+
+    // ✅ NUEVO: Rama obligatoria
+    if (!formData.rama)
+      return setMensaje({ type: "error", text: "Selecciona tu Rama (Femenil o Varonil)." });
 
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
@@ -111,6 +118,7 @@ export default function RegistroUsuarioPage() {
 
     try {
       await sendEmailVerification(userCred.user);
+
       const pending: Usuario = {
         uid: userCred.user.uid,
         nombre: formData.nombre,
@@ -124,7 +132,9 @@ export default function RegistroUsuarioPage() {
         club: formData.club || undefined,
         fechaNacimiento: formData.fechaNacimiento,
         edad: calcularEdad(formData.fechaNacimiento),
-      };
+        rama: formData.rama, // ✅ NUEVO
+      } as any;
+
       localStorage.setItem("pendingUser", JSON.stringify(pending));
       setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
       router.push("/verify-email");
@@ -137,6 +147,7 @@ export default function RegistroUsuarioPage() {
   return (
     <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
       <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Nombre */}
         <div className="relative">
@@ -150,9 +161,10 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
+
         {/* Apellidos */}
         <div className="grid grid-cols-2 gap-4">
-          {["apPaterno","apMaterno"].map(n => (
+          {["apPaterno", "apMaterno"].map((n) => (
             <div key={n} className="relative">
               <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -166,6 +178,7 @@ export default function RegistroUsuarioPage() {
             </div>
           ))}
         </div>
+
         {/* Email */}
         <div className="relative">
           <EnvelopeIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -183,19 +196,20 @@ export default function RegistroUsuarioPage() {
         {/* Confirmar Email */}
         <div className="relative">
           <EnvelopeIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              name="confirmEmail"
-              type="email"
-              placeholder="Confirmar Correo Electrónico"
-              value={formData.confirmEmail}
-              onChange={handleChange}
-              required
-          className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+          <input
+            name="confirmEmail"
+            type="email"
+            placeholder="Confirmar Correo Electrónico"
+            value={formData.confirmEmail}
+            onChange={handleChange}
+            required
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
+
         {/* Contraseña */}
         <div className="grid grid-cols-2 gap-4">
-          {["password","confirmPassword"].map(n => (
+          {["password", "confirmPassword"].map((n) => (
             <div key={n} className="relative">
               <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -210,6 +224,7 @@ export default function RegistroUsuarioPage() {
             </div>
           ))}
         </div>
+
         {/* Celular */}
         <div className="relative">
           <PhoneIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -223,6 +238,23 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
+
+        {/* ✅ NUEVO: Rama */}
+        <div className="relative">
+          <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <select
+            name="rama"
+            value={formData.rama}
+            onChange={handleChange}
+            required
+            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+          >
+            <option value="">Selecciona Rama</option>
+            <option value="Femenil">Femenil</option>
+            <option value="Varonil">Varonil</option>
+          </select>
+        </div>
+
         {/* País */}
         <div className="relative">
           <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -234,11 +266,14 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           >
             <option value="">Selecciona País</option>
-            {paises.map(c => (
-              <option key={c.isoCode} value={c.isoCode}>{c.name}</option>
+            {paises.map((c) => (
+              <option key={c.isoCode} value={c.isoCode}>
+                {c.name}
+              </option>
             ))}
           </select>
         </div>
+
         {/* Estado */}
         <div className="relative">
           <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -251,11 +286,14 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           >
             <option value="">Selecciona Estado</option>
-            {estados.map(s => (
-              <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+            {estados.map((s) => (
+              <option key={s.isoCode} value={s.isoCode}>
+                {s.name}
+              </option>
             ))}
           </select>
         </div>
+
         {/* Ciudad */}
         <div className="relative">
           <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -268,11 +306,14 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           >
             <option value="">Selecciona Ciudad</option>
-            {ciudades.map(c => (
-              <option key={c.name} value={c.name}>{c.name}</option>
+            {ciudades.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
             ))}
           </select>
         </div>
+
         {/* Club */}
         <div className="relative">
           <BuildingOffice2Icon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -284,6 +325,7 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
+
         {/* Fecha de nacimiento */}
         <label className="block text-sm font-medium text-gray-700">
           Ingresa tu fecha de nacimiento
@@ -299,7 +341,7 @@ export default function RegistroUsuarioPage() {
             className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
           />
         </div>
-        {/* Botón */}
+
         <button
           type="submit"
           className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
@@ -307,8 +349,9 @@ export default function RegistroUsuarioPage() {
           Registrarse
         </button>
       </form>
+
       {mensaje && (
-        <p className={`mt-4 text-center ${mensaje.type==="error"?"text-red-600":"text-green-600"}`}>
+        <p className={`mt-4 text-center ${mensaje.type === "error" ? "text-red-600" : "text-green-600"}`}>
           {mensaje.text}
         </p>
       )}
