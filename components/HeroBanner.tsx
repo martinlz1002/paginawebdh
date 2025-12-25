@@ -3,7 +3,7 @@ import Image from "next/image";
 export default function HeroBanner() {
   return (
     <section
-      className="relative h-96 bg-gradient-to-r from-purple-900 to-blue-700 text-white flex items-center overflow-hidden"
+      className="relative h-96 bg-gradient-to-r from-purple-900 to-green-700 text-white flex items-center overflow-hidden"
     >
       <div className="container mx-auto px-6 flex flex-col md:flex-row items-center">
         {/* Texto */}
