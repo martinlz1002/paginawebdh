@@ -7,6 +7,7 @@ interface TempUser {
   carreraId: string;
   range: { start: number; end: number };
   expiresAt: string;
+  expiresAtMs: number; // ✅ IMPORTANTÍSIMO
 }
 
 export default function TempLoginPage() {
@@ -20,23 +21,35 @@ export default function TempLoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
-      const res = await fetch("/api/temp-login", {
+      const res = await fetch(`/api/temp-login?t=${Date.now()}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
         body: JSON.stringify({ username, password }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Error de autenticación");
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "Error de autenticación");
       }
-      // Inyectamos la contraseña y guardamos TODO en localStorage
-      const user: TempUser & { password: string } = {
-        ...data.user,
-        password,
-      };
-      localStorage.setItem("tempUser", JSON.stringify(user));
-      router.push(`/inscripcion‑manual/${user.id}`);
+
+      const user = data.user as TempUser;
+
+      if (!user?.id || typeof user.expiresAtMs !== "number") {
+        throw new Error("Respuesta inválida del servidor (faltan datos).");
+      }
+
+      // Guardamos TODO (incluye expiresAtMs) + password
+      localStorage.setItem("tempUser", JSON.stringify({ ...user, password }));
+
+      // ✅ GUION NORMAL (IMPORTANTÍSIMO)
+      router.push(`/inscripcion-manual/${user.id}`);
     } catch (err: any) {
       setError(err.message);
       setLoading(false);
@@ -53,7 +66,7 @@ export default function TempLoginPage() {
           <input
             type="text"
             value={username}
-            onChange={e => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value)}
             required
             className="w-full p-2 border rounded"
           />
@@ -63,7 +76,7 @@ export default function TempLoginPage() {
           <input
             type="password"
             value={password}
-            onChange={e => setPassword(e.target.value)}
+            onChange={(e) => setPassword(e.target.value)}
             required
             className="w-full p-2 border rounded"
           />
