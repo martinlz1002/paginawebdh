@@ -15,7 +15,15 @@ import {
 } from "@heroicons/react/24/outline";
 
 export interface AdminCarrerasFormProps {
-  initialValues?: CarreraData & { id: string; bannerUrl?: string; imagenUrl?: string };
+  initialValues?: CarreraData & {
+    id: string;
+    bannerUrl?: string;
+    imagenUrl?: string;
+
+    // ✅ nuevo
+    inscripcionesAbiertas?: boolean;
+    inscripcionesMensaje?: string;
+  };
   onSuccess?: () => void;
 }
 
@@ -44,6 +52,14 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const [nuevaCat, setNuevaCat] = useState<Categoria>({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
   const [editCatIndex, setEditCatIndex] = useState<number | null>(null);
 
+  // ✅ NUEVO: control de inscripciones
+  const [inscripcionesAbiertas, setInscripcionesAbiertas] = useState<boolean>(
+    initialValues?.inscripcionesAbiertas !== false // default true
+  );
+  const [inscripcionesMensaje, setInscripcionesMensaje] = useState<string>(
+    initialValues?.inscripcionesMensaje || "Inscripciones pausadas temporalmente."
+  );
+
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -61,6 +77,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const handleAddOrSaveCategoria = () => {
     if (!distanciaSeleccionada) return;
     if (!nuevaCat.nombre.trim() || nuevaCat.minAge < 0 || nuevaCat.maxAge < nuevaCat.minAge || nuevaCat.price < 0) return;
+
     setDistancias(prev => prev.map(d => {
       if (d.distancia !== distanciaSeleccionada) return d;
       const cats = [...d.categorias];
@@ -68,6 +85,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       else cats.push(nuevaCat);
       return { ...d, categorias: cats };
     }));
+
     setNuevaCat({ nombre: '', minAge: 0, maxAge: 0, price: 0 });
     setEditCatIndex(null);
   };
@@ -78,6 +96,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     setDistanciaSeleccionada(distancias[dIndex].distancia);
     setEditCatIndex(cIndex);
   };
+
   const handleDeleteCategoria = (dIndex: number, cIndex: number) => {
     setDistancias(prev => prev.map((d, i) => {
       if (i !== dIndex) return d;
@@ -87,17 +106,21 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     let newImagenUrl = imagenUrl;
     let newBannerUrl = bannerUrl;
+
     if (imagenFile) {
       if (newImagenUrl) await deleteObject(ref(storage, newImagenUrl)).catch(() => {});
       newImagenUrl = await uploadIfNeeded(imagenFile, 'carreras');
     }
+
     if (bannerFile) {
       if (newBannerUrl) await deleteObject(ref(storage, newBannerUrl)).catch(() => {});
       newBannerUrl = await uploadIfNeeded(bannerFile, 'carreras/banners');
     }
-    const payload = {
+
+    const payload: any = {
       titulo,
       descripcion,
       lugar,
@@ -109,14 +132,21 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       kitFecha: kitFecha || 'Por definir',
       kitLugar: kitLugar || 'Por definir',
       kitHorario: kitHorario || 'Por definir',
+
+      // ✅ NUEVO
+      inscripcionesAbiertas,
+      inscripcionesMensaje: inscripcionesAbiertas ? "" : (inscripcionesMensaje || "Inscripciones pausadas temporalmente."),
+
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
+
     if (initialValues?.id) {
       await updateDoc(doc(db, 'carreras', initialValues.id), payload);
     } else {
       await addDoc(collection(db, 'carreras'), payload);
     }
+
     setImagenUrl(newImagenUrl);
     setBannerUrl(newBannerUrl);
     onSuccess?.();
@@ -128,6 +158,47 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         {initialValues ? 'Editar Carrera' : 'Nueva Carrera'}
       </h2>
 
+      {/* ✅ CONTROL DE INSCRIPCIONES */}
+      <div className="border rounded-lg p-4 bg-gray-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-gray-800">Inscripciones en línea</p>
+            <p className="text-sm text-gray-600">
+              Si lo apagas, no se podrán crear pagos Stripe para esta carrera.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setInscripcionesAbiertas(v => !v)}
+            className={`px-4 py-2 rounded-lg text-white font-medium ${
+              inscripcionesAbiertas ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+            }`}
+          >
+            {inscripcionesAbiertas ? "Abiertas" : "Pausadas"}
+          </button>
+        </div>
+
+        {!inscripcionesAbiertas && (
+          <div className="mt-3">
+            <label className="block mb-1 font-medium text-gray-700">
+              Mensaje al usuario (opcional)
+            </label>
+            <input
+              type="text"
+              value={inscripcionesMensaje}
+              onChange={(e) => setInscripcionesMensaje(e.target.value)}
+              placeholder="Ej. Inscripciones pausadas por cupo lleno."
+              className="w-full border p-2 rounded text-gray-800"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Este mensaje lo verán en /inscribirse y también bloqueará el checkout.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* ... TU FORM ORIGINAL ABAJO SIN CAMBIOS ... */}
       {/* TÍTULO */}
       <div>
         <label className="block mb-1 font-medium text-gray-700">Título</label>

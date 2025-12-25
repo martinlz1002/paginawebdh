@@ -397,6 +397,11 @@ export default function InscribirsePage() {
     return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
   }
 
+  const abiertas = (carrera as any)?.inscripcionesAbiertas !== false;
+const pausaMsg =
+  (carrera as any)?.inscripcionesMensaje ||
+  "Inscripciones pausadas temporalmente.";
+
   return (
     <div>
       {carrera.bannerUrl && (
@@ -569,24 +574,23 @@ export default function InscribirsePage() {
           </div>
         </div>
 
+        
+
         <button
-          onClick={handlePagar}
-          disabled={!perfilId || !distancia || !categoria || procesando}
-          className={`w-full py-3 text-white font-medium rounded-lg ${
-            perfilId && distancia && categoria
-              ? "bg-green-600 hover:bg-green-700"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-        >
-          {procesando
-            ? "Procesando..."
-            : categoria
-            ? `Inscribirme y Pagar $${computeGross(
-                categoriasPermitidas.find((c) => c.nombre === categoria)?.price ??
-                  0
-              ).toFixed(2)}`
-            : "Inscribirme y Pagar"}
-        </button>
+  onClick={handlePagar}
+  disabled={!abiertas || !perfilId || !distancia || !categoria || procesando}
+  className={`w-full py-3 text-white font-medium rounded-lg ${
+    abiertas && perfilId && distancia && categoria
+      ? "bg-green-600 hover:bg-green-700"
+      : "bg-gray-400 cursor-not-allowed"
+  }`}
+>
+  {!abiertas ? "Inscripciones pausadas" : procesando ? "Procesando..." : "Inscribirme y Pagar"}
+</button>
+
+{!abiertas && (
+  <p className="text-center text-red-600 text-sm">{pausaMsg}</p>
+)}
 
         {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
 
