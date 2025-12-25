@@ -25,33 +25,13 @@ interface DistanciaConCategorias {
 
 type Step = "checking" | "login" | "form" | "expired";
 
-function readTempUserFromLS(): any | null {
-  try {
-    const raw = localStorage.getItem("tempUser");
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function getExpMs(u: any): number {
-  const expMs =
-    typeof u?.expiresAtMs === "number"
-      ? u.expiresAtMs
-      : typeof u?.expiresAt === "string"
-        ? new Date(u.expiresAt).getTime()
-        : NaN;
-  return Number.isFinite(expMs) ? expMs : NaN;
-}
-
 export default function ManualPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
 
   const [step, setStep] = useState<Step>("checking");
 
-  const [linkUser, setLinkUser] = useState<APIUser | null>(null); // lo que dice la API del link
+  const [linkUser, setLinkUser] = useState<APIUser | null>(null);
   const [race, setRace] = useState<(CarreraData & { id: string }) | null>(null);
   const [distancias, setDistancias] = useState<DistanciaConCategorias[]>([]);
   const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
@@ -80,20 +60,38 @@ export default function ManualPage() {
     club: "",
   });
 
+  const [loginLoading, setLoginLoading] = useState(false);
+
   const timeoutRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
 
-  // 🔥 1) Validar link (API) + cargar carrera. Luego decidir si mostrar login o form según localStorage.
+  // ✅ Forzar login SIEMPRE al entrar a un link
+  useEffect(() => {
+    if (!id) return;
+    // Limpia sesión previa (evita “permanece abierto”)
+    try {
+      localStorage.removeItem("tempUser");
+    } catch {}
+  }, [id]);
+
+  // 1) Validar link (API) + cargar carrera. SIEMPRE termina en login (salvo expirado real)
   useEffect(() => {
     if (!id) return;
     cancelledRef.current = false;
 
+    const clearExpiryTimer = () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+
     const run = async () => {
       setError(null);
       setStep("checking");
+      clearExpiryTimer();
 
       try {
-        // 1) Validar link tempusuario
         const res = await fetch(`/api/get-tempusuario?id=${id}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
@@ -109,6 +107,7 @@ export default function ManualPage() {
         }
 
         const u = (await res.json()) as APIUser;
+
         if (!Number.isFinite(u.expiresAtMs)) throw new Error("expiresAtMs inválido.");
         if (u.expiresAtMs <= Date.now()) {
           setStep("expired");
@@ -118,11 +117,10 @@ export default function ManualPage() {
         if (cancelledRef.current) return;
         setLinkUser(u);
 
-        // programar expiración UNA SOLA VEZ
-        if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+        // ✅ Timer de expiración (solo después de validar)
         timeoutRef.current = window.setTimeout(() => setStep("expired"), u.expiresAtMs - Date.now());
 
-        // 2) Cargar carrera por API (admin)
+        // Cargar carrera por API admin
         const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
@@ -140,44 +138,12 @@ export default function ManualPage() {
         setDistancias(Array.isArray(d.distancias) ? d.distancias : []);
         setAgeBasis(d.ageBasis === "eventDate" ? "eventDate" : "endOfYear");
 
-        // 3) Decidir: ¿ya está logueado este mismo link?
-        const ls = readTempUserFromLS();
-        const lsExp = getExpMs(ls);
-
-        const sameLink = ls?.id === id;
-        const lsValid = sameLink && Number.isFinite(lsExp) && lsExp > Date.now();
-
-        if (lsValid) {
-          // ya hay sesión válida para ESTE link: cargar disponibilidad y mostrar form
-          const availRes = await fetch(`/api/temp-avail?id=${id}&t=${Date.now()}`, {
-            cache: "no-store",
-            headers: { "Cache-Control": "no-cache" },
-          });
-
-          if (!availRes.ok) {
-            if (availRes.status === 410) {
-              localStorage.removeItem("tempUser");
-              setStep("expired");
-              return;
-            }
-            const msg = await availRes.text().catch(() => "");
-            throw new Error(`Error obteniendo disponibilidad (${availRes.status}). ${msg}`);
-          }
-
-          const availJson = await availRes.json();
-          setAvailable((availJson.available || []) as number[]);
-          setStep("form");
-        } else {
-          // si hay tempUser viejo de otro link o expirado, lo limpiamos para evitar bypass
-          if (ls && (!sameLink || !Number.isFinite(lsExp) || lsExp <= Date.now())) {
-            localStorage.removeItem("tempUser");
-          }
-          setStep("login");
-        }
+        // ✅ SIEMPRE login al entrar
+        setStep("login");
       } catch (e: any) {
         console.error(e);
         setError(e?.message || "Error cargando enlace temporal.");
-        // ojo: no lo marques expired por cualquier cosa
+        // NO expired por errores no relacionados
         setStep("login");
       }
     };
@@ -193,10 +159,12 @@ export default function ManualPage() {
     };
   }, [id]);
 
-  // 🔐 2) Login (guarda en localStorage y luego carga disponibilidad + entra a form)
+  // 2) Login: loading + guardar sesión + cargar disponibilidad + form
   const handleLogin = async () => {
     setError(null);
     if (!linkUser || !id) return;
+
+    setLoginLoading(true);
 
     try {
       const res = await fetch(`/api/temp-login?t=${Date.now()}`, {
@@ -214,19 +182,15 @@ export default function ManualPage() {
 
       const u = data.user as APIUser;
 
-      // 1) Deben pertenecer a ESTE link
       if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
-
-      // 2) No debe estar expirado
       if (!Number.isFinite(u.expiresAtMs) || u.expiresAtMs <= Date.now()) {
         setStep("expired");
         return;
       }
 
-      // Guardar sesión temporal (si quieres NO guardar password, bórralo aquí)
+      // Guardar sesión temporal (solo para validación durante esa visita)
       localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
 
-      // cargar disponibilidad
       const availRes = await fetch(`/api/temp-avail?id=${id}&t=${Date.now()}`, {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache" },
@@ -246,10 +210,12 @@ export default function ManualPage() {
       setStep("form");
     } catch (e: any) {
       setError(e.message);
+    } finally {
+      setLoginLoading(false);
     }
   };
 
-  // 🧮 3) Edad + categorías
+  // Edad + categorías
   useEffect(() => {
     if (!birthDate || !distancia || !race) return;
 
@@ -340,7 +306,6 @@ export default function ManualPage() {
 
   // UI
   if (step === "checking") return <p className="p-6 text-center">Cargando…</p>;
-
   if (step === "expired") return <p className="p-6 text-center">Este enlace ha expirado.</p>;
 
   if (step === "login") {
@@ -348,33 +313,45 @@ export default function ManualPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="w-full max-w-sm bg-white shadow-md p-6 rounded-md">
           <h2 className="text-xl font-bold mb-4 text-center text-purple-700">Acceso Temporal</h2>
+
           {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
+
           <input
             className="w-full mb-2 p-2 border rounded"
             placeholder="Usuario"
             value={userCreds.username}
+            disabled={loginLoading}
             onChange={(e) => setUserCreds((u) => ({ ...u, username: e.target.value }))}
           />
+
           <input
             className="w-full mb-4 p-2 border rounded"
             type="password"
             placeholder="Contraseña"
             value={userCreds.password}
+            disabled={loginLoading}
             onChange={(e) => setUserCreds((u) => ({ ...u, password: e.target.value }))}
           />
+
           <button
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400"
             onClick={handleLogin}
-            disabled={!linkUser}
+            disabled={!linkUser || loginLoading}
           >
-            Entrar
+            {loginLoading ? "Verificando…" : "Entrar"}
           </button>
+
+          {loginLoading && (
+            <p className="text-xs text-gray-500 mt-3 text-center">
+              Un segundo… validando credenciales 🧾
+            </p>
+          )}
         </div>
       </div>
     );
   }
 
-  // step === "form"
+  // form
   return (
     <div className="max-w-lg mx-auto p-6 space-y-4">
       <h2 className="text-xl font-semibold text-purple-700">Inscripción Manual</h2>
