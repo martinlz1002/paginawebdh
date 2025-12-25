@@ -10,8 +10,10 @@ import {
   serverTimestamp,
   DocumentReference,
   Timestamp,
+  deleteDoc,
+  doc,
 } from "firebase/firestore";
-import { ChevronLeftIcon } from "@heroicons/react/24/outline";
+import { ChevronLeftIcon, TrashIcon } from "@heroicons/react/24/outline";
 import type { TempUsuario } from "@/types/tempusuario";
 import type { CarreraOption } from "@/components/EliminarInscripciones";
 
@@ -20,9 +22,7 @@ interface TempAccessRecord extends TempUsuario {
   link?: string;
 }
 
-// ✅ parse seguro para <input type="datetime-local">
 function parseDateTimeLocal(value: string): Date | null {
-  // value: "YYYY-MM-DDTHH:mm"
   if (!value) return null;
   const m = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
   if (!m) return null;
@@ -32,7 +32,7 @@ function parseDateTimeLocal(value: string): Date | null {
   const d = Number(ds);
   const h = Number(hs);
   const mi = Number(mins);
-  const dt = new Date(y, mo, d, h, mi, 0, 0); // ✅ LOCAL explícito
+  const dt = new Date(y, mo, d, h, mi, 0, 0);
   return Number.isFinite(dt.getTime()) ? dt : null;
 }
 
@@ -48,9 +48,9 @@ export default function InscripcionesManualesAdmin() {
   const [password, setPassword] = useState<string>("");
   const [link, setLink] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 1) Cargar carreras y accesos existentes
   useEffect(() => {
     (async () => {
       const snapC = await getDocs(collection(db, "carreras"));
@@ -66,7 +66,9 @@ export default function InscripcionesManualesAdmin() {
         const data = d.data() as any;
 
         const exp =
-          data.expiresAt?.toDate ? (data.expiresAt as Timestamp).toDate() : new Date(data.expiresAt);
+          data.expiresAt?.toDate
+            ? (data.expiresAt as Timestamp).toDate()
+            : new Date(data.expiresAt);
 
         const created =
           data.createdAt?.toDate ? (data.createdAt as Timestamp).toDate() : new Date();
@@ -104,7 +106,6 @@ export default function InscripcionesManualesAdmin() {
       return;
     }
 
-    // ✅ evita crear enlaces ya expirados
     if (expDate.getTime() <= Date.now()) {
       setError("La fecha de expiración debe ser futura.");
       return;
@@ -116,7 +117,6 @@ export default function InscripcionesManualesAdmin() {
       const docRef = (await addDoc(collection(db, "tempusuarios"), {
         carreraId,
         range: { start: startNumber, end: endNumber },
-        // ✅ guardar como Timestamp consistente
         expiresAt: Timestamp.fromDate(expDate),
         username: username.trim(),
         password,
@@ -149,6 +149,35 @@ export default function InscripcionesManualesAdmin() {
     }
   };
 
+  // ✅ Eliminar acceso temporal (UI + Firestore)
+  const handleDelete = async (tempId: string) => {
+    setError(null);
+
+    const ok = window.confirm(
+      "¿Eliminar este acceso temporal?\n\nEsto dejará el link INACTIVO y ya no se podrá usar."
+    );
+    if (!ok) return;
+
+    setDeletingId(tempId);
+
+    try {
+      await deleteDoc(doc(db, "tempusuarios", tempId));
+
+      // quitar de la lista en UI
+      setAccesses((prev) => prev.filter((a) => a.id !== tempId));
+
+      // si el link mostrado arriba era ese, límpialo
+      setLink((prevLink) => (prevLink.includes(tempId) ? "" : prevLink));
+    } catch (e: any) {
+      console.error(e);
+      setError(
+        e?.message || "No se pudo eliminar. Verifica que tu usuario sea admin (reglas/firestore)."
+      );
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <AuthGuard>
       <div className="max-w-4xl mx-auto p-6 space-y-8 bg-white rounded shadow">
@@ -161,9 +190,7 @@ export default function InscripcionesManualesAdmin() {
         </button>
 
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-800">
-            Crear Inscripciones Manuales
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-800">Crear Inscripciones Manuales</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -213,9 +240,7 @@ export default function InscripcionesManualesAdmin() {
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Se toma como hora local del dispositivo.
-              </p>
+              <p className="text-xs text-gray-500 mt-1">Se toma como hora local del dispositivo.</p>
             </div>
 
             <div className="flex space-x-4">
@@ -266,9 +291,7 @@ export default function InscripcionesManualesAdmin() {
         </section>
 
         <section>
-          <h2 className="text-xl font-semibold text-gray-800">
-            Accesos Temporales Creados
-          </h2>
+          <h2 className="text-xl font-semibold text-gray-800">Accesos Temporales Creados</h2>
 
           {accesses.length === 0 ? (
             <p className="text-gray-500">No hay accesos temporales.</p>
@@ -288,6 +311,7 @@ export default function InscripcionesManualesAdmin() {
                 <tbody>
                   {accesses.map((acc) => {
                     const carrera = carreras.find((c) => c.id === acc.carreraId);
+
                     return (
                       <tr key={acc.id} className="hover:bg-gray-50">
                         <td className="p-2 text-gray-800">{carrera?.titulo || acc.carreraId}</td>
@@ -297,19 +321,36 @@ export default function InscripcionesManualesAdmin() {
                         <td className="p-2 text-gray-800">
                           {(acc.expiresAt as Date).toLocaleString()}
                         </td>
+
                         <td className="p-2 text-gray-800">
-                          {acc.link ? (
-                            <a
-                              href={acc.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 underline"
+                          <div className="flex items-center gap-3">
+                            {acc.link ? (
+                              <a
+                                href={acc.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                              >
+                                Ver
+                              </a>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(acc.id)}
+                              disabled={deletingId === acc.id}
+                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                              title="Eliminar link"
                             >
-                              Ver
-                            </a>
-                          ) : (
-                            "-"
-                          )}
+                              <TrashIcon className="w-5 h-5" />
+                            </button>
+
+                            {deletingId === acc.id && (
+                              <span className="text-xs text-gray-500">Eliminando…</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
