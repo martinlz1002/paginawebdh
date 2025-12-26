@@ -120,7 +120,7 @@ export default function Footer() {
 
           <div className="mt-4 h-px w-full bg-gradient-to-r from-dh-purple/40 to-dh-green/40" />
           <p className="mt-3 text-xs text-white/50">
-            Soporte y cronometraje con vibe DHTime 🟣🟢
+            Soporte y cronometraje DHTime 🟣🟢
           </p>
         </div>
       </div>

@@ -39,6 +39,7 @@ export default function Testimonials() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newText.trim()) return;
+
     const author = user.displayName || user.email!.split("@")[0];
     const payload = { author, text: newText.trim(), avatarUrl: user.photoURL || null };
 
@@ -48,10 +49,12 @@ export default function Testimonials() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || res.statusText);
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as any).error || res.statusText);
       }
+
       setNewText("");
       fetchTestimonials();
     } catch (e) {
@@ -59,58 +62,121 @@ export default function Testimonials() {
     }
   };
 
+  const shell =
+    "rounded-2xl border border-white/10 bg-white/5 backdrop-blur shadow-dh";
+
   return (
     <section className="space-y-6">
-      <SectionHeader title="Testimonios de Corredores" />
+      <SectionHeader
+        title="Testimonios de Corredores"
+        subtitle="Lo que dicen los que ya corrieron con DHTime"
+      />
 
+      {/* Composer */}
       {user && (
-        <form onSubmit={handleSubmit} className="space-y-2">
+        <form onSubmit={handleSubmit} className={`${shell} p-5 space-y-3`}>
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-white/80">
+              Comparte tu experiencia 👟
+            </p>
+            <span className="text-xs text-white/50">
+              {newText.trim().length}/280
+            </span>
+          </div>
+
           <textarea
             value={newText}
-            onChange={e => setNewText(e.target.value)}
+            onChange={(e) => setNewText(e.target.value.slice(0, 280))}
             placeholder="Escribe tu testimonio..."
-            className="w-full border rounded-xl p-3 resize-none focus:ring-2 focus:ring-dh-purple/50 focus:border-dh-purple text-gray-900 placeholder-gray-400 bg-white"
+            className={[
+              "w-full rounded-xl p-3 resize-none",
+              "bg-dh-dark/60 text-white placeholder-white/40",
+              "border border-white/10",
+              "focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green/40",
+            ].join(" ")}
             rows={3}
           />
-          <button
-            type="submit"
-            className="bg-dh-green hover:bg-dh-green/90 text-dh-dark font-semibold px-4 py-2 rounded-xl transition shadow"
-          >
-            Enviar Testimonio
-          </button>
+
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-white/45">
+              Se publica con tu usuario:{" "}
+              <span className="text-white/70">{user.displayName || user.email}</span>
+            </p>
+
+            <button
+              type="submit"
+              disabled={!newText.trim()}
+              className={[
+                "px-4 py-2 rounded-xl font-semibold transition shadow",
+                "bg-dh-green text-dh-dark hover:bg-dh-green/90",
+                "disabled:opacity-40 disabled:cursor-not-allowed",
+              ].join(" ")}
+            >
+              Enviar
+            </button>
+          </div>
         </form>
       )}
 
+      {/* List */}
       {loading ? (
-        <p>Cargando testimonios…</p>
+        <div className={`${shell} p-6`}>
+          <p className="text-white/70">Cargando testimonios…</p>
+        </div>
       ) : items.length === 0 ? (
-        <p>No hay testimonios aún. ¡Sé el primero!</p>
+        <div className={`${shell} p-6`}>
+          <p className="text-white/70">
+            No hay testimonios aún.
+          </p>
+        </div>
       ) : (
-        <div className="space-y-4">
-          {items.map(t => (
-            <div
-              key={t.id}
-              className="bg-white rounded-2xl shadow-sm p-6 flex gap-4"
-            >
-              <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center overflow-hidden">
-                {t.avatarUrl ? (
-                  <img
-                    src={t.avatarUrl}
-                    alt={t.author}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-purple-600 font-bold">
-                    {t.author.charAt(0)}
-                  </span>
-                )}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((t) => {
+            const initial = (t.author || "?").trim().charAt(0).toUpperCase();
+
+            return (
+              <div
+                key={t.id}
+                className={[
+                  shell,
+                  "p-5 flex flex-col gap-4",
+                  "transition hover:bg-white/10 hover:border-white/15",
+                ].join(" ")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full overflow-hidden border border-white/10 bg-gradient-to-br from-dh-purple/50 to-dh-green/40 flex items-center justify-center">
+                    {t.avatarUrl ? (
+                      <img
+                        src={t.avatarUrl}
+                        alt={t.author}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-white font-extrabold">
+                        {initial}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="font-semibold text-white truncate">{t.author}</p>
+                    <p className="text-xs text-white/50">Corredor verificado ✅</p>
+                  </div>
+                </div>
+
+                <p className="text-white/80 leading-relaxed">
+                  <span className="text-dh-green/90 font-bold">“</span>
+                  {t.text}
+                  <span className="text-dh-green/90 font-bold">”</span>
+                </p>
+
+                <div className="mt-auto pt-3 border-t border-white/10 flex items-center justify-between">
+                  <span className="text-xs text-white/45">DHTime</span>
+                  {/* Si luego quieres fecha, aquí la pintamos */}
+                </div>
               </div>
-              <div>
-                <p className="italic text-gray-700">“{t.text}”</p>
-                <p className="mt-2 font-medium text-gray-800">— {t.author}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
