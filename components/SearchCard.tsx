@@ -6,13 +6,14 @@ import {
   CalendarIcon,
   MapPinIcon,
   MagnifyingGlassIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 
 interface Carrera {
   id: string;
   titulo: string;
   ubicacion?: string;
-  fecha: string; // formato "DD/MM/YYYY"
+  fecha: string; // "DD/MM/YYYY"
 }
 
 export default function SearchCard() {
@@ -68,23 +69,55 @@ export default function SearchCard() {
     );
   }, [q, city, date, carreras]);
 
+  const hasFilters = Boolean(q || city || date);
+
   const inputBase =
-    "w-full pl-10 pr-4 py-2.5 border rounded-xl bg-white text-gray-900 placeholder-gray-400 " +
-    "border-dh-purple/15 focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green/40";
+    "w-full pr-4 py-2.5 border rounded-xl bg-white text-gray-900 placeholder-gray-400 " +
+    "border-dh-purple/15 focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green/40 " +
+    "transition";
+
+  const inputWithIcon = inputBase + " pl-10";
+  const dateInput = inputBase + " pl-10"; // ok con icono, pero sin pl extra exagerado
+
+  const clearAll = () => {
+    setQ("");
+    setCity("");
+    setDate("");
+  };
 
   return (
-    <div className="relative max-w-4xl mx-auto bg-white rounded-2xl shadow-dh p-6 space-y-4 border border-dh-purple/10">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-bold text-dh-ink">
-          Encuentra tu carrera{" "}
-          <span className="text-dh-purple">en segundos</span>
-        </h3>
-        <span className="hidden sm:inline text-xs text-gray-500">
-          Filtra por nombre, ciudad o fecha
-        </span>
+    <div className="relative max-w-4xl mx-auto bg-white rounded-2xl shadow-dh p-6 space-y-4 border border-dh-purple/10 overflow-hidden">
+      {/* Glow DH suave */}
+      <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-dh-green/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-dh-purple/15 blur-3xl" />
+
+      <div className="relative flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-extrabold text-dh-ink leading-tight">
+            Encuentra tu carrera{" "}
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-dh-purple to-dh-green">
+              en segundos
+            </span>
+          </h3>
+          <p className="text-xs text-gray-500 mt-1">
+            Filtra por nombre, ciudad o fecha
+          </p>
+        </div>
+
+        {hasFilters && (
+          <button
+            type="button"
+            onClick={clearAll}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dh-purple/10 text-sm text-dh-ink hover:bg-dh-soft transition"
+            title="Limpiar filtros"
+          >
+            <XMarkIcon className="w-4 h-4" />
+            Limpiar
+          </button>
+        )}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="relative grid gap-4 md:grid-cols-3">
         {/* Input texto */}
         <div className="relative md:col-span-2">
           <MagnifyingGlassIcon className="w-5 h-5 text-dh-purple/60 absolute top-1/2 left-3 -translate-y-1/2" />
@@ -93,7 +126,7 @@ export default function SearchCard() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar carrera..."
-            className={inputBase}
+            className={inputWithIcon}
           />
         </div>
 
@@ -105,7 +138,7 @@ export default function SearchCard() {
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder="Ciudad"
-            className={inputBase}
+            className={inputWithIcon}
           />
         </div>
 
@@ -116,25 +149,27 @@ export default function SearchCard() {
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className={inputBase}
+            className={dateInput}
           />
         </div>
       </div>
 
       {/* Resultados filtrados */}
-      {(q || city || date) && (
-        <ul className="mt-2 max-h-64 overflow-auto rounded-2xl border border-dh-purple/10 bg-white">
+      {hasFilters && (
+        <ul className="relative mt-2 max-h-64 overflow-auto rounded-2xl border border-dh-purple/10 bg-white">
           {filtered.length > 0 ? (
             filtered.map((c) => (
               <li key={c.id} className="border-b last:border-b-0 border-dh-purple/10">
                 <Link href={`/inscribirse?carreraId=${c.id}`}>
-                  <a className="flex justify-between items-center px-4 py-3 hover:bg-dh-soft transition">
+                  <a className="flex justify-between items-center px-4 py-3 hover:bg-dh-soft transition active:scale-[0.99]">
                     <div className="min-w-0">
                       <p className="font-semibold text-gray-900 truncate">
                         {c.titulo}
                       </p>
                       {c.ubicacion ? (
-                        <p className="text-xs text-gray-500 truncate">{c.ubicacion}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {c.ubicacion}
+                        </p>
                       ) : null}
                     </div>
                     <span className="text-sm text-gray-600 whitespace-nowrap">
@@ -145,7 +180,9 @@ export default function SearchCard() {
               </li>
             ))
           ) : (
-            <li className="px-4 py-3 text-gray-500">No se encontraron carreras.</li>
+            <li className="px-4 py-3 text-gray-500">
+              No se encontraron carreras.
+            </li>
           )}
         </ul>
       )}

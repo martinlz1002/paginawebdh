@@ -2,19 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signOut,
-  User,
-} from "firebase/auth";
+import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import {
-  ChevronDownIcon,
-  XMarkIcon,
-  Bars3Icon,
-  UserCircleIcon,
-} from "@heroicons/react/24/outline";
+import { XMarkIcon, Bars3Icon } from "@heroicons/react/24/outline";
 import { app, db } from "@/lib/firebase";
 
 export default function Header() {
@@ -41,6 +31,7 @@ export default function Header() {
         setUser(null);
         setEmailVerified(false);
         setEsAdmin(false);
+        setNombre("");
       }
     });
     return unsub;
@@ -58,6 +49,7 @@ export default function Header() {
 
   const handleLogout = async () => {
     await signOut(auth);
+    setMenuOpen(false);
     router.push("/");
   };
 
@@ -68,97 +60,158 @@ export default function Header() {
 
   const isHome = router.pathname === "/";
 
+  const linkBase =
+    "px-2 py-1 rounded-lg transition text-white/90 hover:text-white hover:bg-white/10";
+
   return (
-    <header className="relative bg-gradient-to-r from-dh-dark via-dh-purple to-dh-green text-white sticky top-0 z-50 shadow-dh">
-      <div className="max-w-6xl mx-auto flex items-center px-6 py-3">
-        {/* Logo (lado izq) */}
-        <div className="flex-shrink-0">
-          <Link href="/">
-            <Image src="/mi-logo.png" alt="Logo" width={120} height={120} />
-          </Link>
-        </div>
+    <header className="sticky top-0 z-50">
+      {/* barra */}
+      <div className="relative bg-dh-dark/90 backdrop-blur border-b border-white/10 shadow-dh">
+        <div className="max-w-6xl mx-auto flex items-center px-6 py-3">
+          {/* Logo */}
+          <div className="flex-shrink-0">
+            <Link href="/" className="inline-flex items-center">
+              <Image src="/mi-logo.png" alt="Logo" width={120} height={120} priority />
+            </Link>
+          </div>
 
-        {/* Nav centrado */}
-        <nav className="flex-1 text-center hidden md:flex space-x-6">
-          <Link href="/" className="hover:text-dh-green/90 transition">Home</Link>
-          {user && emailVerified && (
-            <>
-              <Link href="/mis-inscripciones" className="hover:text-dh-green/90 transition">Mis Inscripciones</Link>
-              <Link href="/perfil" className="hover:text-dh-green/90 transition">Perfil</Link>
-            </>
-          )}
-          {esAdmin && (
-            <Link href="/admin" className="hover:text-dh-green/90 transition">Admin</Link>
-          )}
-          {user ? (
-            <button onClick={handleLogout} className="hover:text-red-400 transition">
-              Cerrar sesión
-            </button>
-          ) : (
-            <>
-              <Link href="/login" className="hover:text-dh-green/90 transition">Iniciar sesión</Link>
-              <Link href="/signup" className="hover:text-dh-green/90 transition">Regístrate</Link>
-            </>
-          )}
-        </nav>
+          {/* Nav desktop */}
+          <nav className="flex-1 justify-center hidden md:flex items-center gap-2">
+            <Link href="/" className={linkBase}>
+              Home
+            </Link>
 
-        {/* Botón absoluto (lado derecho) */}
-        {isHome && (
-          <button
-            onClick={scrollToProximas}
-            className="absolute right-6 top-1/2 transform -translate-y-1/2 bg-green-500 hover:bg-green-400 text-black font-semibold px-4 py-2 rounded-full transition hidden md:block"
-          >
-            Inscribirme
-          </button>
-        )}
-
-        {/* Menú móvil */}
-        <div className="ml-auto md:hidden">
-          <button
-            onClick={() => setMenuOpen(o => !o)}
-            className="p-2 rounded-md hover:bg-gray-800 transition"
-          >
-            {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile menu items (igual que antes, sin “Confirma tu correo”) */}
-      {menuOpen && (
-        <div ref={menuRef} className="md:hidden bg-dh-dark/95 backdrop-blur">
-          <div className="flex flex-col space-y-1 px-4 py-3">
-            <Link href="/" className="block px-2 py-1 rounded hover:bg-gray-700">Home</Link>
             {user && emailVerified && (
               <>
-                <Link href="/mis-inscripciones" className="block px-2 py-1 rounded hover:bg-gray-700">Mis Inscripciones</Link>
-                <Link href="/perfil" className="block px-2 py-1 rounded hover:bg-gray-700">Perfil</Link>
+                <Link href="/mis-inscripciones" className={linkBase}>
+                  Mis Inscripciones
+                </Link>
+                <Link href="/perfil" className={linkBase}>
+                  Perfil
+                </Link>
               </>
             )}
+
             {esAdmin && (
-              <Link href="/admin" className="block px-2 py-1 rounded hover:bg-gray-700">Admin</Link>
+              <Link href="/admin" className={linkBase}>
+                Admin
+              </Link>
             )}
+
+            {user ? (
+              <button onClick={handleLogout} className={`${linkBase} hover:text-red-200`}>
+                Cerrar sesión
+              </button>
+            ) : (
+              <>
+                <Link href="/login" className={linkBase}>
+                  Iniciar sesión
+                </Link>
+                <Link
+                  href="/signup"
+                  className="px-3 py-1.5 rounded-lg bg-dh-green text-dh-dark font-semibold hover:bg-dh-green/90 transition"
+                >
+                  Regístrate
+                </Link>
+              </>
+            )}
+          </nav>
+
+          {/* CTA desktop */}
+          {isHome && (
+            <div className="hidden md:block">
+              <button
+                onClick={scrollToProximas}
+                className="bg-dh-green text-dh-dark font-semibold px-4 py-2 rounded-full hover:bg-dh-green/90 transition shadow"
+              >
+                Inscribirme
+              </button>
+            </div>
+          )}
+
+          {/* Menú móvil */}
+          <div className="ml-auto md:hidden">
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="p-2 rounded-lg hover:bg-white/10 transition text-white"
+              aria-label="Abrir menú"
+            >
+              {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
+            </button>
+          </div>
+        </div>
+
+        {/* glow suave DH */}
+        <div className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-dh-purple/0 via-dh-purple/60 to-dh-green/60" />
+      </div>
+
+      {/* Drawer móvil */}
+      {menuOpen && (
+        <div ref={menuRef} className="md:hidden bg-dh-dark/95 backdrop-blur border-b border-white/10">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1">
+            <Link href="/" className={linkBase} onClick={() => setMenuOpen(false)}>
+              Home
+            </Link>
+
+            {user && emailVerified && (
+              <>
+                <Link
+                  href="/mis-inscripciones"
+                  className={linkBase}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Mis Inscripciones
+                </Link>
+                <Link href="/perfil" className={linkBase} onClick={() => setMenuOpen(false)}>
+                  Perfil
+                </Link>
+              </>
+            )}
+
+            {esAdmin && (
+              <Link href="/admin" className={linkBase} onClick={() => setMenuOpen(false)}>
+                Admin
+              </Link>
+            )}
+
             {!user ? (
               <>
-                <Link href="/login" className="block px-2 py-1 rounded hover:bg-gray-700">Iniciar sesión</Link>
-                <Link href="/signup" className="block px-2 py-1 rounded bg-dh-green text-dh-dark text-center hover:bg-dh-green/90">Regístrate</Link>
+                <Link href="/login" className={linkBase} onClick={() => setMenuOpen(false)}>
+                  Iniciar sesión
+                </Link>
+                <Link
+                  href="/signup"
+                  className="mt-1 px-3 py-2 rounded-xl bg-dh-green text-dh-dark font-semibold text-center hover:bg-dh-green/90 transition"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Regístrate
+                </Link>
               </>
             ) : (
               <button
                 onClick={handleLogout}
-                className="w-full text-left px-2 py-1 rounded text-red-400 hover:bg-gray-700"
+                className="mt-1 w-full text-left px-2 py-2 rounded-lg text-red-200 hover:bg-white/10 transition"
               >
                 Cerrar sesión
               </button>
             )}
 
+            {/* CTA móvil (ya NO absolute) */}
             {isHome && (
               <button
                 onClick={scrollToProximas}
-                className="absolute right-6 top-1/2 -translate-y-1/2 bg-dh-green hover:bg-dh-green/90 text-dh-dark font-semibold px-4 py-2 rounded-full transition shadow"
+                className="mt-2 w-full bg-dh-green text-dh-dark font-semibold px-4 py-2 rounded-xl hover:bg-dh-green/90 transition shadow"
               >
                 Inscribirme
               </button>
             )}
+
+            {/* mini saludo opcional */}
+            {user && nombre ? (
+              <p className="mt-2 text-xs text-white/60 px-2">
+                Sesión: <span className="text-white/80">{nombre}</span>
+              </p>
+            ) : null}
           </div>
         </div>
       )}

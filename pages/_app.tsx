@@ -21,15 +21,18 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <AuthProvider>
-      <Layout>
-        {isProtected ? (
-          <AuthGuard>
+      {/* ✅ Fondo global oscuro + texto base claro */}
+      <div className="min-h-screen bg-black text-gray-100 antialiased selection:bg-dh-green/30 selection:text-white">
+        <Layout>
+          {isProtected ? (
+            <AuthGuard>
+              <Component {...pageProps} />
+            </AuthGuard>
+          ) : (
             <Component {...pageProps} />
-          </AuthGuard>
-        ) : (
-          <Component {...pageProps} />
-        )}
-      </Layout>
+          )}
+        </Layout>
+      </div>
     </AuthProvider>
   );
 }
