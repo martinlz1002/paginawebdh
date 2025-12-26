@@ -19,6 +19,10 @@ import {
   ClockIcon,
   ClipboardIcon,
   DocumentArrowDownIcon,
+  ArrowPathIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  CreditCardIcon,
 } from "@heroicons/react/24/outline";
 import generarPDF from "@/lib/pdfConfirmacion";
 
@@ -94,6 +98,13 @@ function fullName(nombre: string, paterno: string, materno: string) {
     .trim();
 }
 
+// UI tokens DH
+const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
+const pillBase =
+  "inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-extrabold border";
+const btnBase =
+  "inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-extrabold transition";
+
 export default function MisInscripcionesPage() {
   const [list, setList] = useState<InscView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,10 +117,7 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      const q = query(
-        collection(db, "inscripciones"),
-        where("perfilOwner", "==", user.uid)
-      );
+      const q = query(collection(db, "inscripciones"), where("perfilOwner", "==", user.uid));
 
       const unsubSnap = onSnapshot(q, async (snap) => {
         const today = new Date();
@@ -143,9 +151,7 @@ export default function MisInscripcionesPage() {
             let precio = 0;
             if (Array.isArray(c.distancias)) {
               for (const dist of c.distancias) {
-                const match = dist.categorias?.find(
-                  (cat: any) => cat.nombre === src.categoria
-                );
+                const match = dist.categorias?.find((cat: any) => cat.nombre === src.categoria);
                 if (match) {
                   precio = match.price ?? 0;
                   break;
@@ -203,9 +209,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            const fechaIns = src.timestamp?.toDate
-              ? src.timestamp.toDate().toLocaleString()
-              : "";
+            const fechaIns = src.timestamp?.toDate ? src.timestamp.toDate().toLocaleString() : "";
 
             const competitorNumber =
               typeof src.competitorNumber === "number"
@@ -260,7 +264,6 @@ export default function MisInscripcionesPage() {
   }, [auth]);
 
   const reintentarPago = async (item: InscView) => {
-    // ⚠️ Antes mandabas solo categoria/price y ya NO alcanza: te faltaba distancia
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -291,121 +294,191 @@ export default function MisInscripcionesPage() {
   if (loading) {
     return (
       <AuthGuard>
-        <p className="text-center mt-10 text-gray-800">Cargando inscripciones…</p>
+        <div className="min-h-screen bg-dh-soft px-4 py-12">
+          <div className="max-w-3xl mx-auto">
+            <div className={`${cardBase} p-6 text-center`}>
+              <p className="text-dh-ink font-semibold">Cargando inscripciones…</p>
+              <p className="text-sm text-gray-500 mt-2">Leyendo tus registros en Firestore.</p>
+            </div>
+          </div>
+        </div>
       </AuthGuard>
     );
   }
 
-  const pillClass = (status?: string) => {
-    if (status === "paid") return "bg-green-100 text-green-800";
-    if (status === "pending") return "bg-yellow-100 text-yellow-800";
-    if (status === "manual") return "bg-blue-100 text-blue-800";
-    return "bg-red-100 text-red-800";
+  const pill = (status?: string) => {
+    if (status === "paid")
+      return `${pillBase} bg-dh-green/15 text-dh-ink border-dh-green/30`;
+    if (status === "pending")
+      return `${pillBase} bg-yellow-50 text-yellow-900 border-yellow-200`;
+    if (status === "manual")
+      return `${pillBase} bg-blue-50 text-blue-900 border-blue-200`;
+    return `${pillBase} bg-red-50 text-red-900 border-red-200`;
+  };
+
+  const statusLabel = (s?: string) => {
+    if (s === "paid") return "Pagado";
+    if (s === "pending") return "Pendiente";
+    if (s === "manual") return "Manual";
+    return s || "Desconocido";
   };
 
   return (
     <AuthGuard>
-      <section className="max-w-5xl mx-auto p-6 text-gray-800">
-        <SectionHeader
-          title="Mis Inscripciones"
-          subtitle="Aquí encontrarás todos tus registros activos"
-        />
+      <div className="min-h-screen bg-dh-soft">
+        <section className="max-w-6xl mx-auto px-4 py-10 text-dh-ink">
+          <SectionHeader
+            title="Mis Inscripciones"
+            subtitle="Aquí encontrarás todos tus registros activos"
+          />
 
-        {list.length === 0 ? (
-          <p className="text-center text-gray-500">No hay inscripciones.</p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {list.map((i) => (
-              <div
-                key={i.id}
-                className="bg-white rounded-2xl shadow-md overflow-hidden flex flex-col"
-              >
-                {i.imagenUrl && (
-                  <div className="h-40 bg-gray-100 overflow-hidden">
-                    <img
-                      src={i.imagenUrl}
-                      alt={i.titulo}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
+          {list.length === 0 ? (
+            <div className={`${cardBase} p-8 text-center`}>
+              <div className="mx-auto w-12 h-12 rounded-2xl bg-dh-purple/10 flex items-center justify-center">
+                <ClipboardIcon className="w-6 h-6 text-dh-purple" />
+              </div>
+              <p className="mt-4 font-extrabold text-lg">No hay inscripciones</p>
+              <p className="text-sm text-gray-600 mt-1">
+                Cuando te inscribas a una carrera, aparecerá aquí.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {list.map((i) => (
+                <div key={i.id} className={`${cardBase} overflow-hidden flex flex-col`}>
+                  {/* Imagen */}
+                  {i.imagenUrl ? (
+                    <div className="relative h-40 bg-gray-100 overflow-hidden">
+                      <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-dh-dark/55 via-transparent to-transparent" />
+                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
+                        <span className="text-white font-extrabold leading-tight line-clamp-2">
+                          {i.titulo}
+                        </span>
+                        <span className={pill(i.paymentStatus)}>{statusLabel(i.paymentStatus)}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 flex items-center justify-between border-b border-dh-purple/10 bg-dh-soft">
+                      <h2 className="font-extrabold text-lg line-clamp-1">{i.titulo}</h2>
+                      <span className={pill(i.paymentStatus)}>{statusLabel(i.paymentStatus)}</span>
+                    </div>
+                  )}
 
-                <div className="p-4 flex-1 flex flex-col">
-                  <h2 className="text-2xl font-bold mb-2 text-gray-800">
-                    {i.titulo}
-                  </h2>
+                  <div className="p-5 flex-1 flex flex-col gap-4">
+                    {/* Número + nombre */}
+                    <div className="space-y-1">
+                      <div className="text-sm text-gray-600 font-semibold">
+                        Número asignado
+                      </div>
+                      <div className="text-2xl font-extrabold">
+                        <span className="text-dh-purple">#</span>
+                        {i.competitorNumber ?? "—"}
+                      </div>
 
-                  <p className="text-lg font-semibold mb-1 text-gray-800">
-                    Número:{" "}
-                    <span className="text-purple-600">
-                      #{i.competitorNumber ?? "-"}
-                    </span>
-                  </p>
+                      <div className="flex items-center gap-2 text-sm text-gray-700">
+                        <ClipboardIcon className="w-5 h-5 text-dh-green" />
+                        <span className="font-semibold line-clamp-2">
+                          {fullName(i.perfilNombre, i.perfilApPaterno, i.perfilApMaterno)}
+                        </span>
+                      </div>
 
-                  <p className="text-base mb-2 flex items-center text-gray-700">
-                    <ClipboardIcon className="w-5 h-5 mr-1 text-green-600" />
-                    {fullName(i.perfilNombre, i.perfilApPaterno, i.perfilApMaterno)}
-                  </p>
+                      {i.perfilClub && (
+                        <div className="text-xs text-gray-600">
+                          <span className="font-semibold">Club:</span> {i.perfilClub}
+                        </div>
+                      )}
+                    </div>
 
-                  <div className="space-y-1 mb-4">
-                    <p className="text-sm text-gray-700">
-                      <strong>Distancia:</strong> {i.distancia || "-"}
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      <strong>Categoría:</strong> {i.categoria || "-"}
-                    </p>
-                    {i.perfilClub && (
-                      <p className="text-sm text-gray-700">
-                        <strong>Club:</strong> {i.perfilClub}
-                      </p>
-                    )}
-                  </div>
+                    {/* Distancia + categoría */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-dh-purple/10 bg-white p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">
+                          Distancia
+                        </div>
+                        <div className="text-sm font-extrabold text-dh-ink mt-1">
+                          {i.distancia || "—"}
+                        </div>
+                      </div>
 
-                  <div className="flex-1 mb-4 flex flex-wrap gap-4 text-gray-600">
-                    <span className="flex items-center">
-                      <MapPinIcon className="w-5 h-5 mr-1" />
-                      {i.ubicacion || "-"}
-                    </span>
-                    <span className="flex items-center">
-                      <CalendarIcon className="w-5 h-5 mr-1" />
-                      {i.fechaCarr || "-"}
-                    </span>
-                    <span className="flex items-center">
-                      <ClockIcon className="w-5 h-5 mr-1" />
-                      {i.horaSalida || "-"}
-                    </span>
-                  </div>
+                      <div className="rounded-xl border border-dh-purple/10 bg-white p-3">
+                        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">
+                          Categoría
+                        </div>
+                        <div className="text-sm font-extrabold text-dh-ink mt-1 line-clamp-1">
+                          {i.categoria || "—"}
+                        </div>
+                      </div>
+                    </div>
 
-                  <div className="mt-auto flex items-center justify-between">
-                    <span className={`px-3 py-1 rounded-full text-sm ${pillClass(i.paymentStatus)}`}>
-                      {i.paymentStatus}
-                    </span>
+                    {/* Meta */}
+                    <div className="flex flex-col gap-2 text-sm text-gray-700">
+                      <span className="flex items-center gap-2">
+                        <MapPinIcon className="w-5 h-5 text-gray-500" />
+                        <span className="line-clamp-1">{i.ubicacion || "—"}</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <CalendarIcon className="w-5 h-5 text-gray-500" />
+                        <span>{i.fechaCarr || "—"}</span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <ClockIcon className="w-5 h-5 text-gray-500" />
+                        <span>{i.horaSalida || "—"}</span>
+                      </span>
+                    </div>
 
-                    {i.paymentStatus === "paid" ? (
-                      <button
-                        onClick={() => generarPDF(i)}
-                        className="text-sm text-green-700 hover:underline flex items-center gap-1"
-                      >
-                        <DocumentArrowDownIcon className="w-4 h-4" />
-                        Confirmación
-                      </button>
-                    ) : i.paymentStatus === "manual" ? (
-                      <span className="text-xs text-gray-500">Registro manual</span>
-                    ) : (
-                      <button
-                        onClick={() => reintentarPago(i)}
-                        className="text-sm text-purple-600 hover:underline"
-                      >
-                        Reintentar pago
-                      </button>
+                    {/* Acciones */}
+                    <div className="mt-auto pt-2 flex items-center justify-between gap-3">
+                      {i.paymentStatus === "paid" ? (
+                        <button
+                          onClick={() => generarPDF(i)}
+                          className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
+                          title="Descargar PDF de confirmación"
+                        >
+                          <DocumentArrowDownIcon className="w-5 h-5" />
+                          Confirmación
+                        </button>
+                      ) : i.paymentStatus === "manual" ? (
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <CheckCircleIcon className="w-5 h-5 text-blue-600" />
+                          Registro manual
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => reintentarPago(i)}
+                          className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
+                          title="Reintentar pago"
+                        >
+                          <ArrowPathIcon className="w-5 h-5" />
+                          Reintentar
+                        </button>
+                      )}
+
+                      {/* hint de status */}
+                      {i.paymentStatus !== "paid" && i.paymentStatus !== "manual" && (
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <CreditCardIcon className="w-4 h-4 text-gray-500" />
+                          {i.paymentStatus === "pending" ? "En proceso" : "Revisar"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Nota si falla */}
+                    {i.paymentStatus === "failed" && (
+                      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
+                        <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
+                        <span>
+                          El pago no se completó. Puedes reintentar cuando gustes.
+                        </span>
+                      </div>
                     )}
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
     </AuthGuard>
   );
 }

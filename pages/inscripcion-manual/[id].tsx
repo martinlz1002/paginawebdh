@@ -2,6 +2,17 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import type { CarreraData } from "@/types/carrera";
+import {
+  LockClosedIcon,
+  UserIcon,
+  EnvelopeIcon,
+  PhoneIcon,
+  MapPinIcon,
+  CalendarIcon,
+  HashtagIcon,
+  TrophyIcon,
+  ChevronRightIcon,
+} from "@heroicons/react/24/outline";
 
 interface APIUser {
   id: string;
@@ -31,6 +42,13 @@ function fullName(nombre: string, paterno: string, materno: string) {
     .trim();
 }
 
+const inputBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const selectBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const cardBase =
+  "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
+
 export default function ManualPage() {
   const router = useRouter();
   const { id } = router.query as { id?: string };
@@ -58,7 +76,7 @@ export default function ManualPage() {
     nombre: "",
     apellidoPaterno: "",
     apellidoMaterno: "",
-    rama: "", // ✅ NUEVO: Femenil / Varonil
+    rama: "",
     email: "",
     celular: "",
     ciudad: "",
@@ -123,10 +141,7 @@ export default function ManualPage() {
         if (cancelledRef.current) return;
         setLinkUser(u);
 
-        timeoutRef.current = window.setTimeout(
-          () => setStep("expired"),
-          u.expiresAtMs - Date.now()
-        );
+        timeoutRef.current = window.setTimeout(() => setStep("expired"), u.expiresAtMs - Date.now());
 
         // Cargar carrera por API admin
         const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
@@ -227,13 +242,9 @@ export default function ManualPage() {
     const bd = new Date(birthDate);
 
     const raceFecha =
-      (race as any)?.fecha?.toDate
-        ? (race as any).fecha.toDate()
-        : new Date((race as any).fecha);
+      (race as any)?.fecha?.toDate ? (race as any).fecha.toDate() : new Date((race as any).fecha);
 
-    const basis = ageBasis === "endOfYear"
-      ? new Date(raceFecha.getFullYear(), 11, 31)
-      : raceFecha;
+    const basis = ageBasis === "endOfYear" ? new Date(raceFecha.getFullYear(), 11, 31) : raceFecha;
 
     let age = basis.getFullYear() - bd.getFullYear();
     const m = basis.getMonth() - bd.getMonth();
@@ -298,8 +309,8 @@ export default function ManualPage() {
     try {
       await registrarInscripcionManual({
         carreraId: linkUser.carreraId,
-        carreraTitulo: race.titulo,          // ✅ Evento
-        manualAdminId: linkUser.id,          // ✅ referencia del tempusuario
+        carreraTitulo: race.titulo,
+        manualAdminId: linkUser.id,
 
         competitorNumber: numero,
 
@@ -309,7 +320,7 @@ export default function ManualPage() {
         nombres,
 
         rama: competidor.rama,
-        ruta: distancia,                     // ✅ Ruta = distancia
+        ruta: distancia,
         categoria,
 
         email: competidor.email,
@@ -351,49 +362,105 @@ export default function ManualPage() {
   };
 
   // UI
-  if (step === "checking") return <p className="p-6 text-center">Cargando…</p>;
-  if (step === "expired") return <p className="p-6 text-center">Este enlace ha expirado.</p>;
+  if (step === "checking")
+    return (
+      <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
+        <div className={`${cardBase} p-6 w-full max-w-md text-center`}>
+          <p className="text-dh-ink font-medium">Cargando…</p>
+          <p className="text-gray-500 text-sm mt-2">Validando enlace temporal 🧾</p>
+        </div>
+      </div>
+    );
+
+  if (step === "expired")
+    return (
+      <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
+        <div className={`${cardBase} p-6 w-full max-w-md text-center`}>
+          <p className="text-xl font-bold text-dh-purple">Enlace expirado</p>
+          <p className="text-gray-600 mt-2">
+            Este enlace ya caducó. Pide al admin que genere uno nuevo.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-4 py-2.5 text-white font-semibold hover:opacity-95 transition"
+          >
+            Volver al inicio <ChevronRightIcon className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    );
 
   if (step === "login") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="w-full max-w-sm bg-white shadow-md p-6 rounded-md">
-          <h2 className="text-xl font-bold mb-4 text-center text-purple-700">
-            Acceso Temporal
-          </h2>
+      <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
+        <div className={`${cardBase} w-full max-w-sm p-6`}>
+          <div className="text-center space-y-2 mb-5">
+            <h2 className="text-2xl font-extrabold text-dh-purple">Acceso Temporal</h2>
+            {race?.titulo ? (
+              <p className="text-sm text-gray-600">
+                Evento: <span className="font-semibold text-dh-ink">{race.titulo}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500">Ingresa tus credenciales para continuar.</p>
+            )}
+          </div>
 
-          {error && <p className="text-red-600 text-sm mb-2">{error}</p>}
-
-          <input
-            className="w-full mb-2 p-2 border rounded"
-            placeholder="Usuario"
-            value={userCreds.username}
-            disabled={loginLoading}
-            onChange={(e) => setUserCreds((u) => ({ ...u, username: e.target.value }))}
-          />
-
-          <input
-            className="w-full mb-4 p-2 border rounded"
-            type="password"
-            placeholder="Contraseña"
-            value={userCreds.password}
-            disabled={loginLoading}
-            onChange={(e) => setUserCreds((u) => ({ ...u, password: e.target.value }))}
-          />
-
-          <button
-            className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold disabled:bg-gray-400"
-            onClick={handleLogin}
-            disabled={!linkUser || loginLoading}
-          >
-            {loginLoading ? "Verificando…" : "Entrar"}
-          </button>
-
-          {loginLoading && (
-            <p className="text-xs text-gray-500 mt-3 text-center">
-              Un segundo… validando credenciales 🧾
-            </p>
+          {error && (
+            <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
           )}
+
+          <div className="space-y-3">
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Usuario"
+                value={userCreds.username}
+                disabled={loginLoading}
+                onChange={(e) => setUserCreds((u) => ({ ...u, username: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <LockClosedIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                type="password"
+                placeholder="Contraseña"
+                value={userCreds.password}
+                disabled={loginLoading}
+                onChange={(e) => setUserCreds((u) => ({ ...u, password: e.target.value }))}
+              />
+            </div>
+
+            <button
+              className="w-full rounded-xl bg-dh-purple text-white py-2.5 font-semibold hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={handleLogin}
+              disabled={!linkUser || loginLoading}
+            >
+              {loginLoading ? "Verificando…" : "Entrar"}
+            </button>
+
+            {loginLoading && (
+              <p className="text-xs text-gray-500 text-center">
+                Un segundo… validando credenciales 🧾
+              </p>
+            )}
+
+            {linkUser?.range && (
+              <div className="mt-3 rounded-xl bg-dh-soft border border-dh-purple/10 p-3 text-sm text-gray-700">
+                <p className="font-semibold text-dh-ink">Rango asignado</p>
+                <p>
+                  Números:{" "}
+                  <span className="font-semibold text-dh-purple">
+                    {linkUser.range.start}–{linkUser.range.end}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -401,110 +468,247 @@ export default function ManualPage() {
 
   // form
   return (
-    <div className="max-w-lg mx-auto p-6 space-y-4">
-      <h2 className="text-xl font-semibold text-purple-700">Inscripción Manual</h2>
+    <div className="min-h-screen bg-dh-soft py-10 px-4">
+      <div className="max-w-3xl mx-auto space-y-5">
+        <div className={`${cardBase} p-6`}>
+          <h2 className="text-2xl font-extrabold text-dh-purple">Inscripción Manual</h2>
 
-      {race?.titulo && (
-        <p className="text-sm text-gray-600">
-          <strong>Evento:</strong> {race.titulo}
-        </p>
-      )}
+          {race?.titulo && (
+            <p className="text-sm text-gray-600 mt-1">
+              Evento: <span className="font-semibold text-dh-ink">{race.titulo}</span>
+            </p>
+          )}
 
-      {successMessage && (
-        <p className="flex items-center gap-2 text-green-600 text-sm font-medium">
-          <span className="text-lg">✅</span>
-          {successMessage}
-        </p>
-      )}
+          {successMessage && (
+            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              ✅ {successMessage}
+            </div>
+          )}
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
 
-      <label className="block text-sm font-medium">Fecha de nacimiento</label>
-      <input
-        type="date"
-        className="w-full p-2 border rounded"
-        value={birthDate}
-        onChange={(e) => setBirthDate(e.target.value)}
-      />
-      <p className="text-sm">Edad calculada: {edad} años</p>
-
-      <label className="block text-sm font-medium">Distancia</label>
-      <select
-        className="w-full p-2 border rounded"
-        value={distancia}
-        onChange={(e) => setDistancia(e.target.value)}
-      >
-        <option value="">-- Elige distancia --</option>
-        {distancias.map((d) => (
-          <option key={d.distancia} value={d.distancia}>
-            {d.distancia}
-          </option>
-        ))}
-      </select>
-
-      <label className="block text-sm font-medium">Categoría</label>
-      <select
-        className="w-full p-2 border rounded"
-        value={categoria}
-        onChange={(e) => setCategoria(e.target.value)}
-        disabled={!dispCats.length}
-      >
-        <option value="">-- Elige categoría --</option>
-        {dispCats.map((c) => (
-          <option key={c.nombre} value={c.nombre}>
-            {c.nombre} ({c.minAge}–{c.maxAge} años)
-          </option>
-        ))}
-      </select>
-
-      <label className="block text-sm font-medium">Número</label>
-      <select
-        className="w-full p-2 border rounded"
-        value={numero}
-        onChange={(e) => setNumero(+e.target.value)}
-      >
-        <option value={0}>-- elige --</option>
-        {available.map((n) => (
-          <option key={n} value={n}>
-            {n}
-          </option>
-        ))}
-      </select>
-
-      {/* ✅ Rama como select */}
-      <label className="block text-sm font-medium">Rama</label>
-      <select
-        className="w-full p-2 border rounded"
-        value={competidor.rama}
-        onChange={(e) => setCompetidor((c) => ({ ...c, rama: e.target.value }))}
-      >
-        <option value="">-- elige --</option>
-        <option value="Femenil">Femenil</option>
-        <option value="Varonil">Varonil</option>
-      </select>
-
-      {/* Inputs (sin rama, porque ya la capturamos arriba) */}
-      {Object.entries(competidor)
-        .filter(([field]) => field !== "rama")
-        .map(([field, value]) => (
-          <div key={field}>
-            <label className="block text-sm font-medium capitalize">
-              {field === "club" ? "Club (opcional)" : field}
+        <div className={`${cardBase} p-6 space-y-5`}>
+          {/* Fecha de nacimiento */}
+          <div>
+            <label className="block text-sm font-semibold text-dh-ink mb-2">
+              Fecha de nacimiento
             </label>
-            <input
-              className="w-full p-2 border rounded"
-              value={value}
-              onChange={(e) => setCompetidor((c) => ({ ...c, [field]: e.target.value }))}
-            />
+            <div className="relative">
+              <CalendarIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="date"
+                className={inputBase}
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Edad calculada: <span className="font-semibold text-dh-ink">{edad}</span> años
+              <span className="text-gray-400"> • </span>
+              Base:{" "}
+              <span className="font-medium">
+                {ageBasis === "endOfYear" ? "Fin de año" : "Fecha del evento"}
+              </span>
+            </p>
           </div>
-        ))}
 
-      <button
-        className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2 rounded font-semibold"
-        onClick={handleSubmit}
-      >
-        Registrar Competidor
-      </button>
+          {/* Distancia / Categoría / Número */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-dh-ink mb-2">Distancia</label>
+              <div className="relative">
+                <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select
+                  className={selectBase}
+                  value={distancia}
+                  onChange={(e) => setDistancia(e.target.value)}
+                >
+                  <option value="">-- Elige --</option>
+                  {distancias.map((d) => (
+                    <option key={d.distancia} value={d.distancia}>
+                      {d.distancia}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-dh-ink mb-2">Categoría</label>
+              <div className="relative">
+                <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select
+                  className={selectBase}
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  disabled={!dispCats.length}
+                >
+                  <option value="">-- Elige --</option>
+                  {dispCats.map((c) => (
+                    <option key={c.nombre} value={c.nombre}>
+                      {c.nombre} ({c.minAge}–{c.maxAge})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {!dispCats.length && distancia && birthDate && (
+                <p className="text-xs text-gray-500 mt-2">
+                  No hay categorías para esa edad en esta distancia.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-dh-ink mb-2">Número</label>
+              <div className="relative">
+                <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select
+                  className={selectBase}
+                  value={numero}
+                  onChange={(e) => setNumero(+e.target.value)}
+                >
+                  <option value={0}>-- Elige --</option>
+                  {available.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Disponibles: <span className="font-semibold">{available.length}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Rama */}
+          <div>
+            <label className="block text-sm font-semibold text-dh-ink mb-2">Rama</label>
+            <div className="relative">
+              <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <select
+                className={selectBase}
+                value={competidor.rama}
+                onChange={(e) => setCompetidor((c) => ({ ...c, rama: e.target.value }))}
+              >
+                <option value="">-- Elige --</option>
+                <option value="Femenil">Femenil</option>
+                <option value="Varonil">Varonil</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Datos del competidor */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* nombre */}
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Nombre"
+                value={competidor.nombre}
+                onChange={(e) => setCompetidor((c) => ({ ...c, nombre: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Apellido paterno"
+                value={competidor.apellidoPaterno}
+                onChange={(e) => setCompetidor((c) => ({ ...c, apellidoPaterno: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Apellido materno"
+                value={competidor.apellidoMaterno}
+                onChange={(e) => setCompetidor((c) => ({ ...c, apellidoMaterno: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <EnvelopeIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Email"
+                value={competidor.email}
+                onChange={(e) => setCompetidor((c) => ({ ...c, email: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <PhoneIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Celular"
+                value={competidor.celular}
+                onChange={(e) => setCompetidor((c) => ({ ...c, celular: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Ciudad"
+                value={competidor.ciudad}
+                onChange={(e) => setCompetidor((c) => ({ ...c, ciudad: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Estado"
+                value={competidor.estado}
+                onChange={(e) => setCompetidor((c) => ({ ...c, estado: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="País"
+                value={competidor.pais}
+                onChange={(e) => setCompetidor((c) => ({ ...c, pais: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative md:col-span-2">
+              <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Club (opcional)"
+                value={competidor.club}
+                onChange={(e) => setCompetidor((c) => ({ ...c, club: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <button
+            className="w-full rounded-xl bg-dh-green text-dh-dark py-3 font-extrabold hover:opacity-95 transition"
+            onClick={handleSubmit}
+          >
+            Registrar Competidor
+          </button>
+
+          <p className="text-xs text-gray-500 text-center">
+            Tip: si el enlace expira, te va a mandar a “Enlace expirado” automáticamente.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

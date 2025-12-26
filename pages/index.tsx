@@ -1,13 +1,9 @@
-import { useEffect, useState } from "react"; 
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
-import {
-  CalendarIcon,
-  MapPinIcon,
-  ArrowRightIcon,
-} from "@heroicons/react/24/outline";
+import { CalendarIcon, MapPinIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 
 import HeroBanner from "@/components/HeroBanner";
 import SearchCard from "@/components/SearchCard";
@@ -40,10 +36,10 @@ export default function HomePage() {
     (async () => {
       const snapshot = await getDocs(collection(db, "carreras"));
       const today = new Date();
-      today.setHours(0,0,0,0);
+      today.setHours(0, 0, 0, 0);
 
       const data = snapshot.docs
-        .map(doc => {
+        .map((doc) => {
           const c = doc.data() as any;
           let fechaFormateada = "";
           let carreraDate: Date | null = null;
@@ -51,10 +47,12 @@ export default function HomePage() {
           if (c.fecha instanceof Timestamp) {
             const dt = c.fecha.toDate();
             carreraDate = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
-            fechaFormateada = `${pad(carreraDate.getDate())}/${pad(carreraDate.getMonth()+1)}/${carreraDate.getFullYear()}`;
+            fechaFormateada = `${pad(carreraDate.getDate())}/${pad(
+              carreraDate.getMonth() + 1
+            )}/${carreraDate.getFullYear()}`;
           } else if (typeof c.fecha === "string") {
-            const [y,m,d] = c.fecha.split("-").map(Number);
-            carreraDate = new Date(y, m-1, d);
+            const [y, m, d] = c.fecha.split("-").map(Number);
+            carreraDate = new Date(y, m - 1, d);
             fechaFormateada = `${pad(d)}/${pad(m)}/${y}`;
           }
 
@@ -62,14 +60,16 @@ export default function HomePage() {
             id: doc.id,
             titulo: c.titulo,
             descripcion: c.descripcion,
-            ubicacion: c.ubicacion,
+            // ✅ Soporta tanto "lugar" como "ubicacion"
+            ubicacion: c.lugar || c.ubicacion || "",
             fecha: fechaFormateada,
             imagenUrl: c.imagenUrl,
             carreraDate,
           } as Carrera & { carreraDate: Date | null };
         })
-        .filter((c): c is Carrera & { carreraDate: Date } =>
-          c.carreraDate !== null && c.carreraDate >= today
+        .filter(
+          (c): c is Carrera & { carreraDate: Date } =>
+            c.carreraDate !== null && c.carreraDate >= today
         )
         .map(({ carreraDate, ...rest }) => rest);
 
@@ -82,23 +82,23 @@ export default function HomePage() {
     let filtered = raw;
 
     if (typeof qTitulo === "string" && qTitulo.trim()) {
-      filtered = filtered.filter(c =>
+      filtered = filtered.filter((c) =>
         c.titulo.toLowerCase().includes(qTitulo.toLowerCase())
       );
     }
     if (typeof qCiudad === "string" && qCiudad.trim()) {
-      filtered = filtered.filter(c =>
-        c.ubicacion?.toLowerCase().includes(qCiudad.toLowerCase())
+      filtered = filtered.filter((c) =>
+        (c.ubicacion || "").toLowerCase().includes(qCiudad.toLowerCase())
       );
     }
     if (typeof qFecha === "string" && qFecha.trim()) {
-      filtered = filtered.filter(c => c.fecha === qFecha);
+      filtered = filtered.filter((c) => c.fecha === qFecha);
     }
 
     setCarreras(filtered);
   }, [raw, qTitulo, qCiudad, qFecha]);
 
-  const destacados = carreras.slice(0, 3).map(c => ({
+  const destacados = carreras.slice(0, 3).map((c) => ({
     id: c.id,
     titulo: c.titulo,
     fecha: c.fecha,
@@ -106,7 +106,7 @@ export default function HomePage() {
     destacado: true,
   }));
 
-  // Galería: solo las 6 primeras
+  // Galería: solo las 6 primeras (mantengo tu lógica aunque Gallery ya trae limit)
   const [allPhotos, setAllPhotos] = useState<{ id: string; src: string; alt: string }[]>([]);
   useEffect(() => {
     setAllPhotos(
@@ -122,7 +122,7 @@ export default function HomePage() {
     <>
       <HeroBanner />
 
-      <main className="max-w-6xl mx-auto p-8 space-y-16">
+      <main className="max-w-6xl mx-auto px-6 md:px-8 py-10 space-y-16">
         <SearchCard />
 
         <FeaturedCarreras carreras={destacados} />
@@ -133,28 +133,27 @@ export default function HomePage() {
         <Gallery limit={6} showAllButton />
 
         <section id="proximas-carreras" className="space-y-6">
-          <h1 className="text-4xl font-extrabold text-center text-green-800">
-            Próximas Carreras
+          <h1 className="text-4xl font-extrabold text-center">
+            <span className="text-dh-purple">Próximas</span>{" "}
+            <span className="text-dh-green">Carreras</span>
           </h1>
 
           {carreras.length === 0 ? (
-            <p className="text-center text-gray-500">
-              No hay carreras que coincidan.
-            </p>
+            <p className="text-center text-gray-500">No hay carreras que coincidan.</p>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {carreras.map(c => (
+              {carreras.map((c) => (
                 <Link
                   key={c.id}
                   href={`/inscribirse?carreraId=${c.id}`}
-                  className="block bg-white rounded-2xl shadow-md overflow-hidden transition-transform hover:scale-105 hover:shadow-xl"
+                  className="group block bg-white rounded-2xl shadow-md overflow-hidden transition hover:shadow-dh hover:-translate-y-0.5"
                 >
                   <div className="aspect-w-16 aspect-h-9 bg-gray-100">
                     {c.imagenUrl ? (
                       <img
                         src={c.imagenUrl}
                         alt={c.titulo}
-                        className="object-cover w-full h-full"
+                        className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-[1.02]"
                       />
                     ) : (
                       <div className="flex items-center justify-center text-gray-400">
@@ -162,29 +161,30 @@ export default function HomePage() {
                       </div>
                     )}
                   </div>
+
                   <div className="p-4 space-y-2">
-                    <h3 className="text-xl font-semibold text-gray-800">
-                      {c.titulo}
-                    </h3>
+                    <h3 className="text-xl font-semibold text-gray-800">{c.titulo}</h3>
+
                     {c.descripcion && (
-                      <p className="text-gray-600 line-clamp-3">
-                        {c.descripcion}
-                      </p>
+                      <p className="text-gray-600 line-clamp-3">{c.descripcion}</p>
                     )}
-                    <div className="flex items-center text-gray-500 text-sm space-x-4">
-                      <time className="flex items-center space-x-1">
+
+                    <div className="flex items-center text-gray-500 text-sm gap-4">
+                      <time className="flex items-center gap-1">
                         <CalendarIcon className="w-5 h-5" />
                         <span>{c.fecha}</span>
                       </time>
+
                       {c.ubicacion && (
-                        <span className="flex items-center space-x-1">
+                        <span className="flex items-center gap-1">
                           <MapPinIcon className="w-5 h-5" />
                           <span>{c.ubicacion}</span>
                         </span>
                       )}
                     </div>
-                    <div className="flex justify-end">
-                      <button className="inline-flex items-center space-x-1 text-green-700 font-medium hover:text-green-800">
+
+                    <div className="flex justify-end pt-1">
+                      <button className="inline-flex items-center gap-1 font-semibold text-dh-green group-hover:text-dh-purple transition">
                         <span>Inscribirse</span>
                         <ArrowRightIcon className="w-5 h-5" />
                       </button>

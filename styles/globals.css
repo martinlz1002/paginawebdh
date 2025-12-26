@@ -3,9 +3,15 @@
 @tailwind utilities;
 
 @layer base {
+  body {
+    @apply bg-dh-soft text-dh-ink;
+  }
+
   input,
   textarea,
   select {
     @apply bg-white text-gray-900 placeholder-gray-400;
+    @apply border border-gray-200 rounded-xl;
+    @apply focus:outline-none focus:ring-2 focus:ring-dh-purple/40 focus:border-dh-purple;
   }
 }

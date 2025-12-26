@@ -13,7 +13,15 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
-import { ChevronLeftIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronLeftIcon,
+  TrashIcon,
+  LinkIcon,
+  KeyIcon,
+  UserIcon,
+  CalendarIcon,
+  HashtagIcon,
+} from "@heroicons/react/24/outline";
 import type { TempUsuario } from "@/types/tempusuario";
 import type { CarreraOption } from "@/components/EliminarInscripciones";
 
@@ -35,6 +43,13 @@ function parseDateTimeLocal(value: string): Date | null {
   const dt = new Date(y, mo, d, h, mi, 0, 0);
   return Number.isFinite(dt.getTime()) ? dt : null;
 }
+
+const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
+const inputBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const selectBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
 
 export default function InscripcionesManualesAdmin() {
   const router = useRouter();
@@ -141,6 +156,14 @@ export default function InscripcionesManualesAdmin() {
       ]);
 
       setLink(url);
+
+      // opcional: limpiar form ligero (sin cambiar tu UX si no quieres)
+      // setCarreraId("");
+      // setStartNumber(0);
+      // setEndNumber(0);
+      // setExpiresAt("");
+      // setUsername("");
+      // setPassword("");
     } catch (e: any) {
       console.error(e);
       setError("Error al crear el acceso temporal.");
@@ -180,186 +203,271 @@ export default function InscripcionesManualesAdmin() {
 
   return (
     <AuthGuard>
-      <div className="max-w-4xl mx-auto p-6 space-y-8 bg-white rounded shadow">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center text-gray-600 hover:text-gray-800"
-        >
-          <ChevronLeftIcon className="w-5 h-5 mr-1" />
-          <span className="text-gray-800">Volver</span>
-        </button>
+      <div className="min-h-screen bg-dh-soft py-10 px-4">
+        <div className="max-w-5xl mx-auto space-y-6">
+          {/* Header */}
+          <div className={`${cardBase} p-5 flex items-center justify-between`}>
+            <button
+              onClick={() => router.back()}
+              className="inline-flex items-center gap-2 text-dh-ink hover:text-dh-purple transition"
+            >
+              <ChevronLeftIcon className="w-5 h-5" />
+              <span className="font-semibold">Volver</span>
+            </button>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-gray-800">Crear Inscripciones Manuales</h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block font-medium text-gray-800">Carrera</label>
-              <select
-                className="w-full border p-2 rounded text-gray-900"
-                value={carreraId}
-                onChange={(e) => setCarreraId(e.target.value)}
-              >
-                <option value="">-- Selecciona carrera --</option>
-                {carreras.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.titulo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <label className="block font-medium text-gray-800">Número inicio</label>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full border p-2 rounded text-gray-900"
-                  value={startNumber}
-                  onChange={(e) => setStartNumber(Number(e.target.value))}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block font-medium text-gray-800">Número fin</label>
-                <input
-                  type="number"
-                  min={startNumber}
-                  className="w-full border p-2 rounded text-gray-900"
-                  value={endNumber}
-                  onChange={(e) => setEndNumber(Number(e.target.value))}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block font-medium text-gray-800">Expiración</label>
-              <input
-                type="datetime-local"
-                className="w-full border p-2 rounded text-gray-900"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-              />
-              <p className="text-xs text-gray-500 mt-1">Se toma como hora local del dispositivo.</p>
-            </div>
-
-            <div className="flex space-x-4">
-              <div className="flex-1">
-                <label className="block font-medium text-gray-800">Usuario</label>
-                <input
-                  type="text"
-                  className="w-full border p-2 rounded text-gray-900"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block font-medium text-gray-800">Contraseña</label>
-                <input
-                  type="password"
-                  className="w-full border p-2 rounded text-gray-900"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">Admin</p>
+              <h1 className="text-lg font-extrabold text-dh-purple">
+                Inscripciones Manuales
+              </h1>
             </div>
           </div>
 
-          {error && <p className="text-red-600">{error}</p>}
-
-          <button
-            onClick={handleCreate}
-            disabled={loading}
-            className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 transition disabled:opacity-50"
-          >
-            {loading ? "Creando..." : "Crear Acceso"}
-          </button>
-
-          {link && (
-            <div className="bg-green-50 border border-green-200 p-4 rounded">
-              <p className="font-medium text-gray-800">Link generado:</p>
-              <a
-                href={link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-700 underline break-all"
-              >
-                {link}
-              </a>
+          {/* Crear */}
+          <section className={`${cardBase} p-6 space-y-5`}>
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="text-xl font-extrabold text-dh-ink">
+                Crear Acceso Temporal
+              </h2>
+              <span className="text-xs rounded-full bg-dh-soft border border-dh-purple/10 px-3 py-1 text-gray-600">
+                Genera link + usuario + rango
+              </span>
             </div>
-          )}
-        </section>
 
-        <section>
-          <h2 className="text-xl font-semibold text-gray-800">Accesos Temporales Creados</h2>
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
-          {accesses.length === 0 ? (
-            <p className="text-gray-500">No hay accesos temporales.</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full table-auto border-collapse rounded-lg shadow">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2 text-left text-gray-800">Carrera</th>
-                    <th className="p-2 text-left text-gray-800">Usuario</th>
-                    <th className="p-2 text-left text-gray-800">Contraseña</th>
-                    <th className="p-2 text-left text-gray-800">Rango</th>
-                    <th className="p-2 text-left text-gray-800">Expira</th>
-                    <th className="p-2 text-left text-gray-800">Link</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accesses.map((acc) => {
-                    const carrera = carreras.find((c) => c.id === acc.carreraId);
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Carrera */}
+              <div>
+                <label className={labelBase}>Carrera</label>
+                <div className="relative">
+                  <LinkIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <select
+                    className={selectBase}
+                    value={carreraId}
+                    onChange={(e) => setCarreraId(e.target.value)}
+                  >
+                    <option value="">-- Selecciona carrera --</option>
+                    {carreras.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.titulo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-                    return (
-                      <tr key={acc.id} className="hover:bg-gray-50">
-                        <td className="p-2 text-gray-800">{carrera?.titulo || acc.carreraId}</td>
-                        <td className="p-2 text-gray-800">{acc.username}</td>
-                        <td className="p-2 text-gray-800">{acc.password}</td>
-                        <td className="p-2 text-gray-800">{`${acc.range.start}–${acc.range.end}`}</td>
-                        <td className="p-2 text-gray-800">
-                          {(acc.expiresAt as Date).toLocaleString()}
-                        </td>
+              {/* Expiración */}
+              <div>
+                <label className={labelBase}>Expiración</label>
+                <div className="relative">
+                  <CalendarIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="datetime-local"
+                    className={inputBase}
+                    value={expiresAt}
+                    onChange={(e) => setExpiresAt(e.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Se toma como hora local del dispositivo.
+                </p>
+              </div>
 
-                        <td className="p-2 text-gray-800">
-                          <div className="flex items-center gap-3">
-                            {acc.link ? (
-                              <a
-                                href={acc.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                              >
-                                Ver
-                              </a>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
+              {/* Rango */}
+              <div className="md:col-span-2">
+                <label className={labelBase}>Rango de números</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="relative">
+                    <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      min={1}
+                      className={inputBase}
+                      placeholder="Número inicio"
+                      value={startNumber}
+                      onChange={(e) => setStartNumber(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="relative">
+                    <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="number"
+                      min={startNumber}
+                      className={inputBase}
+                      placeholder="Número fin"
+                      value={endNumber}
+                      onChange={(e) => setEndNumber(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+              </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(acc.id)}
-                              disabled={deletingId === acc.id}
-                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                              title="Eliminar link"
-                            >
-                              <TrashIcon className="w-5 h-5" />
-                            </button>
-
-                            {deletingId === acc.id && (
-                              <span className="text-xs text-gray-500">Eliminando…</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {/* Credenciales */}
+              <div className="md:col-span-2">
+                <label className={labelBase}>Credenciales</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="relative">
+                    <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      className={inputBase}
+                      placeholder="Usuario"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                    />
+                  </div>
+                  <div className="relative">
+                    <KeyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="password"
+                      className={inputBase}
+                      placeholder="Contraseña"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </section>
+
+            <button
+              onClick={handleCreate}
+              disabled={loading}
+              className="w-full rounded-xl bg-dh-green text-dh-dark py-3 font-extrabold hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {loading ? "Creando..." : "Crear Acceso"}
+            </button>
+
+            {link && (
+              <div className="rounded-2xl border border-dh-green/25 bg-green-50 p-4">
+                <p className="font-semibold text-dh-ink">Link generado</p>
+                <a
+                  href={link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-dh-purple underline break-all font-medium"
+                >
+                  {link}
+                </a>
+                <p className="text-xs text-gray-600 mt-2">
+                  Tip: copia el link y mándalo con el usuario/contraseña.
+                </p>
+              </div>
+            )}
+          </section>
+
+          {/* Lista */}
+          <section className={`${cardBase} p-6 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-extrabold text-dh-ink">
+                Accesos Temporales Creados
+              </h2>
+              <span className="text-sm text-gray-600">
+                Total: <span className="font-semibold">{accesses.length}</span>
+              </span>
+            </div>
+
+            {accesses.length === 0 ? (
+              <p className="text-gray-500">No hay accesos temporales.</p>
+            ) : (
+              <div className="overflow-auto rounded-2xl border border-dh-purple/10">
+                <table className="w-full min-w-[980px] table-auto border-collapse">
+                  <thead className="bg-dh-soft">
+                    <tr className="text-left">
+                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Carrera
+                      </th>
+                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Usuario
+                      </th>
+                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Contraseña
+                      </th>
+                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Rango
+                      </th>
+                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Expira
+                      </th>
+                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                        Link
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="bg-white">
+                    {accesses
+                      .slice()
+                      .sort((a, b) => {
+                        const at = (a.expiresAt as Date)?.getTime?.() ?? 0;
+                        const bt = (b.expiresAt as Date)?.getTime?.() ?? 0;
+                        return bt - at;
+                      })
+                      .map((acc) => {
+                        const carrera = carreras.find((c) => c.id === acc.carreraId);
+
+                        const isDeleting = deletingId === acc.id;
+
+                        return (
+                          <tr
+                            key={acc.id}
+                            className="border-t border-dh-purple/10 hover:bg-gray-50 transition"
+                          >
+                            <td className="p-3 text-dh-ink font-medium">
+                              {carrera?.titulo || acc.carreraId}
+                            </td>
+                            <td className="p-3 text-dh-ink">{acc.username}</td>
+                            <td className="p-3 text-dh-ink">{acc.password}</td>
+                            <td className="p-3 text-dh-ink">
+                              {`${acc.range.start}–${acc.range.end}`}
+                            </td>
+                            <td className="p-3 text-dh-ink">
+                              {(acc.expiresAt as Date).toLocaleString()}
+                            </td>
+                            <td className="p-3">
+                              <div className="flex items-center gap-3">
+                                {acc.link ? (
+                                  <a
+                                    href={acc.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-dh-purple underline font-semibold"
+                                  >
+                                    <LinkIcon className="w-4 h-4" />
+                                    Ver
+                                  </a>
+                                ) : (
+                                  <span className="text-gray-400">-</span>
+                                )}
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDelete(acc.id)}
+                                  disabled={isDeleting}
+                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="Eliminar link"
+                                >
+                                  <TrashIcon className="w-5 h-5" />
+                                  <span className="text-sm font-semibold">
+                                    {isDeleting ? "Eliminando…" : "Eliminar"}
+                                  </span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </AuthGuard>
   );

@@ -13,7 +13,15 @@ import {
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
 import { registrarInscripcion } from "@/lib/Inscripciones";
-import { UserIcon } from "@heroicons/react/24/outline";
+import {
+  UserIcon,
+  CalendarIcon,
+  MapPinIcon,
+  TicketIcon,
+  ExclamationTriangleIcon,
+  CheckCircleIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 import type { Carrera as CarreraFull } from "@/types/carrera";
 
 interface Categoria {
@@ -106,6 +114,16 @@ function normalizeRama(v: any): "Femenil" | "Varonil" | "" {
   return raw as any;
 }
 
+// UI tokens DH
+const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
+const inputBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const selectBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
+const pill =
+  "inline-flex items-center gap-2 rounded-full border border-dh-purple/10 bg-dh-soft px-3 py-1 text-xs font-semibold text-gray-700";
+
 export default function InscribirsePage() {
   const router = useRouter();
   const { carreraId } = router.query;
@@ -118,9 +136,7 @@ export default function InscribirsePage() {
   const [perfilId, setPerfilId] = useState("");
 
   const [distancia, setDistancia] = useState("");
-  const [categoriasPermitidas, setCategoriasPermitidas] = useState<Categoria[]>(
-    []
-  );
+  const [categoriasPermitidas, setCategoriasPermitidas] = useState<Categoria[]>([]);
   const [categoria, setCategoria] = useState("");
 
   const [edadPerfil, setEdadPerfil] = useState(0);
@@ -205,9 +221,7 @@ export default function InscribirsePage() {
         }
 
         // subperfiles
-        const subSnap = await getDocs(
-          collection(db, "usuarios", user.uid, "perfiles")
-        );
+        const subSnap = await getDocs(collection(db, "usuarios", user.uid, "perfiles"));
         subSnap.forEach((d) => {
           const p: any = d.data();
           const bd = safeDateFromAny(p.fechaNacimiento ?? p.birthDate);
@@ -246,9 +260,7 @@ export default function InscribirsePage() {
 
     const raceDate = parseISODateYYYYMMDD((carrera as any).fecha);
     const basisDate =
-      carrera.ageBasis === "endOfYear"
-        ? new Date(raceDate.getFullYear(), 11, 31)
-        : raceDate;
+      carrera.ageBasis === "endOfYear" ? new Date(raceDate.getFullYear(), 11, 31) : raceDate;
 
     const edad = computeAge(perfil.birthDate, basisDate);
     setEdadPerfil(edad);
@@ -260,9 +272,7 @@ export default function InscribirsePage() {
       return;
     }
 
-    const permitidas = distObj.categorias.filter(
-      (c) => edad >= c.minAge && edad <= c.maxAge
-    );
+    const permitidas = distObj.categorias.filter((c) => edad >= c.minAge && edad <= c.maxAge);
 
     setCategoriasPermitidas(permitidas);
     setCategoria("");
@@ -299,11 +309,7 @@ export default function InscribirsePage() {
     }
 
     // Validación snapshot mínimo (para Excel)
-    const nombreCompleto = fullName(
-      perfil.nombre,
-      perfil.apellidoPaterno,
-      perfil.apellidoMaterno
-    );
+    const nombreCompleto = fullName(perfil.nombre, perfil.apellidoPaterno, perfil.apellidoMaterno);
     if (!nombreCompleto) return setMensaje("Tu perfil no tiene nombre completo.");
     if (!perfil.email) return setMensaje("Tu perfil no tiene email.");
     if (!perfil.celular) return setMensaje("Tu perfil no tiene celular.");
@@ -328,16 +334,10 @@ export default function InscribirsePage() {
         return;
       }
 
-      const price =
-        categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
+      const price = categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
       const bruto = computeGross(price);
 
-      if (
-        !confirm(
-          `Vas a pagar $${bruto.toFixed(2)} MXN (comisión+IVA).\n¿Continuar?`
-        )
-      )
-        return;
+      if (!confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (comisión+IVA).\n¿Continuar?`)) return;
 
       // ✅ crea sesión Stripe
       const res = await fetch("/api/checkout_sessions", {
@@ -394,212 +394,303 @@ export default function InscribirsePage() {
   };
 
   if (!carrera) {
-    return <p className="text-center mt-10">{mensaje || "Cargando…"}</p>;
+    return (
+      <div className="min-h-screen bg-dh-soft px-4 py-12">
+        <div className="max-w-xl mx-auto text-center">
+          <div className={`${cardBase} p-6`}>
+            <p className="text-dh-ink font-semibold">{mensaje || "Cargando…"}</p>
+            <p className="text-sm text-gray-500 mt-2">
+              Si esto tarda mucho, revisa tu conexión o que exista el carreraId.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const abiertas = (carrera as any)?.inscripcionesAbiertas !== false;
-const pausaMsg =
-  (carrera as any)?.inscripcionesMensaje ||
-  "Inscripciones pausadas temporalmente.";
+  const pausaMsg = (carrera as any)?.inscripcionesMensaje || "Inscripciones pausadas temporalmente.";
+
+  const fechaEvento = parseISODateYYYYMMDD((carrera as any).fecha).toLocaleDateString("es-MX");
 
   return (
-    <div>
-      {carrera.bannerUrl && (
-        <div
-          className="w-full h-64 bg-cover bg-center"
-          style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
-        />
+    <div className="min-h-screen bg-dh-soft">
+      {/* Banner */}
+      {carrera.bannerUrl ? (
+        <div className="relative w-full h-72 md:h-80">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${carrera.bannerUrl})` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-dh-dark/80 via-dh-dark/55 to-transparent" />
+        </div>
+      ) : (
+        <div className="relative w-full h-44 bg-gradient-to-r from-dh-purple to-dh-green">
+          <div className="absolute inset-0 opacity-20 bg-gradient-to-b from-transparent to-black" />
+        </div>
       )}
 
-      <div className="max-w-3xl mx-auto p-6 bg-white rounded-2xl shadow-lg -mt-16 relative z-10 space-y-6">
-        <h1 className="text-3xl font-extrabold text-center text-green-800">
-          {carrera.titulo}
-        </h1>
+      {/* Card principal */}
+      <div className="max-w-4xl mx-auto px-4 pb-12">
+        <div className={`${cardBase} -mt-16 relative z-10 p-6 md:p-8 space-y-6`}>
+          {/* Title */}
+          <div className="text-center space-y-2">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-dh-ink">
+              {carrera.titulo}
+            </h1>
+            {carrera.descripcion && (
+              <p className="text-gray-600 max-w-2xl mx-auto">{carrera.descripcion}</p>
+            )}
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
+              <span className={pill}>
+                <CalendarIcon className="w-4 h-4 text-dh-purple" />
+                {fechaEvento}
+              </span>
+              {carrera.lugar && (
+                <span className={pill}>
+                  <MapPinIcon className="w-4 h-4 text-dh-green" />
+                  {carrera.lugar}
+                </span>
+              )}
+              {carrera.horaSalida && (
+                <span className={pill}>
+                  <TicketIcon className="w-4 h-4 text-gray-600" />
+                  {carrera.horaSalida}
+                </span>
+              )}
+            </div>
 
-        {carrera.descripcion && (
-          <p className="text-gray-600 text-center">{carrera.descripcion}</p>
-        )}
-
-        <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-          <div>
-            <strong>Fecha:</strong>{" "}
-            {parseISODateYYYYMMDD((carrera as any).fecha).toLocaleDateString(
-              "es-MX"
+            {(carrera.kitFecha || carrera.kitLugar || carrera.kitHorario) && (
+              <div className="mt-3 text-sm text-gray-600">
+                <span className="font-semibold text-dh-ink">Kit:</span>{" "}
+                {carrera.kitFecha || "—"} {carrera.kitLugar || ""}{" "}
+                {carrera.kitHorario || ""}
+              </div>
             )}
           </div>
-          <div>
-            <strong>Lugar:</strong> {carrera.lugar}
+
+          {/* Rama pendiente */}
+          {ramaPendiente && (
+            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <ExclamationTriangleIcon className="w-6 h-6 text-yellow-700 mt-0.5" />
+                <div className="text-sm">
+                  <div className="font-bold text-yellow-900">Tu perfil tiene Rama pendiente</div>
+                  <div className="text-yellow-800">
+                    Completa Rama en tu perfil para poder inscribirte.
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => router.push(`/perfil?edit=${encodeURIComponent(perfilId)}`)}
+                className="px-4 py-2 rounded-xl bg-dh-purple text-white text-sm font-extrabold hover:opacity-95"
+              >
+                Ir a Perfil
+              </button>
+            </div>
+          )}
+
+          {/* Tabla de categorías */}
+          <div className="overflow-auto rounded-2xl border border-dh-purple/10">
+            <table className="w-full min-w-[760px] table-auto border-collapse">
+              <thead className="bg-dh-soft">
+                <tr className="text-left">
+                  <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                    Distancia
+                  </th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                    Categoría
+                  </th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                    Edad
+                  </th>
+                  <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
+                    Precio
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {carrera.distancias.map((d) =>
+                  d.categorias.map((cat) => (
+                    <tr
+                      key={`${d.distancia}-${cat.nombre}`}
+                      className="border-t border-dh-purple/10 hover:bg-gray-50 transition"
+                    >
+                      <td className="p-3 text-dh-ink font-medium">{d.distancia}</td>
+                      <td className="p-3 text-dh-ink">{cat.nombre}</td>
+                      <td className="p-3 text-dh-ink">
+                        {cat.minAge}-{cat.maxAge}
+                      </td>
+                      <td className="p-3 text-dh-ink">
+                        <span className="font-semibold">${cat.price}</span>{" "}
+                        <span className="text-gray-500">+ IVA</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-          <div>
-            <strong>Hora:</strong> {carrera.horaSalida}
+
+          {/* Snapshot preview */}
+          {perfilSeleccionado && (
+            <div className="rounded-2xl border border-dh-purple/10 bg-dh-soft p-4">
+              <div className="flex items-start gap-3">
+                <InformationCircleIcon className="w-6 h-6 text-dh-purple mt-0.5" />
+                <div className="w-full space-y-1">
+                  <div className="font-extrabold text-dh-ink text-sm">
+                    Datos que se guardarán (snapshot)
+                  </div>
+                  <div className="text-xs text-gray-700">
+                    <span className="font-semibold">Nombre:</span>{" "}
+                    {fullName(
+                      perfilSeleccionado.nombre,
+                      perfilSeleccionado.apellidoPaterno,
+                      perfilSeleccionado.apellidoMaterno
+                    ) || "—"}
+                  </div>
+                  <div className="text-xs text-gray-700">
+                    <span className="font-semibold">Email:</span> {perfilSeleccionado.email || "—"}
+                  </div>
+                  <div className="text-xs text-gray-700">
+                    <span className="font-semibold">Cel:</span> {perfilSeleccionado.celular || "—"}
+                  </div>
+                  <div className="text-xs text-gray-700">
+                    <span className="font-semibold">Rama:</span> {ramaPerfil || "—"}
+                  </div>
+                  <div className="text-xs text-gray-700">
+                    <span className="font-semibold">Ciudad/Estado/País:</span>{" "}
+                    {[perfilSeleccionado.ciudad, perfilSeleccionado.estado, perfilSeleccionado.pais]
+                      .filter(Boolean)
+                      .join(", ") || "—"}
+                  </div>
+
+                  {/* edad para feedback */}
+                  {!!distancia && (
+                    <div className="text-xs text-gray-700 pt-1">
+                      <span className="font-semibold">Edad calculada:</span> {edadPerfil} años
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Form */}
+          <div className={`${cardBase} p-5 space-y-4`}>
+            <div className="flex items-center justify-between">
+              <div className="font-extrabold text-dh-ink">Tu inscripción</div>
+              <div className="text-xs text-gray-500">
+                Completa perfil + distancia + categoría
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Perfil */}
+              <div>
+                <label className={labelBase}>
+                  <span className="inline-flex items-center gap-2">
+                    <UserIcon className="w-5 h-5 text-dh-green" />
+                    Perfil
+                  </span>
+                </label>
+                <select
+                  className={selectBase}
+                  value={perfilId}
+                  onChange={(e) => setPerfilId(e.target.value)}
+                >
+                  {perfiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre} {p.apellidoPaterno}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Distancia */}
+              <div>
+                <label className={labelBase}>Distancia</label>
+                <select
+                  className={selectBase}
+                  value={distancia}
+                  onChange={(e) => setDistancia(e.target.value)}
+                >
+                  <option value="">-- Selecciona --</option>
+                  {carrera.distancias.map((d) => (
+                    <option key={d.distancia} value={d.distancia}>
+                      {d.distancia}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Categoría */}
+              <div>
+                <label className={labelBase}>Categoría</label>
+                <select
+                  className={`${selectBase} disabled:opacity-50`}
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  disabled={!categoriasPermitidas.length}
+                >
+                  <option value="">-- Selecciona --</option>
+                  {categoriasPermitidas.map((c) => (
+                    <option key={c.nombre} value={c.nombre}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+                {distancia && !categoriasPermitidas.length && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    No hay categorías para tu edad en esta distancia.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* CTA */}
+            <button
+              onClick={handlePagar}
+              disabled={!abiertas || !perfilId || !distancia || !categoria || procesando}
+              className={`w-full py-3 rounded-xl font-extrabold transition ${
+                abiertas && perfilId && distancia && categoria
+                  ? "bg-dh-green text-dh-dark hover:opacity-95"
+                  : "bg-gray-300 text-gray-600 cursor-not-allowed"
+              }`}
+            >
+              {!abiertas
+                ? "Inscripciones pausadas"
+                : procesando
+                ? "Procesando..."
+                : "Inscribirme y Pagar"}
+            </button>
+
+            {!abiertas && (
+              <p className="text-center text-red-700 text-sm font-semibold">{pausaMsg}</p>
+            )}
+
+            {mensaje && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {mensaje}
+              </div>
+            )}
+
+            <p className="text-sm text-gray-600 text-center">
+              ¿No tienes perfil?{" "}
+              <Link href="/perfil" className="text-dh-purple underline font-semibold">
+                Créalo aquí
+              </Link>
+            </p>
           </div>
-          {(carrera.kitFecha || carrera.kitLugar || carrera.kitHorario) && (
-            <div>
-              <strong>Kit:</strong> {carrera.kitFecha} {carrera.kitLugar}{" "}
-              {carrera.kitHorario}
+
+          {/* mini footer status */}
+          {user && (
+            <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+              <CheckCircleIcon className="w-4 h-4 text-dh-green" />
+              Sesión activa: <span className="font-semibold">{user.email}</span>
             </div>
           )}
         </div>
-
-        {/* ✅ Banner Rama pendiente */}
-        {ramaPendiente && (
-          <div className="border border-yellow-300 bg-yellow-50 text-yellow-900 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="text-sm font-medium">
-              Tu perfil tiene Rama pendiente
-              <span className="block text-xs font-normal text-yellow-800 mt-1">
-                Completa Rama en tu perfil para poder inscribirte.
-              </span>
-            </div>
-            <button
-  onClick={() => router.push(`/perfil?edit=${encodeURIComponent(perfilId)}`)}
-  className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700"
->
-  Ir a Perfil
-</button>
-          </div>
-        )}
-
-        <table className="w-full table-auto border text-gray-700">
-          <thead className="bg-green-50">
-            <tr>
-              <th className="border px-3 py-1">Distancia</th>
-              <th className="border px-3 py-1">Categoría</th>
-              <th className="border px-3 py-1">Edad</th>
-              <th className="border px-3 py-1">Precio</th>
-            </tr>
-          </thead>
-          <tbody>
-            {carrera.distancias.map((d) =>
-              d.categorias.map((cat) => (
-                <tr key={`${d.distancia}-${cat.nombre}`}>
-                  <td className="border px-3 py-1">{d.distancia}</td>
-                  <td className="border px-3 py-1">{cat.nombre}</td>
-                  <td className="border px-3 py-1">
-                    {cat.minAge}-{cat.maxAge}
-                  </td>
-                  <td className="border px-3 py-1">${cat.price} + IVA</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-
-        {/* Preview snapshot */}
-        {perfilSeleccionado && (
-          <div className="text-xs text-gray-500 bg-gray-50 border rounded p-3 space-y-1">
-            <div className="font-semibold text-gray-700">
-              Datos que se guardarán (snapshot)
-            </div>
-            <div>
-              <strong>Nombre:</strong>{" "}
-              {fullName(
-                perfilSeleccionado.nombre,
-                perfilSeleccionado.apellidoPaterno,
-                perfilSeleccionado.apellidoMaterno
-              ) || "—"}
-            </div>
-            <div>
-              <strong>Email:</strong> {perfilSeleccionado.email || "—"}
-            </div>
-            <div>
-              <strong>Cel:</strong> {perfilSeleccionado.celular || "—"}
-            </div>
-            <div>
-              <strong>Rama:</strong> {ramaPerfil || "—"}
-            </div>
-            <div>
-              <strong>Ciudad/Estado/País:</strong>{" "}
-              {[
-                perfilSeleccionado.ciudad,
-                perfilSeleccionado.estado,
-                perfilSeleccionado.pais,
-              ]
-                .filter(Boolean)
-                .join(", ") || "—"}
-            </div>
-          </div>
-        )}
-
-        {/* Formulario */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1 flex items-center space-x-1">
-              <UserIcon className="w-5 h-5 text-green-600" />
-              <span>Perfil</span>
-            </label>
-            <select
-              className="w-full border p-2 rounded"
-              value={perfilId}
-              onChange={(e) => setPerfilId(e.target.value)}
-            >
-              {perfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.nombre} {p.apellidoPaterno}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Distancia</label>
-            <select
-              className="w-full border p-2 rounded"
-              value={distancia}
-              onChange={(e) => setDistancia(e.target.value)}
-            >
-              <option value="">-- Selecciona --</option>
-              {carrera.distancias.map((d) => (
-                <option key={d.distancia} value={d.distancia}>
-                  {d.distancia}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Categoría</label>
-            <select
-              className="w-full border p-2 rounded disabled:opacity-50"
-              value={categoria}
-              onChange={(e) => setCategoria(e.target.value)}
-              disabled={!categoriasPermitidas.length}
-            >
-              <option value="">-- Selecciona --</option>
-              {categoriasPermitidas.map((c) => (
-                <option key={c.nombre} value={c.nombre}>
-                  {c.nombre}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        
-
-        <button
-  onClick={handlePagar}
-  disabled={!abiertas || !perfilId || !distancia || !categoria || procesando}
-  className={`w-full py-3 text-white font-medium rounded-lg ${
-    abiertas && perfilId && distancia && categoria
-      ? "bg-green-600 hover:bg-green-700"
-      : "bg-gray-400 cursor-not-allowed"
-  }`}
->
-  {!abiertas ? "Inscripciones pausadas" : procesando ? "Procesando..." : "Inscribirme y Pagar"}
-</button>
-
-{!abiertas && (
-  <p className="text-center text-red-600 text-sm">{pausaMsg}</p>
-)}
-
-        {mensaje && <p className="text-center text-red-600">{mensaje}</p>}
-
-        <p className="text-sm text-gray-500 text-center">
-          ¿No tienes perfil?{" "}
-          <Link href="/perfil" className="text-green-600 underline">
-            Créalo aquí
-          </Link>
-        </p>
       </div>
     </div>
   );
