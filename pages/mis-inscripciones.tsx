@@ -469,48 +469,40 @@ export default function MisInscripcionesPage() {
                     </div>
 
                     {/* Acciones */}
-                    <div className="mt-auto pt-2 flex items-center justify-between gap-3">
-                      {i.paymentStatus === "paid" ? (
-                        <button
-                          onClick={() => generarPDF(i)}
-                          className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
-                          title="Descargar PDF de confirmación"
-                        >
-                          <DocumentArrowDownIcon className="w-5 h-5" />
-                          Confirmación
-                        </button>
-                      ) : i.paymentStatus === "manual" ? (
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                          <CheckCircleIcon className="w-5 h-5 text-blue-600" />
-                          Registro manual
-                        </div>
-                      ) : i.paymentStatus === "pending" ? (
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                          <CreditCardIcon className="w-4 h-4 text-gray-500" />
-                          En proceso
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => reintentarPago(i)}
-                          className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
-                          title="Reintentar pago"
-                        >
-                          <ArrowPathIcon className="w-5 h-5" />
-                          Reintentar
-                        </button>
-                      )}
+<div className="mt-auto pt-2 flex items-center justify-between gap-3">
+  {i.paymentStatus === "paid" ? (
+    <button
+      onClick={() => generarPDF(i)}
+      className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
+      title="Descargar PDF de confirmación"
+    >
+      <DocumentArrowDownIcon className="w-5 h-5" />
+      Confirmación
+    </button>
+  ) : i.paymentStatus === "manual" ? (
+    <div className="flex items-center gap-2 text-xs text-gray-600">
+      <CheckCircleIcon className="w-5 h-5 text-blue-600" />
+      Registro manual
+    </div>
+  ) : (
+    <button
+      onClick={() => reintentarPago(i)}
+      className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
+      title="Reintentar pago"
+    >
+      <ArrowPathIcon className="w-5 h-5" />
+      Reintentar
+    </button>
+  )}
 
-                      {/* hint de status */}
-                      {i.paymentStatus !== "paid" &&
-                        i.paymentStatus !== "manual" && (
-                          <div className="flex items-center gap-2 text-xs text-gray-600">
-                            <CreditCardIcon className="w-4 h-4 text-gray-500" />
-                            {i.paymentStatus === "pending"
-                              ? "En proceso"
-                              : "Revisar"}
-                          </div>
-                        )}
-                    </div>
+  {/* hint */}
+  {i.paymentStatus !== "paid" && i.paymentStatus !== "manual" && (
+    <div className="flex items-center gap-2 text-xs text-gray-600">
+      <CreditCardIcon className="w-4 h-4 text-gray-500" />
+      {i.paymentStatus === "pending" ? "Pago en proceso" : "Revisar"}
+    </div>
+  )}
+</div>
 
                     {/* Nota si falla */}
                     {i.paymentStatus === "failed" && (
