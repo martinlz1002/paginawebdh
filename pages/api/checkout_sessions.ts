@@ -1,13 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { stripe } from "@/lib/stripe";
+import Stripe from "stripe";
+import { stripe } from "@/lib/stripe"; // si tu lib ya exporta stripe configurado, úsalo
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-// ✅ tu fórmula (ajústala a la real)
+function norm(v: any) {
+  return String(v ?? "").trim().toUpperCase();
+}
+
+// ⚠️ OJO: aquí define UNA sola fórmula para TODO el proyecto
 function calcularTotalCobrar(neto: number) {
   const IVA = 0.16;
-  const stripePct = 0.036; // ajusta
-  const stripeFijo = 3;    // ajusta
+  const stripePct = 0.036;
+  const stripeFijo = 3;
 
   const base = neto * (1 + IVA);
   const bruto = (base + stripeFijo) / (1 - stripePct);
@@ -15,11 +20,15 @@ function calcularTotalCobrar(neto: number) {
 }
 
 function getNetoFromCarrera(carrera: any, distancia: string, categoria: string) {
-  const d = (carrera.distancias || []).find((x: any) => x.distancia === distancia);
-  if (!d) throw new Error("Distancia no encontrada en la carrera");
+  const d = (carrera.distancias || []).find(
+    (x: any) => norm(x.distancia) === norm(distancia)
+  );
+  if (!d) throw new Error(`Distancia no encontrada: "${distancia}"`);
 
-  const c = (d.categorias || []).find((x: any) => x.nombre === categoria);
-  if (!c) throw new Error("Categoría no encontrada en la distancia");
+  const c = (d.categorias || []).find(
+    (x: any) => norm(x.nombre) === norm(categoria)
+  );
+  if (!c) throw new Error(`Categoría no encontrada: "${categoria}"`);
 
   const neto = Number(c.price);
   if (!Number.isFinite(neto) || neto <= 0) throw new Error("Precio inválido");
@@ -32,40 +41,31 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end(`Método ${req.method} No Permitido`);
   }
 
-  const origin = req.headers.origin!;
-  const { inscripcionId, carreraId, perfilId, categoria, distancia } = req.body as any;
-
   try {
-    let _inscripcionId: string | null = inscripcionId || null;
-    let _carreraId = carreraId;
-    let _perfilId = perfilId;
-    let _categoria = categoria;
-    let _distancia = distancia;
+    const origin = req.headers.origin || process.env.NEXT_PUBLIC_BASE_URL;
+    if (!origin) return res.status(500).json({ error: "Missing origin / NEXT_PUBLIC_BASE_URL" });
 
-    // ✅ Reintento: resolve todo desde la inscripción
-    if (_inscripcionId) {
-      const insSnap = await getDoc(doc(db, "inscripciones", _inscripcionId));
-      if (!insSnap.exists()) return res.status(404).json({ error: "Inscripción no encontrada" });
+    // ✅ Ya NO recibimos price como verdad
+    const { carreraId, perfilId, categoria, distancia } = req.body as {
+      carreraId?: string;
+      perfilId?: string | null;
+      categoria?: string;
+      distancia?: string; // viene de UI (distancia/ruta)
+    };
 
-      const ins = insSnap.data() as any;
-
-      // ⚠️ Ajusta si tus campos se llaman distinto:
-      _carreraId = ins.carreraId;
-      _perfilId = ins.perfilId;
-      _categoria = ins.categoria;
-      _distancia = ins.distancia || ins.ruta; // por si usas ruta
-
-      if (!_carreraId || !_perfilId || !_categoria || !_distancia) {
-        return res.status(400).json({ error: "Inscripción incompleta (carrera/perfil/categoría/distancia)" });
-      }
+    if (!carreraId || !categoria || !distancia) {
+      return res.status(400).json({
+        error: "Faltan datos (carreraId, categoria, distancia)",
+      });
     }
 
-    // ✅ Cargar carrera
-    const carreraSnap = await getDoc(doc(db, "carreras", _carreraId));
-    if (!carreraSnap.exists()) return res.status(404).json({ error: "Carrera no encontrada" });
+    // ✅ bloqueo inscripciones
+    const carreraSnap = await getDoc(doc(db, "carreras", carreraId));
+    if (!carreraSnap.exists()) {
+      return res.status(404).json({ error: "Carrera no encontrada" });
+    }
     const carrera = carreraSnap.data() as any;
 
-    // ✅ Bloqueo inscripciones
     const abiertas = carrera.inscripcionesAbiertas !== false;
     if (!abiertas) {
       return res.status(403).json({
@@ -73,8 +73,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // ✅ calcular neto desde el modelo real
-    const neto = getNetoFromCarrera(carrera, _distancia, _categoria);
+    // ✅ neto desde carrera y total con la MISMA fórmula que retry
+    const neto = getNetoFromCarrera(carrera, distancia, categoria);
     const unit_amount = calcularTotalCobrar(neto);
 
     const session = await stripe.checkout.sessions.create({
@@ -84,20 +84,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         {
           price_data: {
             currency: "mxn",
-            product_data: { name: `Inscripción: ${_categoria} (${_distancia})` },
+            product_data: { name: `Inscripción: ${categoria} (${distancia})` },
             unit_amount,
           },
           quantity: 1,
         },
       ],
       success_url: `${origin}/mis-inscripciones?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/mis-inscripciones`,
+      cancel_url: `${origin}/inscribirse?carreraId=${carreraId}`,
       metadata: {
-        inscripcionId: _inscripcionId || "",
-        carreraId: _carreraId,
-        perfilId: _perfilId,
-        categoria: _categoria,
-        distancia: _distancia,
+        carreraId,
+        perfilId: perfilId || "",
+        categoria,
+        distancia,
         neto: String(neto),
       },
       expand: ["payment_intent"],
@@ -108,9 +107,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       (session.payment_intent as any).next_action?.oxxo_display_details?.hosted_voucher_url ||
       "";
 
+    if (!url) return res.status(500).json({ error: "Stripe no devolvió url" });
+
     return res.status(200).json({ url, sessionId: session.id });
   } catch (err: any) {
-    console.error("Stripe error:", err);
-    return res.status(500).json({ error: err.message });
+    console.error("[checkout_sessions] error:", err?.message, err);
+    return res.status(500).json({ error: err?.message || "Error" });
   }
 }
