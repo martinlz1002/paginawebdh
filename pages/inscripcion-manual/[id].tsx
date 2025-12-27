@@ -42,6 +42,20 @@ function fullName(nombre: string, paterno: string, materno: string) {
     .trim();
 }
 
+// ✅ parse seguro para "YYYY-MM-DD" (evita desfase por timezone)
+function parseISODateYYYYMMDD(iso: any): Date {
+  if (!iso || typeof iso !== "string") return new Date("2000-01-01T00:00:00");
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? new Date("2000-01-01T00:00:00") : d;
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  return new Date(y, mo, day);
+}
+
 const inputBase =
   "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
 const selectBase =
@@ -98,7 +112,7 @@ export default function ManualPage() {
     } catch {}
   }, [id]);
 
-  // 1) Validar link (API) + cargar carrera. SIEMPRE termina en login (salvo expirado real)
+  // 1) Validar link (API) + cargar carrera.
   useEffect(() => {
     if (!id) return;
     cancelledRef.current = false;
@@ -143,7 +157,6 @@ export default function ManualPage() {
 
         timeoutRef.current = window.setTimeout(() => setStep("expired"), u.expiresAtMs - Date.now());
 
-        // Cargar carrera por API admin
         const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache" },
@@ -180,7 +193,7 @@ export default function ManualPage() {
     };
   }, [id]);
 
-  // 2) Login: loading + guardar sesión + cargar disponibilidad + form
+  // 2) Login
   const handleLogin = async () => {
     setError(null);
     if (!linkUser || !id) return;
@@ -235,11 +248,11 @@ export default function ManualPage() {
     }
   };
 
-  // Edad + categorías
+  // ✅ Edad + categorías (con parse seguro)
   useEffect(() => {
     if (!birthDate || !distancia || !race) return;
 
-    const bd = new Date(birthDate);
+    const bd = parseISODateYYYYMMDD(birthDate);
 
     const raceFecha =
       (race as any)?.fecha?.toDate ? (race as any).fecha.toDate() : new Date((race as any).fecha);
@@ -277,7 +290,6 @@ export default function ManualPage() {
       return;
     }
 
-    // ✅ obligatorios (incluye rama)
     const campos = [
       "nombre",
       "apellidoPaterno",
@@ -320,7 +332,13 @@ export default function ManualPage() {
         nombres,
 
         rama: competidor.rama,
+
+        // ✅ sigue siendo el campo base en tu schema manual
         ruta: distancia,
+
+        // ✅ extra opcional (si luego lo agregas al lib, ya lo traes aquí)
+        // distancia,
+
         categoria,
 
         email: competidor.email,
@@ -330,7 +348,8 @@ export default function ManualPage() {
         pais: competidor.pais,
         club: competidor.club,
 
-        fechaNacimiento: new Date(birthDate),
+        // ✅ parse seguro
+        fechaNacimiento: parseISODateYYYYMMDD(birthDate),
       });
 
       setAvailable((av) => av.filter((n) => n !== numero));
@@ -361,7 +380,7 @@ export default function ManualPage() {
     }
   };
 
-  // UI
+  // UI (lo demás igual)
   if (step === "checking")
     return (
       <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
@@ -466,7 +485,7 @@ export default function ManualPage() {
     );
   }
 
-  // form
+  // form (resto igual)
   return (
     <div className="min-h-screen bg-dh-soft py-10 px-4">
       <div className="max-w-3xl mx-auto space-y-5">
@@ -605,7 +624,6 @@ export default function ManualPage() {
 
           {/* Datos del competidor */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* nombre */}
             <div className="relative">
               <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input

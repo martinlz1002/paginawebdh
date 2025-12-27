@@ -5,12 +5,19 @@ import * as admin from "firebase-admin";
 
 export const config = { api: { bodyParser: false } };
 
+// ----------------- helpers env -----------------
+function requireEnv(name: string) {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing ${name} in server env`);
+  return v;
+}
+
+// ----------------- init admin -----------------
 if (!admin.apps.length) {
-  const raw = Buffer.from(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64!,
-    "base64"
-  ).toString("utf8");
+  const b64 = requireEnv("FIREBASE_SERVICE_ACCOUNT_KEY_B64");
+  const raw = Buffer.from(b64, "base64").toString("utf8");
   const serviceAccount = JSON.parse(raw);
+
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
@@ -19,11 +26,12 @@ if (!admin.apps.length) {
 const firestore = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+// ----------------- init stripe -----------------
+const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"), {
   apiVersion: "2025-05-28.basil",
 });
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
+const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 
 /**
  * ✅ Asigna número rellenando huecos:
@@ -74,8 +82,10 @@ async function allocateNumberTx(
  * ✅ Libera número metiéndolo al pool:
  * carreras/{carreraId}/freeNumbers/{num}
  * idempotente (si ya existe, se mergea y ya)
+ *
+ * ⚠️ OJO: NO async. En transacciones, evita await innecesario.
  */
-async function releaseNumberTx(
+function releaseNumberTx(
   tx: FirebaseFirestore.Transaction,
   carreraId: string,
   number: number
@@ -94,8 +104,6 @@ async function releaseNumberTx(
  * Actualiza estado de pago:
  * - paid/pending: asigna número si falta (rellenando huecos) y asegura ficha/bib
  * - unpaid/expired: libera número al pool y borra competitorNumber/ficha/bib
- *
- * Importante: usar transacciones para evitar números duplicados.
  */
 async function markPaymentStatus(
   sessionId: string,
@@ -118,11 +126,13 @@ async function markPaymentStatus(
 
         const data = insSnap.data() as any;
 
-        // Si ya tiene número, solo asegura ficha/bib y status
-        if (data.competitorNumber) {
+        const current = Number(data.competitorNumber || 0);
+
+        // Si ya tiene número válido, solo asegura ficha/bib y status
+        if (Number.isFinite(current) && current > 0) {
           const updates: any = { paymentStatus: status };
-          if (!data.ficha) updates.ficha = data.competitorNumber;
-          if (!data.bib) updates.bib = data.competitorNumber;
+          if (!data.ficha) updates.ficha = current;
+          if (!data.bib) updates.bib = current;
           tx.update(ref, updates);
           return;
         }
@@ -137,6 +147,8 @@ async function markPaymentStatus(
           bib: assigned,
         });
       });
+
+      continue;
     }
 
     if (status === "unpaid" || status === "expired") {
@@ -145,11 +157,11 @@ async function markPaymentStatus(
         if (!insSnap.exists) return;
 
         const data = insSnap.data() as any;
-        const n = data.competitorNumber as number | undefined | null;
+        const n = Number(data.competitorNumber || 0);
 
         // Devuelve el número al pool si existía
-        if (n && Number.isFinite(n) && n > 0) {
-          await releaseNumberTx(tx, data.carreraId, n);
+        if (Number.isFinite(n) && n > 0) {
+          releaseNumberTx(tx, data.carreraId, n);
         }
 
         // Limpia número y campos derivados
@@ -160,6 +172,8 @@ async function markPaymentStatus(
           bib: FieldValue.delete(),
         });
       });
+
+      continue;
     }
   }
 }
@@ -170,7 +184,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).end("Method Not Allowed");
   }
 
-  const buf = await buffer(req);
+  let buf: Buffer;
+  try {
+    buf = await buffer(req);
+  } catch (e: any) {
+    return res.status(400).send(`Webhook Error: invalid body`);
+  }
+
   const sig = req.headers["stripe-signature"] as string;
 
   let event: Stripe.Event;

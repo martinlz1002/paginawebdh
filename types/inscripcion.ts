@@ -1,5 +1,13 @@
 import { Timestamp } from "firebase/firestore";
 
+export type PaymentStatus =
+  | "paid"
+  | "pending"
+  | "unpaid"
+  | "expired"
+  | "manual"
+  | "failed"; // ✅ si lo usas en UI
+
 export interface InscripcionData {
   // IDs
   carreraId: string;
@@ -14,14 +22,20 @@ export interface InscripcionData {
   ficha?: number | null;
   bib?: number | null;
 
+  // Snapshot perfil (para Excel/PDF/admin)
   nombre?: string | null;
   paterno?: string | null;
   materno?: string | null;
   nombres?: string | null;
 
   rama?: "Femenil" | "Varonil" | string | null;
-  ruta?: string | null; // distancia
-  distancia?: string | null; // lo dejo por compat con docs viejos
+
+  // ✅ Distancia principal (source of truth)
+  ruta?: string | null;
+
+  // compat (docs viejos)
+  distancia?: string | null;
+
   categoria: string;
 
   pais?: string | null;
@@ -35,10 +49,12 @@ export interface InscripcionData {
 
   // Pago
   sessionId?: string | null;
-  paymentStatus?: "paid" | "pending" | "unpaid" | "expired" | "manual";
+  paymentStatus?: PaymentStatus;
   isManualEntry?: boolean;
   manualAdminId?: string | null;
 
   // Meta
-  timestamp?: Timestamp;
+  timestamp?: Timestamp; // createdAt de la inscripción
+  createdAt?: Timestamp; // ✅ por compat si existe en algunos docs
+  updatedAt?: Timestamp; // ✅ porque retry_checkout lo escribe
 }

@@ -2,9 +2,6 @@ import {
   collection,
   addDoc,
   serverTimestamp,
-  getDocs,
-  query,
-  where,
   Timestamp,
 } from "firebase/firestore";
 import { db, auth } from "./firebase";
@@ -44,7 +41,7 @@ export interface StripeInscripcionData {
 
   rama?: string;
 
-  // 👇 OJO: ruta opcional (si no la mandas, se usa distancia)
+  // ruta opcional (si no la mandas, se usa distancia)
   ruta?: string;
 
   pais?: string;
@@ -60,38 +57,11 @@ export interface StripeInscripcionData {
 export async function registrarInscripcion(data: StripeInscripcionData) {
   const user = await getAuthenticatedUser();
 
-  // 1️⃣ Números ya usados
-  const usedSnap = await getDocs(
-    query(
-      collection(db, "inscripciones"),
-      where("carreraId", "==", data.carreraId),
-      where("competitorNumber", ">", 0)
-    )
-  );
-  const usedNumbers = usedSnap.docs.map(
-    (d) => d.data().competitorNumber as number
-  );
-
-  // 2️⃣ Rangos de inscripciones manuales (links activos)
-  const now = new Date();
-  const tempSnap = await getDocs(
-    query(collection(db, "tempusuarios"), where("expiresAt", ">", now))
-  );
-
-  const reservedNumbers: number[] = [];
-  tempSnap.docs.forEach((docu) => {
-    const rng = docu.data().range as { start: number; end: number };
-    if (typeof rng?.start === "number" && typeof rng?.end === "number") {
-      for (let n = rng.start; n <= rng.end; n++) reservedNumbers.push(n);
-    }
-  });
-
-  // 3️⃣ Combinar y asignar primer número libre
-  const blocked = new Set<number>([...usedNumbers, ...reservedNumbers]);
-  let assigned = 1;
-  while (blocked.has(assigned)) assigned++;
-
-  // 4️⃣ Guardar la inscripción de pago (schema completo)
+  // ✅ IMPORTANTÍSIMO:
+  // Ya NO asignamos competitorNumber aquí.
+  // El backend (retry/webhook) lo asigna usando:
+  // - freeNumbers (huecos liberados)
+  // - nextNumber (corrida normal)
   await addDoc(collection(db, "inscripciones"), {
     // IDs
     carreraId: data.carreraId,
@@ -108,10 +78,10 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
     sessionId: data.sessionId,
     paymentStatus: "pending",
 
-    // Número (bib/ficha)
-    competitorNumber: assigned,
-    ficha: assigned,
-    bib: assigned,
+    // Número: lo asigna backend
+    competitorNumber: null,
+    ficha: null,
+    bib: null,
 
     // Snapshot nombre
     nombre: data.nombre || null,
@@ -133,7 +103,7 @@ export async function registrarInscripcion(data: StripeInscripcionData) {
 
     timestamp: serverTimestamp(),
   });
-} // ✅ esta llave es clave, aquí te faltaba
+}
 
 // 2) Función para registrar la inscripción manual (sin pago)
 export interface ManualInscripcionData {
@@ -170,7 +140,7 @@ export async function registrarInscripcionManual(data: ManualInscripcionData) {
     perfilId: null,
     perfilOwner: "manual",
 
-    // Número
+    // Número (manual sí lo define)
     competitorNumber: data.competitorNumber,
     ficha: data.competitorNumber,
     bib: data.competitorNumber,

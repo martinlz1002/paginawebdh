@@ -55,25 +55,6 @@ function computeAge(birthDate: Date, basisDate: Date): number {
   return age;
 }
 
-const STRIPE_RATE = 0.041;
-const FIXED_FEE = 3;
-const IVA_RATE = 0.16;
-
-function computeGross(desiredNet: number): number {
-  const ivaMult = 1 + IVA_RATE;
-  const raw = (desiredNet + FIXED_FEE * ivaMult) / (1 - STRIPE_RATE * ivaMult);
-  let gross = Math.ceil(raw * 100) / 100;
-
-  for (let i = 0; i < 500; i++) {
-    const commission = parseFloat((gross * STRIPE_RATE + FIXED_FEE).toFixed(2));
-    const iva = parseFloat((commission * IVA_RATE).toFixed(2));
-    const netSim = gross - commission - iva;
-    if (netSim >= desiredNet) break;
-    gross = parseFloat((gross + 0.01).toFixed(2));
-  }
-  return gross;
-}
-
 function safeDateFromAny(v: any): Date {
   if (!v) return new Date("2000-01-01T00:00:00");
   if (v instanceof Date) return v;
@@ -116,8 +97,6 @@ function normalizeRama(v: any): "Femenil" | "Varonil" | "" {
 
 // UI tokens DH
 const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
-const inputBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
 const selectBase =
   "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
 const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
@@ -162,7 +141,7 @@ export default function InscribirsePage() {
   }, [ramaPerfil, ramaManual]);
 
   const ramaPendiente = useMemo(() => {
-    // pendiente SOLO si el perfil no trae rama (no nos interesa lo que el user seleccione manual aquí)
+    // pendiente SOLO si el perfil no trae rama
     return !!perfilSeleccionado && !ramaPerfil;
   }, [perfilSeleccionado, ramaPerfil]);
 
@@ -189,7 +168,7 @@ export default function InscribirsePage() {
     })();
   }, [carreraId]);
 
-  // Carga perfiles (snapshot completo)
+  // Carga perfiles
   useEffect(() => {
     if (!user) return;
 
@@ -260,7 +239,9 @@ export default function InscribirsePage() {
 
     const raceDate = parseISODateYYYYMMDD((carrera as any).fecha);
     const basisDate =
-      carrera.ageBasis === "endOfYear" ? new Date(raceDate.getFullYear(), 11, 31) : raceDate;
+      carrera.ageBasis === "endOfYear"
+        ? new Date(raceDate.getFullYear(), 11, 31)
+        : raceDate;
 
     const edad = computeAge(perfil.birthDate, basisDate);
     setEdadPerfil(edad);
@@ -272,43 +253,34 @@ export default function InscribirsePage() {
       return;
     }
 
-    const permitidas = distObj.categorias.filter((c) => edad >= c.minAge && edad <= c.maxAge);
+    const permitidas = distObj.categorias.filter(
+      (c) => edad >= c.minAge && edad <= c.maxAge
+    );
 
     setCategoriasPermitidas(permitidas);
     setCategoria("");
   }, [carrera, perfilId, distancia, perfiles]);
 
-  // Si cambias de perfil, resetea rama manual (para no “arrastrar”)
+  // Si cambias de perfil, resetea rama manual
   useEffect(() => {
     setRamaManual("");
-    setMensaje(""); // limpia banners viejos al cambiar perfil
+    setMensaje("");
   }, [perfilId]);
 
   const handlePagar = async () => {
     setMensaje("");
 
-    if (!user) {
-      setMensaje("Inicia sesión para inscribirte.");
-      return;
-    }
+    if (!user) return setMensaje("Inicia sesión para inscribirte.");
     if (!carrera || !perfilId || !distancia || !categoria) {
-      setMensaje("Completa todos los campos.");
-      return;
+      return setMensaje("Completa todos los campos.");
     }
 
     const perfil = perfiles.find((p) => p.id === perfilId);
-    if (!perfil) {
-      setMensaje("Perfil inválido.");
-      return;
-    }
+    if (!perfil) return setMensaje("Perfil inválido.");
 
-    // ✅ Mensaje específico que pediste
-    if (!ramaPerfil) {
-      setMensaje("Tu perfil tiene Rama pendiente");
-      return;
-    }
+    if (!ramaPerfil) return setMensaje("Tu perfil tiene Rama pendiente");
 
-    // Validación snapshot mínimo (para Excel)
+    // Validación snapshot mínimo
     const nombreCompleto = fullName(perfil.nombre, perfil.apellidoPaterno, perfil.apellidoMaterno);
     if (!nombreCompleto) return setMensaje("Tu perfil no tiene nombre completo.");
     if (!perfil.email) return setMensaje("Tu perfil no tiene email.");
@@ -334,12 +306,21 @@ export default function InscribirsePage() {
         return;
       }
 
-      const price = categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
-      const bruto = computeGross(price);
+      // ✅ confirm simple y consistente (el server calcula el total real)
+      const neto = categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
+      if (!neto) return setMensaje("No se pudo determinar el precio de la categoría.");
 
-      if (!confirm(`Vas a pagar $${bruto.toFixed(2)} MXN (comisión+IVA).\n¿Continuar?`)) return;
+      if (
+        !confirm(
+          `Vas a inscribirte en:\n- ${carrera.titulo}\n- ${distancia} / ${categoria}\n\nPrecio neto: $${neto.toFixed(
+            2
+          )} MXN (+ comisión e IVA en el cobro final).\n¿Continuar?`
+        )
+      ) {
+        return;
+      }
 
-      // ✅ crea sesión Stripe
+      // ✅ crea sesión Stripe (server calcula unit_amount)
       const res = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -347,13 +328,15 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId,
           categoria,
-          price: bruto,
+          distancia, // ✅ esto mata el error de "faltan datos" y "distancia no encontrada"
         }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-      const { url, sessionId } = await res.json();
+      const { url, sessionId } = data;
+      if (!url || !sessionId) throw new Error("Stripe no devolvió url/sessionId");
 
       // ✅ guarda inscripción con snapshot completo
       await registrarInscripcion({
@@ -372,7 +355,7 @@ export default function InscribirsePage() {
         materno: perfil.apellidoMaterno,
         nombres: nombreCompleto,
 
-        rama: ramaPerfil, // ✅ siempre viene del perfil ya completado
+        rama: ramaPerfil,
 
         pais: perfil.pais,
         estado: perfil.estado,
@@ -409,7 +392,8 @@ export default function InscribirsePage() {
   }
 
   const abiertas = (carrera as any)?.inscripcionesAbiertas !== false;
-  const pausaMsg = (carrera as any)?.inscripcionesMensaje || "Inscripciones pausadas temporalmente.";
+  const pausaMsg =
+    (carrera as any)?.inscripcionesMensaje || "Inscripciones pausadas temporalmente.";
 
   const fechaEvento = parseISODateYYYYMMDD((carrera as any).fecha).toLocaleDateString("es-MX");
 
@@ -463,8 +447,7 @@ export default function InscribirsePage() {
             {(carrera.kitFecha || carrera.kitLugar || carrera.kitHorario) && (
               <div className="mt-3 text-sm text-gray-600">
                 <span className="font-semibold text-dh-ink">Kit:</span>{" "}
-                {carrera.kitFecha || "—"} {carrera.kitLugar || ""}{" "}
-                {carrera.kitHorario || ""}
+                {carrera.kitFecha || "—"} {carrera.kitLugar || ""} {carrera.kitHorario || ""}
               </div>
             )}
           </div>
@@ -538,9 +521,7 @@ export default function InscribirsePage() {
               <div className="flex items-start gap-3">
                 <InformationCircleIcon className="w-6 h-6 text-dh-purple mt-0.5" />
                 <div className="w-full space-y-1">
-                  <div className="font-extrabold text-dh-ink text-sm">
-                    Datos que se guardarán (snapshot)
-                  </div>
+                  <div className="font-extrabold text-dh-ink text-sm">Datos que se guardarán (snapshot)</div>
                   <div className="text-xs text-gray-700">
                     <span className="font-semibold">Nombre:</span>{" "}
                     {fullName(
@@ -565,7 +546,6 @@ export default function InscribirsePage() {
                       .join(", ") || "—"}
                   </div>
 
-                  {/* edad para feedback */}
                   {!!distancia && (
                     <div className="text-xs text-gray-700 pt-1">
                       <span className="font-semibold">Edad calculada:</span> {edadPerfil} años
@@ -580,9 +560,7 @@ export default function InscribirsePage() {
           <div className={`${cardBase} p-5 space-y-4`}>
             <div className="flex items-center justify-between">
               <div className="font-extrabold text-dh-ink">Tu inscripción</div>
-              <div className="text-xs text-gray-500">
-                Completa perfil + distancia + categoría
-              </div>
+              <div className="text-xs text-gray-500">Completa perfil + distancia + categoría</div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

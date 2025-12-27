@@ -15,55 +15,87 @@ export default function Pago() {
     ran.current = true;
 
     const run = async () => {
-      const { carreraId, perfilId, categoria, price } = router.query;
+      // ✅ Ahora pedimos distancia y NO price
+      const { carreraId, perfilId, categoria, distancia, ruta, inscripcionId } = router.query;
 
-      // Validación mínima (directo y sin romanticismo)
-      if (
-        typeof carreraId !== "string" ||
-        typeof perfilId !== "string" ||
-        typeof categoria !== "string" ||
-        (typeof price !== "string" && typeof price !== "number")
-      ) {
-        setMsg("Faltan datos para el pago. Regresando…");
-        setTimeout(() => router.replace("/"), 900);
-        return;
-      }
+      // ✅ Validación mínima
+      // - pago “nuevo”: requiere carreraId + perfilId + categoria + distancia
+      // - pago “reintento”: lo ideal es pasar inscripcionId y ya (pero dejamos ambos caminos)
+      const dist = (typeof distancia === "string" ? distancia : "") || (typeof ruta === "string" ? ruta : "");
 
-      const priceNum = Number(price);
-      if (!Number.isFinite(priceNum) || priceNum <= 0) {
-        setMsg("Precio inválido. Regresando…");
-        setTimeout(() => router.replace(`/inscribirse?carreraId=${carreraId}`), 900);
-        return;
+      const isRetryOnly = typeof inscripcionId === "string" && inscripcionId.trim().length > 0;
+
+      if (!isRetryOnly) {
+        if (
+          typeof carreraId !== "string" ||
+          typeof perfilId !== "string" ||
+          typeof categoria !== "string" ||
+          typeof dist !== "string" ||
+          !dist
+        ) {
+          setMsg("Faltan datos para el pago. Regresando…");
+          setTimeout(() => router.replace("/"), 900);
+          return;
+        }
       }
 
       try {
         setMsg("Redirigiendo a Stripe...");
 
+        // ✅ Si viene inscripcionId, usa el endpoint de reintento
+        if (isRetryOnly) {
+          const res = await fetch("/api/retry_checkout", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ inscripcionId }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
+
+          if (data?.url) {
+            window.location.href = data.url;
+            return;
+          }
+          if (data?.sessionId) {
+            const stripe = await stripePromise;
+            await stripe?.redirectToCheckout({ sessionId: data.sessionId });
+            return;
+          }
+          throw new Error("Respuesta inválida desde el servidor.");
+        }
+
+        // ✅ Pago nuevo: usa checkout_sessions pero sin price (el server calcula)
         const res = await fetch("/api/checkout_sessions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ carreraId, perfilId, categoria, price: priceNum }),
+          body: JSON.stringify({
+            carreraId,
+            perfilId,
+            categoria,
+            distancia: dist,
+          }),
         });
 
         const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-        // Tu API ya devuelve url y sessionId
         if (data?.url) {
           window.location.href = data.url;
           return;
         }
-
         if (data?.sessionId) {
           const stripe = await stripePromise;
           await stripe?.redirectToCheckout({ sessionId: data.sessionId });
           return;
         }
 
-        throw new Error(data?.error || "Respuesta inválida desde el servidor.");
+        throw new Error("Respuesta inválida desde el servidor.");
       } catch (e: any) {
         console.error(e);
         setMsg("Error iniciando pago. Regresando…");
-        setTimeout(() => router.replace(`/inscribirse?carreraId=${router.query.carreraId ?? ""}`), 1200);
+        const backCarreraId = typeof carreraId === "string" ? carreraId : "";
+        setTimeout(() => router.replace(backCarreraId ? `/inscribirse?carreraId=${backCarreraId}` : "/"), 1200);
       }
     };
 

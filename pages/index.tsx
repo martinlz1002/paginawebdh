@@ -1,9 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
-import { CalendarIcon, MapPinIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import {
+  CalendarIcon,
+  MapPinIcon,
+  ArrowRightIcon,
+  LockClosedIcon,
+} from "@heroicons/react/24/outline";
 
 import HeroBanner from "@/components/HeroBanner";
 import SearchCard from "@/components/SearchCard";
@@ -18,6 +23,13 @@ interface Carrera {
   ubicacion?: string;
   fecha: string;
   imagenUrl?: string;
+
+  // ✅ nuevos (opcionales)
+  inscripcionesAbiertas?: boolean;
+  inscripcionesMensaje?: string;
+
+  // interno
+  carreraDate?: Date;
 }
 
 function pad(n: number) {
@@ -39,8 +51,9 @@ export default function HomePage() {
       today.setHours(0, 0, 0, 0);
 
       const data = snapshot.docs
-        .map((doc) => {
-          const c = doc.data() as any;
+        .map((docu) => {
+          const c = docu.data() as any;
+
           let fechaFormateada = "";
           let carreraDate: Date | null = null;
 
@@ -57,13 +70,18 @@ export default function HomePage() {
           }
 
           return {
-            id: doc.id,
-            titulo: c.titulo,
-            descripcion: c.descripcion,
+            id: docu.id,
+            titulo: c.titulo || "(sin título)",
+            descripcion: c.descripcion || "",
             // ✅ Soporta tanto "lugar" como "ubicacion"
             ubicacion: c.lugar || c.ubicacion || "",
             fecha: fechaFormateada,
-            imagenUrl: c.imagenUrl,
+            imagenUrl: c.imagenUrl || "",
+
+            // ✅ estado inscripciones (por defecto abiertas)
+            inscripcionesAbiertas: c.inscripcionesAbiertas !== false,
+            inscripcionesMensaje: c.inscripcionesMensaje || "",
+
             carreraDate,
           } as Carrera & { carreraDate: Date | null };
         })
@@ -71,7 +89,7 @@ export default function HomePage() {
           (c): c is Carrera & { carreraDate: Date } =>
             c.carreraDate !== null && c.carreraDate >= today
         )
-        .map(({ carreraDate, ...rest }) => rest);
+        .map(({ carreraDate, ...rest }) => ({ ...rest, carreraDate }));
 
       setRaw(data);
     })();
@@ -82,41 +100,39 @@ export default function HomePage() {
     let filtered = raw;
 
     if (typeof qTitulo === "string" && qTitulo.trim()) {
-      filtered = filtered.filter((c) =>
-        c.titulo.toLowerCase().includes(qTitulo.toLowerCase())
-      );
+      const needle = qTitulo.toLowerCase();
+      filtered = filtered.filter((c) => c.titulo.toLowerCase().includes(needle));
     }
+
     if (typeof qCiudad === "string" && qCiudad.trim()) {
-      filtered = filtered.filter((c) =>
-        (c.ubicacion || "").toLowerCase().includes(qCiudad.toLowerCase())
-      );
+      const needle = qCiudad.toLowerCase();
+      filtered = filtered.filter((c) => (c.ubicacion || "").toLowerCase().includes(needle));
     }
+
     if (typeof qFecha === "string" && qFecha.trim()) {
       filtered = filtered.filter((c) => c.fecha === qFecha);
     }
 
+    // ✅ orden estable por fecha asc
+    filtered = filtered
+      .slice()
+      .sort((a, b) => (a.carreraDate?.getTime() ?? 0) - (b.carreraDate?.getTime() ?? 0));
+
     setCarreras(filtered);
   }, [raw, qTitulo, qCiudad, qFecha]);
 
-  const destacados = carreras.slice(0, 3).map((c) => ({
-    id: c.id,
-    titulo: c.titulo,
-    fecha: c.fecha,
-    imagenUrl: c.imagenUrl || "/fallback.png",
-    destacado: true,
-  }));
-
-  // Galería: solo las 6 primeras (mantengo tu lógica aunque Gallery ya trae limit)
-  const [allPhotos, setAllPhotos] = useState<{ id: string; src: string; alt: string }[]>([]);
-  useEffect(() => {
-    setAllPhotos(
-      carreras.slice(0, 6).map((c, i) => ({
-        id: String(i),
-        src: c.imagenUrl || "/fallback.png",
-        alt: c.titulo,
-      }))
-    );
-  }, [carreras]);
+  // Destacados: los primeros 3 por fecha (o cambia a `where destacado==true` si quieres)
+  const destacados = useMemo(
+    () =>
+      carreras.slice(0, 3).map((c) => ({
+        id: c.id,
+        titulo: c.titulo,
+        fecha: c.fecha,
+        imagenUrl: c.imagenUrl || "/fallback.png",
+        destacado: true,
+      })),
+    [carreras]
+  );
 
   return (
     <>
@@ -127,7 +143,6 @@ export default function HomePage() {
 
         <FeaturedCarreras carreras={destacados} />
 
-        {/* Ahora sin props */}
         <Testimonials />
 
         <Gallery limit={6} showAllButton />
@@ -142,56 +157,92 @@ export default function HomePage() {
             <p className="text-center text-gray-500">No hay carreras que coincidan.</p>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {carreras.map((c) => (
-                <Link
-                  key={c.id}
-                  href={`/inscribirse?carreraId=${c.id}`}
-                  className="group block bg-white rounded-2xl shadow-md overflow-hidden transition hover:shadow-dh hover:-translate-y-0.5"
-                >
-                  <div className="aspect-w-16 aspect-h-9 bg-gray-100">
-                    {c.imagenUrl ? (
-                      <img
-                        src={c.imagenUrl}
-                        alt={c.titulo}
-                        className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-[1.02]"
-                      />
-                    ) : (
-                      <div className="flex items-center justify-center text-gray-400">
-                        Sin imagen
-                      </div>
-                    )}
-                  </div>
+              {carreras.map((c) => {
+                const abiertas = c.inscripcionesAbiertas !== false;
+                const msgPausa =
+                  (c.inscripcionesMensaje || "").trim() ||
+                  "Inscripciones pausadas temporalmente.";
 
-                  <div className="p-4 space-y-2">
-                    <h3 className="text-xl font-semibold text-gray-800">{c.titulo}</h3>
+                return (
+                  <div
+                    key={c.id}
+                    className="group block bg-white rounded-2xl shadow-md overflow-hidden transition hover:shadow-dh hover:-translate-y-0.5"
+                  >
+                    {/* Imagen */}
+                    <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
+                      {c.imagenUrl ? (
+                        <img
+                          src={c.imagenUrl}
+                          alt={c.titulo}
+                          className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-[1.02]"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center text-gray-400 w-full h-full">
+                          Sin imagen
+                        </div>
+                      )}
 
-                    {c.descripcion && (
-                      <p className="text-gray-600 line-clamp-3">{c.descripcion}</p>
-                    )}
-
-                    <div className="flex items-center text-gray-500 text-sm gap-4">
-                      <time className="flex items-center gap-1">
-                        <CalendarIcon className="w-5 h-5" />
-                        <span>{c.fecha}</span>
-                      </time>
-
-                      {c.ubicacion && (
-                        <span className="flex items-center gap-1">
-                          <MapPinIcon className="w-5 h-5" />
-                          <span>{c.ubicacion}</span>
-                        </span>
+                      {/* Badge pausa */}
+                      {!abiertas && (
+                        <div className="absolute top-3 left-3 rounded-full bg-white/90 border border-red-200 px-3 py-1 text-xs font-extrabold text-red-700 inline-flex items-center gap-2">
+                          <LockClosedIcon className="w-4 h-4" />
+                          Pausadas
+                        </div>
                       )}
                     </div>
 
-                    <div className="flex justify-end pt-1">
-                      <button className="inline-flex items-center gap-1 font-semibold text-dh-green group-hover:text-dh-purple transition">
-                        <span>Inscribirse</span>
-                        <ArrowRightIcon className="w-5 h-5" />
-                      </button>
+                    <div className="p-4 space-y-2">
+                      <h3 className="text-xl font-semibold text-gray-800">{c.titulo}</h3>
+
+                      {c.descripcion && (
+                        <p className="text-gray-600 line-clamp-3">{c.descripcion}</p>
+                      )}
+
+                      <div className="flex items-center text-gray-500 text-sm gap-4">
+                        <time className="flex items-center gap-1">
+                          <CalendarIcon className="w-5 h-5" />
+                          <span>{c.fecha}</span>
+                        </time>
+
+                        {c.ubicacion && (
+                          <span className="flex items-center gap-1">
+                            <MapPinIcon className="w-5 h-5" />
+                            <span className="line-clamp-1">{c.ubicacion}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {!abiertas && (
+                        <p className="text-xs text-red-600">{msgPausa}</p>
+                      )}
+
+                      <div className="flex justify-end pt-1">
+                        {abiertas ? (
+                          <Link
+                            href={`/inscribirse?carreraId=${c.id}`}
+                            legacyBehavior
+                          >
+                            <a className="inline-flex items-center gap-1 font-semibold text-dh-green group-hover:text-dh-purple transition">
+                              <span>Inscribirse</span>
+                              <ArrowRightIcon className="w-5 h-5" />
+                            </a>
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled
+                            className="inline-flex items-center gap-1 font-semibold text-gray-400 cursor-not-allowed"
+                            title={msgPausa}
+                          >
+                            <span>No disponible</span>
+                            <ArrowRightIcon className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>

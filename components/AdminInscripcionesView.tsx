@@ -5,7 +5,6 @@ import {
   query,
   where,
   doc,
-  getDoc,
   Timestamp,
   updateDoc,
 } from "firebase/firestore";
@@ -24,7 +23,7 @@ interface CarreraItem extends CarreraData {
 }
 
 interface PerfilData {
-  // snapshot NUEVO (ya viene en inscripciones)
+  // snapshot (ya viene en inscripciones)
   nombre?: string;
   paterno?: string;
   materno?: string;
@@ -57,7 +56,7 @@ interface InscripcionItem {
 
   timestamp: Date;
   sessionId?: string | null;
-  payment_status?: string;
+  paymentStatus?: string;
 
   competitorNumber: number;
   ficha?: number | null;
@@ -78,7 +77,7 @@ function safeDateFromAny(v: any): Date | null {
   if (v instanceof Timestamp) return v.toDate();
   if (typeof v?.toDate === "function") return v.toDate();
   const d = new Date(v);
-  return isNaN(d.getTime()) ? null : d;
+  return Number.isFinite(d.getTime()) ? d : null;
 }
 
 function computeAge(birthDate: Date, basisDate: Date): number {
@@ -88,11 +87,29 @@ function computeAge(birthDate: Date, basisDate: Date): number {
   return age;
 }
 
+function pickNumber(raw: any): number {
+  const n =
+    (typeof raw.competitorNumber === "number" && raw.competitorNumber > 0 && raw.competitorNumber) ||
+    (typeof raw.ficha === "number" && raw.ficha > 0 && raw.ficha) ||
+    (typeof raw.bib === "number" && raw.bib > 0 && raw.bib) ||
+    (Number(raw.competitorNumber) > 0 ? Number(raw.competitorNumber) : 0) ||
+    (Number(raw.ficha) > 0 ? Number(raw.ficha) : 0) ||
+    (Number(raw.bib) > 0 ? Number(raw.bib) : 0) ||
+    0;
+
+  return Number.isFinite(n) ? n : 0;
+}
+
 export default function AdminInscripcionesView() {
   const [carreras, setCarreras] = useState<CarreraItem[]>([]);
   const [selectedCarrera, setSelectedCarrera] = useState("");
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // filtro opcional (pro)
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "paid" | "pending" | "manual" | "expired" | "unpaid" | "failed"
+  >("all");
 
   // edición modal
   const [editOpen, setEditOpen] = useState(false);
@@ -100,7 +117,7 @@ export default function AdminInscripcionesView() {
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<InscripcionItem | null>(null);
 
-  // form editable (solo snapshot + categoria/ruta/rama + contacto/lugar)
+  // form editable
   const [form, setForm] = useState({
     competitorNumber: 0,
     ficha: 0,
@@ -130,124 +147,121 @@ export default function AdminInscripcionesView() {
     [carreras, selectedCarrera]
   );
 
-  // Cargo la lista de carreras
+  // lista de carreras
   useEffect(() => {
-    getDocs(collection(db, "carreras")).then((snap) => {
+    (async () => {
+      const snap = await getDocs(collection(db, "carreras"));
       setCarreras(snap.docs.map((d) => ({ id: d.id, ...(d.data() as CarreraData) })));
-    });
+    })();
   }, []);
 
-  // Cuando cambia la carrera, cargo inscripciones
+  // cargar inscripciones por carrera (y filtro opcional)
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
       return;
     }
+
     setLoading(true);
 
     (async () => {
       try {
-        const snap = await getDocs(
-          query(collection(db, "inscripciones"), where("carreraId", "==", selectedCarrera))
+        const baseQ = query(
+          collection(db, "inscripciones"),
+          where("carreraId", "==", selectedCarrera)
         );
+
+        const qy =
+          statusFilter === "all"
+            ? baseQ
+            : query(
+                collection(db, "inscripciones"),
+                where("carreraId", "==", selectedCarrera),
+                where("paymentStatus", "==", statusFilter)
+              );
+
+        const snap = await getDocs(qy);
 
         const carreraInfo = carreras.find((c) => c.id === selectedCarrera);
 
-        const items: InscripcionItem[] = await Promise.all(
-          snap.docs.map(async (d) => {
-            const raw = d.data() as RawData;
+        const raceFecha = safeDateFromAny((carreraInfo as any)?.fecha);
+        const basis =
+          raceFecha && carreraInfo
+            ? carreraInfo.ageBasis === "eventDate"
+              ? raceFecha
+              : new Date(raceFecha.getFullYear(), 11, 31)
+            : null;
 
-            // timestamp
-            let ts = new Date();
-            if (raw.timestamp instanceof Timestamp) ts = raw.timestamp.toDate();
-            else if (raw.timestamp?.toDate) ts = raw.timestamp.toDate();
-            else if (typeof raw.timestamp === "string") ts = new Date(raw.timestamp);
+        const items: InscripcionItem[] = snap.docs.map((d) => {
+          const raw = d.data() as RawData;
 
-            // número
-            const num =
-              typeof raw.competitorNumber === "number"
-                ? raw.competitorNumber
-                : Number(raw.competitorNumber) || 0;
+          const ts = safeDateFromAny(raw.timestamp) || new Date();
 
-            // snapshot NUEVO (prioridad)
-            const nombre = raw.nombre ?? raw.perfilNombre ?? "";
-            const paterno = raw.paterno ?? raw.perfilApPaterno ?? "";
-            const materno = raw.materno ?? raw.perfilApMaterno ?? "";
-            const nombres = raw.nombres ?? fullName(nombre, paterno, materno);
+          const num = pickNumber(raw);
 
-            const fechaNacimiento = safeDateFromAny(raw.fechaNacimiento ?? raw.birthDate);
-            let edad: number | undefined = undefined;
+          const nombre = raw.nombre ?? raw.perfilNombre ?? "";
+          const paterno = raw.paterno ?? raw.perfilApPaterno ?? "";
+          const materno = raw.materno ?? raw.perfilApMaterno ?? "";
+          const nombres = (raw.nombres && String(raw.nombres).trim()) || fullName(nombre, paterno, materno);
 
-            if (fechaNacimiento && carreraInfo?.fecha) {
-              const raceFecha = new Date(carreraInfo.fecha);
-              const basis =
-                carreraInfo.ageBasis === "eventDate"
-                  ? raceFecha
-                  : new Date(raceFecha.getFullYear(), 11, 31);
-              edad = computeAge(fechaNacimiento, basis);
-            }
+          const fechaNacimiento = safeDateFromAny(raw.fechaNacimiento ?? raw.birthDate);
+          const edad = fechaNacimiento && basis ? computeAge(fechaNacimiento, basis) : undefined;
 
-            // payment_status (si no existe, intenta API get-session)
-            let payment_status: string | undefined = raw.paymentStatus;
-            if (!payment_status && raw.sessionId) {
-              try {
-                const res = await fetch(`/api/get-session?session_id=${raw.sessionId}`);
-                if (res.ok) {
-                  const js = await res.json();
-                  payment_status = js.payment_status;
-                }
-              } catch {
-                /* ignore */
-              }
-            }
+          const paymentStatus = (raw.paymentStatus || raw.payment_status || "desconocido").toString();
 
-            const perfil: PerfilData = {
-              nombre,
-              paterno,
-              materno,
-              nombres,
+          const ruta = (raw.ruta ?? raw.distancia ?? "").toString();
 
-              rama: raw.rama ?? "",
-              ruta: raw.ruta ?? raw.distancia ?? "",
+          const perfil: PerfilData = {
+            nombre,
+            paterno,
+            materno,
+            nombres,
 
-              email: raw.email ?? "",
-              celular: raw.celular ?? "",
+            rama: raw.rama ?? "",
+            ruta,
 
-              pais: raw.pais ?? "",
-              estado: raw.estado ?? "",
-              ciudad: raw.ciudad ?? "",
-              club: raw.club ?? "",
+            email: raw.email ?? "",
+            celular: raw.celular ?? "",
 
-              fechaNacimiento: fechaNacimiento,
-              edad,
-            };
+            pais: raw.pais ?? "",
+            estado: raw.estado ?? "",
+            ciudad: raw.ciudad ?? "",
+            club: raw.club ?? "",
 
-            return {
-              id: d.id,
-              perfil,
-              categoria: raw.categoria || "",
-              ruta: raw.ruta ?? raw.distancia ?? "",
-              rama: raw.rama ?? "",
-              timestamp: ts,
-              sessionId: raw.sessionId ?? null,
-              payment_status,
-              competitorNumber: num,
-              ficha:
-                typeof raw.ficha === "number" ? raw.ficha : raw.ficha ? Number(raw.ficha) : null,
-              bib: typeof raw.bib === "number" ? raw.bib : raw.bib ? Number(raw.bib) : null,
-            };
-          })
-        );
+            fechaNacimiento,
+            edad,
+          };
 
-        items.sort((a, b) => a.competitorNumber - b.competitorNumber);
+          return {
+            id: d.id,
+            perfil,
+            categoria: raw.categoria || "",
+            ruta,
+            rama: raw.rama ?? "",
+            timestamp: ts,
+            sessionId: raw.sessionId ?? null,
+            paymentStatus,
+            competitorNumber: num,
+            ficha: Number.isFinite(Number(raw.ficha)) ? Number(raw.ficha) : null,
+            bib: Number.isFinite(Number(raw.bib)) ? Number(raw.bib) : null,
+          };
+        });
+
+        // orden pro: vacíos al final
+        items.sort((a, b) => {
+          const na = a.competitorNumber > 0 ? a.competitorNumber : 9_999_999;
+          const nb = b.competitorNumber > 0 ? b.competitorNumber : 9_999_999;
+          return na - nb;
+        });
+
         setInscripciones(items);
       } finally {
         setLoading(false);
       }
     })();
-  }, [selectedCarrera, carreras]);
+  }, [selectedCarrera, carreras, statusFilter]);
 
-  // abrir modal edición
+  // abrir modal
   const openEdit = (it: InscripcionItem) => {
     setEditError(null);
     setEditing(it);
@@ -255,9 +269,7 @@ export default function AdminInscripcionesView() {
     const bd = it.perfil.fechaNacimiento;
     const yyyyMmDd =
       bd instanceof Date
-        ? `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(
-            bd.getDate()
-          ).padStart(2, "0")}`
+        ? `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(bd.getDate()).padStart(2, "0")}`
         : "";
 
     const nombre = it.perfil.nombre || "";
@@ -297,7 +309,6 @@ export default function AdminInscripcionesView() {
     setEditing(null);
   };
 
-  // guardar edición (updateDoc sobre inscripciones/{id})
   const saveEdit = async () => {
     if (!editing) return;
     setEditError(null);
@@ -351,20 +362,19 @@ export default function AdminInscripcionesView() {
     try {
       const ref = doc(db, "inscripciones", editing.id);
 
-      // ⚠️ OJO: esto NO cambia el estado de pago. Solo edita snapshot/campos Excel.
       await updateDoc(ref, {
         competitorNumber: cn,
-        ficha: ficha,
-        bib: bib,
+        ficha,
+        bib,
 
         nombre: form.nombre.trim(),
         paterno: form.paterno.trim(),
         materno: form.materno.trim(),
-        nombres: nombres,
+        nombres,
 
         rama: form.rama.trim(),
         ruta: form.ruta.trim(),
-        // (si también guardas "distancia" en algunos lados, lo alineamos)
+        // compat
         distancia: form.ruta.trim(),
 
         categoria: form.categoria.trim(),
@@ -379,7 +389,7 @@ export default function AdminInscripcionesView() {
         fechaNacimiento: Timestamp.fromDate(new Date(form.fechaNacimiento)),
       });
 
-      // refrescar UI local (sin recargar)
+      // refrescar UI local
       setInscripciones((prev) => {
         const next = prev.map((x) => {
           if (x.id !== editing.id) return x;
@@ -410,21 +420,25 @@ export default function AdminInscripcionesView() {
             },
           };
 
-          // recalcula edad si aplica
-          if (selectedCarreraInfo?.fecha) {
-            const raceFecha = new Date(selectedCarreraInfo.fecha);
+          // recalcular edad
+          const raceFecha = safeDateFromAny((selectedCarreraInfo as any)?.fecha);
+          if (raceFecha && selectedCarreraInfo) {
             const basis =
               selectedCarreraInfo.ageBasis === "eventDate"
                 ? raceFecha
                 : new Date(raceFecha.getFullYear(), 11, 31);
-            const bd = new Date(form.fechaNacimiento);
-            updated.perfil.edad = computeAge(bd, basis);
+            updated.perfil.edad = computeAge(new Date(form.fechaNacimiento), basis);
           }
 
           return updated;
         });
 
-        next.sort((a, b) => a.competitorNumber - b.competitorNumber);
+        next.sort((a, b) => {
+          const na = a.competitorNumber > 0 ? a.competitorNumber : 9_999_999;
+          const nb = b.competitorNumber > 0 ? b.competitorNumber : 9_999_999;
+          return na - nb;
+        });
+
         return next;
       });
 
@@ -437,7 +451,6 @@ export default function AdminInscripcionesView() {
     }
   };
 
-  // export Excel (nuevo schema)
   const exportExcel = () => {
     const rows = inscripciones.map((i) => ({
       Ficha: i.ficha ?? i.competitorNumber,
@@ -454,13 +467,11 @@ export default function AdminInscripcionesView() {
       Ciudad: i.perfil.ciudad ?? "",
       Celular: i.perfil.celular ?? "",
       Club: i.perfil.club ?? "",
-      FechaNacimiento: i.perfil.fechaNacimiento
-        ? i.perfil.fechaNacimiento.toLocaleDateString("es-MX")
-        : "",
+      FechaNacimiento: i.perfil.fechaNacimiento ? i.perfil.fechaNacimiento.toLocaleDateString("es-MX") : "",
       Email: i.perfil.email ?? "",
-      PaymentStatus: i.payment_status ?? "desconocido",
+      PaymentStatus: i.paymentStatus ?? "desconocido",
       Evento: selectedCarreraInfo?.titulo ?? "",
-      Registrado: i.timestamp.toLocaleString(),
+      Registrado: i.timestamp.toLocaleString("es-MX"),
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
@@ -474,14 +485,32 @@ export default function AdminInscripcionesView() {
       <div className="flex justify-between items-center mb-4 gap-3">
         <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
 
-        <button
-          onClick={exportExcel}
-          disabled={!inscripciones.length}
-          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 transition"
-        >
-          <ArrowDownTrayIcon className="w-5 h-5" />
-          <span>Exportar Excel</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+            disabled={!selectedCarrera}
+            className="border p-2 rounded"
+            title="Filtrar por estado de pago"
+          >
+            <option value="all">Todos</option>
+            <option value="paid">Pagado</option>
+            <option value="pending">Pendiente</option>
+            <option value="manual">Manual</option>
+            <option value="expired">Expirado</option>
+            <option value="unpaid">Unpaid</option>
+            <option value="failed">Failed</option>
+          </select>
+
+          <button
+            onClick={exportExcel}
+            disabled={!inscripciones.length}
+            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 transition"
+          >
+            <ArrowDownTrayIcon className="w-5 h-5" />
+            <span>Exportar Excel</span>
+          </button>
+        </div>
       </div>
 
       <select
@@ -523,7 +552,7 @@ export default function AdminInscripcionesView() {
                   key={i.id}
                   className="bg-blue-900 text-white hover:bg-blue-800 transition-colors"
                 >
-                  <td className="p-2">{i.competitorNumber}</td>
+                  <td className="p-2">{i.competitorNumber || "—"}</td>
                   <td className="p-2">
                     {i.perfil.nombres ||
                       fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno)}
@@ -533,8 +562,8 @@ export default function AdminInscripcionesView() {
                   <td className="p-2">{i.categoria}</td>
                   <td className="p-2">{i.perfil.edad ?? "-"}</td>
                   <td className="p-2">{i.perfil.celular ?? "-"}</td>
-                  <td className="p-2">{i.payment_status ?? "-"}</td>
-                  <td className="p-2">{i.timestamp.toLocaleString()}</td>
+                  <td className="p-2">{i.paymentStatus ?? "-"}</td>
+                  <td className="p-2">{i.timestamp.toLocaleString("es-MX")}</td>
                   <td className="p-2">
                     <button
                       onClick={() => openEdit(i)}
@@ -563,7 +592,7 @@ export default function AdminInscripcionesView() {
                 Editar inscripción #{editing.competitorNumber}
               </h3>
               <button
-                onClick={closeEdit}
+                onClick={() => closeEdit()}
                 className="p-2 rounded hover:bg-gray-100"
                 title="Cerrar"
               >
@@ -571,9 +600,7 @@ export default function AdminInscripcionesView() {
               </button>
             </div>
 
-            {editError && (
-              <p className="text-sm text-red-600 mb-3">{editError}</p>
-            )}
+            {editError && <p className="text-sm text-red-600 mb-3">{editError}</p>}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -598,9 +625,7 @@ export default function AdminInscripcionesView() {
                   type="number"
                   className="w-full border p-2 rounded"
                   value={form.ficha}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, ficha: Number(e.target.value || 0) }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, ficha: Number(e.target.value || 0) }))}
                 />
               </div>
               <div>
@@ -609,9 +634,7 @@ export default function AdminInscripcionesView() {
                   type="number"
                   className="w-full border p-2 rounded"
                   value={form.bib}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, bib: Number(e.target.value || 0) }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, bib: Number(e.target.value || 0) }))}
                 />
               </div>
 
@@ -620,9 +643,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.nombre}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, nombre: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
                 />
               </div>
               <div>
@@ -630,9 +651,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.paterno}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, paterno: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, paterno: e.target.value }))}
                 />
               </div>
               <div>
@@ -640,9 +659,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.materno}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, materno: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, materno: e.target.value }))}
                 />
               </div>
 
@@ -673,9 +690,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.categoria}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, categoria: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
                 />
               </div>
 
@@ -685,9 +700,7 @@ export default function AdminInscripcionesView() {
                   type="date"
                   className="w-full border p-2 rounded"
                   value={form.fechaNacimiento}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, fechaNacimiento: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, fechaNacimiento: e.target.value }))}
                 />
               </div>
 
@@ -696,9 +709,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.email}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, email: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 />
               </div>
 
@@ -707,9 +718,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.celular}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, celular: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, celular: e.target.value }))}
                 />
               </div>
 
@@ -718,9 +727,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.pais}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, pais: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, pais: e.target.value }))}
                 />
               </div>
               <div>
@@ -728,9 +735,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.estado}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, estado: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
                 />
               </div>
               <div>
@@ -738,9 +743,7 @@ export default function AdminInscripcionesView() {
                 <input
                   className="w-full border p-2 rounded"
                   value={form.ciudad}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, ciudad: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))}
                 />
               </div>
               <div className="sm:col-span-3">
@@ -778,8 +781,7 @@ export default function AdminInscripcionesView() {
             </div>
 
             <p className="text-xs text-gray-500 mt-3">
-              Tip: esto edita solo el registro en <code>inscripciones</code>. Si quieres
-              que también se refleje en el perfil del usuario, eso sería otra acción aparte.
+              Tip: esto edita solo el registro en <code>inscripciones</code>.
             </p>
           </div>
         </div>

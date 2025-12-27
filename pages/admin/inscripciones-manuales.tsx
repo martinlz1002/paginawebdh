@@ -12,6 +12,8 @@ import {
   Timestamp,
   deleteDoc,
   doc,
+  runTransaction,
+  getDoc,
 } from "firebase/firestore";
 import {
   ChevronLeftIcon,
@@ -86,7 +88,9 @@ export default function InscripcionesManualesAdmin() {
             : new Date(data.expiresAt);
 
         const created =
-          data.createdAt?.toDate ? (data.createdAt as Timestamp).toDate() : new Date();
+          data.createdAt?.toDate
+            ? (data.createdAt as Timestamp).toDate()
+            : new Date();
 
         return {
           id: d.id,
@@ -129,6 +133,7 @@ export default function InscripcionesManualesAdmin() {
     setLoading(true);
 
     try {
+      // ✅ 1) crear tempusuario
       const docRef = (await addDoc(collection(db, "tempusuarios"), {
         carreraId,
         range: { start: startNumber, end: endNumber },
@@ -136,11 +141,37 @@ export default function InscripcionesManualesAdmin() {
         username: username.trim(),
         password,
         createdAt: serverTimestamp(),
+
+        // opcional: auditoría
+        reservedFrom: startNumber,
+        reservedTo: endNumber,
       })) as DocumentReference;
 
       const url = `${window.location.origin}/inscripcion-manual/${docRef.id}`;
       await updateDoc(docRef, { link: url });
 
+      // ✅ 2) IMPORTANTÍSIMO: asegurar nextNumber para que online empiece después del rango manual
+      // nextNumber = max(nextNumber actual, endNumber + 1)
+      await runTransaction(db, async (tx) => {
+        const carreraRef = doc(db, "carreras", carreraId);
+        const snap = (await tx.get(carreraRef)) as any;
+        if (!snap.exists()) throw new Error("Carrera no encontrada");
+
+        const currentNext = Number(snap.get("nextNumber") || 1);
+        const desiredNext = endNumber + 1;
+
+        if (!Number.isFinite(currentNext)) {
+          // si estaba corrupto, lo arreglamos
+          tx.set(carreraRef, { nextNumber: desiredNext }, { merge: true });
+          return;
+        }
+
+        if (desiredNext > currentNext) {
+          tx.set(carreraRef, { nextNumber: desiredNext }, { merge: true });
+        }
+      });
+
+      // ✅ 3) UI
       setAccesses((prev) => [
         ...prev,
         {
@@ -156,17 +187,9 @@ export default function InscripcionesManualesAdmin() {
       ]);
 
       setLink(url);
-
-      // opcional: limpiar form ligero (sin cambiar tu UX si no quieres)
-      // setCarreraId("");
-      // setStartNumber(0);
-      // setEndNumber(0);
-      // setExpiresAt("");
-      // setUsername("");
-      // setPassword("");
     } catch (e: any) {
       console.error(e);
-      setError("Error al crear el acceso temporal.");
+      setError(e?.message || "Error al crear el acceso temporal.");
     } finally {
       setLoading(false);
     }
@@ -186,15 +209,13 @@ export default function InscripcionesManualesAdmin() {
     try {
       await deleteDoc(doc(db, "tempusuarios", tempId));
 
-      // quitar de la lista en UI
       setAccesses((prev) => prev.filter((a) => a.id !== tempId));
-
-      // si el link mostrado arriba era ese, límpialo
       setLink((prevLink) => (prevLink.includes(tempId) ? "" : prevLink));
     } catch (e: any) {
       console.error(e);
       setError(
-        e?.message || "No se pudo eliminar. Verifica que tu usuario sea admin (reglas/firestore)."
+        e?.message ||
+          "No se pudo eliminar. Verifica permisos admin (reglas/firestore)."
       );
     } finally {
       setDeletingId(null);
@@ -410,7 +431,6 @@ export default function InscripcionesManualesAdmin() {
                       })
                       .map((acc) => {
                         const carrera = carreras.find((c) => c.id === acc.carreraId);
-
                         const isDeleting = deletingId === acc.id;
 
                         return (

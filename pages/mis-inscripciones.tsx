@@ -36,7 +36,7 @@ interface InscRaw {
   ruta?: string | null;
   categoria: string;
 
-  // snapshot NUEVO
+  // snapshot
   nombre?: string | null;
   paterno?: string | null;
   materno?: string | null;
@@ -117,19 +117,29 @@ export default function MisInscripcionesPage() {
         return;
       }
 
-      const q = query(collection(db, "inscripciones"), where("perfilOwner", "==", user.uid));
+      const q = query(
+        collection(db, "inscripciones"),
+        where("perfilOwner", "==", user.uid)
+      );
 
       const unsubSnap = onSnapshot(q, async (snap) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
+        // ✅ Cache en memoria para no hacer getDoc de la misma carrera mil veces
+        const carreraCache = new Map<string, any>();
+
         const all = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
 
-            // --- carrera ---
-            const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-            const c = cDoc.exists() ? (cDoc.data() as any) : {};
+            // --- carrera (cache) ---
+            let c: any = carreraCache.get(src.carreraId);
+            if (!c) {
+              const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
+              c = cDoc.exists() ? (cDoc.data() as any) : {};
+              carreraCache.set(src.carreraId, c);
+            }
 
             // distancia/ruta: prioriza snapshot
             let distancia = (src.ruta || src.distancia || "") as string;
@@ -151,7 +161,9 @@ export default function MisInscripcionesPage() {
             let precio = 0;
             if (Array.isArray(c.distancias)) {
               for (const dist of c.distancias) {
-                const match = dist.categorias?.find((cat: any) => cat.nombre === src.categoria);
+                const match = dist.categorias?.find(
+                  (cat: any) => cat.nombre === src.categoria
+                );
                 if (match) {
                   precio = match.price ?? 0;
                   break;
@@ -183,7 +195,9 @@ export default function MisInscripcionesPage() {
 
             // fallback compat: si no hay snapshot, consulta usuarios como antes
             const needFallback =
-              !perfilNombre.trim() && !perfilApPaterno.trim() && !perfilApMaterno.trim();
+              !perfilNombre.trim() &&
+              !perfilApPaterno.trim() &&
+              !perfilApMaterno.trim();
 
             if (needFallback && src.perfilId && src.perfilOwner) {
               if (src.perfilId === src.perfilOwner) {
@@ -209,7 +223,9 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            const fechaIns = src.timestamp?.toDate ? src.timestamp.toDate().toLocaleString() : "";
+            const fechaIns = src.timestamp?.toDate
+              ? src.timestamp.toDate().toLocaleString()
+              : "";
 
             const competitorNumber =
               typeof src.competitorNumber === "number"
@@ -263,25 +279,33 @@ export default function MisInscripcionesPage() {
     return () => unsubAuth();
   }, [auth]);
 
+  // ✅ FIX: reintentar pago sin pisar paymentStatus (el webhook manda)
   const reintentarPago = async (item: InscView) => {
-  const res = await fetch("/api/retry_checkout", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ inscripcionId: item.id }),
-});
+    try {
+      const res = await fetch("/api/retry_checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inscripcionId: item.id }),
+      });
 
-  if (!res.ok) return;
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-  const { url, sessionId } = await res.json();
+      const { url, sessionId } = data as { url?: string; sessionId?: string };
 
-  // Mantén consistencia en el doc
-  await updateDoc(doc(db, "inscripciones", item.id), {
-    sessionId,
-    paymentStatus: "pending",
-  });
+      if (!url || !sessionId) {
+        throw new Error("Respuesta inválida de retry_checkout");
+      }
 
-  window.open(url, "_blank")?.focus();
-};
+      // ✅ Mantén consistencia en el doc, pero NO toques paymentStatus aquí
+      await updateDoc(doc(db, "inscripciones", item.id), { sessionId });
+
+      window.open(url, "_blank")?.focus();
+    } catch (e: any) {
+      console.error(e);
+      alert(e?.message || "No se pudo reintentar el pago");
+    }
+  };
 
   if (loading) {
     return (
@@ -290,7 +314,9 @@ export default function MisInscripcionesPage() {
           <div className="max-w-3xl mx-auto">
             <div className={`${cardBase} p-6 text-center`}>
               <p className="text-dh-ink font-semibold">Cargando inscripciones…</p>
-              <p className="text-sm text-gray-500 mt-2">Leyendo tus registros en Firestore.</p>
+              <p className="text-sm text-gray-500 mt-2">
+                Leyendo tus registros en Firestore.
+              </p>
             </div>
           </div>
         </div>
@@ -312,6 +338,9 @@ export default function MisInscripcionesPage() {
     if (s === "paid") return "Pagado";
     if (s === "pending") return "Pendiente";
     if (s === "manual") return "Manual";
+    if (s === "expired") return "Expirado";
+    if (s === "unpaid") return "No pagado";
+    if (s === "failed") return "Fallido";
     return s || "Desconocido";
   };
 
@@ -337,23 +366,36 @@ export default function MisInscripcionesPage() {
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {list.map((i) => (
-                <div key={i.id} className={`${cardBase} overflow-hidden flex flex-col`}>
+                <div
+                  key={i.id}
+                  className={`${cardBase} overflow-hidden flex flex-col`}
+                >
                   {/* Imagen */}
                   {i.imagenUrl ? (
                     <div className="relative h-40 bg-gray-100 overflow-hidden">
-                      <img src={i.imagenUrl} alt={i.titulo} className="w-full h-full object-cover" />
+                      <img
+                        src={i.imagenUrl}
+                        alt={i.titulo}
+                        className="w-full h-full object-cover"
+                      />
                       <div className="absolute inset-0 bg-gradient-to-t from-dh-dark/55 via-transparent to-transparent" />
                       <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
                         <span className="text-white font-extrabold leading-tight line-clamp-2">
                           {i.titulo}
                         </span>
-                        <span className={pill(i.paymentStatus)}>{statusLabel(i.paymentStatus)}</span>
+                        <span className={pill(i.paymentStatus)}>
+                          {statusLabel(i.paymentStatus)}
+                        </span>
                       </div>
                     </div>
                   ) : (
                     <div className="p-4 flex items-center justify-between border-b border-dh-purple/10 bg-dh-soft">
-                      <h2 className="font-extrabold text-lg line-clamp-1">{i.titulo}</h2>
-                      <span className={pill(i.paymentStatus)}>{statusLabel(i.paymentStatus)}</span>
+                      <h2 className="font-extrabold text-lg line-clamp-1">
+                        {i.titulo}
+                      </h2>
+                      <span className={pill(i.paymentStatus)}>
+                        {statusLabel(i.paymentStatus)}
+                      </span>
                     </div>
                   )}
 
@@ -371,13 +413,18 @@ export default function MisInscripcionesPage() {
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <ClipboardIcon className="w-5 h-5 text-dh-green" />
                         <span className="font-semibold line-clamp-2">
-                          {fullName(i.perfilNombre, i.perfilApPaterno, i.perfilApMaterno)}
+                          {fullName(
+                            i.perfilNombre,
+                            i.perfilApPaterno,
+                            i.perfilApMaterno
+                          )}
                         </span>
                       </div>
 
                       {i.perfilClub && (
                         <div className="text-xs text-gray-600">
-                          <span className="font-semibold">Club:</span> {i.perfilClub}
+                          <span className="font-semibold">Club:</span>{" "}
+                          {i.perfilClub}
                         </div>
                       )}
                     </div>
@@ -407,7 +454,9 @@ export default function MisInscripcionesPage() {
                     <div className="flex flex-col gap-2 text-sm text-gray-700">
                       <span className="flex items-center gap-2">
                         <MapPinIcon className="w-5 h-5 text-gray-500" />
-                        <span className="line-clamp-1">{i.ubicacion || "—"}</span>
+                        <span className="line-clamp-1">
+                          {i.ubicacion || "—"}
+                        </span>
                       </span>
                       <span className="flex items-center gap-2">
                         <CalendarIcon className="w-5 h-5 text-gray-500" />
@@ -435,6 +484,11 @@ export default function MisInscripcionesPage() {
                           <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                           Registro manual
                         </div>
+                      ) : i.paymentStatus === "pending" ? (
+                        <div className="flex items-center gap-2 text-xs text-gray-600">
+                          <CreditCardIcon className="w-4 h-4 text-gray-500" />
+                          En proceso
+                        </div>
                       ) : (
                         <button
                           onClick={() => reintentarPago(i)}
@@ -447,12 +501,15 @@ export default function MisInscripcionesPage() {
                       )}
 
                       {/* hint de status */}
-                      {i.paymentStatus !== "paid" && i.paymentStatus !== "manual" && (
-                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                          <CreditCardIcon className="w-4 h-4 text-gray-500" />
-                          {i.paymentStatus === "pending" ? "En proceso" : "Revisar"}
-                        </div>
-                      )}
+                      {i.paymentStatus !== "paid" &&
+                        i.paymentStatus !== "manual" && (
+                          <div className="flex items-center gap-2 text-xs text-gray-600">
+                            <CreditCardIcon className="w-4 h-4 text-gray-500" />
+                            {i.paymentStatus === "pending"
+                              ? "En proceso"
+                              : "Revisar"}
+                          </div>
+                        )}
                     </div>
 
                     {/* Nota si falla */}
@@ -461,6 +518,24 @@ export default function MisInscripcionesPage() {
                         <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
                         <span>
                           El pago no se completó. Puedes reintentar cuando gustes.
+                        </span>
+                      </div>
+                    )}
+
+                    {i.paymentStatus === "expired" && (
+                      <div className="mt-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 flex items-start gap-2">
+                        <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
+                        <span>
+                          El link de pago expiró. Puedes reintentar para generar uno nuevo.
+                        </span>
+                      </div>
+                    )}
+
+                    {i.paymentStatus === "unpaid" && (
+                      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
+                        <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
+                        <span>
+                          El pago falló o fue rechazado. Puedes reintentar cuando gustes.
                         </span>
                       </div>
                     )}
