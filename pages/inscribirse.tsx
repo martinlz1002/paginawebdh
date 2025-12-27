@@ -92,7 +92,7 @@ function normalizeRama(v: any): "Femenil" | "Varonil" | "" {
     return "Femenil";
   if (low === "m" || low === "varonil" || low === "hombre" || low === "male")
     return "Varonil";
-  return raw as any;
+  return "" as any; // si viene raro, mejor vacío para forzar corrección
 }
 
 // UI tokens DH
@@ -141,9 +141,14 @@ export default function InscribirsePage() {
   }, [ramaPerfil, ramaManual]);
 
   const ramaPendiente = useMemo(() => {
-    // pendiente SOLO si el perfil no trae rama
+    // pendiente SOLO si el perfil está seleccionado y no trae rama
     return !!perfilSeleccionado && !ramaPerfil;
   }, [perfilSeleccionado, ramaPerfil]);
+
+  // ✅ distancias seguras para toda la UI (evita undefined)
+  const distancias = useMemo(() => {
+    return (carrera?.distancias ?? []) as any[];
+  }, [carrera]);
 
   // Auth listener
   useEffect(() => {
@@ -246,20 +251,20 @@ export default function InscribirsePage() {
     const edad = computeAge(perfil.birthDate, basisDate);
     setEdadPerfil(edad);
 
-    const distObj = carrera.distancias.find((d) => d.distancia === distancia);
+    const distObj = (distancias ?? []).find((d: any) => d.distancia === distancia);
     if (!distObj) {
       setCategoriasPermitidas([]);
       setCategoria("");
       return;
     }
 
-    const permitidas = distObj.categorias.filter(
-      (c) => edad >= c.minAge && edad <= c.maxAge
+    const cats = (distObj.categorias ?? []).filter(
+      (c: any) => edad >= c.minAge && edad <= c.maxAge
     );
 
-    setCategoriasPermitidas(permitidas);
+    setCategoriasPermitidas(cats);
     setCategoria("");
-  }, [carrera, perfilId, distancia, perfiles]);
+  }, [carrera, perfilId, distancia, perfiles, distancias]);
 
   // Si cambias de perfil, resetea rama manual
   useEffect(() => {
@@ -278,7 +283,8 @@ export default function InscribirsePage() {
     const perfil = perfiles.find((p) => p.id === perfilId);
     if (!perfil) return setMensaje("Perfil inválido.");
 
-    if (!ramaPerfil) return setMensaje("Tu perfil tiene Rama pendiente");
+    // ✅ ahora sí: si el perfil no trae rama, usamos la manual
+    if (!ramaFinal) return setMensaje("Selecciona tu Rama para continuar.");
 
     // Validación snapshot mínimo
     const nombreCompleto = fullName(perfil.nombre, perfil.apellidoPaterno, perfil.apellidoMaterno);
@@ -306,7 +312,7 @@ export default function InscribirsePage() {
         return;
       }
 
-      // ✅ confirm simple y consistente (el server calcula el total real)
+      // ✅ precio neto (server calcula total final)
       const neto = categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
       if (!neto) return setMensaje("No se pudo determinar el precio de la categoría.");
 
@@ -328,7 +334,7 @@ export default function InscribirsePage() {
           carreraId: carrera.id,
           perfilId,
           categoria,
-          distancia, // ✅ esto mata el error de "faltan datos" y "distancia no encontrada"
+          distancia,
         }),
       });
 
@@ -355,7 +361,7 @@ export default function InscribirsePage() {
         materno: perfil.apellidoMaterno,
         nombres: nombreCompleto,
 
-        rama: ramaPerfil,
+        rama: ramaFinal,
 
         pais: perfil.pais,
         estado: perfil.estado,
@@ -454,22 +460,38 @@ export default function InscribirsePage() {
 
           {/* Rama pendiente */}
           {ramaPendiente && (
-            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4 flex flex-col gap-3">
               <div className="flex items-start gap-3">
                 <ExclamationTriangleIcon className="w-6 h-6 text-yellow-700 mt-0.5" />
                 <div className="text-sm">
-                  <div className="font-bold text-yellow-900">Tu perfil tiene Rama pendiente</div>
+                  <div className="font-bold text-yellow-900">Tu perfil no tiene Rama</div>
                   <div className="text-yellow-800">
-                    Completa Rama en tu perfil para poder inscribirte.
+                    Puedes ir a tu perfil a guardarla, o elegirla aquí solo para esta inscripción.
                   </div>
                 </div>
               </div>
-              <button
-                onClick={() => router.push(`/perfil?edit=${encodeURIComponent(perfilId)}`)}
-                className="px-4 py-2 rounded-xl bg-dh-purple text-white text-sm font-extrabold hover:opacity-95"
-              >
-                Ir a Perfil
-              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelBase}>Rama (solo esta inscripción)</label>
+                  <select
+                    className={selectBase}
+                    value={ramaManual}
+                    onChange={(e) => setRamaManual(e.target.value as any)}
+                  >
+                    <option value="">-- Selecciona --</option>
+                    <option value="Femenil">Femenil</option>
+                    <option value="Varonil">Varonil</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={() => router.push(`/perfil?edit=${encodeURIComponent(perfilId)}`)}
+                  className="self-end px-4 py-2 rounded-xl bg-dh-purple text-white text-sm font-extrabold hover:opacity-95"
+                >
+                  Ir a Perfil
+                </button>
+              </div>
             </div>
           )}
 
@@ -493,8 +515,8 @@ export default function InscribirsePage() {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {carrera.distancias.map((d) =>
-                  d.categorias.map((cat) => (
+                {(distancias ?? []).map((d: any) =>
+                  (d.categorias ?? []).map((cat: any) => (
                     <tr
                       key={`${d.distancia}-${cat.nombre}`}
                       className="border-t border-dh-purple/10 hover:bg-gray-50 transition"
@@ -511,6 +533,14 @@ export default function InscribirsePage() {
                     </tr>
                   ))
                 )}
+
+                {!distancias?.length && (
+                  <tr>
+                    <td className="p-4 text-sm text-gray-500" colSpan={4}>
+                      Esta carrera todavía no tiene distancias/categorías configuradas.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -521,7 +551,9 @@ export default function InscribirsePage() {
               <div className="flex items-start gap-3">
                 <InformationCircleIcon className="w-6 h-6 text-dh-purple mt-0.5" />
                 <div className="w-full space-y-1">
-                  <div className="font-extrabold text-dh-ink text-sm">Datos que se guardarán (snapshot)</div>
+                  <div className="font-extrabold text-dh-ink text-sm">
+                    Datos que se guardarán (snapshot)
+                  </div>
                   <div className="text-xs text-gray-700">
                     <span className="font-semibold">Nombre:</span>{" "}
                     {fullName(
@@ -537,7 +569,7 @@ export default function InscribirsePage() {
                     <span className="font-semibold">Cel:</span> {perfilSeleccionado.celular || "—"}
                   </div>
                   <div className="text-xs text-gray-700">
-                    <span className="font-semibold">Rama:</span> {ramaPerfil || "—"}
+                    <span className="font-semibold">Rama:</span> {ramaFinal || "—"}
                   </div>
                   <div className="text-xs text-gray-700">
                     <span className="font-semibold">Ciudad/Estado/País:</span>{" "}
@@ -594,7 +626,7 @@ export default function InscribirsePage() {
                   onChange={(e) => setDistancia(e.target.value)}
                 >
                   <option value="">-- Selecciona --</option>
-                  {carrera.distancias.map((d) => (
+                  {(distancias ?? []).map((d: any) => (
                     <option key={d.distancia} value={d.distancia}>
                       {d.distancia}
                     </option>
@@ -629,7 +661,14 @@ export default function InscribirsePage() {
             {/* CTA */}
             <button
               onClick={handlePagar}
-              disabled={!abiertas || !perfilId || !distancia || !categoria || procesando}
+              disabled={
+                !abiertas ||
+                !perfilId ||
+                !distancia ||
+                !categoria ||
+                procesando ||
+                (ramaPendiente && !ramaManual)
+              }
               className={`w-full py-3 rounded-xl font-extrabold transition ${
                 abiertas && perfilId && distancia && categoria
                   ? "bg-dh-green text-dh-dark hover:opacity-95"
@@ -640,6 +679,8 @@ export default function InscribirsePage() {
                 ? "Inscripciones pausadas"
                 : procesando
                 ? "Procesando..."
+                : ramaPendiente && !ramaManual
+                ? "Selecciona Rama"
                 : "Inscribirme y Pagar"}
             </button>
 
