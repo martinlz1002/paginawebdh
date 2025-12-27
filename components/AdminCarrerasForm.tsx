@@ -31,7 +31,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const [titulo, setTitulo] = useState(initialValues?.titulo || "");
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || "");
   const [lugar, setLugar] = useState(initialValues?.lugar || "");
-  const [fecha, setFecha] = useState(initialValues?.fecha || "");
+  const [fecha, setFecha] = useState<string>("");
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || "");
   const [maxCompetitors, setMaxCompetitors] = useState<number>(initialValues?.maxCompetitors || 0);
   const [ageBasis, setAgeBasis] = useState<AgeBasis>(initialValues?.ageBasis || "endOfYear");
