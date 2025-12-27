@@ -25,7 +25,78 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
-// Asigna número si falta, agrega competitorNumber/ficha/bib al confirmar pago
+/**
+ * ✅ Asigna número rellenando huecos:
+ * - Primero toma el hueco más pequeño en carreras/{carreraId}/freeNumbers (orderBy n asc)
+ * - Si no hay huecos, usa carreras/{carreraId}.nextNumber y lo incrementa
+ */
+async function allocateNumberTx(
+  tx: FirebaseFirestore.Transaction,
+  carreraId: string
+): Promise<number> {
+  const carreraRef = firestore.collection("carreras").doc(carreraId);
+  const freeCol = carreraRef.collection("freeNumbers");
+
+  const carreraSnap = await tx.get(carreraRef);
+  if (!carreraSnap.exists) throw new Error("Carrera no existe");
+
+  const maxCupo = (carreraSnap.get("maxCompetitors") || 0) as number;
+  const nextNumber = (carreraSnap.get("nextNumber") || 1) as number;
+
+  // 1) hueco más chico
+  const q = freeCol.orderBy("n", "asc").limit(1);
+  const freeSnap = await tx.get(q);
+
+  if (!freeSnap.empty) {
+    const freeDoc = freeSnap.docs[0];
+    const n = freeDoc.get("n") as number;
+
+    // Consumir hueco
+    tx.delete(freeDoc.ref);
+
+    // sanity
+    if (!Number.isFinite(n) || n <= 0) throw new Error("Número libre inválido");
+    if (maxCupo > 0 && n > maxCupo) throw new Error("Número libre fuera de cupo");
+    return n;
+  }
+
+  // 2) sin huecos: nextNumber
+  if (maxCupo > 0 && nextNumber > maxCupo) {
+    throw new Error("Ya no hay números disponibles");
+  }
+
+  // merge para no pisar otros campos
+  tx.set(carreraRef, { nextNumber: nextNumber + 1 }, { merge: true });
+  return nextNumber;
+}
+
+/**
+ * ✅ Libera número metiéndolo al pool:
+ * carreras/{carreraId}/freeNumbers/{num}
+ * idempotente (si ya existe, se mergea y ya)
+ */
+async function releaseNumberTx(
+  tx: FirebaseFirestore.Transaction,
+  carreraId: string,
+  number: number
+) {
+  const carreraRef = firestore.collection("carreras").doc(carreraId);
+  const freeRef = carreraRef.collection("freeNumbers").doc(String(number));
+
+  tx.set(
+    freeRef,
+    { n: number, releasedAt: FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+}
+
+/**
+ * Actualiza estado de pago:
+ * - paid/pending: asigna número si falta (rellenando huecos) y asegura ficha/bib
+ * - unpaid/expired: libera número al pool y borra competitorNumber/ficha/bib
+ *
+ * Importante: usar transacciones para evitar números duplicados.
+ */
 async function markPaymentStatus(
   sessionId: string,
   status: "paid" | "pending" | "unpaid" | "expired"
@@ -37,70 +108,60 @@ async function markPaymentStatus(
 
   if (snap.empty) return;
 
-  const batch = firestore.batch();
-
   for (const docSnap of snap.docs) {
     const ref = docSnap.ref;
-    const data = docSnap.data() as any;
 
     if (status === "paid" || status === "pending") {
-      if (!data.competitorNumber) {
-        // Leer cupo máximo
-        const carreraDoc = await firestore
-          .collection("carreras")
-          .doc(data.carreraId)
-          .get();
+      await firestore.runTransaction(async (tx) => {
+        const insSnap = await tx.get(ref);
+        if (!insSnap.exists) return;
 
-        const maxCupo = carreraDoc.get("maxCompetitors") || 0;
+        const data = insSnap.data() as any;
 
-        // Inscripciones con número ya asignado
-        const usedSnap = await firestore
-          .collection("inscripciones")
-          .where("carreraId", "==", data.carreraId)
-          .where("competitorNumber", ">", 0)
-          .get();
-
-        const used = usedSnap.docs.map(
-          (d) => d.data().competitorNumber as number
-        );
-
-        let assigned = 1;
-        while (used.includes(assigned) && assigned <= maxCupo) {
-          assigned++;
+        // Si ya tiene número, solo asegura ficha/bib y status
+        if (data.competitorNumber) {
+          const updates: any = { paymentStatus: status };
+          if (!data.ficha) updates.ficha = data.competitorNumber;
+          if (!data.bib) updates.bib = data.competitorNumber;
+          tx.update(ref, updates);
+          return;
         }
 
-        if (assigned <= maxCupo) {
-          batch.update(ref, {
-            paymentStatus: status,
-            competitorNumber: assigned,
-            ficha: assigned,
-            bib: assigned,
-          });
-        } else {
-          // si se agotó cupo, solo actualiza status
-          batch.update(ref, { paymentStatus: status });
-        }
-      } else {
-        // Ya tenía competitorNumber: asegura ficha/bib si faltan (cura docs viejos)
-        const updates: any = { paymentStatus: status };
-        if (!data.ficha) updates.ficha = data.competitorNumber;
-        if (!data.bib) updates.bib = data.competitorNumber;
-        batch.update(ref, updates);
-      }
-    } else if (status === "unpaid" || status === "expired") {
-      // liberar número
-      batch.update(ref, {
-        paymentStatus: status,
-        competitorNumber: FieldValue.delete(),
-        ficha: FieldValue.delete(),
-        bib: FieldValue.delete(),
+        // Si no tiene número, asigna usando huecos primero
+        const assigned = await allocateNumberTx(tx, data.carreraId);
+
+        tx.update(ref, {
+          paymentStatus: status,
+          competitorNumber: assigned,
+          ficha: assigned,
+          bib: assigned,
+        });
       });
-    } else {
-      batch.update(ref, { paymentStatus: status });
+    }
+
+    if (status === "unpaid" || status === "expired") {
+      await firestore.runTransaction(async (tx) => {
+        const insSnap = await tx.get(ref);
+        if (!insSnap.exists) return;
+
+        const data = insSnap.data() as any;
+        const n = data.competitorNumber as number | undefined | null;
+
+        // Devuelve el número al pool si existía
+        if (n && Number.isFinite(n) && n > 0) {
+          await releaseNumberTx(tx, data.carreraId, n);
+        }
+
+        // Limpia número y campos derivados
+        tx.update(ref, {
+          paymentStatus: status,
+          competitorNumber: FieldValue.delete(),
+          ficha: FieldValue.delete(),
+          bib: FieldValue.delete(),
+        });
+      });
     }
   }
-
-  await batch.commit();
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

@@ -264,32 +264,24 @@ export default function MisInscripcionesPage() {
   }, [auth]);
 
   const reintentarPago = async (item: InscView) => {
-    const res = await fetch("/api/checkout_sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        carreraId: item.carreraId,
-        perfilId: item.perfilId,
-        categoria: item.categoria,
-        distancia: item.distancia, // ✅ importantísimo
-        price: item.precio,
-      }),
-    });
+  const res = await fetch("/api/retry_checkout", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ inscripcionId: item.id }),
+});
 
-    if (!res.ok) return;
+  if (!res.ok) return;
 
-    const { url, sessionId } = await res.json();
+  const { url, sessionId } = await res.json();
 
-    // Mantén consistencia en el doc (distancia/ruta)
-    await updateDoc(doc(db, "inscripciones", item.id), {
-      sessionId,
-      paymentStatus: "pending",
-      distancia: item.distancia || null,
-      ruta: item.distancia || null,
-    });
+  // Mantén consistencia en el doc
+  await updateDoc(doc(db, "inscripciones", item.id), {
+    sessionId,
+    paymentStatus: "pending",
+  });
 
-    window.open(url, "_blank")?.focus();
-  };
+  window.open(url, "_blank")?.focus();
+};
 
   if (loading) {
     return (
