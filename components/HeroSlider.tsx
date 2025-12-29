@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
-import { CalendarIcon, MapPinIcon, LockClosedIcon } from "@heroicons/react/24/outline";
+import {
+  CalendarIcon,
+  MapPinIcon,
+  LockClosedIcon,
+} from "@heroicons/react/24/outline";
 
 type CarreraSlide = {
   type: "carrera";
@@ -48,8 +52,6 @@ export default function HeroSlider({
         "Inscríbete en tu próxima carrera, paga en línea y trae tu mejor versión.",
     };
 
-    // 👇 Si quieres SOLO destacadas, cambia a:
-    // const carreraSlides = carreras.filter(c => c.destacado)
     const carreraSlides: CarreraSlide[] = carreras.map((c) => ({
       type: "carrera",
       id: c.id,
@@ -89,12 +91,13 @@ export default function HeroSlider({
   };
 
   const current = slides[index];
-
   const isCarrera = current.type === "carrera";
   const abiertas = isCarrera ? current.inscripcionesAbiertas !== false : true;
+
   const msgPausa =
     isCarrera && !abiertas
-      ? (current.inscripcionesMensaje || "").trim() || "Inscripciones pausadas temporalmente."
+      ? (current.inscripcionesMensaje || "").trim() ||
+        "Inscripciones pausadas temporalmente."
       : "";
 
   return (
@@ -104,32 +107,38 @@ export default function HeroSlider({
       onMouseLeave={() => setPaused(false)}
     >
       <div className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm">
-        {/* Fondo (imagen carrera si existe) */}
         <div className="relative h-[240px] sm:h-[320px] lg:h-[360px]">
+          {/* Fondo */}
           {current.type === "carrera" && current.imagenUrl ? (
-  // eslint-disable-next-line @next/next/no-img-element
-  <img
-    src={current.imagenUrl}
-    alt={current.titulo}
-    className="h-full w-full object-cover"
-  />
-) : (
-  <div className="h-full w-full bg-gradient-to-br from-dh-purple/15 via-white to-dh-green/10" />
-)}
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={current.imagenUrl}
+              alt={current.titulo}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-dh-purple/20 via-white to-dh-green/15" />
+          )}
 
-{/* ✅ Watermark: SOLO en el slide welcome */}
-{current.type === "welcome" && (
-  <div
-    className="absolute inset-0 bg-center bg-no-repeat bg-[length:55%] opacity-[0.14] mix-blend-soft-light"
-    style={{ backgroundImage: "url('/mi-logo.png')" }}
-  />
-)}
+          {/* Overlay (para contraste del texto) */}
+          <div
+            className={`absolute inset-0 ${
+              current.type === "welcome" ? "bg-black/18" : "bg-black/35"
+            }`}
+          />
 
-         <div
-  className={`absolute inset-0 ${
-    current.type === "welcome" ? "bg-black/20" : "bg-black/35"
-  }`}
-/>
+          {/* ✅ Logo watermark encima del overlay SOLO en welcome */}
+          {current.type === "welcome" && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src="/mi-logo.png"
+              alt="DHTime Logo"
+              className="pointer-events-none absolute inset-0 m-auto w-[78%] max-w-[900px] opacity-[0.16] mix-blend-screen"
+              style={{
+                filter: "grayscale(10%) contrast(105%)",
+              }}
+            />
+          )}
 
           {/* Contenido */}
           <button
@@ -140,7 +149,7 @@ export default function HeroSlider({
             }`}
             title={current.type === "carrera" && !abiertas ? msgPausa : undefined}
           >
-            <div className="max-w-3xl">
+            <div className="relative z-10 max-w-3xl">
               {current.type === "welcome" ? (
                 <>
                   <p className="inline-flex items-center rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur">
@@ -155,7 +164,6 @@ export default function HeroSlider({
                 </>
               ) : (
                 <>
-                  {/* Badge */}
                   {abiertas ? (
                     <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium text-white backdrop-blur">
                       <span className="h-2 w-2 rounded-full bg-dh-green" />

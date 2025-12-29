@@ -1,18 +1,19 @@
-import Image from "next/image";
-
 export default function HeroBanner() {
   return (
     <section className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm">
-      {/* Fondo con logo DH */}
-      <div
-        className="absolute inset-0 bg-center bg-no-repeat bg-contain opacity-[0.06]"
-        style={{
-          backgroundImage: "url('/mi-logo.png')",
-        }}
-      />
+      {/* Overlay suave para contraste (abajo) */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-white/90 to-dh-bg/80" />
 
-      {/* Overlay suave para contraste */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white via-white/90 to-dh-bg" />
+      {/* ✅ Logo watermark (arriba del overlay) */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/mi-logo.png"
+          alt="DHTime Logo"
+          className="w-[78%] max-w-[900px] opacity-[0.10] mix-blend-multiply"
+          style={{ filter: "grayscale(5%) contrast(110%)" }}
+        />
+      </div>
 
       {/* Contenido */}
       <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-14">
