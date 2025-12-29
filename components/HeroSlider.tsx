@@ -107,18 +107,29 @@ export default function HeroSlider({
         {/* Fondo (imagen carrera si existe) */}
         <div className="relative h-[240px] sm:h-[320px] lg:h-[360px]">
           {current.type === "carrera" && current.imagenUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={current.imagenUrl}
-              alt={current.titulo}
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-dh-purple/15 via-white to-dh-green/10" />
-          )}
+  // eslint-disable-next-line @next/next/no-img-element
+  <img
+    src={current.imagenUrl}
+    alt={current.titulo}
+    className="h-full w-full object-cover"
+  />
+) : (
+  <div className="h-full w-full bg-gradient-to-br from-dh-purple/15 via-white to-dh-green/10" />
+)}
 
-          {/* Overlay */}
-          <div className="absolute inset-0 bg-black/35" />
+{/* ✅ Watermark: SOLO en el slide welcome */}
+{current.type === "welcome" && (
+  <div
+    className="absolute inset-0 bg-center bg-no-repeat bg-[length:55%] opacity-[0.14] mix-blend-soft-light"
+    style={{ backgroundImage: "url('/mi-logo.png')" }}
+  />
+)}
+
+         <div
+  className={`absolute inset-0 ${
+    current.type === "welcome" ? "bg-black/20" : "bg-black/35"
+  }`}
+/>
 
           {/* Contenido */}
           <button
