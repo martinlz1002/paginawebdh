@@ -22,7 +22,7 @@ export default function Layout({
       </Head>
 
       {/* El main tiene ahora fondo primario y texto blanco */}
-      <main className="bg-primary text-white min-h-screen">
+      <main className="bg-primary text-dh-ink min-h-screen">
         <Header />
         <div className="pt-6 px-4">
           {children}

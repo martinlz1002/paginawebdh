@@ -222,7 +222,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           <button
             type="button"
             onClick={() => setInscripcionesAbiertas((v) => !v)}
-            className={`px-4 py-2 rounded-lg text-white font-medium ${
+            className={`px-4 py-2 rounded-lg text-dh-ink font-medium ${
               inscripcionesAbiertas
                 ? "bg-green-600 hover:bg-green-700"
                 : "bg-red-600 hover:bg-red-700"
@@ -417,7 +417,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           <button
             type="button"
             onClick={handleAddDistancia}
-            className="ml-2 bg-green-600 text-white px-3 py-1 rounded"
+            className="ml-2 bg-green-600 text-dh-ink px-3 py-1 rounded"
           >
             Agregar
           </button>
@@ -502,7 +502,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         <button
           type="button"
           onClick={handleAddOrSaveCategoria}
-          className="mt-2 w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 transition"
+          className="mt-2 w-full bg-purple-600 text-dh-ink py-2 rounded hover:bg-purple-700 transition"
         >
           <PlusCircleIcon className="w-5 h-5 inline-block mr-1" />
           {editCatIndex !== null ? "Guardar Categoría" : "Agregar Categoría"}
@@ -534,7 +534,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         />
       </div>
 
-      <button type="submit" className="w-full bg-green-600 text-white py-3 rounded hover:bg-green-700 transition">
+      <button type="submit" className="w-full bg-green-600 text-dh-ink py-3 rounded hover:bg-green-700 transition">
         Guardar Carrera
       </button>
     </form>

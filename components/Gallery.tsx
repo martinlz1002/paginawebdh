@@ -79,7 +79,7 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
 
             {/* Caption opcional (se ve sutil, no estorba) */}
             <div className="absolute bottom-0 left-0 right-0 p-3">
-              <p className="text-xs text-white/70 truncate">
+              <p className="text-xs text-dh-ink/70 truncate">
                 {p.alt?.replace(/\.[^/.]+$/, "")}
               </p>
             </div>
@@ -101,7 +101,7 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
           >
             Ver todas
           </button>
-          <p className="mt-2 text-xs text-white/45">
+          <p className="mt-2 text-xs text-dh-ink/45">
             Mostrando {displayed.length} de {photos.length}
           </p>
         </div>

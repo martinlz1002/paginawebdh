@@ -42,31 +42,31 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
       <nav className="space-y-4 px-4 pt-4 pb-6">
         <button
           onClick={() => { setView('crear'); onToggle(); }}
-          className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <PlusCircleIcon className="w-5 h-5 mr-2" /> Crear Carrera
         </button>
         <button
           onClick={() => { setView('listar'); onToggle(); }}
-          className={`${btnBase} ${view === 'listar' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          className={`${btnBase} ${view === 'listar' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <PencilIcon className="w-5 h-5 mr-2" /> Listar Carreras
         </button>
         <button
           onClick={() => { setView('inscripciones'); onToggle(); }}
-          className={`${btnBase} ${view === 'inscripciones' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          className={`${btnBase} ${view === 'inscripciones' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <ClipboardIcon className="w-5 h-5 mr-2" /> Ver Inscripciones
         </button>
         <button
           onClick={() => { setView('inscripcionesManuales'); onToggle(); }}
-          className={`${btnBase} ${view === 'inscripcionesManuales' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          className={`${btnBase} ${view === 'inscripcionesManuales' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <UserPlusIcon className="w-5 h-5 mr-2" /> Inscripciones Manuales
         </button>
         <button
           onClick={() => { setView('eliminarInscripciones'); onToggle(); }}
-          className={`${btnBase} ${view === 'eliminarInscripciones' ? 'bg-red-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          className={`${btnBase} ${view === 'eliminarInscripciones' ? 'bg-red-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
         >
           <TrashIcon className="w-5 h-5 mr-2" /> Eliminar Inscripciones
         </button>

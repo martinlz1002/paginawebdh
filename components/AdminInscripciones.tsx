@@ -144,7 +144,7 @@ export default function AdminInscripciones() {
 
       {rows.length > 0 ? (
         <>
-          <button onClick={exportCsv} className="bg-green-600 text-white px-4 py-2 rounded mb-4">
+          <button onClick={exportCsv} className="bg-green-600 text-dh-ink px-4 py-2 rounded mb-4">
             Exportar CSV
           </button>
 

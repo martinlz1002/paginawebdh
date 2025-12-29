@@ -148,7 +148,7 @@ export default function AdminCarrerasList({ onEdit }: Props) {
             <div className="flex space-x-2">
               <button
                 onClick={() => onEdit(c)}
-                className="p-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition"
+                className="p-2 bg-purple-600 text-dh-ink rounded-full hover:bg-purple-700 transition"
                 title="Editar"
               >
                 <PencilIcon className="w-5 h-5" />
@@ -156,7 +156,7 @@ export default function AdminCarrerasList({ onEdit }: Props) {
 
               <button
                 onClick={() => handleDelete(c.id)}
-                className="p-2 bg-red-600 text-white rounded-full hover:bg-red-700 transition"
+                className="p-2 bg-red-600 text-dh-ink rounded-full hover:bg-red-700 transition"
                 title="Eliminar"
               >
                 <TrashIcon className="w-5 h-5" />

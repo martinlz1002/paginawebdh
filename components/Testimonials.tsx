@@ -76,10 +76,10 @@ export default function Testimonials() {
       {user && (
         <form onSubmit={handleSubmit} className={`${shell} p-5 space-y-3`}>
           <div className="flex items-center justify-between">
-            <p className="text-sm text-white/80">
+            <p className="text-sm text-dh-ink/80">
               Comparte tu experiencia 👟
             </p>
-            <span className="text-xs text-white/50">
+            <span className="text-xs text-dh-ink/50">
               {newText.trim().length}/280
             </span>
           </div>
@@ -90,7 +90,7 @@ export default function Testimonials() {
             placeholder="Escribe tu testimonio..."
             className={[
               "w-full rounded-xl p-3 resize-none",
-              "bg-dh-dark/60 text-white placeholder-white/40",
+              "bg-dh-dark/60 text-dh-ink placeholder-white/40",
               "border border-white/10",
               "focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green/40",
             ].join(" ")}
@@ -98,9 +98,9 @@ export default function Testimonials() {
           />
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs text-white/45">
+            <p className="text-xs text-dh-ink/45">
               Se publica con tu usuario:{" "}
-              <span className="text-white/70">{user.displayName || user.email}</span>
+              <span className="text-dh-ink/70">{user.displayName || user.email}</span>
             </p>
 
             <button
@@ -121,11 +121,11 @@ export default function Testimonials() {
       {/* List */}
       {loading ? (
         <div className={`${shell} p-6`}>
-          <p className="text-white/70">Cargando testimonios…</p>
+          <p className="text-dh-ink/70">Cargando testimonios…</p>
         </div>
       ) : items.length === 0 ? (
         <div className={`${shell} p-6`}>
-          <p className="text-white/70">
+          <p className="text-dh-ink/70">
             No hay testimonios aún.
           </p>
         </div>
@@ -152,26 +152,26 @@ export default function Testimonials() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <span className="text-white font-extrabold">
+                      <span className="text-dh-ink font-extrabold">
                         {initial}
                       </span>
                     )}
                   </div>
 
                   <div className="min-w-0">
-                    <p className="font-semibold text-white truncate">{t.author}</p>
-                    <p className="text-xs text-white/50">Corredor verificado ✅</p>
+                    <p className="font-semibold text-dh-ink truncate">{t.author}</p>
+                    <p className="text-xs text-dh-ink/50">Corredor verificado ✅</p>
                   </div>
                 </div>
 
-                <p className="text-white/80 leading-relaxed">
+                <p className="text-dh-ink/80 leading-relaxed">
                   <span className="text-dh-green/90 font-bold">“</span>
                   {t.text}
                   <span className="text-dh-green/90 font-bold">”</span>
                 </p>
 
                 <div className="mt-auto pt-3 border-t border-white/10 flex items-center justify-between">
-                  <span className="text-xs text-white/45">DHTime</span>
+                  <span className="text-xs text-dh-ink/45">DHTime</span>
                   {/* Si luego quieres fecha, aquí la pintamos */}
                 </div>
               </div>

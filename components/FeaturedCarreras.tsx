@@ -12,7 +12,7 @@ interface Carrera {
 export default function FeaturedCarreras({ carreras }: { carreras: Carrera[] }) {
   return (
     <section className="space-y-6">
-      <h2 className="text-2xl font-extrabold text-white text-center">
+      <h2 className="text-2xl font-extrabold text-dh-ink text-center">
         Carreras <span className="text-dh-green">Destacadas</span>
       </h2>
 
@@ -42,10 +42,10 @@ export default function FeaturedCarreras({ carreras }: { carreras: Carrera[] }) 
 
                 {/* Contenido */}
                 <div className="absolute bottom-0 left-0 right-0 p-4 space-y-1">
-                  <h3 className="text-lg font-bold text-white leading-tight">
+                  <h3 className="text-lg font-bold text-dh-ink leading-tight">
                     {c.titulo}
                   </h3>
-                  <p className="flex items-center text-sm text-white/80">
+                  <p className="flex items-center text-sm text-dh-ink/80">
                     <CalendarIcon className="w-4 h-4 mr-1" />
                     {c.fecha}
                   </p>

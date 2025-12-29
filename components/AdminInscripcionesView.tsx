@@ -505,7 +505,7 @@ export default function AdminInscripcionesView() {
           <button
             onClick={exportExcel}
             disabled={!inscripciones.length}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 transition"
+            className="flex items-center space-x-2 bg-blue-600 text-dh-ink px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 transition"
           >
             <ArrowDownTrayIcon className="w-5 h-5" />
             <span>Exportar Excel</span>
@@ -550,7 +550,7 @@ export default function AdminInscripcionesView() {
               {inscripciones.map((i) => (
                 <tr
                   key={i.id}
-                  className="bg-blue-900 text-white hover:bg-blue-800 transition-colors"
+                  className="bg-blue-900 text-dh-ink hover:bg-blue-800 transition-colors"
                 >
                   <td className="p-2">{i.competitorNumber || "—"}</td>
                   <td className="p-2">
@@ -767,7 +767,7 @@ export default function AdminInscripcionesView() {
               <button
                 onClick={saveEdit}
                 disabled={saving}
-                className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-2"
+                className="px-4 py-2 rounded bg-green-600 text-dh-ink hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-2"
               >
                 {saving ? (
                   "Guardando…"
