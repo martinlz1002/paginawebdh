@@ -273,114 +273,126 @@ export default function InscribirsePage() {
   }, [perfilId]);
 
   const handlePagar = async () => {
-    setMensaje("");
+  setMensaje("");
 
-    if (!user) return setMensaje("Inicia sesión para inscribirte.");
-    if (!carrera || !perfilId || !distancia || !categoria) {
-      return setMensaje("Completa todos los campos.");
+  if (!user) return setMensaje("Inicia sesión para inscribirte.");
+  if (!carrera || !perfilId || !distancia || !categoria) {
+    return setMensaje("Completa todos los campos.");
+  }
+
+  const perfil = perfiles.find((p) => p.id === perfilId);
+  if (!perfil) return setMensaje("Perfil inválido.");
+
+  // ✅ ahora sí: si el perfil no trae rama, usamos la manual
+  if (!ramaFinal) return setMensaje("Selecciona tu Rama para continuar.");
+
+  // Validación snapshot mínimo
+  const nombreCompleto = fullName(
+    perfil.nombre,
+    perfil.apellidoPaterno,
+    perfil.apellidoMaterno
+  );
+  if (!nombreCompleto) return setMensaje("Tu perfil no tiene nombre completo.");
+  if (!perfil.email) return setMensaje("Tu perfil no tiene email.");
+  if (!perfil.celular) return setMensaje("Tu perfil no tiene celular.");
+  if (!perfil.ciudad || !perfil.estado || !perfil.pais) {
+    return setMensaje("Tu perfil debe tener ciudad/estado/país.");
+  }
+
+  setProcesando(true);
+
+  try {
+    // ✅ evita duplicados por owner + perfil
+    const dup = await getDocs(
+      query(
+        collection(db, "inscripciones"),
+        where("carreraId", "==", carrera.id),
+        where("perfilOwner", "==", user.uid),
+        where("perfilId", "==", perfilId)
+      )
+    );
+    if (!dup.empty) {
+      setMensaje("Ya estás inscrito en esta carrera con ese perfil.");
+      return;
     }
 
-    const perfil = perfiles.find((p) => p.id === perfilId);
-    if (!perfil) return setMensaje("Perfil inválido.");
+    // ✅ precio neto (server calcula total final)
+    const neto =
+      categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
+    if (!neto) return setMensaje("No se pudo determinar el precio de la categoría.");
 
-    // ✅ ahora sí: si el perfil no trae rama, usamos la manual
-    if (!ramaFinal) return setMensaje("Selecciona tu Rama para continuar.");
-
-    // Validación snapshot mínimo
-    const nombreCompleto = fullName(perfil.nombre, perfil.apellidoPaterno, perfil.apellidoMaterno);
-    if (!nombreCompleto) return setMensaje("Tu perfil no tiene nombre completo.");
-    if (!perfil.email) return setMensaje("Tu perfil no tiene email.");
-    if (!perfil.celular) return setMensaje("Tu perfil no tiene celular.");
-    if (!perfil.ciudad || !perfil.estado || !perfil.pais) {
-      return setMensaje("Tu perfil debe tener ciudad/estado/país.");
+    if (
+      !confirm(
+        `Vas a inscribirte en:\n- ${carrera.titulo}\n- ${distancia} / ${categoria}\n\nPrecio neto: $${neto.toFixed(
+          2
+        )} MXN (+ comisión e IVA en el cobro final).\n¿Continuar?`
+      )
+    ) {
+      return;
     }
 
-    setProcesando(true);
-
-    try {
-      // ✅ evita duplicados por owner + perfil
-      const dup = await getDocs(
-        query(
-          collection(db, "inscripciones"),
-          where("carreraId", "==", carrera.id),
-          where("perfilOwner", "==", user.uid),
-          where("perfilId", "==", perfilId)
-        )
-      );
-      if (!dup.empty) {
-        setMensaje("Ya estás inscrito en esta carrera con ese perfil.");
-        return;
-      }
-
-      // ✅ precio neto (server calcula total final)
-      const neto = categoriasPermitidas.find((c) => c.nombre === categoria)?.price ?? 0;
-      if (!neto) return setMensaje("No se pudo determinar el precio de la categoría.");
-
-      if (
-        !confirm(
-          `Vas a inscribirte en:\n- ${carrera.titulo}\n- ${distancia} / ${categoria}\n\nPrecio neto: $${neto.toFixed(
-            2
-          )} MXN (+ comisión e IVA en el cobro final).\n¿Continuar?`
-        )
-      ) {
-        return;
-      }
-
-      // ✅ crea sesión Stripe (server calcula unit_amount)
-      const res = await fetch("/api/checkout_sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          carreraId: carrera.id,
-          perfilId,
-          categoria,
-          distancia,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-
-      const { url, sessionId } = data;
-      if (!url || !sessionId) throw new Error("Stripe no devolvió url/sessionId");
-
-      // ✅ guarda inscripción con snapshot completo
-      await registrarInscripcion({
+    // ✅ crea sesión Stripe (server calcula unit_amount)
+    const res = await fetch("/api/checkout_sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
         carreraId: carrera.id,
-        carreraTitulo: carrera.titulo,
         perfilId,
-
         categoria,
         distancia,
-        ruta: distancia,
+      }),
+    });
 
-        sessionId,
+    const data = await res.json().catch(() => ({} as any));
+    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-        nombre: perfil.nombre,
-        paterno: perfil.apellidoPaterno,
-        materno: perfil.apellidoMaterno,
-        nombres: nombreCompleto,
+    const { url, sessionId } = data;
+    if (!url || !sessionId) throw new Error("Stripe no devolvió url/sessionId");
 
-        rama: ramaFinal,
+    // ✅ guarda inscripción con snapshot completo
+    await registrarInscripcion({
+      carreraId: carrera.id,
+      carreraTitulo: carrera.titulo,
+      perfilId,
 
-        pais: perfil.pais,
-        estado: perfil.estado,
-        ciudad: perfil.ciudad,
-        celular: perfil.celular,
-        club: perfil.club,
+      categoria,
+      distancia,
+      ruta: distancia,
 
-        fechaNacimiento: perfil.birthDate,
-        email: perfil.email,
-      });
+      sessionId,
 
-      window.open(url, "_blank")?.focus();
-      router.push("/mis-inscripciones");
-    } catch (err: any) {
-      setMensaje("Error al iniciar pago: " + (err?.message || "desconocido"));
-    } finally {
-      setProcesando(false);
-    }
-  };
+      nombre: perfil.nombre,
+      paterno: perfil.apellidoPaterno,
+      materno: perfil.apellidoMaterno,
+      nombres: nombreCompleto,
+
+      rama: ramaFinal,
+
+      pais: perfil.pais,
+      estado: perfil.estado,
+      ciudad: perfil.ciudad,
+      celular: perfil.celular,
+      club: perfil.club,
+
+      fechaNacimiento: perfil.birthDate,
+      email: perfil.email,
+    });
+
+    // ✅ IMPORTANTÍSIMO:
+    // ❌ NO popup, NO _blank
+    // ✅ redirige en la MISMA pestaña (no lo bloquea el navegador)
+    window.location.href = url;
+
+    // (Opcional) Si quieres que siempre pase por /pago para fallback:
+    // router.push(`/pago?inscripcionId=${encodeURIComponent(INSCRIPCION_ID_AQUI)}`)
+    // pero para eso tendrías que devolver inscripcionId desde registrarInscripcion.
+  } catch (err: any) {
+    setMensaje("Error al iniciar pago: " + (err?.message || "desconocido"));
+  } finally {
+    setProcesando(false);
+  }
+};
+
 
   if (!carrera) {
     return (

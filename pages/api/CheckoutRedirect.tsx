@@ -1,5 +1,5 @@
-import { loadStripe } from "@stripe/stripe-js";
 import { useEffect } from "react";
+import { loadStripe } from "@stripe/stripe-js";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
@@ -7,21 +7,22 @@ type Props = {
   carreraId: string;
   perfilId: string;
   categoria: string;
-  price: number;
+  distancia: string;
 };
 
-export default function CheckoutRedirect({ carreraId, perfilId, categoria, price }: Props) {
+export default function CheckoutRedirect({ carreraId, perfilId, categoria, distancia }: Props) {
   useEffect(() => {
-    const redirectToCheckout = async () => {
+    const go = async () => {
       const stripe = await stripePromise;
 
       const res = await fetch("/api/checkout_sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ carreraId, perfilId, categoria, price }),
+        body: JSON.stringify({ carreraId, perfilId, categoria, distancia }),
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
       if (data?.url) {
         window.location.href = data.url;
@@ -33,11 +34,11 @@ export default function CheckoutRedirect({ carreraId, perfilId, categoria, price
         return;
       }
 
-      throw new Error(data?.error || "Respuesta inválida");
+      throw new Error("Respuesta inválida");
     };
 
-    redirectToCheckout().catch((err) => console.error(err));
-  }, [carreraId, perfilId, categoria, price]);
+    go().catch(console.error);
+  }, [carreraId, perfilId, categoria, distancia]);
 
   return <p>Redirigiendo al pago...</p>;
 }

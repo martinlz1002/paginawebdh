@@ -281,48 +281,14 @@ export default function MisInscripcionesPage() {
 
   // ✅ FIX: reintentar pago sin pisar paymentStatus (el webhook manda)
   const reintentarPago = async (item: InscView) => {
-    try {
-      const res = await fetch("/api/retry_checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inscripcionId: item.id }),
-      });
-
-      const data = await res.json().catch(() => ({} as any));
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-
-      const { url, sessionId } = data as { url?: string; sessionId?: string };
-
-      if (!url || !sessionId) {
-        throw new Error("Respuesta inválida de retry_checkout");
-      }
-
-      // ✅ Mantén consistencia en el doc, pero NO toques paymentStatus aquí
-      await updateDoc(doc(db, "inscripciones", item.id), { sessionId });
-
-      window.open(url, "_blank")?.focus();
-    } catch (e: any) {
-      console.error(e);
-      alert(e?.message || "No se pudo reintentar el pago");
-    }
-  };
-
-  if (loading) {
-    return (
-      <AuthGuard>
-        <div className="min-h-screen bg-dh-soft px-4 py-12">
-          <div className="max-w-3xl mx-auto">
-            <div className={`${cardBase} p-6 text-center`}>
-              <p className="text-dh-ink font-semibold">Cargando inscripciones…</p>
-              <p className="text-sm text-gray-500 mt-2">
-                Leyendo tus registros en Firestore.
-              </p>
-            </div>
-          </div>
-        </div>
-      </AuthGuard>
-    );
+  try {
+    // ✅ Mejor UX: pasamos por /pago para que exista fallback y mensajes claros
+    window.location.href = `/pago?inscripcionId=${encodeURIComponent(item.id)}`;
+  } catch (e: any) {
+    console.error(e);
+    alert(e?.message || "No se pudo reintentar el pago");
   }
+};
 
   const pill = (status?: string) => {
     if (status === "paid")
