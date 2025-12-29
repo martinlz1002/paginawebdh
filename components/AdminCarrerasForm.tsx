@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
@@ -27,11 +27,45 @@ export interface AdminCarrerasFormProps {
   onSuccess?: () => void;
 }
 
+// ✅ Normaliza cualquier "fecha" a yyyy-mm-dd (pero tú guardas string, así que mostly passthrough)
+function toYYYYMMDD(v: any): string {
+  if (!v) return "";
+  if (typeof v === "string") {
+    // si ya viene yyyy-mm-dd, perfecto
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return v.trim();
+
+    // fallback: si viene otro formato raro, intenta parsear
+    const d = new Date(v);
+    if (!Number.isFinite(d.getTime())) return "";
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  // por si acaso alguien guardó Date/Timestamp en algún doc viejo
+  const d =
+    v instanceof Date
+      ? v
+      : typeof v?.toDate === "function"
+        ? v.toDate()
+        : new Date(v);
+
+  if (!Number.isFinite(d.getTime())) return "";
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
   const [titulo, setTitulo] = useState(initialValues?.titulo || "");
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || "");
   const [lugar, setLugar] = useState(initialValues?.lugar || "");
-  const [fecha, setFecha] = useState<string>("");
+
+  // ✅ FIX: inicializa la fecha desde initialValues
+  const [fecha, setFecha] = useState<string>(toYYYYMMDD((initialValues as any)?.fecha));
+
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || "");
   const [maxCompetitors, setMaxCompetitors] = useState<number>(initialValues?.maxCompetitors || 0);
   const [ageBasis, setAgeBasis] = useState<AgeBasis>(initialValues?.ageBasis || "endOfYear");
@@ -67,6 +101,39 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     initialValues?.inscripcionesMensaje || "Inscripciones pausadas temporalmente."
   );
 
+  // ✅ FIX: cuando cambias de carrera a editar, refresca TODOS los campos (incluida fecha)
+  useEffect(() => {
+    setTitulo(initialValues?.titulo || "");
+    setDescripcion(initialValues?.descripcion || "");
+    setLugar(initialValues?.lugar || "");
+    setFecha(toYYYYMMDD((initialValues as any)?.fecha));
+    setHoraSalida(initialValues?.horaSalida || "");
+    setMaxCompetitors(initialValues?.maxCompetitors || 0);
+    setAgeBasis(initialValues?.ageBasis || "endOfYear");
+
+    setKitFecha(initialValues?.kitFecha || "");
+    setKitLugar(initialValues?.kitLugar || "");
+    setKitHorario(initialValues?.kitHorario || "");
+
+    setImagenUrl(initialValues?.imagenUrl);
+    setBannerUrl(initialValues?.bannerUrl);
+
+    setDistancias(initialValues?.distancias || []);
+    setNuevaDistancia("");
+    setDistanciaSeleccionada("");
+    setNuevaCat({ nombre: "", minAge: 0, maxAge: 0, price: 0 });
+    setEditCatIndex(null);
+
+    setInscripcionesAbiertas(initialValues?.inscripcionesAbiertas !== false);
+    setInscripcionesMensaje(
+      initialValues?.inscripcionesMensaje || "Inscripciones pausadas temporalmente."
+    );
+
+    // si cambiaste de carrera, evita traer archivos seleccionados del form anterior
+    setImagenFile(null);
+    setBannerFile(null);
+  }, [initialValues?.id]);
+
   const uploadIfNeeded = async (file: File, prefix: string) => {
     const path = `${prefix}/${Date.now()}_${file.name}`;
     const storageRef = ref(storage, path);
@@ -80,7 +147,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const handleAddDistancia = () => {
     const raw = nuevaDistancia.trim();
     const normalized = normalizeDist(raw);
-    if (!normalized || distancias.some((dd) => dd.distancia === normalized)) return;
+    if (!normalized || distancias.some((dd) => normalizeDist(dd.distancia) === normalized)) return;
 
     setDistancias((prev) => [...prev, { distancia: normalized, categorias: [] }]);
     setNuevaDistancia("");
@@ -98,9 +165,9 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
 
     setDistancias((prev) =>
       prev.map((d) => {
-        if (d.distancia !== distanciaSeleccionada) return d;
+        if (normalizeDist(d.distancia) !== normalizeDist(distanciaSeleccionada)) return d;
 
-        const cats = [...d.categorias];
+        const cats = [...(d.categorias || [])];
         const catToSave: Categoria = {
           ...nuevaCat,
           nombre,
@@ -112,7 +179,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         if (editCatIndex !== null) cats[editCatIndex] = catToSave;
         else cats.push(catToSave);
 
-        return { ...d, categorias: cats };
+        return { ...d, distancia: normalizeDist(d.distancia), categorias: cats };
       })
     );
 
@@ -139,6 +206,13 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // ✅ validación simple de fecha string
+    const fechaOk = /^\d{4}-\d{2}-\d{2}$/.test((fecha || "").trim());
+    if (!fechaOk) {
+      alert("La fecha es inválida. Debe ser formato YYYY-MM-DD.");
+      return;
+    }
+
     let newImagenUrl = imagenUrl;
     let newBannerUrl = bannerUrl;
 
@@ -152,7 +226,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       newBannerUrl = await uploadIfNeeded(bannerFile, "carreras/banners");
     }
 
-    // ✅ FIX: normaliza TODAS las distancias existentes al guardar
+    // ✅ normaliza TODAS las distancias existentes al guardar
     const distanciasNorm: DistanciaConCategorias[] = (distancias || []).map((d) => ({
       distancia: normalizeDist(d.distancia),
       categorias: (d.categorias || []).map((c) => ({
@@ -168,7 +242,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       titulo,
       descripcion,
       lugar,
-      fecha,
+      fecha: (fecha || "").trim(), // ✅ string yyyy-mm-dd
       horaSalida,
       maxCompetitors,
       ageBasis,
@@ -188,10 +262,8 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     };
 
     if (initialValues?.id) {
-      // ✅ No tocamos nextNumber aquí para no romper carreras existentes
       await updateDoc(doc(db, "carreras", initialValues.id), payload);
     } else {
-      // ✅ FIX CRÍTICO: carrera nueva arranca con nextNumber=1
       await addDoc(collection(db, "carreras"), {
         ...payload,
         nextNumber: 1,
@@ -426,7 +498,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         <div className="mt-4 space-y-4">
           {distancias.map((d, dIndex) => (
             <div key={d.distancia} className="border p-4 rounded">
-              <h4 className="text-gray-800 font-semibold">Distancia: {d.distancia}</h4>
+              <h4 className="text-gray-800 font-semibold">Distancia: {normalizeDist(d.distancia)}</h4>
               <ul className="mt-2 space-y-1">
                 {d.categorias.map((c, cIndex) => (
                   <li key={cIndex} className="flex justify-between items-center text-gray-800">
@@ -460,7 +532,7 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           <option value="">Selecciona una distancia</option>
           {distancias.map((d) => (
             <option key={d.distancia} value={d.distancia}>
-              {d.distancia}
+              {normalizeDist(d.distancia)}
             </option>
           ))}
         </select>
@@ -534,7 +606,10 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
         />
       </div>
 
-      <button type="submit" className="w-full bg-green-600 text-dh-ink py-3 rounded hover:bg-green-700 transition">
+      <button
+        type="submit"
+        className="w-full bg-green-600 text-dh-ink py-3 rounded hover:bg-green-700 transition"
+      >
         Guardar Carrera
       </button>
     </form>
