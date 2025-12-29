@@ -8,7 +8,6 @@ import AuthGuard from "@/components/AuthGuard";
 export default function App({ Component, pageProps }: AppProps) {
   const { asPath } = useRouter();
 
-  // Solo estas rutas requieren login
   const protectedPaths = [
     "/pago",
     "/checkout",
@@ -21,8 +20,8 @@ export default function App({ Component, pageProps }: AppProps) {
 
   return (
     <AuthProvider>
-      {/* ✅ Fondo global oscuro + texto base claro */}
-      <div className="min-h-screen bg-black text-gray-100 antialiased selection:bg-dh-green/30 selection:text-white">
+      {/* ✅ Fondo global CLARO + texto base oscuro */}
+      <div className="min-h-screen bg-dh-bg text-dh-ink antialiased selection:bg-dh-green/30 selection:text-dh-ink">
         <Layout>
           {isProtected ? (
             <AuthGuard>
