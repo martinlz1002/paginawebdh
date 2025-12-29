@@ -16,6 +16,10 @@ import {
   PencilSquareIcon,
   XMarkIcon,
   CheckIcon,
+  MagnifyingGlassIcon,
+  ArrowsUpDownIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
 } from "@heroicons/react/24/outline";
 
 interface CarreraItem extends CarreraData {
@@ -23,7 +27,6 @@ interface CarreraItem extends CarreraData {
 }
 
 interface PerfilData {
-  // snapshot (ya viene en inscripciones)
   nombre?: string;
   paterno?: string;
   materno?: string;
@@ -46,8 +49,6 @@ interface PerfilData {
 
 interface InscripcionItem {
   id: string;
-
-  // snapshot
   perfil: PerfilData;
 
   categoria: string;
@@ -100,24 +101,69 @@ function pickNumber(raw: any): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// UI tokens DH
+const pageWrap = "min-h-screen bg-dh-soft";
+const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
+const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
+const selectBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const inputBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const btnBase =
+  "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold transition disabled:opacity-50 disabled:cursor-not-allowed";
+
+function statusLabel(s?: string) {
+  if (s === "paid") return "Pagado";
+  if (s === "pending") return "Pendiente";
+  if (s === "manual") return "Manual";
+  if (s === "expired") return "Expirado";
+  if (s === "unpaid") return "No pagado";
+  if (s === "failed") return "Fallido";
+  return s || "Desconocido";
+}
+
+function statusPillClass(s?: string) {
+  if (s === "paid") return "bg-dh-green/15 text-dh-ink border-dh-green/30";
+  if (s === "pending") return "bg-yellow-50 text-yellow-900 border-yellow-200";
+  if (s === "manual") return "bg-blue-50 text-blue-900 border-blue-200";
+  if (s === "expired") return "bg-orange-50 text-orange-900 border-orange-200";
+  if (s === "unpaid" || s === "failed") return "bg-red-50 text-red-900 border-red-200";
+  return "bg-gray-50 text-gray-800 border-gray-200";
+}
+
+type SortKey =
+  | "competitorNumber"
+  | "nombres"
+  | "rama"
+  | "ruta"
+  | "categoria"
+  | "edad"
+  | "celular"
+  | "paymentStatus"
+  | "timestamp";
+
 export default function AdminInscripcionesView() {
   const [carreras, setCarreras] = useState<CarreraItem[]>([]);
   const [selectedCarrera, setSelectedCarrera] = useState("");
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // filtro opcional (pro)
   const [statusFilter, setStatusFilter] = useState<
     "all" | "paid" | "pending" | "manual" | "expired" | "unpaid" | "failed"
   >("all");
 
-  // edición modal
+  // ✅ Buscador
+  const [search, setSearch] = useState("");
+
+  // ✅ Ordenador
+  const [sortKey, setSortKey] = useState<SortKey>("competitorNumber");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<InscripcionItem | null>(null);
 
-  // form editable
   const [form, setForm] = useState({
     competitorNumber: 0,
     ficha: 0,
@@ -139,7 +185,7 @@ export default function AdminInscripcionesView() {
     ciudad: "",
     club: "",
 
-    fechaNacimiento: "", // yyyy-mm-dd
+    fechaNacimiento: "",
   });
 
   const selectedCarreraInfo = useMemo(
@@ -147,7 +193,6 @@ export default function AdminInscripcionesView() {
     [carreras, selectedCarrera]
   );
 
-  // lista de carreras
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "carreras"));
@@ -155,7 +200,7 @@ export default function AdminInscripcionesView() {
     })();
   }, []);
 
-  // cargar inscripciones por carrera (y filtro opcional)
+  // 🔁 Cargar inscripciones por carrera + filtro
   useEffect(() => {
     if (!selectedCarrera) {
       setInscripciones([]);
@@ -196,19 +241,18 @@ export default function AdminInscripcionesView() {
           const raw = d.data() as RawData;
 
           const ts = safeDateFromAny(raw.timestamp) || new Date();
-
           const num = pickNumber(raw);
 
           const nombre = raw.nombre ?? raw.perfilNombre ?? "";
           const paterno = raw.paterno ?? raw.perfilApPaterno ?? "";
           const materno = raw.materno ?? raw.perfilApMaterno ?? "";
-          const nombres = (raw.nombres && String(raw.nombres).trim()) || fullName(nombre, paterno, materno);
+          const nombres =
+            (raw.nombres && String(raw.nombres).trim()) || fullName(nombre, paterno, materno);
 
           const fechaNacimiento = safeDateFromAny(raw.fechaNacimiento ?? raw.birthDate);
           const edad = fechaNacimiento && basis ? computeAge(fechaNacimiento, basis) : undefined;
 
           const paymentStatus = (raw.paymentStatus || raw.payment_status || "desconocido").toString();
-
           const ruta = (raw.ruta ?? raw.distancia ?? "").toString();
 
           const perfil: PerfilData = {
@@ -216,18 +260,14 @@ export default function AdminInscripcionesView() {
             paterno,
             materno,
             nombres,
-
             rama: raw.rama ?? "",
             ruta,
-
             email: raw.email ?? "",
             celular: raw.celular ?? "",
-
             pais: raw.pais ?? "",
             estado: raw.estado ?? "",
             ciudad: raw.ciudad ?? "",
             club: raw.club ?? "",
-
             fechaNacimiento,
             edad,
           };
@@ -247,7 +287,7 @@ export default function AdminInscripcionesView() {
           };
         });
 
-        // orden pro: vacíos al final
+        // default: orden por número
         items.sort((a, b) => {
           const na = a.competitorNumber > 0 ? a.competitorNumber : 9_999_999;
           const nb = b.competitorNumber > 0 ? b.competitorNumber : 9_999_999;
@@ -261,7 +301,99 @@ export default function AdminInscripcionesView() {
     })();
   }, [selectedCarrera, carreras, statusFilter]);
 
-  // abrir modal
+  // ✅ helper: valores para ordenar
+  const sortValue = (i: InscripcionItem, key: SortKey): string | number => {
+    const nombres =
+      (i.perfil.nombres || fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno) || "").toString();
+
+    switch (key) {
+      case "competitorNumber":
+        return i.competitorNumber > 0 ? i.competitorNumber : 9_999_999;
+      case "nombres":
+        return nombres.toLowerCase();
+      case "rama":
+        return (i.rama ?? i.perfil.rama ?? "").toLowerCase();
+      case "ruta":
+        return (i.ruta ?? i.perfil.ruta ?? "").toLowerCase();
+      case "categoria":
+        return (i.categoria ?? "").toLowerCase();
+      case "edad":
+        return typeof i.perfil.edad === "number" ? i.perfil.edad : 9_999_999;
+      case "celular":
+        return (i.perfil.celular ?? "").toLowerCase();
+      case "paymentStatus":
+        return (i.paymentStatus ?? "").toLowerCase();
+      case "timestamp":
+        return i.timestamp?.getTime?.() ? i.timestamp.getTime() : 0;
+      default:
+        return "";
+    }
+  };
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir("asc");
+  };
+
+  const SortIcon = ({ k }: { k: SortKey }) => {
+    if (sortKey !== k) return <ArrowsUpDownIcon className="w-4 h-4 opacity-50" />;
+    return sortDir === "asc" ? (
+      <ChevronUpIcon className="w-4 h-4" />
+    ) : (
+      <ChevronDownIcon className="w-4 h-4" />
+    );
+  };
+
+  // ✅ Lista final: filtro búsqueda + orden
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+
+    const filtered = !q
+      ? inscripciones
+      : inscripciones.filter((i) => {
+          const nombres =
+            i.perfil.nombres ||
+            fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno);
+
+          const blob = [
+            i.competitorNumber,
+            i.ficha ?? "",
+            i.bib ?? "",
+            nombres ?? "",
+            i.perfil.email ?? "",
+            i.perfil.celular ?? "",
+            i.perfil.club ?? "",
+            i.ruta ?? i.perfil.ruta ?? "",
+            i.categoria ?? "",
+            i.rama ?? i.perfil.rama ?? "",
+            i.paymentStatus ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          return blob.includes(q);
+        });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
+
+      // number vs string
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const as = String(av);
+      const bs = String(bv);
+      return sortDir === "asc" ? as.localeCompare(bs, "es") : bs.localeCompare(as, "es");
+    });
+
+    return sorted;
+  }, [inscripciones, search, sortKey, sortDir]);
+
   const openEdit = (it: InscripcionItem) => {
     setEditError(null);
     setEditing(it);
@@ -269,7 +401,9 @@ export default function AdminInscripcionesView() {
     const bd = it.perfil.fechaNacimiento;
     const yyyyMmDd =
       bd instanceof Date
-        ? `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(bd.getDate()).padStart(2, "0")}`
+        ? `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(
+            bd.getDate()
+          ).padStart(2, "0")}`
         : "";
 
     const nombre = it.perfil.nombre || "";
@@ -313,7 +447,6 @@ export default function AdminInscripcionesView() {
     if (!editing) return;
     setEditError(null);
 
-    // validaciones mínimas
     if (!form.nombre.trim() || !form.paterno.trim() || !form.materno.trim()) {
       setEditError("Nombre/Paterno/Materno son obligatorios.");
       return;
@@ -355,7 +488,6 @@ export default function AdminInscripcionesView() {
 
     const ficha = Number(form.ficha || cn);
     const bib = Number(form.bib || cn);
-
     const nombres = fullName(form.nombre, form.paterno, form.materno);
 
     setSaving(true);
@@ -374,7 +506,6 @@ export default function AdminInscripcionesView() {
 
         rama: form.rama.trim(),
         ruta: form.ruta.trim(),
-        // compat
         distancia: form.ruta.trim(),
 
         categoria: form.categoria.trim(),
@@ -389,7 +520,6 @@ export default function AdminInscripcionesView() {
         fechaNacimiento: Timestamp.fromDate(new Date(form.fechaNacimiento)),
       });
 
-      // refrescar UI local
       setInscripciones((prev) => {
         const next = prev.map((x) => {
           if (x.id !== editing.id) return x;
@@ -420,7 +550,6 @@ export default function AdminInscripcionesView() {
             },
           };
 
-          // recalcular edad
           const raceFecha = safeDateFromAny((selectedCarreraInfo as any)?.fecha);
           if (raceFecha && selectedCarreraInfo) {
             const basis =
@@ -431,12 +560,6 @@ export default function AdminInscripcionesView() {
           }
 
           return updated;
-        });
-
-        next.sort((a, b) => {
-          const na = a.competitorNumber > 0 ? a.competitorNumber : 9_999_999;
-          const nb = b.competitorNumber > 0 ? b.competitorNumber : 9_999_999;
-          return na - nb;
         });
 
         return next;
@@ -452,7 +575,7 @@ export default function AdminInscripcionesView() {
   };
 
   const exportExcel = () => {
-    const rows = inscripciones.map((i) => ({
+    const rows = visible.map((i) => ({
       Ficha: i.ficha ?? i.competitorNumber,
       Bib: i.bib ?? i.competitorNumber,
       Nombre: i.perfil.nombre ?? "",
@@ -480,309 +603,429 @@ export default function AdminInscripcionesView() {
     XLSX.writeFile(wb, `inscripciones_${selectedCarrera}.xlsx`);
   };
 
+  const thBtn = (key: SortKey, label: string, className = "") => (
+    <button
+      onClick={() => toggleSort(key)}
+      className={`inline-flex items-center gap-2 hover:text-dh-ink ${className}`}
+      title={`Ordenar por ${label}`}
+      type="button"
+    >
+      <span>{label}</span>
+      <SortIcon k={key} />
+    </button>
+  );
+
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-4 gap-3">
-        <h2 className="text-xl font-semibold">Ver Inscripciones</h2>
+    <div className={pageWrap}>
+      <div className="max-w-7xl mx-auto px-4 py-10 text-dh-ink">
+        <div className={`${cardBase} p-6`}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-extrabold text-dh-ink">Ver Inscripciones</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Busca, ordena, filtra por estado y exporta a Excel.
+              </p>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            disabled={!selectedCarrera}
-            className="border p-2 rounded"
-            title="Filtrar por estado de pago"
-          >
-            <option value="all">Todos</option>
-            <option value="paid">Pagado</option>
-            <option value="pending">Pendiente</option>
-            <option value="manual">Manual</option>
-            <option value="expired">Expirado</option>
-            <option value="unpaid">Unpaid</option>
-            <option value="failed">Failed</option>
-          </select>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+              {/* Orden rápido */}
+              <div className="min-w-[220px]">
+                <label className="sr-only">Orden</label>
+                <select
+                  className={selectBase}
+                  value={`${sortKey}:${sortDir}`}
+                  onChange={(e) => {
+                    const [k, d] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+                    setSortKey(k);
+                    setSortDir(d);
+                  }}
+                  disabled={!selectedCarrera}
+                  title="Orden rápido"
+                >
+                  <option value="competitorNumber:asc"># (asc)</option>
+                  <option value="competitorNumber:desc"># (desc)</option>
+                  <option value="nombres:asc">Nombre (A-Z)</option>
+                  <option value="nombres:desc">Nombre (Z-A)</option>
+                  <option value="ruta:asc">Ruta (A-Z)</option>
+                  <option value="ruta:desc">Ruta (Z-A)</option>
+                  <option value="categoria:asc">Categoría (A-Z)</option>
+                  <option value="categoria:desc">Categoría (Z-A)</option>
+                  <option value="paymentStatus:asc">Pago (A-Z)</option>
+                  <option value="paymentStatus:desc">Pago (Z-A)</option>
+                  <option value="timestamp:desc">Registrado (nuevo)</option>
+                  <option value="timestamp:asc">Registrado (viejo)</option>
+                </select>
+              </div>
 
-          <button
-            onClick={exportExcel}
-            disabled={!inscripciones.length}
-            className="flex items-center space-x-2 bg-blue-600 text-dh-ink px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 transition"
-          >
-            <ArrowDownTrayIcon className="w-5 h-5" />
-            <span>Exportar Excel</span>
-          </button>
+              {/* Filtro pago */}
+              <div className="min-w-[180px]">
+                <label className="sr-only">Filtro</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  disabled={!selectedCarrera}
+                  className={selectBase}
+                  title="Filtrar por estado de pago"
+                >
+                  <option value="all">Todos</option>
+                  <option value="paid">Pagado</option>
+                  <option value="pending">Pendiente</option>
+                  <option value="manual">Manual</option>
+                  <option value="expired">Expirado</option>
+                  <option value="unpaid">No pagado</option>
+                  <option value="failed">Fallido</option>
+                </select>
+              </div>
+
+              <button
+                onClick={exportExcel}
+                disabled={!visible.length}
+                className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
+                title="Exportar Excel (respeta búsqueda/orden)"
+              >
+                <ArrowDownTrayIcon className="w-5 h-5" />
+                Exportar Excel
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelBase}>Carrera</label>
+              <select
+                value={selectedCarrera}
+                onChange={(e) => {
+                  setSelectedCarrera(e.target.value);
+                  setSearch("");
+                }}
+                className={selectBase}
+              >
+                <option value="">-- Elige una carrera --</option>
+                {carreras.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.titulo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* ✅ Buscador */}
+            <div>
+              <label className={labelBase}>Buscar</label>
+              <div className="relative">
+                <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  disabled={!selectedCarrera}
+                  placeholder="Número, nombre, email, celular, club, ruta, categoría…"
+                  className={`pl-10 ${inputBase}`}
+                />
+              </div>
+
+              {selectedCarrera && (
+                <div className="mt-2 text-xs text-gray-500 flex items-center gap-2">
+                  <ArrowsUpDownIcon className="w-4 h-4" />
+                  Mostrando <span className="font-bold text-dh-ink">{visible.length}</span> de{" "}
+                  <span className="font-bold text-dh-ink">{inscripciones.length}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {loading ? (
+              <div className="text-sm text-gray-600">Cargando inscripciones…</div>
+            ) : visible.length > 0 ? (
+              <div className="overflow-x-auto rounded-2xl border border-dh-purple/10">
+                <table className="w-full min-w-[980px] table-auto border-collapse">
+                  <thead className="bg-dh-soft">
+                    <tr className="text-left text-xs font-bold uppercase tracking-wide text-gray-600">
+                      <th className="p-3">{thBtn("competitorNumber", "#")}</th>
+                      <th className="p-3">{thBtn("nombres", "Nombres")}</th>
+                      <th className="p-3">{thBtn("rama", "Rama")}</th>
+                      <th className="p-3">{thBtn("ruta", "Ruta")}</th>
+                      <th className="p-3">{thBtn("categoria", "Categoría")}</th>
+                      <th className="p-3">{thBtn("edad", "Edad")}</th>
+                      <th className="p-3">{thBtn("celular", "Celular")}</th>
+                      <th className="p-3">{thBtn("paymentStatus", "Pago")}</th>
+                      <th className="p-3">{thBtn("timestamp", "Registrado")}</th>
+                      <th className="p-3 text-gray-600">Acciones</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="bg-white">
+                    {visible.map((i) => (
+                      <tr
+                        key={i.id}
+                        className="border-t border-dh-purple/10 hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="p-3 font-extrabold text-dh-purple">
+                          {i.competitorNumber || "—"}
+                        </td>
+
+                        <td className="p-3 text-dh-ink">
+                          <div className="font-semibold">
+                            {i.perfil.nombres ||
+                              fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno)}
+                          </div>
+                          <div className="text-xs text-gray-500">{i.perfil.email || "—"}</div>
+                        </td>
+
+                        <td className="p-3 text-dh-ink">{i.rama ?? i.perfil.rama ?? "-"}</td>
+                        <td className="p-3 text-dh-ink">{i.ruta ?? i.perfil.ruta ?? "-"}</td>
+                        <td className="p-3 text-dh-ink">{i.categoria}</td>
+                        <td className="p-3 text-dh-ink">{i.perfil.edad ?? "-"}</td>
+                        <td className="p-3 text-dh-ink">{i.perfil.celular ?? "-"}</td>
+
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusPillClass(
+                              i.paymentStatus
+                            )}`}
+                          >
+                            {statusLabel(i.paymentStatus)}
+                          </span>
+                        </td>
+
+                        <td className="p-3 text-dh-ink">{i.timestamp.toLocaleString("es-MX")}</td>
+
+                        <td className="p-3">
+                          <button
+                            onClick={() => openEdit(i)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-dh-purple/15 bg-white px-3 py-2 text-sm font-extrabold text-dh-ink hover:bg-dh-soft transition"
+                            title="Editar"
+                          >
+                            <PencilSquareIcon className="w-5 h-5 text-dh-purple" />
+                            Editar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : selectedCarrera ? (
+              <div className="text-sm text-gray-600">No hay resultados con ese filtro/búsqueda.</div>
+            ) : (
+              <div className="text-sm text-gray-600">Elige una carrera para ver inscripciones.</div>
+            )}
+          </div>
         </div>
       </div>
-
-      <select
-        value={selectedCarrera}
-        onChange={(e) => setSelectedCarrera(e.target.value)}
-        className="w-full border p-2 rounded mb-6"
-      >
-        <option value="">-- Elige una carrera --</option>
-        {carreras.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.titulo}
-          </option>
-        ))}
-      </select>
-
-      {loading ? (
-        <p>Cargando inscripciones…</p>
-      ) : inscripciones.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full table-auto border-collapse rounded-lg shadow">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="text-gray-800 p-2 text-left">#</th>
-                <th className="text-gray-800 p-2 text-left">Nombres</th>
-                <th className="text-gray-800 p-2 text-left">Rama</th>
-                <th className="text-gray-800 p-2 text-left">Ruta</th>
-                <th className="text-gray-800 p-2 text-left">Categoría</th>
-                <th className="text-gray-800 p-2 text-left">Edad</th>
-                <th className="text-gray-800 p-2 text-left">Celular</th>
-                <th className="text-gray-800 p-2 text-left">Pago</th>
-                <th className="text-gray-800 p-2 text-left">Registrado</th>
-                <th className="text-gray-800 p-2 text-left">Acciones</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {inscripciones.map((i) => (
-                <tr
-                  key={i.id}
-                  className="bg-blue-900 text-dh-ink hover:bg-blue-800 transition-colors"
-                >
-                  <td className="p-2">{i.competitorNumber || "—"}</td>
-                  <td className="p-2">
-                    {i.perfil.nombres ||
-                      fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno)}
-                  </td>
-                  <td className="p-2">{i.rama ?? i.perfil.rama ?? "-"}</td>
-                  <td className="p-2">{i.ruta ?? i.perfil.ruta ?? "-"}</td>
-                  <td className="p-2">{i.categoria}</td>
-                  <td className="p-2">{i.perfil.edad ?? "-"}</td>
-                  <td className="p-2">{i.perfil.celular ?? "-"}</td>
-                  <td className="p-2">{i.paymentStatus ?? "-"}</td>
-                  <td className="p-2">{i.timestamp.toLocaleString("es-MX")}</td>
-                  <td className="p-2">
-                    <button
-                      onClick={() => openEdit(i)}
-                      className="inline-flex items-center gap-1 bg-white/10 hover:bg-white/20 px-2 py-1 rounded"
-                      title="Editar"
-                    >
-                      <PencilSquareIcon className="w-5 h-5" />
-                      <span className="text-sm">Editar</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : selectedCarrera ? (
-        <p className="text-gray-500">No hay inscripciones para esta carrera.</p>
-      ) : null}
 
       {/* Modal editar */}
       {editOpen && editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-xl p-5">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Editar inscripción #{editing.competitorNumber}
-              </h3>
-              <button
-                onClick={() => closeEdit()}
-                className="p-2 rounded hover:bg-gray-100"
-                title="Cerrar"
-              >
-                <XMarkIcon className="w-6 h-6" />
+          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl border border-dh-purple/10">
+            <div className="p-5 border-b border-dh-purple/10 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-extrabold text-dh-ink">
+                  Editar inscripción #{editing.competitorNumber}
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Cambios se guardan en <code>inscripciones</code>.
+                </p>
+              </div>
+
+              <button onClick={closeEdit} className="p-2 rounded-xl hover:bg-gray-100" title="Cerrar">
+                <XMarkIcon className="w-6 h-6 text-gray-700" />
               </button>
             </div>
 
-            {editError && <p className="text-sm text-red-600 mb-3">{editError}</p>}
+            <div className="p-5">
+              {editError && (
+                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {editError}
+                </div>
+              )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="text-sm text-gray-700">Número</label>
-                <input
-                  type="number"
-                  className="w-full border p-2 rounded"
-                  value={form.competitorNumber}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      competitorNumber: Number(e.target.value || 0),
-                      ficha: Number(e.target.value || 0),
-                      bib: Number(e.target.value || 0),
-                    }))
-                  }
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Ficha</label>
-                <input
-                  type="number"
-                  className="w-full border p-2 rounded"
-                  value={form.ficha}
-                  onChange={(e) => setForm((f) => ({ ...f, ficha: Number(e.target.value || 0) }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Bib</label>
-                <input
-                  type="number"
-                  className="w-full border p-2 rounded"
-                  value={form.bib}
-                  onChange={(e) => setForm((f) => ({ ...f, bib: Number(e.target.value || 0) }))}
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelBase}>Número</label>
+                  <input
+                    type="number"
+                    className={inputBase}
+                    value={form.competitorNumber}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        competitorNumber: Number(e.target.value || 0),
+                        ficha: Number(e.target.value || 0),
+                        bib: Number(e.target.value || 0),
+                      }))
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Ficha</label>
+                  <input
+                    type="number"
+                    className={inputBase}
+                    value={form.ficha}
+                    onChange={(e) => setForm((f) => ({ ...f, ficha: Number(e.target.value || 0) }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Bib</label>
+                  <input
+                    type="number"
+                    className={inputBase}
+                    value={form.bib}
+                    onChange={(e) => setForm((f) => ({ ...f, bib: Number(e.target.value || 0) }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Nombre</label>
+                  <input
+                    className={inputBase}
+                    value={form.nombre}
+                    onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Paterno</label>
+                  <input
+                    className={inputBase}
+                    value={form.paterno}
+                    onChange={(e) => setForm((f) => ({ ...f, paterno: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Materno</label>
+                  <input
+                    className={inputBase}
+                    value={form.materno}
+                    onChange={(e) => setForm((f) => ({ ...f, materno: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Rama</label>
+                  <select
+                    className={selectBase}
+                    value={form.rama}
+                    onChange={(e) => setForm((f) => ({ ...f, rama: e.target.value }))}
+                  >
+                    <option value="">--</option>
+                    <option value="Femenil">Femenil</option>
+                    <option value="Varonil">Varonil</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelBase}>Ruta</label>
+                  <input
+                    className={inputBase}
+                    value={form.ruta}
+                    onChange={(e) => setForm((f) => ({ ...f, ruta: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Categoría</label>
+                  <input
+                    className={inputBase}
+                    value={form.categoria}
+                    onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Fecha nacimiento</label>
+                  <input
+                    type="date"
+                    className={inputBase}
+                    value={form.fechaNacimiento}
+                    onChange={(e) => setForm((f) => ({ ...f, fechaNacimiento: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Email</label>
+                  <input
+                    className={inputBase}
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Celular</label>
+                  <input
+                    className={inputBase}
+                    value={form.celular}
+                    onChange={(e) => setForm((f) => ({ ...f, celular: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>País</label>
+                  <input
+                    className={inputBase}
+                    value={form.pais}
+                    onChange={(e) => setForm((f) => ({ ...f, pais: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Estado</label>
+                  <input
+                    className={inputBase}
+                    value={form.estado}
+                    onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className={labelBase}>Ciudad</label>
+                  <input
+                    className={inputBase}
+                    value={form.ciudad}
+                    onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))}
+                  />
+                </div>
+
+                <div className="sm:col-span-3">
+                  <label className={labelBase}>Club</label>
+                  <input
+                    className={inputBase}
+                    value={form.club}
+                    onChange={(e) => setForm((f) => ({ ...f, club: e.target.value }))}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="text-sm text-gray-700">Nombre</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Paterno</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.paterno}
-                  onChange={(e) => setForm((f) => ({ ...f, paterno: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Materno</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.materno}
-                  onChange={(e) => setForm((f) => ({ ...f, materno: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-700">Rama</label>
-                <select
-                  className="w-full border p-2 rounded"
-                  value={form.rama}
-                  onChange={(e) => setForm((f) => ({ ...f, rama: e.target.value }))}
+              <div className="flex justify-end gap-2 mt-6">
+                <button
+                  onClick={closeEdit}
+                  disabled={saving}
+                  className={`${btnBase} border border-dh-purple/15 bg-white text-dh-ink hover:bg-dh-soft`}
                 >
-                  <option value="">--</option>
-                  <option value="Femenil">Femenil</option>
-                  <option value="Varonil">Varonil</option>
-                </select>
-              </div>
+                  Cancelar
+                </button>
 
-              <div>
-                <label className="text-sm text-gray-700">Ruta</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.ruta}
-                  onChange={(e) => setForm((f) => ({ ...f, ruta: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-700">Categoría</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.categoria}
-                  onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-700">Fecha nacimiento</label>
-                <input
-                  type="date"
-                  className="w-full border p-2 rounded"
-                  value={form.fechaNacimiento}
-                  onChange={(e) => setForm((f) => ({ ...f, fechaNacimiento: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-700">Email</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.email}
-                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-700">Celular</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.celular}
-                  onChange={(e) => setForm((f) => ({ ...f, celular: e.target.value }))}
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-gray-700">País</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.pais}
-                  onChange={(e) => setForm((f) => ({ ...f, pais: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Estado</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.estado}
-                  onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-700">Ciudad</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.ciudad}
-                  onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))}
-                />
-              </div>
-              <div className="sm:col-span-3">
-                <label className="text-sm text-gray-700">Club</label>
-                <input
-                  className="w-full border p-2 rounded"
-                  value={form.club}
-                  onChange={(e) => setForm((f) => ({ ...f, club: e.target.value }))}
-                />
+                <button
+                  onClick={saveEdit}
+                  disabled={saving}
+                  className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
+                >
+                  {saving ? (
+                    "Guardando…"
+                  ) : (
+                    <>
+                      <CheckIcon className="w-5 h-5" />
+                      Guardar cambios
+                    </>
+                  )}
+                </button>
               </div>
             </div>
-
-            <div className="flex justify-end gap-2 mt-5">
-              <button
-                onClick={closeEdit}
-                disabled={saving}
-                className="px-4 py-2 rounded border hover:bg-gray-50 disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={saveEdit}
-                disabled={saving}
-                className="px-4 py-2 rounded bg-green-600 text-dh-ink hover:bg-green-700 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {saving ? (
-                  "Guardando…"
-                ) : (
-                  <>
-                    <CheckIcon className="w-5 h-5" />
-                    Guardar cambios
-                  </>
-                )}
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-500 mt-3">
-              Tip: esto edita solo el registro en <code>inscripciones</code>.
-            </p>
           </div>
         </div>
       )}
