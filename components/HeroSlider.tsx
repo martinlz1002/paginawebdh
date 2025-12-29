@@ -122,23 +122,24 @@ export default function HeroSlider({
 
           {/* Overlay (para contraste del texto) */}
           <div
-            className={`absolute inset-0 ${
-              current.type === "welcome" ? "bg-black/18" : "bg-black/35"
-            }`}
-          />
+  className={`absolute inset-0 ${
+    current.type === "welcome" ? "bg-black/10" : "bg-black/35"
+  }`}
+/>
 
           {/* ✅ Logo watermark encima del overlay SOLO en welcome */}
           {current.type === "welcome" && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src="/mi-logo.png"
-              alt="DHTime Logo"
-              className="pointer-events-none absolute inset-0 m-auto w-[78%] max-w-[900px] opacity-[0.16] mix-blend-screen"
-              style={{
-                filter: "grayscale(10%) contrast(105%)",
-              }}
-            />
-          )}
+  // eslint-disable-next-line @next/next/no-img-element
+  <img
+    src="/mi-logo.png"
+    alt="DHTime Logo"
+    className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+               h-[70%] w-auto max-w-[95%] opacity-[0.28]"
+    style={{
+      filter: "drop-shadow(0 12px 24px rgba(0,0,0,0.22)) saturate(105%)",
+    }}
+  />
+)}
 
           {/* Contenido */}
           <button
