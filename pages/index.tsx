@@ -10,7 +10,7 @@ import {
   LockClosedIcon,
 } from "@heroicons/react/24/outline";
 
-import HeroBanner from "@/components/HeroBanner";
+import HeroSlider from "@/components/HeroSlider";
 import SearchCard from "@/components/SearchCard";
 import FeaturedCarreras from "@/components/FeaturedCarreras";
 import Testimonials from "@/components/Testimonials";
@@ -106,7 +106,9 @@ export default function HomePage() {
 
     if (typeof qCiudad === "string" && qCiudad.trim()) {
       const needle = qCiudad.toLowerCase();
-      filtered = filtered.filter((c) => (c.ubicacion || "").toLowerCase().includes(needle));
+      filtered = filtered.filter((c) =>
+        (c.ubicacion || "").toLowerCase().includes(needle)
+      );
     }
 
     if (typeof qFecha === "string" && qFecha.trim()) {
@@ -136,7 +138,11 @@ export default function HomePage() {
 
   return (
     <>
-      <HeroBanner />
+      {/* ✅ SLIDER PRINCIPAL pegado al header (lo más visible) */}
+      <section className="max-w-6xl mx-auto px-6 md:px-8 pt-2">
+        {/* Nota: HeroSlider incluye el banner “Bienvenido…” como primer slide */}
+        <HeroSlider carreras={carreras} />
+      </section>
 
       <main className="max-w-6xl mx-auto px-6 md:px-8 py-10 space-y-16">
         <SearchCard />
@@ -166,11 +172,12 @@ export default function HomePage() {
                 return (
                   <div
                     key={c.id}
-                    className="group block bg-white rounded-2xl shadow-md overflow-hidden transition hover:shadow-dh hover:-translate-y-0.5"
+                    className="group block bg-dh-panel border border-dh-border rounded-2xl shadow-dhSm overflow-hidden transition hover:shadow-dh hover:-translate-y-0.5"
                   >
                     {/* Imagen */}
                     <div className="aspect-w-16 aspect-h-9 bg-gray-100 relative">
                       {c.imagenUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={c.imagenUrl}
                           alt={c.titulo}
@@ -192,13 +199,13 @@ export default function HomePage() {
                     </div>
 
                     <div className="p-4 space-y-2">
-                      <h3 className="text-xl font-semibold text-gray-800">{c.titulo}</h3>
+                      <h3 className="text-xl font-semibold text-dh-ink">{c.titulo}</h3>
 
                       {c.descripcion && (
-                        <p className="text-gray-600 line-clamp-3">{c.descripcion}</p>
+                        <p className="text-dh-muted line-clamp-3">{c.descripcion}</p>
                       )}
 
-                      <div className="flex items-center text-gray-500 text-sm gap-4">
+                      <div className="flex items-center text-dh-muted text-sm gap-4">
                         <time className="flex items-center gap-1">
                           <CalendarIcon className="w-5 h-5" />
                           <span>{c.fecha}</span>
@@ -212,17 +219,12 @@ export default function HomePage() {
                         )}
                       </div>
 
-                      {!abiertas && (
-                        <p className="text-xs text-red-600">{msgPausa}</p>
-                      )}
+                      {!abiertas && <p className="text-xs text-red-600">{msgPausa}</p>}
 
                       <div className="flex justify-end pt-1">
                         {abiertas ? (
-                          <Link
-                            href={`/inscribirse?carreraId=${c.id}`}
-                            legacyBehavior
-                          >
-                            <a className="inline-flex items-center gap-1 font-semibold text-dh-green group-hover:text-dh-purple transition">
+                          <Link href={`/inscribirse?carreraId=${c.id}`} legacyBehavior>
+                            <a className="inline-flex items-center gap-1 font-semibold text-dh-green hover:text-dh-purple transition">
                               <span>Inscribirse</span>
                               <ArrowRightIcon className="w-5 h-5" />
                             </a>

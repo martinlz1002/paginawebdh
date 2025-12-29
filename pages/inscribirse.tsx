@@ -425,7 +425,7 @@ export default function InscribirsePage() {
         <div className={`${cardBase} -mt-16 relative z-10 p-6 md:p-8 space-y-6`}>
           {/* Title */}
           <div className="text-center space-y-2">
-            <h1 className="text-3xl md:text-4xl font-extrabold text-dh-ink">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-dh-muted">
               {carrera.titulo}
             </h1>
             {carrera.descripcion && (
