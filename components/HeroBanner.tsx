@@ -2,34 +2,29 @@ import Image from "next/image";
 
 export default function HeroBanner() {
   return (
-    <section className="relative h-96 bg-gradient-to-r from-purple-800 via-purple-700 to-green-600 text-white flex items-center overflow-hidden">
-      <div className="container mx-auto px-6 flex flex-col md:flex-row items-center">
-        {/* Texto */}
-        <div className="md:w-1/2 space-y-4">
-          <h1 className="text-4xl md:text-5xl font-extrabold">
-            Bienvenido al mundo donde{" "}
-            <span className="text-green-300">cada segundo</span> cuenta
-          </h1>
-          <p className="text-lg md:text-xl text-white/90">
-            Únete a nuestra comunidad de corredoras y corredores.
-            Corre, vive, siente el pulso.
-          </p>
-        </div>
+    <section className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm">
+      {/* Fondo con logo DH */}
+      <div
+        className="absolute inset-0 bg-center bg-no-repeat bg-contain opacity-[0.06]"
+        style={{
+          backgroundImage: "url('/mi-logo.png')",
+        }}
+      />
 
-        {/* Imagen atleta */}
-        <div className="md:w-1/2 mt-6 md:mt-0 flex justify-center">
-          <Image
-            src="/Corredor.png"
-            alt="Corredor"
-            width={400}
-            height={400}
-            className="object-contain drop-shadow-xl"
-          />
-        </div>
+      {/* Overlay suave para contraste */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-white/90 to-dh-bg" />
+
+      {/* Contenido */}
+      <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-14">
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-dh-ink">
+          Bienvenido al mundo donde cada segundo cuenta
+        </h1>
+
+        <p className="mt-4 max-w-2xl text-dh-muted text-base sm:text-lg">
+          Cronometraje profesional, inscripciones en línea y resultados claros
+          para que solo te concentres en competir.
+        </p>
       </div>
-
-      {/* overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-black/10 via-transparent to-black/30 pointer-events-none" />
     </section>
   );
 }
