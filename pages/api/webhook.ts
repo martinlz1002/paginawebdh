@@ -33,11 +33,7 @@ const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"), {
 
 const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 
-/**
- * ✅ Asigna número rellenando huecos:
- * - Primero toma el hueco más pequeño en carreras/{carreraId}/freeNumbers (orderBy n asc)
- * - Si no hay huecos, usa carreras/{carreraId}.nextNumber y lo incrementa
- */
+// ----------------- NUMBER ALLOCATION -----------------
 async function allocateNumberTx(
   tx: FirebaseFirestore.Transaction,
   carreraId: string
@@ -48,50 +44,52 @@ async function allocateNumberTx(
   const carreraSnap = await tx.get(carreraRef);
   if (!carreraSnap.exists) throw new Error("Carrera no existe");
 
-  const maxCupo = (carreraSnap.get("maxCompetitors") || 0) as number;
-  const nextNumber = (carreraSnap.get("nextNumber") || 1) as number;
+  const max = Number(carreraSnap.get("maxCompetitors") || 0);
+  let candidate = Number(carreraSnap.get("nextNumber") || 1);
 
-  // 1) hueco más chico
-  const q = freeCol.orderBy("n", "asc").limit(1);
-  const freeSnap = await tx.get(q);
+  const usedSnap = await tx.get(
+    firestore
+      .collection("inscripciones")
+      .where("carreraId", "==", carreraId)
+      .where("competitorNumber", "!=", null)
+      .where("paymentStatus", "in", ["pending", "paid"])
+  );
 
-  if (!freeSnap.empty) {
-    const freeDoc = freeSnap.docs[0];
-    const n = freeDoc.get("n") as number;
+  const used = new Set<number>();
+  usedSnap.docs.forEach((d) => {
+    const n = Number(d.get("competitorNumber"));
+    if (Number.isFinite(n) && n > 0) used.add(n);
+  });
 
-    // Consumir hueco
-    tx.delete(freeDoc.ref);
-
-    // sanity
-    if (!Number.isFinite(n) || n <= 0) throw new Error("Número libre inválido");
-    if (maxCupo > 0 && n > maxCupo) throw new Error("Número libre fuera de cupo");
-    return n;
+  const freeSnap = await tx.get(freeCol.orderBy("n", "asc").limit(10));
+  for (const doc of freeSnap.docs) {
+    const n = Number(doc.get("n"));
+    if (!used.has(n)) {
+      if (max && n > max) throw new Error("Cupo agotado");
+      tx.delete(doc.ref);
+      return n;
+    }
   }
 
-  // 2) sin huecos: nextNumber
-  if (maxCupo > 0 && nextNumber > maxCupo) {
-    throw new Error("Ya no hay números disponibles");
+  while (used.has(candidate)) {
+    candidate++;
+    if (max && candidate > max) throw new Error("Cupo agotado");
   }
 
-  // merge para no pisar otros campos
-  tx.set(carreraRef, { nextNumber: nextNumber + 1 }, { merge: true });
-  return nextNumber;
+  tx.set(carreraRef, { nextNumber: candidate + 1 }, { merge: true });
+  return candidate;
 }
 
-/**
- * ✅ Libera número metiéndolo al pool:
- * carreras/{carreraId}/freeNumbers/{num}
- * idempotente (si ya existe, se mergea y ya)
- *
- * ⚠️ OJO: NO async. En transacciones, evita await innecesario.
- */
 function releaseNumberTx(
   tx: FirebaseFirestore.Transaction,
   carreraId: string,
   number: number
 ) {
-  const carreraRef = firestore.collection("carreras").doc(carreraId);
-  const freeRef = carreraRef.collection("freeNumbers").doc(String(number));
+  const freeRef = firestore
+    .collection("carreras")
+    .doc(carreraId)
+    .collection("freeNumbers")
+    .doc(String(number));
 
   tx.set(
     freeRef,
@@ -100,11 +98,7 @@ function releaseNumberTx(
   );
 }
 
-/**
- * Actualiza estado de pago:
- * - paid/pending: asigna número si falta (rellenando huecos) y asegura ficha/bib
- * - unpaid/expired: libera número al pool y borra competitorNumber/ficha/bib
- */
+// ----------------- PAYMENT STATUS -----------------
 async function markPaymentStatus(
   sessionId: string,
   status: "paid" | "pending" | "unpaid" | "expired"
@@ -114,134 +108,66 @@ async function markPaymentStatus(
     .where("sessionId", "==", sessionId)
     .get();
 
-  if (snap.empty) return;
-
   for (const docSnap of snap.docs) {
     const ref = docSnap.ref;
 
-    if (status === "paid" || status === "pending") {
-      await firestore.runTransaction(async (tx) => {
-        const insSnap = await tx.get(ref);
-        if (!insSnap.exists) return;
+    await firestore.runTransaction(async (tx) => {
+      const insSnap = await tx.get(ref);
+      if (!insSnap.exists) return;
 
-        const data = insSnap.data() as any;
+      const data = insSnap.data() as any;
+      const n = Number(data.competitorNumber || 0);
 
-        const current = Number(data.competitorNumber || 0);
-
-        // Si ya tiene número válido, solo asegura ficha/bib y status
-        if (Number.isFinite(current) && current > 0) {
-          const updates: any = { paymentStatus: status };
-          if (!data.ficha) updates.ficha = current;
-          if (!data.bib) updates.bib = current;
-          tx.update(ref, updates);
-          return;
+      if (status === "paid") {
+        if (!n) {
+          const assigned = await allocateNumberTx(tx, data.carreraId);
+          tx.update(ref, {
+            paymentStatus: "paid",
+            competitorNumber: assigned,
+            ficha: assigned,
+            bib: assigned,
+          });
+        } else {
+          tx.update(ref, { paymentStatus: "paid" });
         }
+        return;
+      }
 
-        // Si no tiene número, asigna usando huecos primero
-        const assigned = await allocateNumberTx(tx, data.carreraId);
-
-        tx.update(ref, {
-          paymentStatus: status,
-          competitorNumber: assigned,
-          ficha: assigned,
-          bib: assigned,
-        });
-      });
-
-      continue;
-    }
-
-    if (status === "unpaid" || status === "expired") {
-      await firestore.runTransaction(async (tx) => {
-        const insSnap = await tx.get(ref);
-        if (!insSnap.exists) return;
-
-        const data = insSnap.data() as any;
-        const n = Number(data.competitorNumber || 0);
-
-        // Devuelve el número al pool si existía
-        if (Number.isFinite(n) && n > 0) {
-          releaseNumberTx(tx, data.carreraId, n);
-        }
-
-        // Limpia número y campos derivados
+      if (status === "expired" || status === "unpaid") {
+        if (n) releaseNumberTx(tx, data.carreraId, n);
         tx.update(ref, {
           paymentStatus: status,
           competitorNumber: FieldValue.delete(),
           ficha: FieldValue.delete(),
           bib: FieldValue.delete(),
         });
-      });
-
-      continue;
-    }
+      }
+    });
   }
 }
 
+// ----------------- handler -----------------
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).end("Method Not Allowed");
-  }
-
-  let buf: Buffer;
-  try {
-    buf = await buffer(req);
-  } catch (e: any) {
-    return res.status(400).send(`Webhook Error: invalid body`);
-  }
-
+  const buf = await buffer(req);
   const sig = req.headers["stripe-signature"] as string;
 
-  let event: Stripe.Event;
-  try {
-    event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
-  } catch (err: any) {
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+  const event = stripe.webhooks.constructEvent(buf, sig, webhookSecret);
 
   switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const ps = session.payment_status === "paid" ? "paid" : "pending";
-      await markPaymentStatus(session.id, ps);
-      break;
-    }
-    case "checkout.session.async_payment_succeeded": {
+    case "checkout.session.completed":
+    case "checkout.session.async_payment_succeeded":
+    case "payment_intent.succeeded": {
       const session = event.data.object as Stripe.Checkout.Session;
       await markPaymentStatus(session.id, "paid");
       break;
     }
-    case "checkout.session.expired": {
+    case "checkout.session.expired":
+    case "payment_intent.payment_failed": {
       const session = event.data.object as Stripe.Checkout.Session;
       await markPaymentStatus(session.id, "expired");
       break;
     }
-    case "payment_intent.succeeded": {
-      const intent = event.data.object as Stripe.PaymentIntent;
-      const sessions = await stripe.checkout.sessions.list({
-        payment_intent: intent.id,
-        limit: 1,
-      });
-      if (sessions.data.length) {
-        await markPaymentStatus(sessions.data[0].id, "paid");
-      }
-      break;
-    }
-    case "payment_intent.payment_failed": {
-      const intent = event.data.object as Stripe.PaymentIntent;
-      const sessions = await stripe.checkout.sessions.list({
-        payment_intent: intent.id,
-        limit: 1,
-      });
-      if (sessions.data.length) {
-        await markPaymentStatus(sessions.data[0].id, "unpaid");
-      }
-      break;
-    }
-    default:
-      break;
   }
 
-  return res.status(200).json({ received: true });
+  res.status(200).json({ received: true });
 }
