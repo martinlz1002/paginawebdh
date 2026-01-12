@@ -59,7 +59,7 @@ async function allocateNumberTx(
       .collection("inscripciones")
       .where("carreraId", "==", carreraId)
       .where("competitorNumber", "!=", null)
-      .where("paymentStatus", "==", "paid")
+      .where("paymentStatus", "in", ["paid", "manual"])
   );
 
   const used = new Set<number>();
