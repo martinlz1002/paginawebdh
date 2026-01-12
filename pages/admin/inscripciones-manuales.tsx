@@ -12,7 +12,6 @@ import {
   Timestamp,
   deleteDoc,
   doc,
-  runTransaction,
   getDoc,
 } from "firebase/firestore";
 import {
@@ -82,24 +81,18 @@ export default function InscripcionesManualesAdmin() {
       const accs: TempAccessRecord[] = snapT.docs.map((d) => {
         const data = d.data() as any;
 
-        const exp =
-          data.expiresAt?.toDate
-            ? (data.expiresAt as Timestamp).toDate()
-            : new Date(data.expiresAt);
-
-        const created =
-          data.createdAt?.toDate
-            ? (data.createdAt as Timestamp).toDate()
-            : new Date();
-
         return {
           id: d.id,
           carreraId: data.carreraId,
           range: data.range,
           username: data.username,
           password: data.password,
-          expiresAt: exp,
-          createdAt: created,
+          expiresAt: data.expiresAt?.toDate
+            ? (data.expiresAt as Timestamp).toDate()
+            : new Date(data.expiresAt),
+          createdAt: data.createdAt?.toDate
+            ? (data.createdAt as Timestamp).toDate()
+            : new Date(),
           link: data.link,
         };
       });
@@ -133,7 +126,17 @@ export default function InscripcionesManualesAdmin() {
     setLoading(true);
 
     try {
-      // ✅ 1) crear tempusuario
+      // 🔎 Validar cupo máximo (sin tocar nextNumber)
+      const carreraRef = doc(db, "carreras", carreraId);
+      const carreraSnap = await getDoc(carreraRef);
+      if (!carreraSnap.exists()) throw new Error("Carrera no encontrada");
+
+      const maxCupo = Number(carreraSnap.get("maxCompetitors") || 0);
+      if (maxCupo > 0 && endNumber > maxCupo) {
+        throw new Error(`El rango excede el cupo máximo (${maxCupo})`);
+      }
+
+      // ✅ Crear acceso temporal (NO afecta numeración global)
       const docRef = (await addDoc(collection(db, "tempusuarios"), {
         carreraId,
         range: { start: startNumber, end: endNumber },
@@ -142,7 +145,7 @@ export default function InscripcionesManualesAdmin() {
         password,
         createdAt: serverTimestamp(),
 
-        // opcional: auditoría
+        // auditoría
         reservedFrom: startNumber,
         reservedTo: endNumber,
       })) as DocumentReference;
@@ -150,28 +153,6 @@ export default function InscripcionesManualesAdmin() {
       const url = `${window.location.origin}/inscripcion-manual/${docRef.id}`;
       await updateDoc(docRef, { link: url });
 
-      // ✅ 2) IMPORTANTÍSIMO: asegurar nextNumber para que online empiece después del rango manual
-      // nextNumber = max(nextNumber actual, endNumber + 1)
-      await runTransaction(db, async (tx) => {
-        const carreraRef = doc(db, "carreras", carreraId);
-        const snap = (await tx.get(carreraRef)) as any;
-        if (!snap.exists()) throw new Error("Carrera no encontrada");
-
-        const currentNext = Number(snap.get("nextNumber") || 1);
-        const desiredNext = endNumber + 1;
-
-        if (!Number.isFinite(currentNext)) {
-          // si estaba corrupto, lo arreglamos
-          tx.set(carreraRef, { nextNumber: desiredNext }, { merge: true });
-          return;
-        }
-
-        if (desiredNext > currentNext) {
-          tx.set(carreraRef, { nextNumber: desiredNext }, { merge: true });
-        }
-      });
-
-      // ✅ 3) UI
       setAccesses((prev) => [
         ...prev,
         {
@@ -195,12 +176,11 @@ export default function InscripcionesManualesAdmin() {
     }
   };
 
-  // ✅ Eliminar acceso temporal (UI + Firestore)
   const handleDelete = async (tempId: string) => {
     setError(null);
 
     const ok = window.confirm(
-      "¿Eliminar este acceso temporal?\n\nEsto dejará el link INACTIVO y ya no se podrá usar."
+      "¿Eliminar este acceso temporal?\n\nEl link quedará inactivo."
     );
     if (!ok) return;
 
@@ -208,15 +188,11 @@ export default function InscripcionesManualesAdmin() {
 
     try {
       await deleteDoc(doc(db, "tempusuarios", tempId));
-
       setAccesses((prev) => prev.filter((a) => a.id !== tempId));
       setLink((prevLink) => (prevLink.includes(tempId) ? "" : prevLink));
     } catch (e: any) {
       console.error(e);
-      setError(
-        e?.message ||
-          "No se pudo eliminar. Verifica permisos admin (reglas/firestore)."
-      );
+      setError(e?.message || "No se pudo eliminar el acceso.");
     } finally {
       setDeletingId(null);
     }
