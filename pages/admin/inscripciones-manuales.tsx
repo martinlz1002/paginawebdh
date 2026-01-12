@@ -13,6 +13,8 @@ import {
   Timestamp,
   doc,
   getDoc,
+  query,
+  where,
 } from "firebase/firestore";
 import {
   ChevronLeftIcon,
@@ -132,6 +134,27 @@ export default function InscripcionesManualesAdmin() {
       if (maxCupo > 0 && endNumber > maxCupo) {
         throw new Error(`El rango excede el cupo máximo (${maxCupo})`);
       }
+
+      const insSnap = await getDocs(
+  query(
+    collection(db, "inscripciones"),
+    where("carreraId", "==", carreraId),
+    where("competitorNumber", ">=", startNumber),
+    where("competitorNumber", "<=", endNumber),
+    where("paymentStatus", "in", ["paid", "manual"])
+  )
+);
+
+if (!insSnap.empty) {
+  const usados = insSnap.docs
+    .map((d) => d.data().competitorNumber)
+    .filter((n) => typeof n === "number")
+    .sort((a, b) => a - b);
+
+  throw new Error(
+    `El rango ${startNumber}-${endNumber} choca con números ya usados: ${usados.join(", ")}`
+  );
+}
 
       const docRef = (await addDoc(collection(db, "tempusuarios"), {
         carreraId,

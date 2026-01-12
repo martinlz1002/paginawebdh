@@ -5,28 +5,29 @@ import * as admin from "firebase-admin";
 
 export const config = { api: { bodyParser: false } };
 
-// ----------------- helpers env -----------------
+// ----------------- env -----------------
 function requireEnv(name: string) {
   const v = process.env[name];
-  if (!v) throw new Error(`Missing ${name} in server env`);
+  if (!v) throw new Error(`Missing ${name}`);
   return v;
 }
 
-// ----------------- init admin -----------------
+// ----------------- firebase -----------------
 if (!admin.apps.length) {
-  const b64 = requireEnv("FIREBASE_SERVICE_ACCOUNT_KEY_B64");
-  const raw = Buffer.from(b64, "base64").toString("utf8");
-  const serviceAccount = JSON.parse(raw);
+  const raw = Buffer.from(
+    requireEnv("FIREBASE_SERVICE_ACCOUNT_KEY_B64"),
+    "base64"
+  ).toString("utf8");
 
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert(JSON.parse(raw)),
   });
 }
 
-const firestore = admin.firestore();
+const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
-// ----------------- init stripe -----------------
+// ----------------- stripe -----------------
 const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"), {
   apiVersion: "2025-05-28.basil",
 });
@@ -35,27 +36,22 @@ const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 
 /**
  * =========================================================
- * Asigna número SOLO si está PAGADO
- * - respeta huecos
- * - respeta rangos manuales
+ * ASIGNACIÓN REAL DE NÚMERO (FUENTE DE VERDAD)
  * =========================================================
  */
 async function allocateNumberTx(
   tx: FirebaseFirestore.Transaction,
   carreraId: string
 ): Promise<number> {
-  const carreraRef = firestore.collection("carreras").doc(carreraId);
-  const freeCol = carreraRef.collection("freeNumbers");
-
+  const carreraRef = db.collection("carreras").doc(carreraId);
   const carreraSnap = await tx.get(carreraRef);
   if (!carreraSnap.exists) throw new Error("Carrera no existe");
 
   const maxCupo = Number(carreraSnap.get("maxCompetitors") || 0);
-  let candidate = Number(carreraSnap.get("nextNumber") || 1);
 
-  // 🔹 SOLO números PAGADOS cuentan como usados
+  // 1️⃣ NÚMEROS USADOS REALES
   const usedSnap = await tx.get(
-    firestore
+    db
       .collection("inscripciones")
       .where("carreraId", "==", carreraId)
       .where("competitorNumber", "!=", null)
@@ -68,106 +64,68 @@ async function allocateNumberTx(
     if (Number.isFinite(n) && n > 0) used.add(n);
   });
 
-  // 🔹 rangos manuales activos
+  // 2️⃣ RANGOS MANUALES ACTIVOS
   const now = new Date();
-  const manualSnap = await tx.get(
-    firestore
+  const tempSnap = await tx.get(
+    db
       .collection("tempusuarios")
       .where("carreraId", "==", carreraId)
       .where("expiresAt", ">", now)
   );
 
   const reserved = new Set<number>();
-  manualSnap.docs.forEach((d) => {
+  tempSnap.docs.forEach((d) => {
     const r = d.get("range");
     if (!r) return;
-    const start = Number(r.start);
-    const end = Number(r.end);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-    for (let i = start; i <= end; i++) reserved.add(i);
+    for (let i = Number(r.start); i <= Number(r.end); i++) {
+      if (Number.isFinite(i)) reserved.add(i);
+    }
   });
 
-  // 🔹 huecos primero
-  const freeSnap = await tx.get(freeCol.orderBy("n", "asc").limit(5));
-  for (const doc of freeSnap.docs) {
-    const n = Number(doc.get("n"));
+  // 3️⃣ MENOR NÚMERO DISPONIBLE REAL
+  const limit = maxCupo > 0 ? maxCupo : 100000;
+
+  for (let n = 1; n <= limit; n++) {
     if (!used.has(n) && !reserved.has(n)) {
-      if (maxCupo > 0 && n > maxCupo) {
-        throw new Error("Número fuera de cupo");
-      }
-      tx.delete(doc.ref);
       return n;
     }
   }
 
-  // 🔹 avanzar nextNumber
-  while (used.has(candidate) || reserved.has(candidate)) {
-    candidate++;
-    if (maxCupo > 0 && candidate > maxCupo) {
-      throw new Error("Ya no hay números disponibles");
-    }
-  }
-
-  tx.set(carreraRef, { nextNumber: candidate + 1 }, { merge: true });
-  return candidate;
-}
-
-/**
- * Libera número
- */
-function releaseNumberTx(
-  tx: FirebaseFirestore.Transaction,
-  carreraId: string,
-  number: number
-) {
-  const freeRef = firestore
-    .collection("carreras")
-    .doc(carreraId)
-    .collection("freeNumbers")
-    .doc(String(number));
-
-  tx.set(
-    freeRef,
-    { n: number, releasedAt: FieldValue.serverTimestamp() },
-    { merge: true }
-  );
+  throw new Error("Ya no hay números disponibles");
 }
 
 /**
  * =========================================================
- * Marca estado de pago (FIXED)
+ * MARCAR ESTADO DE PAGO
  * =========================================================
  */
 async function markPaymentStatus(
   sessionId: string,
-  status: "paid" | "pending" | "unpaid" | "expired"
+  status: "paid" | "pending" | "expired" | "unpaid"
 ) {
-  const snap = await firestore
+  const snap = await db
     .collection("inscripciones")
     .where("sessionId", "==", sessionId)
     .get();
 
   if (snap.empty) return;
 
-  for (const docSnap of snap.docs) {
-    const ref = docSnap.ref;
+  for (const doc of snap.docs) {
+    const ref = doc.ref;
 
-    // ✅ SOLO PAGADO ASIGNA NÚMERO
     if (status === "paid") {
-      await firestore.runTransaction(async (tx) => {
+      await db.runTransaction(async (tx) => {
         const insSnap = await tx.get(ref);
         if (!insSnap.exists) return;
 
-        const data = insSnap.data() as any;
-        const current = Number(data.competitorNumber || 0);
-
-        // idempotente
-        if (current > 0) {
+        const data = insSnap.data()!;
+        if (Number(data.competitorNumber) > 0) {
           tx.update(ref, { paymentStatus: "paid" });
           return;
         }
 
         const assigned = await allocateNumberTx(tx, data.carreraId);
+
         tx.update(ref, {
           paymentStatus: "paid",
           competitorNumber: assigned,
@@ -178,37 +136,23 @@ async function markPaymentStatus(
       continue;
     }
 
-    // 🟡 PENDING → SOLO MARCA ESTADO
     if (status === "pending") {
       await ref.update({ paymentStatus: "pending" });
       continue;
     }
 
-    // ❌ EXPIRED / UNPAID → LIBERA NÚMERO
-    if (status === "unpaid" || status === "expired") {
-      await firestore.runTransaction(async (tx) => {
-        const insSnap = await tx.get(ref);
-        if (!insSnap.exists) return;
-
-        const data = insSnap.data() as any;
-        const n = Number(data.competitorNumber || 0);
-
-        if (n > 0) {
-          releaseNumberTx(tx, data.carreraId, n);
-        }
-
-        tx.update(ref, {
-          paymentStatus: status,
-          competitorNumber: FieldValue.delete(),
-          ficha: FieldValue.delete(),
-          bib: FieldValue.delete(),
-        });
+    if (status === "expired" || status === "unpaid") {
+      await ref.update({
+        paymentStatus: status,
+        competitorNumber: FieldValue.delete(),
+        ficha: FieldValue.delete(),
+        bib: FieldValue.delete(),
       });
     }
   }
 }
 
-// ----------------- webhook handler -----------------
+// ----------------- handler -----------------
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
@@ -241,5 +185,5 @@ export default async function handler(
     }
   }
 
-  return res.status(200).json({ received: true });
+  res.status(200).json({ received: true });
 }
