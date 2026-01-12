@@ -5,7 +5,12 @@ admin.initializeApp();
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
-async function assertAdmin(context: functions.https.CallableContext) {
+/**
+ * =========================================================
+ * Helper: validar admin
+ * =========================================================
+ */
+async function assertAdmin(context: any) {
   if (!context.auth) {
     throw new functions.https.HttpsError(
       "unauthenticated",
@@ -33,17 +38,15 @@ async function assertAdmin(context: functions.https.CallableContext) {
  */
 export const borrarInscripcionesDeCarrera = functions
   .runWith({ memory: "256MB", timeoutSeconds: 60 })
-  .https.onCall(async (data, context) => {
-    if (!context.auth?.token.admin) {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "Requiere permisos de administrador"
-      );
-    }
+  .https.onCall(async (data: any, context: any) => {
+    await assertAdmin(context);
 
-    const { carreraId } = data as { carreraId: string };
+    const { carreraId } = data;
     if (!carreraId) {
-      throw new functions.https.HttpsError("invalid-argument", "Falta carreraId");
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Falta carreraId"
+      );
     }
 
     const insSnap = await db
@@ -51,14 +54,16 @@ export const borrarInscripcionesDeCarrera = functions
       .where("carreraId", "==", carreraId)
       .get();
 
-    if (insSnap.empty) return { eliminado: 0 };
+    if (insSnap.empty) {
+      return { eliminado: 0 };
+    }
 
     const batch = db.batch();
     const carreraRef = db.collection("carreras").doc(carreraId);
 
     for (const docSnap of insSnap.docs) {
-      const data = docSnap.data() as any;
-      const n = Number(data.competitorNumber || 0);
+      const d = docSnap.data() as any;
+      const n = Number(d.competitorNumber || 0);
 
       if (n > 0) {
         batch.set(
@@ -81,19 +86,15 @@ export const borrarInscripcionesDeCarrera = functions
 
 /**
  * =========================================================
- * 2) ELIMINAR LINK DE INSCRIPCIÓN MANUAL (ADMIN)
+ * 2) ELIMINAR LINK DE INSCRIPCIÓN MANUAL
  * =========================================================
- * - Se llama desde el frontend
- * - NO libera números aquí
- * - El CRON se encarga si aplica
  */
 export const eliminarTempUsuario = functions
   .runWith({ memory: "128MB", timeoutSeconds: 30 })
-  .https.onCall(async (data, context) => {
+  .https.onCall(async (data: any, context: any) => {
+    await assertAdmin(context);
 
-    await assertAdmin(context); // 🔥 CLAVE
-
-    const { tempId } = data as { tempId: string };
+    const { tempId } = data;
     if (!tempId) {
       throw new functions.https.HttpsError(
         "invalid-argument",
@@ -104,18 +105,16 @@ export const eliminarTempUsuario = functions
     const ref = db.collection("tempusuarios").doc(tempId);
     const snap = await ref.get();
 
-    if (!snap.exists) {
-      return { ok: true };
+    if (snap.exists) {
+      await ref.delete();
     }
 
-    await ref.delete();
     return { ok: true };
   });
 
-  
 /**
  * =========================================================
- * 3) CRON: LIBERAR NÚMEROS DE LINKS MANUALES EXPIRADOS
+ * 3) CRON: LIBERAR NÚMEROS DE LINKS EXPIRADOS
  * =========================================================
  */
 export const liberarNumerosDeTempUsuariosExpirados = functions
@@ -159,7 +158,6 @@ export const liberarNumerosDeTempUsuariosExpirados = functions
 
       const carreraRef = db.collection("carreras").doc(carreraId);
 
-      // 🔹 números usados
       const insSnap = await db
         .collection("inscripciones")
         .where("carreraId", "==", carreraId)
@@ -190,7 +188,6 @@ export const liberarNumerosDeTempUsuariosExpirados = functions
         );
 
         writes++;
-
         if (writes >= 400) {
           await batch.commit();
           batch = db.batch();
@@ -205,6 +202,5 @@ export const liberarNumerosDeTempUsuariosExpirados = functions
 
       await batch.commit();
     }
-
     return null;
   });
