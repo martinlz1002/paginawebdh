@@ -34,7 +34,11 @@ const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"), {
 const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 
 /**
- * ✅ Asigna número SIN duplicados y respetando rangos manuales
+ * =========================================================
+ * Asigna número SOLO si está PAGADO
+ * - respeta huecos
+ * - respeta rangos manuales
+ * =========================================================
  */
 async function allocateNumberTx(
   tx: FirebaseFirestore.Transaction,
@@ -49,13 +53,13 @@ async function allocateNumberTx(
   const maxCupo = Number(carreraSnap.get("maxCompetitors") || 0);
   let candidate = Number(carreraSnap.get("nextNumber") || 1);
 
-  // 🔹 números ya usados (manual + online)
+  // 🔹 SOLO números PAGADOS cuentan como usados
   const usedSnap = await tx.get(
     firestore
       .collection("inscripciones")
       .where("carreraId", "==", carreraId)
       .where("competitorNumber", "!=", null)
-      .where("paymentStatus", "in", ["pending", "paid"])
+      .where("paymentStatus", "==", "paid")
   );
 
   const used = new Set<number>();
@@ -96,7 +100,7 @@ async function allocateNumberTx(
     }
   }
 
-  // 🔹 avanzar nextNumber hasta uno libre y no reservado
+  // 🔹 avanzar nextNumber
   while (used.has(candidate) || reserved.has(candidate)) {
     candidate++;
     if (maxCupo > 0 && candidate > maxCupo) {
@@ -130,7 +134,9 @@ function releaseNumberTx(
 }
 
 /**
- * Estado de pago (flujo original intacto)
+ * =========================================================
+ * Marca estado de pago (FIXED)
+ * =========================================================
  */
 async function markPaymentStatus(
   sessionId: string,
@@ -146,7 +152,8 @@ async function markPaymentStatus(
   for (const docSnap of snap.docs) {
     const ref = docSnap.ref;
 
-    if (status === "paid" || status === "pending") {
+    // ✅ SOLO PAGADO ASIGNA NÚMERO
+    if (status === "paid") {
       await firestore.runTransaction(async (tx) => {
         const insSnap = await tx.get(ref);
         if (!insSnap.exists) return;
@@ -154,14 +161,15 @@ async function markPaymentStatus(
         const data = insSnap.data() as any;
         const current = Number(data.competitorNumber || 0);
 
+        // idempotente
         if (current > 0) {
-          tx.update(ref, { paymentStatus: status });
+          tx.update(ref, { paymentStatus: "paid" });
           return;
         }
 
         const assigned = await allocateNumberTx(tx, data.carreraId);
         tx.update(ref, {
-          paymentStatus: status,
+          paymentStatus: "paid",
           competitorNumber: assigned,
           ficha: assigned,
           bib: assigned,
@@ -170,6 +178,13 @@ async function markPaymentStatus(
       continue;
     }
 
+    // 🟡 PENDING → SOLO MARCA ESTADO
+    if (status === "pending") {
+      await ref.update({ paymentStatus: "pending" });
+      continue;
+    }
+
+    // ❌ EXPIRED / UNPAID → LIBERA NÚMERO
     if (status === "unpaid" || status === "expired") {
       await firestore.runTransaction(async (tx) => {
         const insSnap = await tx.get(ref);
@@ -193,7 +208,11 @@ async function markPaymentStatus(
   }
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+// ----------------- webhook handler -----------------
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   const buf = await buffer(req);
   const sig = req.headers["stripe-signature"] as string;
 

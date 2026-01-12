@@ -126,30 +126,28 @@ export default function MisInscripcionesPage() {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // ✅ Cache en memoria para no hacer getDoc de la misma carrera mil veces
         const carreraCache = new Map<string, any>();
 
         const all = await Promise.all(
           snap.docs.map(async (d) => {
             const src = d.data() as InscRaw;
 
-            // --- carrera (cache) ---
-            let c: any = carreraCache.get(src.carreraId);
+            // --- carrera ---
+            let c = carreraCache.get(src.carreraId);
             if (!c) {
               const cDoc = await getDoc(doc(db, "carreras", src.carreraId));
-              c = cDoc.exists() ? (cDoc.data() as any) : {};
+              c = cDoc.exists() ? cDoc.data() : {};
               carreraCache.set(src.carreraId, c);
             }
 
-            // distancia/ruta: prioriza snapshot
+            // distancia
             let distancia = (src.ruta || src.distancia || "") as string;
-
-            // fallback: si no viene distancia, intenta inferir por categoría desde la carrera
             if (!distancia && Array.isArray(c.distancias)) {
               for (const dist of c.distancias) {
                 if (
-                  Array.isArray(dist.categorias) &&
-                  dist.categorias.some((cat: any) => cat.nombre === src.categoria)
+                  dist.categorias?.some(
+                    (cat: any) => cat.nombre === src.categoria
+                  )
                 ) {
                   distancia = dist.distancia;
                   break;
@@ -157,7 +155,7 @@ export default function MisInscripcionesPage() {
               }
             }
 
-            // precio: desde carrera.distancias
+            // precio
             let precio = 0;
             if (Array.isArray(c.distancias)) {
               for (const dist of c.distancias) {
@@ -182,43 +180,40 @@ export default function MisInscripcionesPage() {
                 carreraDate.getMonth() + 1
               )}/${carreraDate.getFullYear()}`;
             } else if (typeof c.fecha === "string") {
-              const [y, m, dd] = c.fecha.split("-").map(Number);
-              carreraDate = new Date(y, m - 1, dd);
-              fechaCarr = `${pad(dd)}/${pad(m)}/${y}`;
+              const [y, m, d] = c.fecha.split("-").map(Number);
+              carreraDate = new Date(y, m - 1, d);
+              fechaCarr = `${pad(d)}/${pad(m)}/${y}`;
             }
 
-            // --- perfil: prioriza snapshot en inscripciones ---
-            let perfilNombre = (src.nombre || "") as string;
-            let perfilApPaterno = (src.paterno || "") as string;
-            let perfilApMaterno = (src.materno || "") as string;
-            let perfilClub: string | undefined = (src.club || undefined) as any;
+            // perfil
+            let perfilNombre = src.nombre || "";
+            let perfilApPaterno = src.paterno || "";
+            let perfilApMaterno = src.materno || "";
+            let perfilClub = src.club || undefined;
 
-            // fallback compat: si no hay snapshot, consulta usuarios como antes
             const needFallback =
-              !perfilNombre.trim() &&
-              !perfilApPaterno.trim() &&
-              !perfilApMaterno.trim();
+              !perfilNombre && !perfilApPaterno && !perfilApMaterno;
 
-            if (needFallback && src.perfilId && src.perfilOwner) {
+            if (needFallback && src.perfilId) {
               if (src.perfilId === src.perfilOwner) {
-                const uDoc = await getDoc(doc(db, "usuarios", src.perfilOwner));
-                if (uDoc.exists()) {
-                  const ud = uDoc.data() as any;
+                const u = await getDoc(doc(db, "usuarios", src.perfilOwner));
+                if (u.exists()) {
+                  const ud = u.data()!;
                   perfilNombre = ud.nombre || "";
-                  perfilApPaterno = ud.apPaterno || ud.apellidoPaterno || "";
-                  perfilApMaterno = ud.apMaterno || ud.apellidoMaterno || "";
+                  perfilApPaterno = ud.apPaterno || "";
+                  perfilApMaterno = ud.apMaterno || "";
                   perfilClub = ud.club;
                 }
               } else {
-                const sub = await getDoc(
+                const p = await getDoc(
                   doc(db, "usuarios", src.perfilOwner, "perfiles", src.perfilId)
                 );
-                if (sub.exists()) {
-                  const sd = sub.data() as any;
-                  perfilNombre = sd.nombre || "";
-                  perfilApPaterno = sd.apPaterno || sd.apellidoPaterno || "";
-                  perfilApMaterno = sd.apMaterno || sd.apellidoMaterno || "";
-                  perfilClub = sd.club;
+                if (p.exists()) {
+                  const pd = p.data()!;
+                  perfilNombre = pd.nombre || "";
+                  perfilApPaterno = pd.apPaterno || "";
+                  perfilApMaterno = pd.apMaterno || "";
+                  perfilClub = pd.club;
                 }
               }
             }
@@ -227,48 +222,46 @@ export default function MisInscripcionesPage() {
               ? src.timestamp.toDate().toLocaleString()
               : "";
 
-            const competitorNumber =
-              typeof src.competitorNumber === "number"
-                ? src.competitorNumber
-                : src.ficha ?? src.bib ?? undefined;
+            // 🔒 NÚMERO SOLO SI PAGADO O MANUAL
+            let competitorNumber: number | undefined = undefined;
+            if (src.paymentStatus === "paid" || src.paymentStatus === "manual") {
+              if (typeof src.competitorNumber === "number") {
+                competitorNumber = src.competitorNumber;
+              } else if (typeof src.ficha === "number") {
+                competitorNumber = src.ficha;
+              } else if (typeof src.bib === "number") {
+                competitorNumber = src.bib;
+              }
+            }
 
             return {
               id: d.id,
               carreraId: src.carreraId,
-
               titulo: c.titulo || "(sin título)",
               fechaCarr,
               carreraDate,
               horaSalida: c.horaSalida,
               ubicacion: c.lugar,
               imagenUrl: c.imagenUrl,
-
               precio,
               categoria: src.categoria,
               distancia,
-
               perfilId: src.perfilId,
               perfilNombre,
               perfilApPaterno,
               perfilApMaterno,
               perfilClub,
-
               fechaIns,
               sessionId: src.sessionId ?? null,
-              paymentStatus: (src.paymentStatus ?? "desconocido") as string,
-
+              paymentStatus: src.paymentStatus ?? "desconocido",
               competitorNumber,
-              ficha: src.ficha ?? null,
-              bib: src.bib ?? null,
-
               kitFecha: c.kitFecha,
               kitLugar: c.kitLugar,
               kitHorario: c.kitHorario,
-            } as InscView;
+            };
           })
         );
 
-        // solo futuras
         setList(all.filter((i) => i.carreraDate >= today));
         setLoading(false);
       });
@@ -279,16 +272,10 @@ export default function MisInscripcionesPage() {
     return () => unsubAuth();
   }, [auth]);
 
-  // ✅ FIX: reintentar pago sin pisar paymentStatus (el webhook manda)
-  const reintentarPago = async (item: InscView) => {
-  try {
-    // ✅ Mejor UX: pasamos por /pago para que exista fallback y mensajes claros
+  const reintentarPago = (item: InscView) => {
+    if (item.paymentStatus === "paid") return;
     window.location.href = `/pago?inscripcionId=${encodeURIComponent(item.id)}`;
-  } catch (e: any) {
-    console.error(e);
-    alert(e?.message || "No se pudo reintentar el pago");
-  }
-};
+  };
 
   const pill = (status?: string) => {
     if (status === "paid")
