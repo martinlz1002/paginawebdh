@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import AuthGuard from "@/components/AuthGuard";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -145,6 +146,8 @@ export default function InscripcionesManualesAdmin() {
         password,
         createdAt: serverTimestamp(),
 
+        processed: false,
+
         // auditoría
         reservedFrom: startNumber,
         reservedTo: endNumber,
@@ -177,26 +180,31 @@ export default function InscripcionesManualesAdmin() {
   };
 
   const handleDelete = async (tempId: string) => {
-    setError(null);
+  setError(null);
 
-    const ok = window.confirm(
-      "¿Eliminar este acceso temporal?\n\nEl link quedará inactivo."
-    );
-    if (!ok) return;
+  const ok = window.confirm(
+    "¿Eliminar este acceso temporal?\n\nLos números no usados serán liberados."
+  );
+  if (!ok) return;
 
-    setDeletingId(tempId);
+  setDeletingId(tempId);
 
-    try {
-      await deleteDoc(doc(db, "tempusuarios", tempId));
-      setAccesses((prev) => prev.filter((a) => a.id !== tempId));
-      setLink((prevLink) => (prevLink.includes(tempId) ? "" : prevLink));
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || "No se pudo eliminar el acceso.");
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  try {
+    const functions = getFunctions();
+    const liberar = httpsCallable(functions, "liberarNumerosDeTempUsuario");
+
+    await liberar({ tempUsuarioId: tempId });
+
+    // solo UI
+    setAccesses((prev) => prev.filter((a) => a.id !== tempId));
+    setLink((prevLink) => (prevLink.includes(tempId) ? "" : prevLink));
+  } catch (e: any) {
+    console.error(e);
+    setError(e?.message || "No se pudo eliminar el acceso.");
+  } finally {
+    setDeletingId(null);
+  }
+};
 
   return (
     <AuthGuard>
