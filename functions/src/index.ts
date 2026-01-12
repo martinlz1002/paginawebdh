@@ -60,7 +60,41 @@ export const borrarInscripcionesDeCarrera = functions
 
 /**
  * =========================================================
- * 2) CRON: LIBERAR NÚMEROS DE LINKS MANUALES EXPIRADOS
+ * 2) ELIMINAR LINK DE INSCRIPCIÓN MANUAL (ADMIN)
+ * =========================================================
+ * - Se llama desde el frontend
+ * - NO libera números aquí
+ * - El CRON se encarga si aplica
+ */
+export const eliminarTempUsuario = functions
+  .runWith({ memory: "128MB", timeoutSeconds: 30 })
+  .https.onCall(async (data, context) => {
+    if (!context.auth?.token.admin) {
+      throw new functions.https.HttpsError(
+        "permission-denied",
+        "Requiere permisos de administrador"
+      );
+    }
+
+    const { tempId } = data as { tempId: string };
+    if (!tempId) {
+      throw new functions.https.HttpsError("invalid-argument", "Falta tempId");
+    }
+
+    const ref = db.collection("tempusuarios").doc(tempId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      return { ok: true };
+    }
+
+    await ref.delete();
+    return { ok: true };
+  });
+
+/**
+ * =========================================================
+ * 3) CRON: LIBERAR NÚMEROS DE LINKS MANUALES EXPIRADOS
  * =========================================================
  */
 export const liberarNumerosDeTempUsuariosExpirados = functions
@@ -104,7 +138,7 @@ export const liberarNumerosDeTempUsuariosExpirados = functions
 
       const carreraRef = db.collection("carreras").doc(carreraId);
 
-      // 🔹 usados
+      // 🔹 números usados
       const insSnap = await db
         .collection("inscripciones")
         .where("carreraId", "==", carreraId)
@@ -118,7 +152,6 @@ export const liberarNumerosDeTempUsuariosExpirados = functions
         if (n > 0) usados.add(n);
       });
 
-      // 🔹 liberar en batches (máx 400 writes)
       let batch = db.batch();
       let writes = 0;
 

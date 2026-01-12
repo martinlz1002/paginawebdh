@@ -11,7 +11,6 @@ import {
   serverTimestamp,
   DocumentReference,
   Timestamp,
-  deleteDoc,
   doc,
   getDoc,
 } from "firebase/firestore";
@@ -57,14 +56,14 @@ export default function InscripcionesManualesAdmin() {
   const router = useRouter();
   const [carreras, setCarreras] = useState<CarreraOption[]>([]);
   const [accesses, setAccesses] = useState<TempAccessRecord[]>([]);
-  const [carreraId, setCarreraId] = useState<string>("");
-  const [startNumber, setStartNumber] = useState<number>(0);
-  const [endNumber, setEndNumber] = useState<number>(0);
-  const [expiresAt, setExpiresAt] = useState<string>("");
-  const [username, setUsername] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
-  const [link, setLink] = useState<string>("");
-  const [loading, setLoading] = useState<boolean>(false);
+  const [carreraId, setCarreraId] = useState("");
+  const [startNumber, setStartNumber] = useState(0);
+  const [endNumber, setEndNumber] = useState(0);
+  const [expiresAt, setExpiresAt] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [link, setLink] = useState("");
+  const [loading, setLoading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,32 +78,30 @@ export default function InscripcionesManualesAdmin() {
       );
 
       const snapT = await getDocs(collection(db, "tempusuarios"));
-      const accs: TempAccessRecord[] = snapT.docs.map((d) => {
-        const data = d.data() as any;
-
-        return {
-          id: d.id,
-          carreraId: data.carreraId,
-          range: data.range,
-          username: data.username,
-          password: data.password,
-          expiresAt: data.expiresAt?.toDate
-            ? (data.expiresAt as Timestamp).toDate()
-            : new Date(data.expiresAt),
-          createdAt: data.createdAt?.toDate
-            ? (data.createdAt as Timestamp).toDate()
-            : new Date(),
-          link: data.link,
-        };
-      });
-
-      setAccesses(accs);
+      setAccesses(
+        snapT.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            carreraId: data.carreraId,
+            range: data.range,
+            username: data.username,
+            password: data.password,
+            expiresAt: data.expiresAt?.toDate
+              ? (data.expiresAt as Timestamp).toDate()
+              : new Date(data.expiresAt),
+            createdAt: data.createdAt?.toDate
+              ? (data.createdAt as Timestamp).toDate()
+              : new Date(),
+            link: data.link,
+          };
+        })
+      );
     })();
   }, []);
 
   const handleCreate = async () => {
     setError(null);
-
     const expDate = parseDateTimeLocal(expiresAt);
 
     if (
@@ -127,7 +124,6 @@ export default function InscripcionesManualesAdmin() {
     setLoading(true);
 
     try {
-      // 🔎 Validar cupo máximo (sin tocar nextNumber)
       const carreraRef = doc(db, "carreras", carreraId);
       const carreraSnap = await getDoc(carreraRef);
       if (!carreraSnap.exists()) throw new Error("Carrera no encontrada");
@@ -137,7 +133,6 @@ export default function InscripcionesManualesAdmin() {
         throw new Error(`El rango excede el cupo máximo (${maxCupo})`);
       }
 
-      // ✅ Crear acceso temporal (NO afecta numeración global)
       const docRef = (await addDoc(collection(db, "tempusuarios"), {
         carreraId,
         range: { start: startNumber, end: endNumber },
@@ -145,10 +140,7 @@ export default function InscripcionesManualesAdmin() {
         username: username.trim(),
         password,
         createdAt: serverTimestamp(),
-
         processed: false,
-
-        // auditoría
         reservedFrom: startNumber,
         reservedTo: endNumber,
       })) as DocumentReference;
@@ -180,31 +172,28 @@ export default function InscripcionesManualesAdmin() {
   };
 
   const handleDelete = async (tempId: string) => {
-  setError(null);
+    setError(null);
 
-  const ok = window.confirm(
-    "¿Eliminar este acceso temporal?\n\nLos números no usados serán liberados."
-  );
-  if (!ok) return;
+    const ok = window.confirm(
+      "¿Eliminar este acceso temporal?\n\nLos números no usados serán liberados."
+    );
+    if (!ok) return;
 
-  setDeletingId(tempId);
+    setDeletingId(tempId);
 
-  try {
-    const functions = getFunctions();
-    const liberar = httpsCallable(functions, "liberarNumerosDeTempUsuario");
+    try {
+      const fn = httpsCallable(getFunctions(), "eliminarTempUsuario");
+      await fn({ tempId });
 
-    await liberar({ tempUsuarioId: tempId });
-
-    // solo UI
-    setAccesses((prev) => prev.filter((a) => a.id !== tempId));
-    setLink((prevLink) => (prevLink.includes(tempId) ? "" : prevLink));
-  } catch (e: any) {
-    console.error(e);
-    setError(e?.message || "No se pudo eliminar el acceso.");
-  } finally {
-    setDeletingId(null);
-  }
-};
+      setAccesses((prev) => prev.filter((a) => a.id !== tempId));
+      setLink((prev) => (prev.includes(tempId) ? "" : prev));
+    } catch (e: any) {
+      console.error(e);
+      setError(e?.message || "No se pudo eliminar el acceso.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <AuthGuard>
