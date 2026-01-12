@@ -30,8 +30,8 @@ const stripe = new Stripe(requireEnv("STRIPE_SECRET_KEY"), {
 });
 
 // ---------- helpers ----------
-function norm(s: any) {
-  return String(s ?? "").trim().toUpperCase();
+function norm(v: any) {
+  return String(v ?? "").trim().toUpperCase();
 }
 
 function calcularTotalCobrar(neto: number) {
@@ -41,34 +41,28 @@ function calcularTotalCobrar(neto: number) {
 
   const base = neto * (1 + IVA);
   const bruto = (base + stripeFijo) / (1 - stripePct);
-  return Math.round(bruto * 100); // centavos
+  return Math.round(bruto * 100);
 }
 
 function getNetoFromCarrera(carrera: any, distancia: string, categoria: string) {
-  const distN = norm(distancia);
-  const catN = norm(categoria);
-
   const d = (carrera.distancias || []).find(
-    (x: any) => norm(x.distancia) === distN
+    (x: any) => norm(x.distancia) === norm(distancia)
   );
-  if (!d) throw new Error(`Distancia no encontrada: "${distancia}"`);
+  if (!d) throw new Error(`Distancia no encontrada: ${distancia}`);
 
   const c = (d.categorias || []).find(
-    (x: any) => norm(x.nombre) === catN
+    (x: any) => norm(x.nombre) === norm(categoria)
   );
-  if (!c)
-    throw new Error(
-      `Categoría no encontrada: "${categoria}" en "${distancia}"`
-    );
+  if (!c) throw new Error(`Categoría no encontrada: ${categoria}`);
 
   const neto = Number(c.price);
-  if (!Number.isFinite(neto) || neto <= 0)
+  if (!Number.isFinite(neto) || neto <= 0) {
     throw new Error("Precio inválido");
-
+  }
   return neto;
 }
 
-// ---------- pool helpers (CORREGIDO) ----------
+// ---------- allocateNumberTx (SOLO LECTURAS ARRIBA, ESCRITURAS ABAJO) ----------
 async function allocateNumberTx(
   tx: FirebaseFirestore.Transaction,
   carreraId: string
@@ -76,13 +70,13 @@ async function allocateNumberTx(
   const carreraRef = firestore.collection("carreras").doc(carreraId);
   const freeCol = carreraRef.collection("freeNumbers");
 
+  // 🔹 LECTURAS
   const carreraSnap = await tx.get(carreraRef);
   if (!carreraSnap.exists) throw new Error("Carrera no existe");
 
   const maxCupo = Number(carreraSnap.get("maxCompetitors") || 0);
   let candidate = Number(carreraSnap.get("nextNumber") || 1);
 
-  // 🔹 usados (manual + online)
   const usedSnap = await tx.get(
     firestore
       .collection("inscripciones")
@@ -97,7 +91,6 @@ async function allocateNumberTx(
     if (Number.isFinite(n) && n > 0) used.add(n);
   });
 
-  // 🔹 rangos manuales activos
   const now = new Date();
   const manualSnap = await tx.get(
     firestore
@@ -110,31 +103,21 @@ async function allocateNumberTx(
   manualSnap.docs.forEach((d) => {
     const r = d.get("range");
     if (!r) return;
-    const start = Number(r.start);
-    const end = Number(r.end);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-    for (let i = start; i <= end; i++) {
-      reserved.add(i);
-    }
+    for (let i = r.start; i <= r.end; i++) reserved.add(i);
   });
 
-  // 🔹 huecos primero
-  const freeSnap = await tx.get(
-    freeCol.orderBy("n", "asc").limit(5)
-  );
+  const freeSnap = await tx.get(freeCol.orderBy("n", "asc").limit(10));
 
+  // 🔹 DECISIÓN
   for (const doc of freeSnap.docs) {
     const n = Number(doc.get("n"));
     if (!used.has(n) && !reserved.has(n)) {
-      if (maxCupo > 0 && n > maxCupo) {
-        throw new Error("Número fuera de cupo");
-      }
+      if (maxCupo > 0 && n > maxCupo) throw new Error("Fuera de cupo");
       tx.delete(doc.ref);
       return n;
     }
   }
 
-  // 🔹 avanzar nextNumber hasta libre y no reservado
   while (used.has(candidate) || reserved.has(candidate)) {
     candidate++;
     if (maxCupo > 0 && candidate > maxCupo) {
@@ -142,19 +125,18 @@ async function allocateNumberTx(
     }
   }
 
+  // 🔹 ESCRITURA FINAL
   tx.set(carreraRef, { nextNumber: candidate + 1 }, { merge: true });
   return candidate;
 }
 
+// ---------- origin ----------
 function getOrigin(req: NextApiRequest) {
-  const h = req.headers.origin;
-  if (typeof h === "string" && h.length > 0) return h;
-
+  if (typeof req.headers.origin === "string" && req.headers.origin.length > 0) {
+    return req.headers.origin;
+  }
   const base = process.env.NEXT_PUBLIC_BASE_URL;
-  if (!base)
-    throw new Error(
-      "Missing NEXT_PUBLIC_BASE_URL (needed when Origin header is absent)"
-    );
+  if (!base) throw new Error("Missing NEXT_PUBLIC_BASE_URL");
   return base;
 }
 
@@ -170,46 +152,26 @@ export default async function handler(
 
   try {
     const { inscripcionId } = req.body as { inscripcionId?: string };
-    if (!inscripcionId)
+    if (!inscripcionId) {
       return res.status(400).json({ error: "Falta inscripcionId" });
+    }
 
     const insRef = firestore.collection("inscripciones").doc(inscripcionId);
 
-    // 1️⃣ Transacción: asegurar número y calcular neto real
+    // ---------- TRANSACTION ----------
     const payload = await firestore.runTransaction(async (tx) => {
+      // 🔹 LECTURAS
       const insSnap = await tx.get(insRef);
       if (!insSnap.exists) throw new Error("Inscripción no encontrada");
 
       const ins = insSnap.data() as any;
 
-      const carreraId = ins.carreraId as string;
-      const perfilId = (ins.perfilId as string | null) || null;
-      const categoria = ins.categoria as string;
-      const distancia = (ins.distancia || ins.ruta) as string;
+      const carreraId = ins.carreraId;
+      const categoria = ins.categoria;
+      const distancia = ins.distancia || ins.ruta;
 
       if (!carreraId || !categoria || !distancia) {
         throw new Error("Inscripción incompleta");
-      }
-
-      if (ins.paymentStatus === "paid") {
-        throw new Error("La inscripción ya está pagada");
-      }
-
-      let assigned = ins.competitorNumber as number | null;
-
-      if (!assigned) {
-        assigned = await allocateNumberTx(tx, carreraId);
-        tx.update(insRef, {
-          competitorNumber: assigned,
-          ficha: assigned,
-          bib: assigned,
-          paymentStatus: "pending",
-        });
-      } else {
-        const updates: any = { paymentStatus: "pending" };
-        if (!ins.ficha) updates.ficha = assigned;
-        if (!ins.bib) updates.bib = assigned;
-        tx.update(insRef, updates);
       }
 
       const carreraRef = firestore.collection("carreras").doc(carreraId);
@@ -219,9 +181,22 @@ export default async function handler(
       const carrera = carreraSnap.data() as any;
       const neto = getNetoFromCarrera(carrera, distancia, categoria);
 
+      // 🔹 DECISIÓN
+      let assigned = ins.competitorNumber as number | null;
+      if (!assigned || assigned <= 0) {
+        assigned = await allocateNumberTx(tx, carreraId);
+      }
+
+      // 🔹 ESCRITURAS
+      tx.update(insRef, {
+        competitorNumber: assigned,
+        ficha: assigned,
+        bib: assigned,
+        paymentStatus: "pending",
+      });
+
       return {
         carreraId,
-        perfilId,
         categoria,
         distancia,
         neto,
@@ -229,10 +204,10 @@ export default async function handler(
       };
     });
 
+    // ---------- STRIPE ----------
     const origin = getOrigin(req);
     const unit_amount = calcularTotalCobrar(payload.neto);
 
-    // 2️⃣ Stripe session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card", "oxxo"],
       mode: "payment",
@@ -253,35 +228,21 @@ export default async function handler(
       metadata: {
         inscripcionId,
         carreraId: payload.carreraId,
-        perfilId: payload.perfilId || "",
-        categoria: payload.categoria,
-        distancia: payload.distancia,
-        neto: String(payload.neto),
         competitorNumber: String(payload.competitorNumber),
       },
-      expand: ["payment_intent"],
     });
 
-    if (!session.url) {
-      throw new Error("Stripe no devolvió URL de pago");
-    }
-
-    // 3️⃣ guardar sesión
     await insRef.update({
       sessionId: session.id,
-      paymentStatus: "pending",
       updatedAt: FieldValue.serverTimestamp(),
     });
 
-    return res.status(200).json({
-      url: session.url,
-      sessionId: session.id,
-    });
+    return res.status(200).json({ url: session.url, sessionId: session.id });
   } catch (err: any) {
-    console.error("[retry_checkout] error:", err?.message, err);
+    console.error("[retry_checkout] error:", err);
     return res.status(500).json({
-      error: err?.message || "Error",
-      stack: process.env.NODE_ENV !== "production" ? err?.stack : undefined,
+      error: err.message || "Error",
+      stack: process.env.NODE_ENV !== "production" ? err.stack : undefined,
     });
   }
 }
