@@ -5,6 +5,27 @@ admin.initializeApp();
 const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
+async function assertAdmin(context: functions.https.CallableContext) {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      "unauthenticated",
+      "Usuario no autenticado"
+    );
+  }
+
+  const uid = context.auth.uid;
+  const snap = await db.collection("usuarios").doc(uid).get();
+
+  if (!snap.exists || snap.data()?.admin !== true) {
+    throw new functions.https.HttpsError(
+      "permission-denied",
+      "Requiere permisos de administrador"
+    );
+  }
+
+  return uid;
+}
+
 /**
  * =========================================================
  * 1) BORRAR INSCRIPCIONES DE UNA CARRERA
@@ -69,16 +90,15 @@ export const borrarInscripcionesDeCarrera = functions
 export const eliminarTempUsuario = functions
   .runWith({ memory: "128MB", timeoutSeconds: 30 })
   .https.onCall(async (data, context) => {
-    if (!context.auth?.token.admin) {
-      throw new functions.https.HttpsError(
-        "permission-denied",
-        "Requiere permisos de administrador"
-      );
-    }
+
+    await assertAdmin(context); // 🔥 CLAVE
 
     const { tempId } = data as { tempId: string };
     if (!tempId) {
-      throw new functions.https.HttpsError("invalid-argument", "Falta tempId");
+      throw new functions.https.HttpsError(
+        "invalid-argument",
+        "Falta tempId"
+      );
     }
 
     const ref = db.collection("tempusuarios").doc(tempId);
