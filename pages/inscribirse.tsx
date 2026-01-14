@@ -273,6 +273,9 @@ export default function InscribirsePage() {
   }, [perfilId]);
 
   const handlePagar = async () => {
+    if (carreraFinalizada) {
+  return setMensaje("Esta carrera ya finalizó. No es posible inscribirse.");
+}
   setMensaje("");
 
   if (!user) return setMensaje("Inicia sesión para inscribirte.");
@@ -413,7 +416,17 @@ export default function InscribirsePage() {
   const pausaMsg =
     (carrera as any)?.inscripcionesMensaje || "Inscripciones pausadas temporalmente.";
 
-  const fechaEvento = parseISODateYYYYMMDD((carrera as any).fecha).toLocaleDateString("es-MX");
+  const fechaEventoDate = parseISODateYYYYMMDD((carrera as any).fecha);
+const fechaEvento = fechaEventoDate.toLocaleDateString("es-MX");
+
+  const today = new Date();
+today.setHours(0, 0, 0, 0);
+
+const carreraFinalizada = fechaEventoDate < today;
+
+const resultadosUrl = (carrera as any)?.resultados?.url;
+const resultadosPublicado = (carrera as any)?.resultados?.publicado === true;
+const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUrl;
 
   return (
     <div className="min-h-screen bg-dh-soft">
@@ -600,6 +613,30 @@ export default function InscribirsePage() {
             </div>
           )}
 
+          {carreraFinalizada && (
+  <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-5 flex flex-col gap-4">
+    <div className="text-center">
+      <div className="text-lg font-extrabold text-dh-ink">
+        🏁 Carrera finalizada
+      </div>
+      <p className="text-sm text-gray-600 mt-1">
+        Esta carrera ya se llevó a cabo. Las inscripciones están cerradas.
+      </p>
+    </div>
+
+    {hayResultados && (
+      <a
+        href={resultadosUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mx-auto inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
+      >
+        🏁 Ver resultados oficiales
+      </a>
+    )}
+  </div>
+)}
+
           {/* Form */}
           <div className={`${cardBase} p-5 space-y-4`}>
             <div className="flex items-center justify-between">
@@ -672,29 +709,35 @@ export default function InscribirsePage() {
 
             {/* CTA */}
             <button
-              onClick={handlePagar}
-              disabled={
-                !abiertas ||
-                !perfilId ||
-                !distancia ||
-                !categoria ||
-                procesando ||
-                (ramaPendiente && !ramaManual)
-              }
-              className={`w-full py-3 rounded-xl font-extrabold transition ${
-                abiertas && perfilId && distancia && categoria
-                  ? "bg-dh-green text-dh-dark hover:opacity-95"
-                  : "bg-gray-300 text-gray-600 cursor-not-allowed"
-              }`}
-            >
-              {!abiertas
-                ? "Inscripciones pausadas"
-                : procesando
-                ? "Procesando..."
-                : ramaPendiente && !ramaManual
-                ? "Selecciona Rama"
-                : "Inscribirme y Pagar"}
-            </button>
+  onClick={handlePagar}
+  disabled={
+    carreraFinalizada ||
+    !abiertas ||
+    !perfilId ||
+    !distancia ||
+    !categoria ||
+    procesando ||
+    (ramaPendiente && !ramaManual)
+  }
+  className={`w-full py-3 rounded-xl font-extrabold transition ${
+    carreraFinalizada || !abiertas
+      ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+      : perfilId && distancia && categoria
+      ? "bg-dh-green text-dh-dark hover:opacity-95"
+      : "bg-gray-300 text-gray-600 cursor-not-allowed"
+  }`}
+>
+  {carreraFinalizada
+    ? "Carrera finalizada"
+    : !abiertas
+    ? "Inscripciones pausadas"
+    : procesando
+    ? "Procesando..."
+    : ramaPendiente && !ramaManual
+    ? "Selecciona Rama"
+    : "Inscribirme y Pagar"}
+</button>
+
 
             {!abiertas && (
               <p className="text-center text-red-700 text-sm font-semibold">{pausaMsg}</p>

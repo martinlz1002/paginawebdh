@@ -2,6 +2,12 @@ import { useEffect, useState } from "react";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import SectionHeader from "./SectionHeader";
 
+/**
+ * 🔒 Feature flag
+ * Cambia a true si quieres volver a mostrar testimonios
+ */
+const SHOW_TESTIMONIALS = false;
+
 interface Testimonial {
   id: string;
   author: string;
@@ -11,6 +17,11 @@ interface Testimonial {
 }
 
 export default function Testimonials() {
+  // 🚫 OCULTO COMPLETAMENTE
+  if (!SHOW_TESTIMONIALS) {
+    return null;
+  }
+
   const [items, setItems] = useState<Testimonial[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
@@ -41,7 +52,11 @@ export default function Testimonials() {
     if (!user || !newText.trim()) return;
 
     const author = user.displayName || user.email!.split("@")[0];
-    const payload = { author, text: newText.trim(), avatarUrl: user.photoURL || null };
+    const payload = {
+      author,
+      text: newText.trim(),
+      avatarUrl: user.photoURL || null,
+    };
 
     try {
       const res = await fetch("/api/testimonials", {
@@ -100,7 +115,9 @@ export default function Testimonials() {
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-dh-ink/45">
               Se publica con tu usuario:{" "}
-              <span className="text-dh-ink/70">{user.displayName || user.email}</span>
+              <span className="text-dh-ink/70">
+                {user.displayName || user.email}
+              </span>
             </p>
 
             <button
@@ -125,14 +142,15 @@ export default function Testimonials() {
         </div>
       ) : items.length === 0 ? (
         <div className={`${shell} p-6`}>
-          <p className="text-dh-ink/70">
-            No hay testimonios aún.
-          </p>
+          <p className="text-dh-ink/70">No hay testimonios aún.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((t) => {
-            const initial = (t.author || "?").trim().charAt(0).toUpperCase();
+            const initial = (t.author || "?")
+              .trim()
+              .charAt(0)
+              .toUpperCase();
 
             return (
               <div
@@ -159,8 +177,12 @@ export default function Testimonials() {
                   </div>
 
                   <div className="min-w-0">
-                    <p className="font-semibold text-dh-ink truncate">{t.author}</p>
-                    <p className="text-xs text-dh-ink/50">Corredor verificado ✅</p>
+                    <p className="font-semibold text-dh-ink truncate">
+                      {t.author}
+                    </p>
+                    <p className="text-xs text-dh-ink/50">
+                      Corredor verificado ✅
+                    </p>
                   </div>
                 </div>
 
@@ -172,7 +194,6 @@ export default function Testimonials() {
 
                 <div className="mt-auto pt-3 border-t border-white/10 flex items-center justify-between">
                   <span className="text-xs text-dh-ink/45">DHTime</span>
-                  {/* Si luego quieres fecha, aquí la pintamos */}
                 </div>
               </div>
             );

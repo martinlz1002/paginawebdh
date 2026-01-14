@@ -23,6 +23,12 @@ export interface AdminCarrerasFormProps {
     // ✅ nuevo
     inscripcionesAbiertas?: boolean;
     inscripcionesMensaje?: string;
+
+    // 🏁 RESULTADOS
+    resultados?: {
+      url?: string;
+      publicado?: boolean;
+    };
   };
   onSuccess?: () => void;
 }
@@ -58,6 +64,13 @@ function toYYYYMMDD(v: any): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// 🏁 RESULTADOS – parse seguro yyyy-mm-dd
+function parseISODateYYYYMMDD(iso: string): Date {
+  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return new Date("2000-01-01");
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+
 export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
   const [titulo, setTitulo] = useState(initialValues?.titulo || "");
   const [descripcion, setDescripcion] = useState(initialValues?.descripcion || "");
@@ -78,6 +91,14 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
   const [bannerFile, setBannerFile] = useState<File | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string | undefined>(initialValues?.imagenUrl);
   const [bannerUrl, setBannerUrl] = useState<string | undefined>(initialValues?.bannerUrl);
+
+  // 🏁 RESULTADOS
+const [resultadosUrl, setResultadosUrl] = useState(
+  initialValues?.resultados?.url || ""
+);
+const [resultadosPublicado, setResultadosPublicado] = useState<boolean>(
+  initialValues?.resultados?.publicado === true
+);
 
   const [distancias, setDistancias] = useState<DistanciaConCategorias[]>(
     initialValues?.distancias || []
@@ -110,6 +131,10 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     setHoraSalida(initialValues?.horaSalida || "");
     setMaxCompetitors(initialValues?.maxCompetitors || 0);
     setAgeBasis(initialValues?.ageBasis || "endOfYear");
+
+    // 🏁 RESULTADOS
+setResultadosUrl(initialValues?.resultados?.url || "");
+setResultadosPublicado(initialValues?.resultados?.publicado === true);
 
     setKitFecha(initialValues?.kitFecha || "");
     setKitLugar(initialValues?.kitLugar || "");
@@ -203,6 +228,12 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
     );
   };
 
+  // 🏁 RESULTADOS
+const fechaDate = parseISODateYYYYMMDD(fecha);
+const today = new Date();
+today.setHours(0, 0, 0, 0);
+const carreraFinalizada = fechaDate < today;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -247,6 +278,22 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
       maxCompetitors,
       ageBasis,
       distancias: distanciasNorm,
+
+      // 🏁 RESULTADOS
+...(carreraFinalizada
+  ? {
+      resultados: {
+        url: resultadosUrl.trim(),
+        publicado: resultadosPublicado,
+      },
+    }
+  : {
+      resultados: {
+        url: "",
+        publicado: false,
+      },
+    }),
+
       kitFecha: kitFecha || "Por definir",
       kitLugar: kitLugar || "Por definir",
       kitHorario: kitHorario || "Por definir",
@@ -322,6 +369,34 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
           </div>
         )}
       </div>
+
+      {/* 🏁 RESULTADOS */}
+{carreraFinalizada && (
+  <div className="border rounded-lg p-4 bg-dh-soft">
+    <p className="font-semibold text-dh-ink mb-2">🏁 Resultados oficiales</p>
+
+    <input
+      type="url"
+      value={resultadosUrl}
+      onChange={(e) => setResultadosUrl(e.target.value)}
+      placeholder="https://sportmaniacs.com/..."
+      className="w-full border p-2 rounded text-gray-800"
+    />
+
+    <label className="flex items-center gap-2 mt-3 text-sm text-gray-700">
+      <input
+        type="checkbox"
+        checked={resultadosPublicado}
+        onChange={() => setResultadosPublicado((v) => !v)}
+      />
+      Publicar resultados
+    </label>
+
+    <p className="text-xs text-gray-500 mt-1">
+      Solo se mostrarán al público cuando estén publicados.
+    </p>
+  </div>
+)}
 
       {/* TÍTULO */}
       <div>

@@ -58,6 +58,11 @@ interface InscView {
   id: string;
   carreraId: string;
 
+  // 🏁 RESULTADOS
+  resultadosUrl?: string;
+  resultadosPublicado?: boolean;
+  carreraFinalizada?: boolean;
+
   titulo: string;
   fechaCarr: string;
   carreraDate: Date;
@@ -258,11 +263,15 @@ export default function MisInscripcionesPage() {
               kitFecha: c.kitFecha,
               kitLugar: c.kitLugar,
               kitHorario: c.kitHorario,
+              // 🏁 RESULTADOS
+              resultadosUrl: c.resultados?.url || "",
+              resultadosPublicado: c.resultados?.publicado === true,
+              carreraFinalizada: carreraDate < today,
             };
           })
         );
 
-        setList(all.filter((i) => i.carreraDate >= today));
+        setList(all);
         setLoading(false);
       });
 
@@ -431,7 +440,20 @@ export default function MisInscripcionesPage() {
     >
       <DocumentArrowDownIcon className="w-5 h-5" />
       Confirmación
+      {i.carreraFinalizada && i.resultadosPublicado && i.resultadosUrl && (
+  <a
+    href={i.resultadosUrl}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
+    title="Ver resultados oficiales"
+  >
+    🏁 Resultados
+  </a>
+)}
     </button>
+    
+    
   ) : i.paymentStatus === "manual" ? (
     <div className="flex items-center gap-2 text-xs text-gray-600">
       <CheckCircleIcon className="w-5 h-5 text-blue-600" />
