@@ -1,82 +1,273 @@
-import Link from "next/link";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/router";
+import {
+  CalendarIcon,
+  MapPinIcon,
+  LockClosedIcon,
+  TrophyIcon,
+} from "@heroicons/react/24/outline";
 
-interface HeroSlide {
+/* =====================
+   TIPOS
+===================== */
+
+type CarreraBase = {
   id: string;
   titulo: string;
-  fecha: string;
+  fecha?: string;
+  ubicacion?: string;
   imagenUrl?: string;
-  tipo: "inscripcion" | "resultados";
-  resultados?: {
-    url?: string;
-    publicado?: boolean;
-  };
-}
+};
+
+type CarreraInscripcion = CarreraBase & {
+  type: "carrera";
+  inscripcionesAbiertas?: boolean;
+  inscripcionesMensaje?: string;
+};
+
+type CarreraResultados = CarreraBase & {
+  type: "resultados";
+  resultadosUrl: string;
+};
+
+type WelcomeSlide = {
+  type: "welcome";
+  title: string;
+  subtitle: string;
+};
+
+type Slide = WelcomeSlide | CarreraInscripcion | CarreraResultados;
+
+/* =====================
+   PROPS
+===================== */
 
 interface HeroSliderProps {
-  carreras: HeroSlide[];
+  carreras: Array<{
+    id: string;
+    titulo: string;
+    fecha?: string;
+    ubicacion?: string;
+    imagenUrl?: string;
+    inscripcionesAbiertas?: boolean;
+    inscripcionesMensaje?: string;
+    resultados?: {
+      publicado?: boolean;
+      url?: string;
+    };
+    carreraDate?: Date;
+  }>;
 }
 
 export default function HeroSlider({ carreras }: HeroSliderProps) {
+  const router = useRouter();
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  /* =====================
+     SLIDES
+  ===================== */
+
+  const slides: Slide[] = useMemo(() => {
+    const welcome: WelcomeSlide = {
+      type: "welcome",
+      title: "Bienvenido al mundo donde cada segundo cuenta",
+      subtitle:
+        "Inscríbete en tu próxima carrera, paga en línea y trae tu mejor versión.",
+    };
+
+    const futuras: CarreraInscripcion[] = carreras
+      .filter((c) => c.inscripcionesAbiertas !== false)
+      .map((c) => ({
+        type: "carrera",
+        id: c.id,
+        titulo: c.titulo,
+        fecha: c.fecha,
+        ubicacion: c.ubicacion,
+        imagenUrl: c.imagenUrl,
+        inscripcionesAbiertas: c.inscripcionesAbiertas !== false,
+        inscripcionesMensaje: c.inscripcionesMensaje || "",
+      }));
+
+    const resultados: CarreraResultados[] = carreras
+      .filter(
+        (c) =>
+          c.resultados?.publicado === true &&
+          typeof c.resultados.url === "string" &&
+          c.resultados.url.trim()
+      )
+      .map((c) => ({
+        type: "resultados",
+        id: c.id,
+        titulo: c.titulo,
+        fecha: c.fecha,
+        ubicacion: c.ubicacion,
+        imagenUrl: c.imagenUrl,
+        resultadosUrl: c.resultados!.url!,
+      }));
+
+    return [welcome, ...futuras, ...resultados];
+  }, [carreras]);
+
+  /* =====================
+     AUTOPLAY
+  ===================== */
+
+  useEffect(() => {
+    if (paused || slides.length <= 1) return;
+
+    intervalRef.current = setInterval(() => {
+      setIndex((prev) => (prev + 1) % slides.length);
+    }, 3500);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [paused, slides.length]);
+
+  const goTo = (i: number) => setIndex(i);
+
+  /* =====================
+     CLICK HANDLER
+  ===================== */
+
+  const handleClick = (slide: Slide) => {
+    if (slide.type === "carrera") {
+      if (slide.inscripcionesAbiertas === false) return;
+      router.push(`/inscribirse?carreraId=${slide.id}`);
+    }
+
+    if (slide.type === "resultados") {
+      window.open(slide.resultadosUrl, "_blank");
+    }
+  };
+
+  const current = slides[index];
+
+  /* =====================
+     RENDER
+  ===================== */
+
   return (
-    <div className="space-y-6">
-      {carreras.map((c) => (
-        <section
-          key={c.id}
-          className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm"
-        >
-          {/* Imagen de fondo */}
-          {c.imagenUrl && (
-            <>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={c.imagenUrl}
-                alt={c.titulo}
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-black/55" />
-            </>
+    <section
+      className="w-full"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      <div className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm">
+        <div className="relative h-[240px] sm:h-[320px] lg:h-[360px]">
+          {/* Fondo */}
+          {"imagenUrl" in current && current.imagenUrl ? (
+            <img
+              src={current.imagenUrl}
+              alt={"titulo" in current ? current.titulo : ""}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="h-full w-full bg-gradient-to-br from-dh-purple/20 via-white to-dh-green/15" />
+          )}
+
+          {/* Overlay */}
+          <div
+            className={`absolute inset-0 ${
+              current.type === "welcome" ? "bg-black/10" : "bg-black/35"
+            }`}
+          />
+
+          {/* Logo watermark solo welcome */}
+          {current.type === "welcome" && (
+            <img
+              src="/mi-logo.png"
+              alt="DHTime Logo"
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+                         h-[70%] w-auto max-w-[95%] opacity-[0.28]"
+            />
           )}
 
           {/* Contenido */}
-          <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-12 text-white space-y-4">
-            <span className="inline-block text-xs font-extrabold tracking-wide bg-white/20 px-3 py-1 rounded-full">
-              {c.tipo === "resultados"
-                ? "RESULTADOS"
-                : "INSCRIPCIONES ABIERTAS"}
-            </span>
+          <button
+            type="button"
+            onClick={() => handleClick(current)}
+            className="absolute inset-0 flex w-full items-end p-5 sm:p-7 text-left"
+          >
+            <div className="relative z-10 max-w-3xl text-white">
+              {current.type === "welcome" ? (
+                <>
+                  <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur">
+                    DHTime • Cronometraje & Eventos
+                  </p>
+                  <h1 className="mt-3 text-2xl font-extrabold sm:text-3xl lg:text-4xl">
+                    {current.title}
+                  </h1>
+                  <p className="mt-2 text-sm opacity-85 sm:text-base">
+                    {current.subtitle}
+                  </p>
+                </>
+              ) : (
+                <>
+                  {current.type === "carrera" ? (
+                    current.inscripcionesAbiertas ? (
+                      <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur">
+                        <span className="h-2 w-2 rounded-full bg-dh-green" />
+                        Inscripciones abiertas
+                      </p>
+                    ) : (
+                      <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur">
+                        <LockClosedIcon className="h-4 w-4" />
+                        Inscripciones pausadas
+                      </p>
+                    )
+                  ) : (
+                    <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur">
+                      <TrophyIcon className="h-4 w-4" />
+                      Resultados
+                    </p>
+                  )}
 
-            <h2 className="text-2xl sm:text-3xl font-extrabold">
-              {c.titulo}
-            </h2>
+                  <h2 className="mt-3 text-2xl font-extrabold sm:text-3xl lg:text-4xl">
+                    {current.titulo}
+                  </h2>
 
-            <p className="text-sm opacity-90">
-              {c.tipo === "resultados"
-                ? "Carrera finalizada"
-                : c.fecha}
-            </p>
+                  <div className="mt-2 flex gap-4 text-sm opacity-85">
+                    {current.fecha && (
+                      <span className="inline-flex items-center gap-2">
+                        <CalendarIcon className="h-5 w-5" />
+                        {current.fecha}
+                      </span>
+                    )}
+                    {current.ubicacion && (
+                      <span className="inline-flex items-center gap-2">
+                        <MapPinIcon className="h-5 w-5" />
+                        {current.ubicacion}
+                      </span>
+                    )}
+                  </div>
 
-            {c.tipo === "inscripcion" && (
-              <Link
-                href={`/inscribirse?carreraId=${c.id}`}
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95"
-              >
-                Inscribirme
-              </Link>
-            )}
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-dh-purple px-4 py-2 text-sm font-semibold">
+                    {current.type === "resultados"
+                      ? "Ver resultados"
+                      : "Inscribirme"}
+                  </div>
+                </>
+              )}
+            </div>
+          </button>
+        </div>
 
-            {c.tipo === "resultados" && c.resultados?.url && (
-              <a
-                href={c.resultados.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95"
-              >
-                🏁 Ver resultados
-              </a>
-            )}
-          </div>
-        </section>
-      ))}
-    </div>
+        {/* Dots */}
+        <div className="flex items-center justify-center gap-2 p-3">
+          {slides.map((_, i) => (
+            <button
+              key={i}
+              onClick={() => goTo(i)}
+              className={`h-2.5 rounded-full transition-all ${
+                i === index ? "w-8 bg-dh-purple" : "w-2.5 bg-dh-border"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
