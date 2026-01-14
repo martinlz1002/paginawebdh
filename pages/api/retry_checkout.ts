@@ -118,12 +118,19 @@ export default async function handler(
       }
 
       const carrera = carreraSnap.data() as any;
+
+      // 🔒 BLOQUEO POR PAUSA
+      if (carrera.inscripcionesAbiertas === false) {
+        throw new Error(
+          carrera.inscripcionesMensaje ||
+            "Las inscripciones para esta carrera están pausadas."
+        );
+      }
+
       const neto = getNetoFromCarrera(carrera, distancia, categoria);
 
-      // 🔒 CLAVE DEL FIX:
-      // NO se asignan números aquí
-      // NO se reserva nada
-      // solo se marca pending
+      // 🔒 NO se asignan números
+      // 🔒 NO se reserva cupo
       tx.update(insRef, {
         paymentStatus: "pending",
         updatedAt: FieldValue.serverTimestamp(),

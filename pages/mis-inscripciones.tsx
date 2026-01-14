@@ -57,6 +57,8 @@ interface InscRaw {
 interface InscView {
   id: string;
   carreraId: string;
+  // 🔒 estado carrera
+  inscripcionesAbiertas?: boolean;
 
   // 🏁 RESULTADOS
   resultadosUrl?: string;
@@ -242,6 +244,8 @@ export default function MisInscripcionesPage() {
             return {
               id: d.id,
               carreraId: src.carreraId,
+              // 🔒 estado carrera
+  inscripcionesAbiertas: c.inscripcionesAbiertas !== false,
               titulo: c.titulo || "(sin título)",
               fechaCarr,
               carreraDate,
@@ -327,11 +331,17 @@ export default function MisInscripcionesPage() {
             </div>
           ) : (
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {list.map((i) => (
-                <div
-                  key={i.id}
-                  className={`${cardBase} overflow-hidden flex flex-col`}
-                >
+              {list.map((i) => {
+  const bloqueadoPorPausa =
+    i.inscripcionesAbiertas === false &&
+    i.paymentStatus !== "paid" &&
+    i.paymentStatus !== "manual";
+
+  return (
+    <div
+      key={i.id}
+      className={`${cardBase} overflow-hidden flex flex-col`}
+    >
                   {/* Imagen */}
                   {i.imagenUrl ? (
                     <div className="relative h-40 bg-gray-100 overflow-hidden">
@@ -429,54 +439,69 @@ export default function MisInscripcionesPage() {
                         <span>{i.horaSalida || "—"}</span>
                       </span>
                     </div>
+                    
 
-                    {/* Acciones */}
-<div className="mt-auto pt-2 flex items-center justify-between gap-3">
-  {i.paymentStatus === "paid" ? (
-    <button
-      onClick={() => generarPDF(i)}
-      className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
-      title="Descargar PDF de confirmación"
-    >
-      <DocumentArrowDownIcon className="w-5 h-5" />
-      Confirmación
-      {i.carreraFinalizada && i.resultadosPublicado && i.resultadosUrl && (
-  <a
-    href={i.resultadosUrl}
-    target="_blank"
-    rel="noopener noreferrer"
-    className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
-    title="Ver resultados oficiales"
-  >
-    🏁 Resultados
-  </a>
-)}
-    </button>
-    
-    
-  ) : i.paymentStatus === "manual" ? (
-    <div className="flex items-center gap-2 text-xs text-gray-600">
-      <CheckCircleIcon className="w-5 h-5 text-blue-600" />
-      Registro manual
-    </div>
-  ) : (
-    <button
-      onClick={() => reintentarPago(i)}
-      className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
-      title="Reintentar pago"
-    >
-      <ArrowPathIcon className="w-5 h-5" />
-      Reintentar
-    </button>
-  )}
+{/* Acciones */}
+<div className="mt-auto pt-2 flex flex-col gap-2">
 
-  {/* hint */}
-  {i.paymentStatus !== "paid" && i.paymentStatus !== "manual" && (
-    <div className="flex items-center gap-2 text-xs text-gray-600">
-      <CreditCardIcon className="w-4 h-4 text-gray-500" />
-      {i.paymentStatus === "pending" ? "Pago en proceso" : "Revisar"}
-    </div>
-  )}
+  <div className="flex items-center justify-between gap-3">
+    {/* ✅ PAGADO */}
+    {i.paymentStatus === "paid" ? (
+      <div className="flex flex-col gap-2">
+        <button
+          onClick={() => generarPDF(i)}
+          className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
+        >
+          <DocumentArrowDownIcon className="w-5 h-5" />
+          Confirmación
+        </button>
+
+        {i.carreraFinalizada && i.resultadosPublicado && i.resultadosUrl && (
+          <a
+            href={i.resultadosUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
+          >
+            🏁 Resultados
+          </a>
+        )}
+      </div>
+
+    ) : i.paymentStatus === "manual" ? (
+      <div className="flex items-center gap-2 text-xs text-gray-600">
+        <CheckCircleIcon className="w-5 h-5 text-blue-600" />
+        Registro manual
+      </div>
+
+    ) : bloqueadoPorPausa ? (
+      // 🔒 BLOQUEADO POR PAUSA
+      <div className="flex items-center gap-2 text-xs text-red-600">
+        <span className="font-extrabold">🔒</span>
+        Inscripciones pausadas
+      </div>
+
+    ) : (
+      // 🔁 REINTENTO NORMAL
+      <button
+        onClick={() => reintentarPago(i)}
+        className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
+      >
+        <ArrowPathIcon className="w-5 h-5" />
+        Reintentar
+      </button>
+    )}
+  </div>
+
+  {/* ✅ HINT (FUERA del ternario) */}
+  {i.paymentStatus !== "paid" &&
+    i.paymentStatus !== "manual" &&
+    !bloqueadoPorPausa && (
+      <div className="flex items-center gap-2 text-xs text-gray-600">
+        <CreditCardIcon className="w-4 h-4 text-gray-500" />
+        {i.paymentStatus === "pending" ? "Pago en proceso" : "Revisar"}
+      </div>
+    )}
 </div>
 
                     {/* Nota si falla */}
@@ -508,7 +533,8 @@ export default function MisInscripcionesPage() {
                     )}
                   </div>
                 </div>
-              ))}
+);
+})}
             </div>
           )}
         </section>
