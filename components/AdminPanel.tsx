@@ -69,21 +69,34 @@ export default function AdminPanel() {
       </button>
 
       <AdminSidebar
-        view={view}
-        setView={v => { setView(v); setFeedback(null); }}
-        open={sidebarOpen}
-        onToggle={toggleSidebar}
-      />
+  view={view}
+  setView={v => {
+    setView(v);
+    setFeedback(null);
+
+    // ✅ FIX: si vuelvo a "crear", limpio el edit
+    if (v === 'crear') {
+      setEditItem(null);
+    }
+  }}
+  open={sidebarOpen}
+  onToggle={toggleSidebar}
+/>
 
       <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'} flex-1 p-6`}>
         <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
         {view === 'crear' && (
-          <AdminCarrerasForm
-            initialValues={editItem ?? undefined}
-            onSuccess={() => { setEditItem(null); setView('listar'); loadCarreras(); }}
-          />
-        )}
+  <AdminCarrerasForm
+    key={editItem?.id || 'crear'}
+    initialValues={editItem ?? undefined}
+    onSuccess={() => {
+      setEditItem(null);
+      setView('listar');
+      loadCarreras();
+    }}
+  />
+)}
 
         {view === 'listar' && (
           <AdminCarrerasList
