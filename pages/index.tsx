@@ -179,11 +179,43 @@ export default function HomePage() {
       .slice(0, 4);
   }, [raw]);
 
+  /* =============================
+   SLIDES HERO (INSCRIPCIÓN + RESULTADOS)
+============================== */
+const heroSlides = useMemo(() => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const futuras = raw.filter(
+    (c) => c.carreraDate && c.carreraDate >= today
+  );
+
+  const conResultados = raw.filter(
+    (c) =>
+      c.carreraDate &&
+      c.carreraDate < today &&
+      c.resultados?.publicado === true &&
+      typeof c.resultados?.url === "string" &&
+      c.resultados.url.trim()
+  );
+
+  const slides = [
+    ...futuras.map((c) => ({ ...c, tipo: "inscripcion" as const })),
+    ...conResultados.map((c) => ({ ...c, tipo: "resultados" as const })),
+  ];
+
+  return slides.sort(
+    (a, b) =>
+      (b.carreraDate?.getTime() ?? 0) -
+      (a.carreraDate?.getTime() ?? 0)
+  );
+}, [raw]);
+
   return (
     <>
       {/* SLIDER */}
       <section className="max-w-6xl mx-auto px-6 md:px-8 pt-2">
-        <HeroSlider carreras={carreras} />
+        <HeroSlider carreras={heroSlides} />
       </section>
 
       <main className="max-w-6xl mx-auto px-6 md:px-8 py-10 space-y-16">
