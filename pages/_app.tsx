@@ -4,9 +4,10 @@ import { useRouter } from "next/router";
 import { AuthProvider } from "@/context/authContext";
 import Layout from "@/components/Layout";
 import AuthGuard from "@/components/AuthGuard";
+import { AnimatePresence, motion } from "framer-motion";
 
 export default function App({ Component, pageProps }: AppProps) {
-  const { asPath } = useRouter();
+  const router = useRouter();
 
   const protectedPaths = [
     "/pago",
@@ -16,20 +17,38 @@ export default function App({ Component, pageProps }: AppProps) {
     "/admin",
   ];
 
-  const isProtected = protectedPaths.some((path) => asPath.startsWith(path));
+  const isProtected = protectedPaths.some((path) =>
+    router.asPath.startsWith(path)
+  );
 
   return (
     <AuthProvider>
-      {/* ✅ Fondo global CLARO + texto base oscuro */}
-      <div className="min-h-screen bg-dh-bg text-dh-ink antialiased selection:bg-dh-green/30 selection:text-dh-ink">
+      <div className="relative min-h-screen bg-[#0c0c0f] text-white antialiased overflow-x-hidden selection:bg-dh-green/30 selection:text-black">
+
+        {/* Glow global DH */}
+        <div className="pointer-events-none fixed inset-0 -z-10">
+          <div className="absolute top-[-200px] left-[-200px] w-[500px] h-[500px] bg-dh-purple/20 blur-3xl rounded-full opacity-40" />
+          <div className="absolute bottom-[-200px] right-[-200px] w-[500px] h-[500px] bg-dh-green/20 blur-3xl rounded-full opacity-40" />
+        </div>
+
         <Layout>
-          {isProtected ? (
-            <AuthGuard>
-              <Component {...pageProps} />
-            </AuthGuard>
-          ) : (
-            <Component {...pageProps} />
-          )}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={router.asPath}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.35 }}
+            >
+              {isProtected ? (
+                <AuthGuard>
+                  <Component {...pageProps} />
+                </AuthGuard>
+              ) : (
+                <Component {...pageProps} />
+              )}
+            </motion.div>
+          </AnimatePresence>
         </Layout>
       </div>
     </AuthProvider>

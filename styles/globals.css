@@ -2,23 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================
+   BASE GLOBAL
+========================= */
 @layer base {
-  body {
-    @apply bg-dh-bg text-dh-ink;
+  html {
+    scroll-behavior: smooth;
   }
 
+  body {
+    @apply bg-[#0c0c0f] text-white;
+    @apply antialiased;
+  }
+
+  ::selection {
+    @apply bg-dh-green text-black;
+  }
+
+  /* Scrollbar personalizada */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #0c0c0f;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, theme("colors.dh.purple"), theme("colors.dh.green"));
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    opacity: 0.8;
+  }
+
+  /* Inputs base */
   input,
   textarea,
   select {
-    @apply bg-dh-panel text-dh-ink placeholder-dh-muted;
-    @apply border border-dh-border rounded-xl;
-    @apply focus:outline-none focus:ring-2 focus:ring-dh-purple/30 focus:border-dh-purple;
+    @apply bg-white/5 text-white placeholder-white/40;
+    @apply border border-white/10 rounded-xl;
+    @apply focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green;
+    @apply transition duration-200;
+  }
+
+  button {
+    @apply transition duration-200;
   }
 }
 
+/* =========================
+   COMPONENTES BASE
+========================= */
 @layer components {
-  /* ✅ clase utilitaria para tarjetas */
+
   .card {
-    @apply bg-dh-panel border border-dh-border rounded-2xl shadow-dhSm;
+    @apply bg-white/5 backdrop-blur-md;
+    @apply border border-white/10 rounded-2xl;
+    @apply shadow-lg;
   }
+
+  .glass {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      to right,
+      theme("colors.dh.purple"),
+      theme("colors.dh.green")
+    );
+  }
+
+  .btn-primary {
+    @apply px-5 py-2.5 rounded-xl font-bold text-white;
+    @apply bg-gradient-to-r from-dh-purple to-dh-green;
+    @apply hover:scale-105 active:scale-95;
+    @apply shadow-lg;
+  }
+
+  .btn-outline {
+    @apply px-5 py-2.5 rounded-xl font-semibold;
+    @apply border border-white/20 text-white;
+    @apply hover:bg-white/10;
+  }
+
 }

@@ -311,58 +311,81 @@ export default function MisInscripcionesPage() {
   };
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-dh-soft">
-        <section className="max-w-6xl mx-auto px-4 py-10 text-dh-ink">
-          <SectionHeader
-            title="Mis Inscripciones"
-            subtitle="Aquí encontrarás todos tus registros activos"
-          />
+  <AuthGuard>
+    <div className="min-h-screen bg-dh-bg">
 
-          {list.length === 0 ? (
-            <div className={`${cardBase} p-8 text-center`}>
-              <div className="mx-auto w-12 h-12 rounded-2xl bg-dh-purple/10 flex items-center justify-center">
-                <ClipboardIcon className="w-6 h-6 text-dh-purple" />
-              </div>
-              <p className="mt-4 font-extrabold text-lg">No hay inscripciones</p>
-              <p className="text-sm text-gray-600 mt-1">
-                Cuando te inscribas a una carrera, aparecerá aquí.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {list.map((i) => {
-  const bloqueadoPorPausa =
-    i.inscripcionesAbiertas === false &&
-    i.paymentStatus !== "paid" &&
-    i.paymentStatus !== "manual";
+      <section className="max-w-6xl mx-auto px-4 py-12 space-y-10">
 
-  return (
-    <div
-      key={i.id}
-      className={`${cardBase} overflow-hidden flex flex-col`}
-    >
-                  {/* Imagen */}
-                  {i.imagenUrl ? (
-                    <div className="relative h-40 bg-gray-100 overflow-hidden">
+        {/* HERO */}
+        <div className="text-center space-y-3">
+          <h1 className="text-4xl font-extrabold text-dh-ink">
+            Mis <span className="text-dh-purple">Inscripciones</span>
+          </h1>
+
+          <p className="text-dh-muted">
+            {list.length} {list.length === 1 ? "registro activo" : "registros activos"}
+          </p>
+        </div>
+
+        {/* EMPTY */}
+        {list.length === 0 ? (
+          <div className="card p-10 text-center">
+            <ClipboardIcon className="w-10 h-10 mx-auto text-dh-purple mb-4" />
+            <p className="font-extrabold text-lg text-dh-ink">
+              Aún no tienes inscripciones
+            </p>
+            <p className="text-sm text-dh-muted mt-1">
+              Cuando te registres a una carrera aparecerá aquí.
+            </p>
+          </div>
+        ) : (
+
+          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+
+            {list.map((i) => {
+
+              const bloqueadoPorPausa =
+                i.inscripcionesAbiertas === false &&
+                i.paymentStatus !== "paid" &&
+                i.paymentStatus !== "manual";
+
+              const nombreCompleto = fullName(
+                i.perfilNombre,
+                i.perfilApPaterno,
+                i.perfilApMaterno
+              );
+
+              return (
+                <div
+                  key={i.id}
+                  className="card overflow-hidden flex flex-col hover:shadow-lg transition"
+                >
+
+                  {/* HEADER IMAGEN */}
+                  {i.imagenUrl && (
+                    <div className="relative h-44">
                       <img
                         src={i.imagenUrl}
                         alt={i.titulo}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-dh-dark/55 via-transparent to-transparent" />
-                      <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
-                        <span className="text-white font-extrabold leading-tight line-clamp-2">
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+
+                      <div className="absolute bottom-3 left-3 right-3 flex justify-between items-end">
+                        <h2 className="text-white font-extrabold leading-tight line-clamp-2">
                           {i.titulo}
-                        </span>
+                        </h2>
+
                         <span className={pill(i.paymentStatus)}>
                           {statusLabel(i.paymentStatus)}
                         </span>
                       </div>
                     </div>
-                  ) : (
-                    <div className="p-4 flex items-center justify-between border-b border-dh-purple/10 bg-dh-soft">
-                      <h2 className="font-extrabold text-lg line-clamp-1">
+                  )}
+
+                  {!i.imagenUrl && (
+                    <div className="p-4 border-b border-dh-border flex justify-between items-center bg-dh-soft">
+                      <h2 className="font-extrabold text-dh-ink">
                         {i.titulo}
                       </h2>
                       <span className={pill(i.paymentStatus)}>
@@ -371,174 +394,133 @@ export default function MisInscripcionesPage() {
                     </div>
                   )}
 
-                  <div className="p-5 flex-1 flex flex-col gap-4">
-                    {/* Número + nombre */}
-                    <div className="space-y-1">
-                      <div className="text-sm text-gray-600 font-semibold">
-                        Número asignado
-                      </div>
-                      <div className="text-2xl font-extrabold">
-                        <span className="text-dh-purple">#</span>
-                        {i.competitorNumber ?? "—"}
-                      </div>
+                  <div className="p-6 flex flex-col gap-5 flex-1">
 
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <ClipboardIcon className="w-5 h-5 text-dh-green" />
-                        <span className="font-semibold line-clamp-2">
-                          {fullName(
-                            i.perfilNombre,
-                            i.perfilApPaterno,
-                            i.perfilApMaterno
-                          )}
-                        </span>
+                    {/* NÚMERO */}
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-dh-muted font-bold">
+                        Número asignado
+                      </p>
+
+                      <div className="text-3xl font-extrabold text-dh-purple mt-1">
+                        #{i.competitorNumber ?? "—"}
                       </div>
+                    </div>
+
+                    {/* PERFIL */}
+                    <div className="space-y-1">
+                      <p className="font-semibold text-dh-ink">
+                        {nombreCompleto || "—"}
+                      </p>
 
                       {i.perfilClub && (
-                        <div className="text-xs text-gray-600">
-                          <span className="font-semibold">Club:</span>{" "}
-                          {i.perfilClub}
-                        </div>
+                        <p className="text-xs text-dh-muted">
+                          Club: {i.perfilClub}
+                        </p>
                       )}
                     </div>
 
-                    {/* Distancia + categoría */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-xl border border-dh-purple/10 bg-white p-3">
-                        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">
+                    {/* DISTANCIA / CATEGORIA */}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div className="bg-dh-soft rounded-xl p-3">
+                        <div className="text-xs text-dh-muted font-bold">
                           Distancia
                         </div>
-                        <div className="text-sm font-extrabold text-dh-ink mt-1">
+                        <div className="font-extrabold text-dh-ink mt-1">
                           {i.distancia || "—"}
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-dh-purple/10 bg-white p-3">
-                        <div className="text-[11px] uppercase tracking-wide text-gray-500 font-bold">
+                      <div className="bg-dh-soft rounded-xl p-3">
+                        <div className="text-xs text-dh-muted font-bold">
                           Categoría
                         </div>
-                        <div className="text-sm font-extrabold text-dh-ink mt-1 line-clamp-1">
+                        <div className="font-extrabold text-dh-ink mt-1">
                           {i.categoria || "—"}
                         </div>
                       </div>
                     </div>
 
-                    {/* Meta */}
-                    <div className="flex flex-col gap-2 text-sm text-gray-700">
-                      <span className="flex items-center gap-2">
-                        <MapPinIcon className="w-5 h-5 text-gray-500" />
-                        <span className="line-clamp-1">
-                          {i.ubicacion || "—"}
-                        </span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <CalendarIcon className="w-5 h-5 text-gray-500" />
-                        <span>{i.fechaCarr || "—"}</span>
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <ClockIcon className="w-5 h-5 text-gray-500" />
-                        <span>{i.horaSalida || "—"}</span>
-                      </span>
+                    {/* INFO */}
+                    <div className="space-y-2 text-sm text-dh-muted">
+                      <div className="flex items-center gap-2">
+                        <CalendarIcon className="w-4 h-4" />
+                        {i.fechaCarr}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <MapPinIcon className="w-4 h-4" />
+                        {i.ubicacion}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <ClockIcon className="w-4 h-4" />
+                        {i.horaSalida || "—"}
+                      </div>
                     </div>
-                    
 
-{/* Acciones */}
-<div className="mt-auto pt-2 flex flex-col gap-2">
+                    {/* ACCIONES */}
+                    <div className="mt-auto pt-4 border-t border-dh-border space-y-3">
 
-  <div className="flex items-center justify-between gap-3">
-    {/* ✅ PAGADO */}
-    {i.paymentStatus === "paid" ? (
-      <div className="flex flex-col gap-2">
-        <button
-          onClick={() => generarPDF(i)}
-          className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
-        >
-          <DocumentArrowDownIcon className="w-5 h-5" />
-          Confirmación
-        </button>
+                      {i.paymentStatus === "paid" && (
+                        <>
+                          <button
+                            onClick={() => generarPDF(i)}
+                            className="w-full bg-dh-green text-dh-dark py-2 rounded-xl font-extrabold hover:opacity-95 transition"
+                          >
+                            Descargar Confirmación
+                          </button>
 
-        {i.carreraFinalizada && i.resultadosPublicado && i.resultadosUrl && (
-          <a
-            href={i.resultadosUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
-          >
-            🏁 Resultados
-          </a>
-        )}
-      </div>
+                          {i.carreraFinalizada &&
+                            i.resultadosPublicado &&
+                            i.resultadosUrl && (
+                              <a
+                                href={i.resultadosUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block text-center bg-dh-purple text-white py-2 rounded-xl font-extrabold hover:opacity-95 transition"
+                              >
+                                🏁 Ver Resultados
+                              </a>
+                            )}
+                        </>
+                      )}
 
-    ) : i.paymentStatus === "manual" ? (
-      <div className="flex items-center gap-2 text-xs text-gray-600">
-        <CheckCircleIcon className="w-5 h-5 text-blue-600" />
-        Registro manual
-      </div>
+                      {i.paymentStatus !== "paid" &&
+                        i.paymentStatus !== "manual" &&
+                        !bloqueadoPorPausa && (
+                          <button
+                            onClick={() => reintentarPago(i)}
+                            className="w-full bg-dh-purple text-white py-2 rounded-xl font-extrabold hover:opacity-95 transition"
+                          >
+                            Reintentar Pago
+                          </button>
+                        )}
 
-    ) : bloqueadoPorPausa ? (
-      // 🔒 BLOQUEADO POR PAUSA
-      <div className="flex items-center gap-2 text-xs text-red-600">
-        <span className="font-extrabold">🔒</span>
-        Inscripciones pausadas
-      </div>
+                      {bloqueadoPorPausa && (
+                        <div className="text-center text-xs text-red-600 font-semibold">
+                          🔒 Inscripciones pausadas
+                        </div>
+                      )}
 
-    ) : (
-      // 🔁 REINTENTO NORMAL
-      <button
-        onClick={() => reintentarPago(i)}
-        className={`${btnBase} bg-dh-purple text-white hover:opacity-95`}
-      >
-        <ArrowPathIcon className="w-5 h-5" />
-        Reintentar
-      </button>
-    )}
-  </div>
+                      {i.paymentStatus === "manual" && (
+                        <div className="text-center text-xs text-blue-600 font-semibold">
+                          Registro manual confirmado
+                        </div>
+                      )}
 
-  {/* ✅ HINT (FUERA del ternario) */}
-  {i.paymentStatus !== "paid" &&
-    i.paymentStatus !== "manual" &&
-    !bloqueadoPorPausa && (
-      <div className="flex items-center gap-2 text-xs text-gray-600">
-        <CreditCardIcon className="w-4 h-4 text-gray-500" />
-        {i.paymentStatus === "pending" ? "Pago en proceso" : "Revisar"}
-      </div>
-    )}
-</div>
+                    </div>
 
-                    {/* Nota si falla */}
-                    {i.paymentStatus === "failed" && (
-                      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
-                        <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
-                        <span>
-                          El pago no se completó. Puedes reintentar cuando gustes.
-                        </span>
-                      </div>
-                    )}
-
-                    {i.paymentStatus === "expired" && (
-                      <div className="mt-2 rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-900 flex items-start gap-2">
-                        <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
-                        <span>
-                          El link de pago expiró. Puedes reintentar para generar uno nuevo.
-                        </span>
-                      </div>
-                    )}
-
-                    {i.paymentStatus === "unpaid" && (
-                      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 flex items-start gap-2">
-                        <ExclamationTriangleIcon className="w-5 h-5 mt-0.5" />
-                        <span>
-                          El pago falló o fue rechazado. Puedes reintentar cuando gustes.
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        )}
+
+      </section>
+    </div>
+  </AuthGuard>
 );
-})}
-            </div>
-          )}
-        </section>
-      </div>
-    </AuthGuard>
-  );
+
 }

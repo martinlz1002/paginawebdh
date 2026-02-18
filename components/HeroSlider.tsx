@@ -1,273 +1,165 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarIcon,
   MapPinIcon,
-  LockClosedIcon,
-  TrophyIcon,
 } from "@heroicons/react/24/outline";
+import HeroBanner from "@/components/HeroBanner";
 
-/* =====================
-   TIPOS
-===================== */
-
-type CarreraBase = {
-  id: string;
-  titulo: string;
-  fecha?: string;
-  ubicacion?: string;
-  imagenUrl?: string;
-};
-
-type CarreraInscripcion = CarreraBase & {
-  type: "carrera";
-  inscripcionesAbiertas?: boolean;
-  inscripcionesMensaje?: string;
-};
-
-type CarreraResultados = CarreraBase & {
-  type: "resultados";
-  resultadosUrl: string;
-};
-
-type WelcomeSlide = {
-  type: "welcome";
-  title: string;
-  subtitle: string;
-};
-
-type Slide = WelcomeSlide | CarreraInscripcion | CarreraResultados;
-
-/* =====================
-   PROPS
-===================== */
+type Slide =
+  | {
+      type: "welcome";
+    }
+  | {
+      type: "carrera";
+      id: string;
+      titulo: string;
+      fecha?: string;
+      ubicacion?: string;
+      imagenUrl?: string;
+      inscripcionesAbiertas?: boolean;
+    };
 
 interface HeroSliderProps {
-  carreras: Array<{
-    id: string;
-    titulo: string;
-    fecha?: string;
-    ubicacion?: string;
-    imagenUrl?: string;
-    inscripcionesAbiertas?: boolean;
-    inscripcionesMensaje?: string;
-    resultados?: {
-      publicado?: boolean;
-      url?: string;
-    };
-    carreraDate?: Date;
-  }>;
+  carreras: any[];
 }
 
 export default function HeroSlider({ carreras }: HeroSliderProps) {
   const router = useRouter();
   const [index, setIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  /* =====================
-     SLIDES
-  ===================== */
+  const intervalRef = useRef<any>(null);
 
   const slides: Slide[] = useMemo(() => {
-    const welcome: WelcomeSlide = {
-      type: "welcome",
-      title: "Bienvenido al mundo donde cada segundo cuenta",
-      subtitle:
-        "Inscríbete en tu próxima carrera, paga en línea y trae tu mejor versión.",
+    const welcome = {
+      type: "welcome" as const,
     };
 
-    const futuras: CarreraInscripcion[] = carreras
-      .filter((c) => c.inscripcionesAbiertas !== false)
-      .map((c) => ({
-        type: "carrera",
-        id: c.id,
-        titulo: c.titulo,
-        fecha: c.fecha,
-        ubicacion: c.ubicacion,
-        imagenUrl: c.imagenUrl,
-        inscripcionesAbiertas: c.inscripcionesAbiertas !== false,
-        inscripcionesMensaje: c.inscripcionesMensaje || "",
-      }));
+    const futuras = carreras.map((c) => ({
+      type: "carrera" as const,
+      id: c.id,
+      titulo: c.titulo,
+      fecha: c.fecha,
+      ubicacion: c.ubicacion,
+      imagenUrl: c.imagenUrl,
+      inscripcionesAbiertas: c.inscripcionesAbiertas,
+    }));
 
-    const resultados: CarreraResultados[] = carreras
-      .filter(
-        (c) =>
-          c.resultados?.publicado === true &&
-          typeof c.resultados.url === "string" &&
-          c.resultados.url.trim()
-      )
-      .map((c) => ({
-        type: "resultados",
-        id: c.id,
-        titulo: c.titulo,
-        fecha: c.fecha,
-        ubicacion: c.ubicacion,
-        imagenUrl: c.imagenUrl,
-        resultadosUrl: c.resultados!.url!,
-      }));
-
-    return [welcome, ...futuras, ...resultados];
+    return [welcome, ...futuras];
   }, [carreras]);
 
-  /* =====================
-     AUTOPLAY
-  ===================== */
-
   useEffect(() => {
-    if (paused || slides.length <= 1) return;
+    if (slides.length <= 1) return;
 
     intervalRef.current = setInterval(() => {
       setIndex((prev) => (prev + 1) % slides.length);
-    }, 3500);
+    }, 5000);
 
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [paused, slides.length]);
-
-  const goTo = (i: number) => setIndex(i);
-
-  /* =====================
-     CLICK HANDLER
-  ===================== */
-
-  const handleClick = (slide: Slide) => {
-    if (slide.type === "carrera") {
-      if (slide.inscripcionesAbiertas === false) return;
-      router.push(`/inscribirse?carreraId=${slide.id}`);
-    }
-
-    if (slide.type === "resultados") {
-      window.open(slide.resultadosUrl, "_blank");
-    }
-  };
+    return () => clearInterval(intervalRef.current);
+  }, [slides.length]);
 
   const current = slides[index];
 
-  /* =====================
-     RENDER
-  ===================== */
+  const handleClick = () => {
+    if (
+      current.type === "carrera" &&
+      current.inscripcionesAbiertas !== false
+    ) {
+      router.push(`/inscribirse?carreraId=${current.id}`);
+    }
+  };
 
   return (
-    <section
-      className="w-full"
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-    >
-      <div className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm">
-        <div className="relative h-[240px] sm:h-[320px] lg:h-[360px]">
-          {/* Fondo */}
-          {"imagenUrl" in current && current.imagenUrl ? (
-            <img
-              src={current.imagenUrl}
-              alt={"titulo" in current ? current.titulo : ""}
-              className="h-full w-full object-cover"
+    <section className="relative min-h-screen overflow-hidden">
+
+      {/* 🔥 WELCOME SLIDE = HeroBanner COMPLETO */}
+      {current.type === "welcome" ? (
+        <>
+          <HeroBanner />
+
+          {/* Barra progreso */}
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-white/10 z-20">
+            <motion.div
+              key={index}
+              initial={{ width: 0 }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 5, ease: "linear" }}
+              className="h-full bg-dh-green"
             />
-          ) : (
-            <div className="h-full w-full bg-gradient-to-br from-dh-purple/20 via-white to-dh-green/15" />
-          )}
-
-          {/* Overlay */}
-          <div
-            className={`absolute inset-0 ${
-              current.type === "welcome" ? "bg-black/10" : "bg-black/35"
-            }`}
-          />
-
-          {/* Logo watermark solo welcome */}
-          {current.type === "welcome" && (
-            <img
-              src="/mi-logo.png"
-              alt="DHTime Logo"
-              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                         h-[70%] w-auto max-w-[95%] opacity-[0.28]"
-            />
-          )}
-
-          {/* Contenido */}
-          <button
-            type="button"
-            onClick={() => handleClick(current)}
-            className="absolute inset-0 flex w-full items-end p-5 sm:p-7 text-left"
-          >
-            <div className="relative z-10 max-w-3xl text-white">
-              {current.type === "welcome" ? (
-                <>
-                  <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur">
-                    DHTime • Cronometraje & Eventos
-                  </p>
-                  <h1 className="mt-3 text-2xl font-extrabold sm:text-3xl lg:text-4xl">
-                    {current.title}
-                  </h1>
-                  <p className="mt-2 text-sm opacity-85 sm:text-base">
-                    {current.subtitle}
-                  </p>
-                </>
+          </div>
+        </>
+      ) : (
+        <>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, scale: 1.05 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.8 }}
+              className="absolute inset-0"
+            >
+              {current.imagenUrl ? (
+                <img
+                  src={current.imagenUrl}
+                  alt=""
+                  className="w-full h-full object-cover"
+                />
               ) : (
-                <>
-                  {current.type === "carrera" ? (
-                    current.inscripcionesAbiertas ? (
-                      <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur">
-                        <span className="h-2 w-2 rounded-full bg-dh-green" />
-                        Inscripciones abiertas
-                      </p>
-                    ) : (
-                      <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur">
-                        <LockClosedIcon className="h-4 w-4" />
-                        Inscripciones pausadas
-                      </p>
-                    )
-                  ) : (
-                    <p className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs backdrop-blur">
-                      <TrophyIcon className="h-4 w-4" />
-                      Resultados
-                    </p>
-                  )}
+                <div className="w-full h-full bg-gradient-to-br from-dh-purple via-black to-dh-green" />
+              )}
 
-                  <h2 className="mt-3 text-2xl font-extrabold sm:text-3xl lg:text-4xl">
-                    {current.titulo}
-                  </h2>
+              <div className="absolute inset-0 bg-black/60" />
+            </motion.div>
+          </AnimatePresence>
 
-                  <div className="mt-2 flex gap-4 text-sm opacity-85">
-                    {current.fecha && (
-                      <span className="inline-flex items-center gap-2">
-                        <CalendarIcon className="h-5 w-5" />
-                        {current.fecha}
-                      </span>
-                    )}
-                    {current.ubicacion && (
-                      <span className="inline-flex items-center gap-2">
-                        <MapPinIcon className="h-5 w-5" />
-                        {current.ubicacion}
-                      </span>
-                    )}
-                  </div>
+          {/* Contenido carrera */}
+          <div className="relative z-10 min-h-screen flex items-center px-10">
+            <div className="max-w-2xl text-white space-y-6">
 
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-dh-purple px-4 py-2 text-sm font-semibold">
-                    {current.type === "resultados"
-                      ? "Ver resultados"
-                      : "Inscribirme"}
-                  </div>
-                </>
+              <h2 className="text-5xl font-black">
+                {current.titulo}
+              </h2>
+
+              <div className="flex gap-6 text-white/70">
+                {current.fecha && (
+                  <span className="flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5" />
+                    {current.fecha}
+                  </span>
+                )}
+
+                {current.ubicacion && (
+                  <span className="flex items-center gap-2">
+                    <MapPinIcon className="w-5 h-5" />
+                    {current.ubicacion}
+                  </span>
+                )}
+              </div>
+
+              {current.inscripcionesAbiertas !== false && (
+                <button
+                  onClick={handleClick}
+                  className="mt-6 bg-dh-green text-black font-bold px-8 py-4 rounded-full hover:scale-105 transition"
+                >
+                  Inscribirme
+                </button>
               )}
             </div>
-          </button>
-        </div>
+          </div>
 
-        {/* Dots */}
-        <div className="flex items-center justify-center gap-2 p-3">
-          {slides.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => goTo(i)}
-              className={`h-2.5 rounded-full transition-all ${
-                i === index ? "w-8 bg-dh-purple" : "w-2.5 bg-dh-border"
-              }`}
+          {/* Barra progreso */}
+          <div className="absolute bottom-0 left-0 w-full h-1 bg-white/10">
+            <motion.div
+              key={index}
+              initial={{ width: 0 }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 5, ease: "linear" }}
+              className="h-full bg-dh-green"
             />
-          ))}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </section>
   );
 }

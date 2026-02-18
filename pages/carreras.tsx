@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { motion } from "framer-motion";
 import {
   CalendarIcon,
   MapPinIcon,
@@ -29,122 +30,139 @@ export default function CarrerasPage() {
     (async () => {
       const snap = await getDocs(collection(db, "carreras"));
 
-      const datos: Carrera[] = snap.docs
-        .map((d) => {
-          const x = d.data() as any;
+      const datos: Carrera[] = snap.docs.map((d) => {
+        const x = d.data() as any;
 
-          // ✅ fecha consistente (DD/MM/YYYY)
-          let fecha = "";
-          if (x.fecha instanceof Timestamp) {
-            const dt = x.fecha.toDate();
-            const local = new Date(
-              dt.getTime() + dt.getTimezoneOffset() * 60000
-            );
-            fecha = `${pad(local.getDate())}/${pad(
-              local.getMonth() + 1
-            )}/${local.getFullYear()}`;
-          } else if (typeof x.fecha === "string") {
-            const [y, m, dd] = x.fecha.split("-");
-            if (y && m && dd) fecha = `${dd}/${m}/${y}`;
-          }
+        let fecha = "";
+        if (x.fecha instanceof Timestamp) {
+          const dt = x.fecha.toDate();
+          const local = new Date(
+            dt.getTime() + dt.getTimezoneOffset() * 60000
+          );
+          fecha = `${pad(local.getDate())}/${pad(
+            local.getMonth() + 1
+          )}/${local.getFullYear()}`;
+        } else if (typeof x.fecha === "string") {
+          const [y, m, dd] = x.fecha.split("-");
+          if (y && m && dd) fecha = `${dd}/${m}/${y}`;
+        }
 
-          return {
-            id: d.id,
-            // ✅ en tu proyecto es "titulo" (y fallback por si quedó "nombre" viejo)
-            titulo: x.titulo || x.nombre || "Sin título",
-            // ✅ lugar puede venir como lugar/ubicacion
-            lugar: x.lugar || x.ubicacion || "",
-            descripcion: x.descripcion || "",
-            imagenUrl: x.imagenUrl || x.bannerUrl || undefined,
-            fecha,
-          } as Carrera;
-        })
-        // opcional: si no tiene fecha parseada, igual la mostramos (pero puedes filtrar si quieres)
-        .filter((c) => Boolean(c.titulo));
+        return {
+          id: d.id,
+          titulo: x.titulo || x.nombre || "Sin título",
+          lugar: x.lugar || x.ubicacion || "",
+          descripcion: x.descripcion || "",
+          imagenUrl: x.imagenUrl || x.bannerUrl || undefined,
+          fecha,
+        };
+      });
 
       setCarreras(datos);
     })();
   }, []);
 
   return (
-    <div className="min-h-screen bg-dh-soft">
-      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+    <div className="min-h-screen bg-[#0c0c0f] text-white relative overflow-hidden">
+
+      {/* Glow fondo */}
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-30" />
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-24 space-y-16">
+
         {/* Header */}
-        <div className="text-center space-y-3">
-          <h1 className="text-4xl font-extrabold text-dh-ink">
-            Todas las <span className="text-dh-green">Carreras</span>
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="text-center space-y-6"
+        >
+          <h1 className="text-5xl md:text-6xl font-black leading-tight">
+            Explora todas las
+            <span className="block bg-gradient-to-r from-dh-purple to-dh-green bg-clip-text text-transparent">
+              Carreras
+            </span>
           </h1>
-          <p className="text-gray-600">
-            Elige tu evento y vámonos recio 🏁
+          <p className="text-white/60 max-w-2xl mx-auto">
+            Encuentra tu próximo reto y prepárate para cruzar la meta.
           </p>
-        </div>
+        </motion.div>
 
         {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {carreras.map((c) => (
-            <div
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-10">
+          {carreras.map((c, i) => (
+            <motion.div
               key={c.id}
-              className="bg-white rounded-2xl shadow-dh border border-dh-purple/10 overflow-hidden hover:shadow-lg transition"
+              initial={{ opacity: 0, y: 40 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.05 }}
+              viewport={{ once: true }}
+              className="group relative overflow-hidden rounded-3xl border border-white/10 bg-black"
             >
-              {/* Imagen opcional */}
-              <div className="relative h-44 bg-gradient-to-r from-dh-purple/10 to-dh-green/10">
+              {/* Imagen */}
+              <div className="relative h-60 overflow-hidden">
                 {c.imagenUrl ? (
                   <img
                     src={c.imagenUrl}
                     alt={c.titulo}
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
+                  <div className="w-full h-full flex items-center justify-center text-white/40">
                     Sin imagen
                   </div>
                 )}
-                {/* overlay suave */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
               </div>
 
-              <div className="p-6 flex flex-col justify-between gap-5">
-                <div className="space-y-3">
-                  <h2 className="text-xl font-bold text-dh-purple">
-                    {c.titulo}
-                  </h2>
+              {/* Contenido */}
+              <div className="p-6 space-y-4">
 
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <CalendarIcon className="w-5 h-5 text-dh-green" />
-                    <span>{c.fecha || "Fecha por definir"}</span>
-                  </div>
+                <h2 className="text-2xl font-black leading-tight">
+                  {c.titulo}
+                </h2>
 
-                  <div className="flex items-center gap-3 text-gray-600">
-                    <MapPinIcon className="w-5 h-5 text-dh-green" />
-                    <span className="truncate">
-                      {c.lugar || "Lugar por definir"}
-                    </span>
-                  </div>
+                <div className="flex flex-wrap gap-6 text-white/60 text-sm">
+                  <span className="flex items-center gap-2">
+                    <CalendarIcon className="w-5 h-5" />
+                    {c.fecha || "Fecha por definir"}
+                  </span>
 
-                  {c.descripcion && (
-                    <p className="text-gray-600 leading-relaxed line-clamp-3">
-                      {c.descripcion}
-                    </p>
-                  )}
+                  <span className="flex items-center gap-2">
+                    <MapPinIcon className="w-5 h-5" />
+                    {c.lugar || "Lugar por definir"}
+                  </span>
                 </div>
 
+                {c.descripcion && (
+                  <p className="text-white/70 text-sm line-clamp-3">
+                    {c.descripcion}
+                  </p>
+                )}
+
                 <button
-                  onClick={() => router.push(`/inscribirse?carreraId=${c.id}`)}
-                  className="w-full bg-dh-purple text-white py-2.5 px-4 rounded-xl hover:opacity-95 transition flex items-center justify-center gap-2"
+                  onClick={() =>
+                    router.push(`/inscribirse?carreraId=${c.id}`)
+                  }
+                  className="mt-4 w-full bg-dh-green text-black font-bold py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.03] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
                 >
-                  <span className="font-semibold">Inscribirse</span>
+                  Inscribirme
                   <ArrowRightIcon className="w-5 h-5" />
                 </button>
               </div>
-            </div>
+
+              {/* Línea animada inferior */}
+              <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-green group-hover:w-full transition-all duration-500" />
+            </motion.div>
           ))}
         </div>
 
         {carreras.length === 0 && (
-          <p className="text-center text-gray-500">
+          <p className="text-center text-white/50">
             No hay carreras registradas todavía.
           </p>
         )}
+
       </div>
     </div>
   );

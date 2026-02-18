@@ -313,245 +313,270 @@ export default function PerfilPage() {
 
   const ramaLabel = displayRama(selectedProfile?.rama);
 
-  return (
-    <AuthGuard>
-      <div className="max-w-5xl mx-auto p-6 space-y-8 text-gray-800">
-        {/* Mi Perfil Card */}
-        <div className="bg-white rounded-2xl shadow-md overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b">
-            <h1 className="text-3xl font-bold text-green-800">Mi Perfil</h1>
-            <button onClick={logout} className="text-red-500 hover:text-red-700">
-              Cerrar sesión
-            </button>
+ return (
+  <AuthGuard>
+    <div className="max-w-6xl mx-auto px-4 py-10 space-y-10">
+
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-4xl font-extrabold text-dh-ink">
+          Mi <span className="text-dh-purple">Perfil</span>
+        </h1>
+
+        <button
+          onClick={logout}
+          className="px-5 py-2 rounded-2xl border border-red-200 text-red-600 font-semibold transition-all duration-200 hover:bg-red-50 hover:-translate-y-[1px]"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+
+      {/* PERFIL PRINCIPAL */}
+      <div className="card p-8 space-y-8">
+
+        {/* Selector */}
+        <div className="space-y-2">
+          <label className="text-sm font-semibold text-dh-muted">
+            Ver como:
+          </label>
+
+          <select
+            className="w-full"
+            value={selectedProfile?.id || userData.id}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === userData.id) setSelectedProfile(userData);
+              else setSelectedProfile(profiles.find((x) => x.id === val) || null);
+            }}
+          >
+            <option value={userData.id}>
+              Titular: {userData.nombre} {userData.apPaterno}
+            </option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.nombre} {p.apPaterno}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* DATOS */}
+        <div className="grid sm:grid-cols-2 gap-6 text-sm">
+
+          <div>
+            <p className="text-dh-muted">Nombre</p>
+            <p className="font-semibold text-dh-ink">
+              {selectedProfile?.nombre} {selectedProfile?.apPaterno} {selectedProfile?.apMaterno}
+            </p>
           </div>
 
-          <div className="px-6 py-8 space-y-6">
-            {/* Ver como */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Ver como:
-              </label>
-              <select
-                className="w-full border rounded-md p-2"
-                value={selectedProfile?.id || userData.id}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === userData.id) setSelectedProfile(userData);
-                  else setSelectedProfile(profiles.find((x) => x.id === val) || null);
-                }}
+          <div>
+            <p className="text-dh-muted">Rama</p>
+            <div className="flex items-center gap-3 mt-1">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-bold ${
+                  ramaLabel === "Pendiente"
+                    ? "bg-red-100 text-red-600"
+                    : "bg-dh-green/20 text-dh-green"
+                }`}
               >
-                <option value={userData.id}>
-                  Titular: {userData.nombre} {userData.apPaterno}
-                </option>
-                {profiles.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nombre} {p.apPaterno}
-                  </option>
-                ))}
-              </select>
-            </div>
+                {ramaLabel}
+              </span>
 
-            {/* Datos */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <p className="text-gray-700">
-                <span className="font-medium">Nombre:</span>{" "}
-                {selectedProfile?.nombre} {selectedProfile?.apPaterno}{" "}
-                {selectedProfile?.apMaterno}
-              </p>
-
-              <p className="text-gray-700 flex items-center gap-2">
-                <span className="font-medium">Rama:</span>{" "}
-                <span
-                  className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                    ramaLabel === "Pendiente"
-                      ? "bg-red-100 text-red-700"
-                      : "bg-green-100 text-green-800"
-                  }`}
+              {ramaLabel === "Pendiente" && (
+                <button
+                  onClick={() => selectedProfile?.id && startEdit(selectedProfile)}
+                  className="text-xs font-semibold text-dh-purple hover:underline"
                 >
-                  {ramaLabel}
-                </span>
-                {ramaLabel === "Pendiente" && (
-                  <button
-                    className="text-sm text-purple-600 hover:underline"
-                    onClick={() => {
-                      if (selectedProfile?.id) startEdit(selectedProfile);
-                    }}
-                  >
-                    Completar
-                  </button>
-                )}
-              </p>
-
-              <p className="text-gray-700">
-                <span className="font-medium">Email:</span>{" "}
-                {selectedProfile?.email || "-"}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">Celular:</span>{" "}
-                {selectedProfile?.celular || "-"}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">Ubicación:</span>{" "}
-                {selectedProfile?.ciudad || "-"}, {selectedProfile?.estado || "-"},{" "}
-                {selectedProfile?.pais || "-"}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">Nacimiento:</span>{" "}
-                {selectedProfile?.fechaNacimiento || "-"}
-              </p>
-              <p className="text-gray-700">
-                <span className="font-medium">Edad:</span>{" "}
-                {selectedProfile?.edad ?? "-"}
-              </p>
-              {selectedProfile?.club && (
-                <p className="text-gray-700">
-                  <span className="font-medium">Club:</span>{" "}
-                  {selectedProfile.club}
-                </p>
+                  Completar
+                </button>
               )}
             </div>
           </div>
-        </div>
 
-        {/* Formulario y Lista */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Formulario */}
-          <div className="bg-white rounded-2xl shadow-md p-6" ref={formRef}>
-            <button
-              onClick={() => {
-                setShowForm((prev) => !prev);
-                setEditingProfile(null);
-                resetForm();
-              }}
-              className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition"
-            >
-              {showForm ? "Cancelar" : "Agregar Perfil"}
-            </button>
-
-            {showForm && (
-              <form onSubmit={handleSave} className="mt-4 space-y-4">
-                {[
-                  "nombre",
-                  "apPaterno",
-                  "apMaterno",
-                  "email",
-                  "celular",
-                  "pais",
-                  "estado",
-                  "ciudad",
-                  "club",
-                ].map((field) => (
-                  <input
-                    key={field}
-                    type={field === "email" ? "email" : "text"}
-                    name={field}
-                    placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
-                    value={(formData as any)[field] || ""}
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        [field]: e.target.value,
-                      }))
-                    }
-                    className="w-full border rounded-md px-3 py-2 text-gray-900 placeholder-gray-400"
-                    required={field !== "club"}
-                  />
-                ))}
-
-                {/* Rama */}
-                <select
-                  name="rama"
-                  value={(formData.rama as any) || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      rama: e.target.value,
-                    }))
-                  }
-                  className="w-full border rounded-md px-3 py-2 text-gray-900"
-                  required
-                >
-                  <option value="">-- Selecciona Rama --</option>
-                  <option value="Femenil">Femenil</option>
-                  <option value="Varonil">Varonil</option>
-                </select>
-
-                {/* Fecha de nacimiento */}
-                <input
-                  type="date"
-                  name="fechaNacimiento"
-                  value={formData.fechaNacimiento}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      fechaNacimiento: e.target.value,
-                    }))
-                  }
-                  className="w-full border rounded-md px-3 py-2 text-gray-900 placeholder-gray-400"
-                  required
-                />
-
-                <button
-                  type="submit"
-                  className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 transition"
-                >
-                  {editingProfile ? "Actualizar" : "Guardar"}
-                </button>
-              </form>
-            )}
+          <div>
+            <p className="text-dh-muted">Email</p>
+            <p className="font-semibold">{selectedProfile?.email || "-"}</p>
           </div>
 
-          {/* Lista de perfiles */}
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-6">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">
-              Perfiles Guardados
-            </h2>
-
-            <ul className="space-y-4">
-              {profiles.map((p) => {
-                const r = displayRama(p.rama);
-                return (
-                  <li
-                    key={p.id}
-                    className="flex justify-between items-center border-b pb-3"
-                  >
-                    <span className="text-gray-800">
-                      {p.nombre} {p.apPaterno} {p.apMaterno}{" "}
-                      <span
-                        className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
-                          r === "Pendiente"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-green-100 text-green-800"
-                        }`}
-                      >
-                        {r}
-                      </span>
-                    </span>
-                    <div className="space-x-4">
-                      <button
-                        onClick={() => startEdit(p)}
-                        className="text-green-600 hover:underline"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDelete(p.id!)}
-                        className="text-red-600 hover:underline"
-                      >
-                        Eliminar
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-
-            {profiles.length === 0 && (
-              <p className="text-gray-500">Aún no tienes subperfiles.</p>
-            )}
+          <div>
+            <p className="text-dh-muted">Celular</p>
+            <p className="font-semibold">{selectedProfile?.celular || "-"}</p>
           </div>
+
+          <div>
+            <p className="text-dh-muted">Ubicación</p>
+            <p className="font-semibold">
+              {selectedProfile?.ciudad || "-"}, {selectedProfile?.estado || "-"}, {selectedProfile?.pais || "-"}
+            </p>
+          </div>
+
+          <div>
+            <p className="text-dh-muted">Nacimiento</p>
+            <p className="font-semibold">{selectedProfile?.fechaNacimiento || "-"}</p>
+          </div>
+
+          <div>
+            <p className="text-dh-muted">Edad</p>
+            <p className="font-semibold">{selectedProfile?.edad ?? "-"}</p>
+          </div>
+
+          {selectedProfile?.club && (
+            <div>
+              <p className="text-dh-muted">Club</p>
+              <p className="font-semibold">{selectedProfile.club}</p>
+            </div>
+          )}
         </div>
       </div>
-    </AuthGuard>
-  );
-}
+
+      {/* GRID FORM + LISTA */}
+      <div className="grid lg:grid-cols-3 gap-8">
+
+        {/* FORM */}
+        <div className="card p-6 space-y-5" ref={formRef}>
+          <button
+            onClick={() => {
+              setShowForm((prev) => !prev);
+              setEditingProfile(null);
+              resetForm();
+            }}
+            className="btn-primary"
+          >
+            {showForm ? "Cancelar" : "Agregar Perfil"}
+          </button>
+
+          {showForm && (
+            <form onSubmit={handleSave} className="space-y-4">
+
+              {[
+                "nombre",
+                "apPaterno",
+                "apMaterno",
+                "email",
+                "celular",
+                "pais",
+                "estado",
+                "ciudad",
+                "club",
+              ].map((field) => (
+                <input
+                  key={field}
+                  type={field === "email" ? "email" : "text"}
+                  name={field}
+                  placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                  value={(formData as any)[field] || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      [field]: e.target.value,
+                    }))
+                  }
+                  className="w-full"
+                  required={field !== "club"}
+                />
+              ))}
+
+              <select
+                name="rama"
+                value={(formData.rama as any) || ""}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    rama: e.target.value,
+                  }))
+                }
+                className="w-full"
+                required
+              >
+                <option value="">Selecciona Rama</option>
+                <option value="Femenil">Femenil</option>
+                <option value="Varonil">Varonil</option>
+              </select>
+
+              <input
+                type="date"
+                name="fechaNacimiento"
+                value={formData.fechaNacimiento}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    fechaNacimiento: e.target.value,
+                  }))
+                }
+                className="w-full"
+                required
+              />
+
+              <button
+                type="submit"
+                className="btn-success"
+              >
+                {editingProfile ? "Actualizar Perfil" : "Guardar Perfil"}
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* LISTA */}
+        <div className="lg:col-span-2 card p-6 space-y-6">
+          <h2 className="text-2xl font-bold text-dh-ink">
+            Perfiles Guardados
+          </h2>
+
+          {profiles.length === 0 && (
+            <p className="text-dh-muted">
+              Aún no tienes subperfiles.
+            </p>
+          )}
+
+          <ul className="space-y-4">
+            {profiles.map((p) => {
+              const r = displayRama(p.rama);
+
+              return (
+                <li
+                  key={p.id}
+                  className="flex justify-between items-center border-b border-dh-border pb-4"
+                >
+                  <div>
+                    <p className="font-semibold text-dh-ink">
+                      {p.nombre} {p.apPaterno} {p.apMaterno}
+                    </p>
+
+                    <span
+                      className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                        r === "Pendiente"
+                          ? "bg-red-100 text-red-600"
+                          : "bg-dh-green/20 text-dh-green"
+                      }`}
+                    >
+                      {r}
+                    </span>
+                  </div>
+
+                  <div className="flex gap-5 text-sm font-semibold">
+                    <button
+                      onClick={() => startEdit(p)}
+                      className="text-dh-purple hover:underline"
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      onClick={() => handleDelete(p.id!)}
+                      className="text-red-600 hover:underline"
+                    >
+                      Eliminar
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </AuthGuard>
+)};

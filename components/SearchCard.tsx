@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarIcon,
   MapPinIcon,
@@ -13,7 +14,7 @@ interface Carrera {
   id: string;
   titulo: string;
   ubicacion?: string;
-  fecha: string; // "DD/MM/YYYY"
+  fecha: string;
 }
 
 export default function SearchCard() {
@@ -23,14 +24,11 @@ export default function SearchCard() {
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [filtered, setFiltered] = useState<Carrera[]>([]);
 
-  // 1️⃣ Cargo todas las carreras
   useEffect(() => {
     (async () => {
       const snap = await getDocs(collection(db, "carreras"));
       const lista = snap.docs.map((d) => {
         const c = d.data() as any;
-
-        // ✅ aquí leo c.lugar (no c.ubicacion)
         const ubicacion = c.lugar || c.ubicacion || "";
 
         let fechaStr = "";
@@ -45,14 +43,13 @@ export default function SearchCard() {
           titulo: c.titulo,
           ubicacion,
           fecha: fechaStr,
-        } as Carrera;
+        };
       });
 
       setCarreras(lista);
     })();
   }, []);
 
-  // 2️⃣ Filtro en vivo cada vez que cambian q, city o date
   useEffect(() => {
     const term = q.trim().toLowerCase();
     const cityTerm = city.trim().toLowerCase();
@@ -71,14 +68,6 @@ export default function SearchCard() {
 
   const hasFilters = Boolean(q || city || date);
 
-  const inputBase =
-    "w-full pr-4 py-2.5 border rounded-xl bg-white text-gray-900 placeholder-gray-400 " +
-    "border-dh-purple/15 focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green/40 " +
-    "transition";
-
-  const inputWithIcon = inputBase + " pl-10";
-  const dateInput = inputBase + " pl-10"; // ok con icono, pero sin pl extra exagerado
-
   const clearAll = () => {
     setQ("");
     setCity("");
@@ -86,106 +75,114 @@ export default function SearchCard() {
   };
 
   return (
-    <div className="relative max-w-4xl mx-auto bg-white rounded-2xl shadow-dh p-6 space-y-4 border border-dh-purple/10 overflow-hidden">
-      {/* Glow DH suave */}
-      <div className="pointer-events-none absolute -top-24 -right-24 h-56 w-56 rounded-full bg-dh-green/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -left-24 h-56 w-56 rounded-full bg-dh-purple/15 blur-3xl" />
+    <motion.div
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      viewport={{ once: true }}
+      className="relative w-full max-w-5xl mx-auto"
+    >
+      {/* Contenedor glass oscuro */}
+      <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-3xl p-8 shadow-[0_0_60px_rgba(0,0,0,0.4)]">
 
-      <div className="relative flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-lg font-extrabold text-dh-ink leading-tight">
-            Encuentra tu carrera{" "}
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-dh-purple to-dh-green">
-              en segundos
-            </span>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-2xl font-black text-white">
+            Busca tu próxima carrera
           </h3>
-          <p className="text-xs text-gray-500 mt-1">
-            Filtra por nombre, ciudad o fecha
-          </p>
-        </div>
 
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={clearAll}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dh-purple/10 text-sm text-dh-ink hover:bg-dh-soft transition"
-            title="Limpiar filtros"
-          >
-            <XMarkIcon className="w-4 h-4" />
-            Limpiar
-          </button>
-        )}
-      </div>
-
-      <div className="relative grid gap-4 md:grid-cols-3">
-        {/* Input texto */}
-        <div className="relative md:col-span-2">
-          <MagnifyingGlassIcon className="w-5 h-5 text-dh-purple/60 absolute top-1/2 left-3 -translate-y-1/2" />
-          <input
-            type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar carrera..."
-            className={inputWithIcon}
-          />
-        </div>
-
-        {/* Input ciudad */}
-        <div className="relative">
-          <MapPinIcon className="w-5 h-5 text-dh-purple/60 absolute top-1/2 left-3 -translate-y-1/2" />
-          <input
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="Ciudad"
-            className={inputWithIcon}
-          />
-        </div>
-
-        {/* Input fecha */}
-        <div className="relative md:col-span-1">
-          <CalendarIcon className="w-5 h-5 text-dh-purple/60 absolute top-1/2 left-3 -translate-y-1/2" />
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={dateInput}
-          />
-        </div>
-      </div>
-
-      {/* Resultados filtrados */}
-      {hasFilters && (
-        <ul className="relative mt-2 max-h-64 overflow-auto rounded-2xl border border-dh-purple/10 bg-white">
-          {filtered.length > 0 ? (
-            filtered.map((c) => (
-              <li key={c.id} className="border-b last:border-b-0 border-dh-purple/10">
-                <Link href={`/inscribirse?carreraId=${c.id}`}>
-                  <a className="flex justify-between items-center px-4 py-3 hover:bg-dh-soft transition active:scale-[0.99]">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">
-                        {c.titulo}
-                      </p>
-                      {c.ubicacion ? (
-                        <p className="text-xs text-gray-500 truncate">
-                          {c.ubicacion}
-                        </p>
-                      ) : null}
-                    </div>
-                    <span className="text-sm text-gray-600 whitespace-nowrap">
-                      {c.fecha}
-                    </span>
-                  </a>
-                </Link>
-              </li>
-            ))
-          ) : (
-            <li className="px-4 py-3 text-gray-500">
-              No se encontraron carreras.
-            </li>
+          {hasFilters && (
+            <button
+              onClick={clearAll}
+              className="flex items-center gap-2 text-sm text-white/60 hover:text-white transition"
+            >
+              <XMarkIcon className="w-4 h-4" />
+              Limpiar
+            </button>
           )}
-        </ul>
-      )}
-    </div>
+        </div>
+
+        {/* Inputs estilo command */}
+        <div className="grid md:grid-cols-3 gap-4">
+
+          {/* Buscar */}
+          <div className="relative">
+            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+            <input
+              type="text"
+              placeholder="Nombre de la carrera"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+            />
+          </div>
+
+          {/* Ciudad */}
+          <div className="relative">
+            <MapPinIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+            <input
+              type="text"
+              placeholder="Ciudad"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+            />
+          </div>
+
+          {/* Fecha */}
+          <div className="relative">
+            <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+            />
+          </div>
+        </div>
+
+        {/* Resultados */}
+        <AnimatePresence>
+          {hasFilters && (
+            <motion.ul
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="mt-6 rounded-2xl bg-black/40 border border-white/10 overflow-hidden"
+            >
+              {filtered.length > 0 ? (
+                filtered.map((c) => (
+                  <li key={c.id} className="border-b border-white/10 last:border-none">
+                    <Link href={`/inscribirse?carreraId=${c.id}`}>
+                      <span className="flex justify-between items-center px-6 py-4 hover:bg-white/5 transition cursor-pointer">
+                        <div>
+                          <p className="text-white font-semibold">
+                            {c.titulo}
+                          </p>
+                          {c.ubicacion && (
+                            <p className="text-xs text-white/50">
+                              {c.ubicacion}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-sm text-white/60">
+                          {c.fecha}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                ))
+              ) : (
+                <li className="px-6 py-4 text-white/50">
+                  No se encontraron carreras.
+                </li>
+              )}
+            </motion.ul>
+          )}
+        </AnimatePresence>
+
+      </div>
+    </motion.div>
   );
 }

@@ -1,1 +1,36 @@
-export default function HeroBanner() { return ( <section className="relative overflow-hidden rounded-2xl border border-dh-border bg-dh-panel shadow-dhSm"> {/* Overlay suave para contraste (abajo) */} <div className="absolute inset-0 bg-gradient-to-br from-white via-white/90 to-dh-bg/80" /> {/* ✅ Logo watermark (arriba del overlay) */} <div className="absolute inset-0 pointer-events-none flex items-center justify-center"> {/* eslint-disable-next-line @next/next/no-img-element */} <img src="/mi-logo.png" alt="DHTime Logo" className="w-[78%] max-w-[900px] opacity-[0.10] mix-blend-multiply" style={{ filter: "grayscale(5%) contrast(110%)" }} /> </div> {/* Contenido */} <div className="relative z-10 px-6 py-10 sm:px-10 sm:py-14"> <h1 className="text-3xl sm:text-4xl font-extrabold text-dh-ink"> Bienvenido al mundo donde cada segundo cuenta </h1> <p className="mt-4 max-w-2xl text-dh-muted text-base sm:text-lg"> Cronometraje profesional, inscripciones en línea y resultados claros para que solo te concentres en competir. </p> </div> </section> ); }
+import { motion } from "framer-motion";
+
+export default function HeroBanner() {
+  return (
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0c0c0f] text-white">
+
+      {/* Fondo dinámico */}
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-40" />
+
+      {/* Logo enorme sutil */}
+      <img
+        src="/mi-logo.png"
+        alt="DHTime"
+        className="absolute w-[80%] max-w-[900px] opacity-5 pointer-events-none"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7 }}
+        className="relative z-10 text-center max-w-3xl px-6"
+      >
+        <h1 className="text-5xl md:text-6xl font-black leading-tight">
+          Donde cada segundo
+          <span className="block bg-gradient-to-r from-dh-purple to-dh-green bg-clip-text text-transparent">
+            define la historia
+          </span>
+        </h1>
+
+        <p className="mt-6 text-lg text-white/70">
+          Cronometraje profesional, resultados claros y tecnología que acompaña cada meta.
+        </p>
+      </motion.div>
+    </section>
+  );
+}

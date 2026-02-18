@@ -7,6 +7,7 @@ import {
   sendEmailVerification,
   deleteUser,
 } from "firebase/auth";
+import { motion } from "framer-motion";
 import { app } from "@/lib/firebase";
 import {
   UserIcon,
@@ -19,14 +20,11 @@ import {
 import { Country, State, City } from "country-state-city";
 import { Usuario } from "@/lib/usuarios";
 
-type Estado = ReturnType<typeof State.getStatesOfCountry>[number];
-type Ciudad = ReturnType<typeof City.getCitiesOfState>[number];
-
 type Rama = "Femenil" | "Varonil" | "";
 
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
-  const nacimiento = new Date(fechaNacimiento + "T00:00:00"); // ✅ evita desfase
+  const nacimiento = new Date(fechaNacimiento + "T00:00:00");
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
   const m = hoy.getMonth() - nacimiento.getMonth();
   if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
@@ -34,6 +32,9 @@ function calcularEdad(fechaNacimiento: string): number {
 }
 
 export default function RegistroUsuarioPage() {
+  const router = useRouter();
+  const auth = getAuth(app);
+
   const [formData, setFormData] = useState({
     nombre: "",
     apPaterno: "",
@@ -48,25 +49,20 @@ export default function RegistroUsuarioPage() {
     ciudad: "",
     club: "",
     fechaNacimiento: "",
-    rama: "" as Rama, // ✅ NUEVO
+    rama: "" as Rama,
   });
 
   const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
-  const router = useRouter();
-  const auth = getAuth(app);
 
-  // Listas dinámicas
   const [paises] = useState(Country.getAllCountries());
-  const [estados, setEstados] = useState<Estado[]>([]);
-  const [ciudades, setCiudades] = useState<Ciudad[]>([]);
+  const [estados, setEstados] = useState<any[]>([]);
+  const [ciudades, setCiudades] = useState<any[]>([]);
 
   useEffect(() => {
     if (formData.pais) setEstados(State.getStatesOfCountry(formData.pais));
     else setEstados([]);
-
     setFormData((fd) => ({ ...fd, estado: "", ciudad: "" }));
     setCiudades([]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.pais]);
 
   useEffect(() => {
@@ -76,7 +72,6 @@ export default function RegistroUsuarioPage() {
       setCiudades([]);
     }
     setFormData((fd) => ({ ...fd, ciudad: "" }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.estado]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -89,31 +84,30 @@ export default function RegistroUsuarioPage() {
     setMensaje(null);
 
     if (formData.email !== formData.confirmEmail)
-      return setMensaje({ type: "error", text: "Los correos electrónicos no coinciden." });
+      return setMensaje({ type: "error", text: "Los correos no coinciden." });
 
     if (formData.password.length < 6)
-      return setMensaje({ type: "error", text: "La contraseña debe tener al menos 6 caracteres." });
+      return setMensaje({ type: "error", text: "Mínimo 6 caracteres." });
 
     if (formData.password !== formData.confirmPassword)
       return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
 
-    // ✅ NUEVO: Rama obligatoria
     if (!formData.rama)
-      return setMensaje({ type: "error", text: "Selecciona tu Rama (Femenil o Varonil)." });
+      return setMensaje({ type: "error", text: "Selecciona tu rama." });
 
     try {
       const methods = await fetchSignInMethodsForEmail(auth, formData.email);
       if (methods.length)
-        return setMensaje({ type: "error", text: "Este correo ya está registrado." });
+        return setMensaje({ type: "error", text: "Correo ya registrado." });
     } catch (err: any) {
-      return setMensaje({ type: "error", text: `Error comprobando email: ${err.message}` });
+      return setMensaje({ type: "error", text: err.message });
     }
 
     let userCred;
     try {
       userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
     } catch (err: any) {
-      return setMensaje({ type: "error", text: `Error en Auth: ${err.message}` });
+      return setMensaje({ type: "error", text: err.message });
     }
 
     try {
@@ -132,229 +126,197 @@ export default function RegistroUsuarioPage() {
         club: formData.club || undefined,
         fechaNacimiento: formData.fechaNacimiento,
         edad: calcularEdad(formData.fechaNacimiento),
-        rama: formData.rama, // ✅ NUEVO
+        rama: formData.rama,
       } as any;
 
       localStorage.setItem("pendingUser", JSON.stringify(pending));
-      setMensaje({ type: "success", text: "Correo de verificación enviado. Revisa tu bandeja." });
       router.push("/verify-email");
     } catch (err: any) {
       await deleteUser(userCred.user);
-      return setMensaje({ type: "error", text: `Error enviando verificación: ${err.message}` });
+      return setMensaje({ type: "error", text: err.message });
     }
   };
 
   return (
-    <div className="max-w-md mx-auto mt-12 p-8 bg-white rounded-2xl shadow-lg">
-      <h1 className="text-3xl font-bold mb-6 text-center text-purple-600">Crear Cuenta</h1>
+    <div className="relative min-h-screen bg-[#0c0c0f] flex items-center justify-center px-6 overflow-hidden">
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Nombre */}
-        <div className="relative">
-          <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="nombre"
-            placeholder="Nombre"
-            value={formData.nombre}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          />
-        </div>
+      {/* Fondo dinámico DH */}
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-40" />
 
-        {/* Apellidos */}
-        <div className="grid grid-cols-2 gap-4">
-          {["apPaterno", "apMaterno"].map((n) => (
-            <div key={n} className="relative">
-              <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+      <motion.div
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="relative w-full max-w-3xl"
+      >
+        <div className="backdrop-blur-2xl bg-white/5 border border-white/10 rounded-3xl p-10 shadow-[0_0_60px_rgba(0,0,0,0.4)]">
+
+          <h1 className="text-4xl font-black text-white text-center">
+            Crear cuenta
+          </h1>
+
+          <form onSubmit={handleSubmit} className="mt-10 space-y-6 text-white">
+
+            {/* Nombre */}
+            <div className="grid md:grid-cols-3 gap-4">
+              {["nombre", "apPaterno", "apMaterno"].map((n) => (
+                <div key={n} className="relative">
+                  <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                  <input
+                    name={n}
+                    placeholder={n}
+                    value={(formData as any)[n]}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Email */}
+            <div className="grid md:grid-cols-2 gap-4">
+              {["email", "confirmEmail"].map((n) => (
+                <div key={n} className="relative">
+                  <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                  <input
+                    name={n}
+                    type="email"
+                    placeholder={n === "email" ? "Correo" : "Confirmar correo"}
+                    value={(formData as any)[n]}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Password */}
+            <div className="grid md:grid-cols-2 gap-4">
+              {["password", "confirmPassword"].map((n) => (
+                <div key={n} className="relative">
+                  <LockClosedIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                  <input
+                    name={n}
+                    type="password"
+                    placeholder={n === "password" ? "Contraseña" : "Confirmar contraseña"}
+                    value={(formData as any)[n]}
+                    onChange={handleChange}
+                    required
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Datos personales */}
+            <div className="grid md:grid-cols-2 gap-4">
               <input
-                name={n}
-                placeholder={n === "apPaterno" ? "Apellido Paterno" : "Apellido Materno"}
-                value={(formData as any)[n]}
+                name="celular"
+                placeholder="Celular"
+                value={formData.celular}
                 onChange={handleChange}
                 required
-                className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4"
               />
-            </div>
-          ))}
-        </div>
 
-        {/* Email */}
-        <div className="relative">
-          <EnvelopeIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="email"
-            type="email"
-            placeholder="Correo Electrónico"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          />
-        </div>
-
-        {/* Confirmar Email */}
-        <div className="relative">
-          <EnvelopeIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="confirmEmail"
-            type="email"
-            placeholder="Confirmar Correo Electrónico"
-            value={formData.confirmEmail}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          />
-        </div>
-
-        {/* Contraseña */}
-        <div className="grid grid-cols-2 gap-4">
-          {["password", "confirmPassword"].map((n) => (
-            <div key={n} className="relative">
-              <LockClosedIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                name={n}
-                type="password"
-                placeholder={n === "password" ? "Contraseña" : "Confirmar Contraseña"}
-                value={(formData as any)[n]}
+                type="date"
+                name="fechaNacimiento"
+                value={formData.fechaNacimiento}
                 onChange={handleChange}
                 required
-                className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4"
               />
             </div>
-          ))}
+
+            {/* Rama */}
+            <select
+              name="rama"
+              value={formData.rama}
+              onChange={handleChange}
+              required
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+            >
+              <option value="">Selecciona Rama</option>
+              <option value="Femenil">Femenil</option>
+              <option value="Varonil">Varonil</option>
+            </select>
+
+            {/* Ubicación */}
+            <div className="grid md:grid-cols-3 gap-4">
+              <select
+                name="pais"
+                value={formData.pais}
+                onChange={handleChange}
+                required
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+              >
+                <option value="">País</option>
+                {paises.map((c) => (
+                  <option key={c.isoCode} value={c.isoCode}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="estado"
+                value={formData.estado}
+                onChange={handleChange}
+                required
+                disabled={!formData.pais}
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+              >
+                <option value="">Estado</option>
+                {estados.map((s) => (
+                  <option key={s.isoCode} value={s.isoCode}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="ciudad"
+                value={formData.ciudad}
+                onChange={handleChange}
+                required
+                disabled={!formData.estado}
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+              >
+                <option value="">Ciudad</option>
+                {ciudades.map((c) => (
+                  <option key={c.name} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <input
+              name="club"
+              placeholder="Club (opcional)"
+              value={formData.club}
+              onChange={handleChange}
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 px-4"
+            />
+
+            <button
+              type="submit"
+              className="w-full mt-6 bg-dh-green text-black font-bold py-4 rounded-2xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
+            >
+              Crear cuenta
+            </button>
+          </form>
+
+          {mensaje && (
+            <p className={`mt-6 text-center ${mensaje.type === "error" ? "text-red-400" : "text-green-400"}`}>
+              {mensaje.text}
+            </p>
+          )}
         </div>
-
-        {/* Celular */}
-        <div className="relative">
-          <PhoneIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="celular"
-            type="tel"
-            placeholder="Celular"
-            value={formData.celular}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          />
-        </div>
-
-        {/* ✅ NUEVO: Rama */}
-        <div className="relative">
-          <UserIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <select
-            name="rama"
-            value={formData.rama}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          >
-            <option value="">Selecciona Rama</option>
-            <option value="Femenil">Femenil</option>
-            <option value="Varonil">Varonil</option>
-          </select>
-        </div>
-
-        {/* País */}
-        <div className="relative">
-          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <select
-            name="pais"
-            value={formData.pais}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          >
-            <option value="">Selecciona País</option>
-            {paises.map((c) => (
-              <option key={c.isoCode} value={c.isoCode}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Estado */}
-        <div className="relative">
-          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <select
-            name="estado"
-            value={formData.estado}
-            onChange={handleChange}
-            required
-            disabled={!formData.pais}
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          >
-            <option value="">Selecciona Estado</option>
-            {estados.map((s) => (
-              <option key={s.isoCode} value={s.isoCode}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Ciudad */}
-        <div className="relative">
-          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <select
-            name="ciudad"
-            value={formData.ciudad}
-            onChange={handleChange}
-            required
-            disabled={!formData.estado}
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          >
-            <option value="">Selecciona Ciudad</option>
-            {ciudades.map((c) => (
-              <option key={c.name} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Club */}
-        <div className="relative">
-          <BuildingOffice2Icon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="club"
-            placeholder="Club (opcional)"
-            value={formData.club}
-            onChange={handleChange}
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          />
-        </div>
-
-        {/* Fecha de nacimiento */}
-        <label className="block text-sm font-medium text-gray-700">
-          Ingresa tu fecha de nacimiento
-        </label>
-        <div className="relative">
-          <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            name="fechaNacimiento"
-            type="date"
-            value={formData.fechaNacimiento}
-            onChange={handleChange}
-            required
-            className="w-full pl-10 py-2 border rounded-lg focus:ring-purple-400"
-          />
-        </div>
-
-        <button
-          type="submit"
-          className="w-full bg-purple-600 text-white py-3 rounded-lg hover:bg-purple-700 transition"
-        >
-          Registrarse
-        </button>
-      </form>
-
-      {mensaje && (
-        <p className={`mt-4 text-center ${mensaje.type === "error" ? "text-red-600" : "text-green-600"}`}>
-          {mensaje.text}
-        </p>
-      )}
+      </motion.div>
     </div>
   );
 }

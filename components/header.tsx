@@ -4,7 +4,8 @@ import Image from "next/image";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { XMarkIcon, Bars3Icon } from "@heroicons/react/24/outline";
+import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import { motion, AnimatePresence } from "framer-motion";
 import { app, db } from "@/lib/firebase";
 
 export default function Header() {
@@ -16,8 +17,13 @@ export default function Header() {
   const [esAdmin, setEsAdmin] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
   const menuRef = useRef<HTMLDivElement>(null);
 
+  /* ============================= */
+  /* AUTH STATE */
+  /* ============================= */
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
@@ -37,6 +43,20 @@ export default function Header() {
     return unsub;
   }, [auth]);
 
+  /* ============================= */
+  /* SCROLL EFFECT */
+  /* ============================= */
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 40);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  /* ============================= */
+  /* OUTSIDE CLICK */
+  /* ============================= */
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -53,168 +73,194 @@ export default function Header() {
     router.push("/");
   };
 
-  const scrollToProximas = () => {
-    setMenuOpen(false);
-    document.getElementById("proximas-carreras")?.scrollIntoView({ behavior: "smooth" });
-  };
-
   const isHome = router.pathname === "/";
 
-  const linkBase =
-    "px-2 py-1 rounded-lg transition text-white/90 hover:text-white hover:bg-white/10";
+  /* ============================= */
+  /* RENDER */
+  /* ============================= */
 
   return (
-    <header className="sticky top-0 z-50">
-      {/* barra */}
-      <div className="relative bg-dh-dark/90 backdrop-blur border-b border-white/10 shadow-dh">
-        <div className="max-w-6xl mx-auto flex items-center px-6 py-3">
-          {/* Logo */}
-          <div className="flex-shrink-0">
-            <Link href="/" className="inline-flex items-center">
-              <Image src="/mi-logo.png" alt="Logo" width={120} height={120} priority />
-            </Link>
-          </div>
+    <>
+      {/* HEADER */}
+      <header
+        className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${
+          scrolled
+            ? "backdrop-blur-xl bg-black/60 border-b border-white/10"
+            : "bg-transparent"
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
 
-          {/* Nav desktop */}
-          <nav className="flex-1 justify-center hidden md:flex items-center gap-2">
-            <Link href="/" className={linkBase}>
-              Home
-            </Link>
+          {/* LOGO */}
+          <Link href="/" className="flex items-center gap-3">
+            <Image
+              src="/mi-logo.png"
+              alt="DHTime"
+              width={90}
+              height={90}
+              priority
+            />
+          </Link>
 
-            {user && emailVerified && (
-              <>
-                <Link href="/mis-inscripciones" className={linkBase}>
-                  Mis Inscripciones
-                </Link>
-                <Link href="/perfil" className={linkBase}>
-                  Perfil
-                </Link>
-              </>
-            )}
-
-            {esAdmin && (
-              <Link href="/admin" className={linkBase}>
-                Admin
-              </Link>
-            )}
-
-            {user ? (
-              <button onClick={handleLogout} className={`${linkBase} hover:text-red-200`}>
-                Cerrar sesión
-              </button>
-            ) : (
-              <>
-                <Link href="/login" className={linkBase}>
-                  Iniciar sesión
-                </Link>
-                <Link
-                  href="/signup"
-                  className="px-3 py-1.5 rounded-lg bg-dh-green text-dh-dark font-semibold hover:bg-dh-green/90 transition"
-                >
-                  Regístrate
-                </Link>
-              </>
-            )}
-          </nav>
-
-          {/* CTA desktop */}
-          {isHome && (
-            <div className="hidden md:block">
-              <button
-                onClick={scrollToProximas}
-                className="bg-dh-green text-dh-dark font-semibold px-4 py-2 rounded-full hover:bg-dh-green/90 transition shadow"
-              >
-                Inscribirme
-              </button>
-            </div>
-          )}
-
-          {/* Menú móvil */}
-          <div className="ml-auto md:hidden">
-            <button
-              onClick={() => setMenuOpen((o) => !o)}
-              className="p-2 rounded-lg hover:bg-white/10 transition text-white"
-              aria-label="Abrir menú"
-            >
-              {menuOpen ? <XMarkIcon className="w-6 h-6" /> : <Bars3Icon className="w-6 h-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* glow suave DH */}
-        <div className="pointer-events-none absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-dh-purple/0 via-dh-purple/60 to-dh-green/60" />
-      </div>
-
-      {/* Drawer móvil */}
-      {menuOpen && (
-        <div ref={menuRef} className="md:hidden bg-dh-dark/95 backdrop-blur border-b border-white/10">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-1">
-            <Link href="/" className={linkBase} onClick={() => setMenuOpen(false)}>
-              Home
+          {/* NAV DESKTOP */}
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
+            <Link href="/" className="hover:text-dh-green transition">
+              Inicio
             </Link>
 
             {user && emailVerified && (
               <>
                 <Link
                   href="/mis-inscripciones"
-                  className={linkBase}
-                  onClick={() => setMenuOpen(false)}
+                  className="hover:text-dh-green transition"
                 >
                   Mis Inscripciones
                 </Link>
-                <Link href="/perfil" className={linkBase} onClick={() => setMenuOpen(false)}>
+                <Link
+                  href="/perfil"
+                  className="hover:text-dh-green transition"
+                >
                   Perfil
                 </Link>
               </>
             )}
 
             {esAdmin && (
-              <Link href="/admin" className={linkBase} onClick={() => setMenuOpen(false)}>
+              <Link
+                href="/admin"
+                className="hover:text-dh-green transition"
+              >
                 Admin
               </Link>
             )}
+          </nav>
 
+          {/* RIGHT SIDE */}
+          <div className="hidden md:flex items-center gap-6">
             {!user ? (
               <>
-                <Link href="/login" className={linkBase} onClick={() => setMenuOpen(false)}>
+                <Link href="/login" className="hover:text-dh-green transition">
                   Iniciar sesión
                 </Link>
                 <Link
                   href="/signup"
-                  className="mt-1 px-3 py-2 rounded-xl bg-dh-green text-dh-dark font-semibold text-center hover:bg-dh-green/90 transition"
-                  onClick={() => setMenuOpen(false)}
+                  className="bg-dh-green text-black px-5 py-2 rounded-full font-semibold hover:scale-105 transition"
                 >
-                  Regístrate
+                  Crear cuenta
                 </Link>
               </>
             ) : (
-              <button
-                onClick={handleLogout}
-                className="mt-1 w-full text-left px-2 py-2 rounded-lg text-red-200 hover:bg-white/10 transition"
-              >
-                Cerrar sesión
-              </button>
+              <>
+                <span className="text-white/70 text-sm">
+                  {nombre}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="text-red-400 hover:text-red-300 transition"
+                >
+                  Cerrar sesión
+                </button>
+              </>
             )}
-
-            {/* CTA móvil (ya NO absolute) */}
-            {isHome && (
-              <button
-                onClick={scrollToProximas}
-                className="mt-2 w-full bg-dh-green text-dh-dark font-semibold px-4 py-2 rounded-xl hover:bg-dh-green/90 transition shadow"
-              >
-                Inscribirme
-              </button>
-            )}
-
-            {/* mini saludo opcional */}
-            {user && nombre ? (
-              <p className="mt-2 text-xs text-white/60 px-2">
-                Sesión: <span className="text-white/80">{nombre}</span>
-              </p>
-            ) : null}
           </div>
+
+          {/* MOBILE BUTTON */}
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="md:hidden p-2"
+          >
+            <Bars3Icon className="w-7 h-7" />
+          </button>
         </div>
-      )}
-    </header>
+      </header>
+
+      {/* MOBILE DRAWER */}
+      <AnimatePresence>
+        {menuOpen && (
+          <>
+            {/* BACKDROP */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMenuOpen(false)}
+              className="fixed inset-0 bg-black/70 z-40"
+            />
+
+            {/* PANEL */}
+            <motion.div
+              ref={menuRef}
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", stiffness: 260, damping: 25 }}
+              className="fixed top-0 right-0 h-full w-72 bg-[#111116] border-l border-white/10 z-50 p-6 flex flex-col gap-6"
+            >
+              <div className="flex justify-between items-center">
+                <span className="font-bold">Menú</span>
+                <button onClick={() => setMenuOpen(false)}>
+                  <XMarkIcon className="w-6 h-6" />
+                </button>
+              </div>
+
+              <Link href="/" onClick={() => setMenuOpen(false)}>
+                Inicio
+              </Link>
+
+              {user && emailVerified && (
+                <>
+                  <Link
+                    href="/mis-inscripciones"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Mis Inscripciones
+                  </Link>
+                  <Link
+                    href="/perfil"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Perfil
+                  </Link>
+                </>
+              )}
+
+              {esAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Admin
+                </Link>
+              )}
+
+              {!user ? (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Iniciar sesión
+                  </Link>
+                  <Link
+                    href="/signup"
+                    onClick={() => setMenuOpen(false)}
+                    className="mt-4 bg-dh-green text-black text-center py-3 rounded-full font-semibold"
+                  >
+                    Crear cuenta
+                  </Link>
+                </>
+              ) : (
+                <button
+                  onClick={handleLogout}
+                  className="text-red-400 text-left"
+                >
+                  Cerrar sesión
+                </button>
+              )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
