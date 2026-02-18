@@ -122,20 +122,29 @@ export default function HomePage() {
     setCarreras(filtered);
   }, [raw, qTitulo, qCiudad, qFecha]);
 
+  // 🔥 FILTRO CORREGIDO Y MÁS ROBUSTO
   const resultadosRecientes = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     return raw
       .filter((c) => {
-        return (
-          c.carreraDate &&
-          c.carreraDate < today &&
-          c.resultados?.publicado === true &&
-          typeof c.resultados?.url === "string" &&
-          c.resultados.url.trim()
-        );
+        const esPasada =
+          c.carreraDate && c.carreraDate < today;
+
+        const tieneResultados =
+          c.resultados &&
+          c.resultados.url &&
+          String(c.resultados.url).trim().length > 0 &&
+          c.resultados.publicado === true;
+
+        return esPasada && tieneResultados;
       })
+      .sort(
+        (a, b) =>
+          (b.carreraDate?.getTime() ?? 0) -
+          (a.carreraDate?.getTime() ?? 0)
+      )
       .slice(0, 4);
   }, [raw]);
 
@@ -150,7 +159,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* BUSCADOR EN PANEL OSCURO */}
+      {/* BUSCADOR */}
       <section className="relative py-24 px-6">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
@@ -163,7 +172,7 @@ export default function HomePage() {
         </motion.div>
       </section>
 
-      {/* RESULTADOS COMO BANDA HORIZONTAL */}
+      {/* RESULTADOS */}
       {resultadosRecientes.length > 0 && (
         <section className="py-20 border-t border-white/10">
           <div className="px-6">
@@ -193,7 +202,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* LISTA HORIZONTAL ESTILO APP */}
+      {/* PRÓXIMAS CARRERAS */}
       <section className="py-32 px-6">
         <h2 className="text-5xl font-black mb-20 text-center">
           Próximas <span className="text-dh-green">Carreras</span>
