@@ -95,60 +95,85 @@ export default function AdminCarrerasList({ onEdit }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      {sorted.map((c) => {
-        const abiertas = c.inscripcionesAbiertas !== false;
-        const distList = Array.isArray(c.distancias) ? c.distancias : [];
+  <div className="space-y-6">
+    {sorted.map((c) => {
+      const abiertas = c.inscripcionesAbiertas !== false;
+      const distList = Array.isArray(c.distancias) ? c.distancias : [];
 
-        return (
-          <div
-            key={c.id}
-            className="flex items-center justify-between bg-white p-4 rounded-lg shadow hover:shadow-lg transition"
-          >
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">{c.titulo}</h3>
+      return (
+        <div
+          key={c.id}
+          className="bg-dh-panel border border-dh-border rounded-2xl p-6 shadow-dhSm hover:shadow-dh transition"
+        >
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
 
-              <p className="text-sm text-gray-500">
-                Fecha: <time>{formatDateSafe((c as any).fecha)}</time>
+            {/* INFO */}
+            <div className="space-y-2">
+
+              <h3 className="text-xl font-extrabold text-dh-ink">
+                {c.titulo}
+              </h3>
+
+              <p className="text-sm text-dh-muted">
+                Fecha:{" "}
+                <time className="font-semibold text-dh-ink">
+                  {formatDateSafe((c as any).fecha)}
+                </time>
               </p>
 
-              {/* ✅ badge de estado */}
-              <p className="mt-1">
+              {/* Badge estado */}
+              <div>
                 <span
-                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    abiertas ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-extrabold border ${
+                    abiertas
+                      ? "bg-dh-green/10 text-dh-green border-dh-green/20"
+                      : "bg-red-50 text-red-600 border-red-200"
                   }`}
                 >
-                  {abiertas ? "Inscripciones abiertas" : "Inscripciones pausadas"}
+                  {abiertas
+                    ? "Inscripciones abiertas"
+                    : "Inscripciones pausadas"}
                 </span>
-              </p>
+              </div>
 
-              {/* ✅ no truena aunque no haya distancias */}
+              {/* Distancias */}
               {distList.length > 0 && (
-                <p className="text-sm text-gray-500">
-                  Distancias: {distList.map((d: any) => d.distancia).filter(Boolean).join(", ")}
+                <p className="text-sm text-dh-muted">
+                  <span className="font-semibold text-dh-ink">
+                    Distancias:
+                  </span>{" "}
+                  {distList
+                    .map((d: any) => d.distancia)
+                    .filter(Boolean)
+                    .join(", ")}
                 </p>
               )}
 
+              {/* Kit */}
               {(c.kitFecha || c.kitLugar || c.kitHorario) && (
-                <p className="text-sm text-gray-500">
-                  Kit: {c.kitFecha || "Fecha indefinida"} – {c.kitLugar || "Lugar indefinido"} –{" "}
+                <p className="text-sm text-dh-muted">
+                  <span className="font-semibold text-dh-ink">Kit:</span>{" "}
+                  {c.kitFecha || "Fecha indefinida"} –{" "}
+                  {c.kitLugar || "Lugar indefinido"} –{" "}
                   {c.kitHorario || "Horario indefinido"}
                 </p>
               )}
 
-              {/* ✅ mensaje si está pausada */}
+              {/* Mensaje pausa */}
               {!abiertas && (
-                <p className="text-xs text-red-600 mt-1">
-                  {(c.inscripcionesMensaje || "").trim() || "Inscripciones pausadas temporalmente."}
+                <p className="text-xs text-red-600 mt-2">
+                  {(c.inscripcionesMensaje || "").trim() ||
+                    "Inscripciones pausadas temporalmente."}
                 </p>
               )}
             </div>
 
-            <div className="flex space-x-2">
+            {/* ACCIONES */}
+            <div className="flex items-center gap-3">
+
               <button
                 onClick={() => onEdit(c)}
-                className="p-2 bg-purple-600 text-dh-ink rounded-full hover:bg-purple-700 transition"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-dh-purple/10 text-dh-purple hover:bg-dh-purple hover:text-white transition"
                 title="Editar"
               >
                 <PencilIcon className="w-5 h-5" />
@@ -156,19 +181,28 @@ export default function AdminCarrerasList({ onEdit }: Props) {
 
               <button
                 onClick={() => handleDelete(c.id)}
-                className="p-2 bg-red-600 text-dh-ink rounded-full hover:bg-red-700 transition"
+                className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-red-50 text-red-600 hover:bg-red-600 hover:text-white transition"
                 title="Eliminar"
               >
                 <TrashIcon className="w-5 h-5" />
               </button>
+
             </div>
           </div>
-        );
-      })}
+        </div>
+      );
+    })}
 
-      {sorted.length === 0 && (
-        <p className="text-center text-gray-500">No hay carreras creadas.</p>
-      )}
-    </div>
-  );
+    {sorted.length === 0 && (
+      <div className="text-center py-16 text-dh-muted">
+        <p className="text-lg font-semibold">
+          No hay carreras creadas.
+        </p>
+        <p className="text-sm mt-1">
+          Crea tu primera carrera para comenzar.
+        </p>
+      </div>
+    )}
+  </div>
+);
 }

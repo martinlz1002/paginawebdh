@@ -29,48 +29,122 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
 
   const btnBase = 'flex items-center w-full px-4 py-2 rounded-lg transition';
 
-  return (
-    <div
-      ref={menuRef}
-      className={`
-        fixed top-16 bottom-0 left-0 z-40 bg-white shadow-lg
-        transform transition-transform duration-300
-        ${open ? 'translate-x-0' : '-translate-x-full'}
-        w-64 overflow-auto
-      `}
-    >
-      <nav className="space-y-4 px-4 pt-4 pb-6">
+ return (
+  <div
+    ref={menuRef}
+    className={`
+      fixed top-16 bottom-0 left-0 z-40
+      w-72
+      bg-dh-panel border-r border-dh-border
+      shadow-dh
+      transform transition-transform duration-300
+      ${open ? "translate-x-0" : "-translate-x-full"}
+      overflow-y-auto
+    `}
+  >
+    <div className="px-6 pt-8 pb-6 space-y-8">
+
+      {/* Título */}
+      <div>
+        <p className="text-xs uppercase tracking-wider text-dh-muted font-semibold">
+          Panel Admin
+        </p>
+        <h3 className="text-lg font-extrabold text-dh-ink mt-1">
+          DH Control
+        </h3>
+      </div>
+
+      {/* Navegación */}
+      <nav className="space-y-2">
+
+        {/* Crear */}
         <button
-          onClick={() => { setView('crear'); onToggle(); }}
-          className={`${btnBase} ${view === 'crear' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
+          onClick={() => { setView("crear"); onToggle(); }}
+          className={`
+            w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+            ${
+              view === "crear"
+                ? "bg-dh-green text-dh-dark shadow-dhSm"
+                : "text-dh-muted hover:bg-dh-soft"
+            }
+          `}
         >
-          <PlusCircleIcon className="w-5 h-5 mr-2" /> Crear Carrera
+          <PlusCircleIcon className="w-5 h-5" />
+          Crear Carrera
         </button>
+
+        {/* Listar */}
         <button
-          onClick={() => { setView('listar'); onToggle(); }}
-          className={`${btnBase} ${view === 'listar' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
+          onClick={() => { setView("listar"); onToggle(); }}
+          className={`
+            w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+            ${
+              view === "listar"
+                ? "bg-dh-green text-dh-dark shadow-dhSm"
+                : "text-dh-muted hover:bg-dh-soft"
+            }
+          `}
         >
-          <PencilIcon className="w-5 h-5 mr-2" /> Listar Carreras
+          <PencilIcon className="w-5 h-5" />
+          Listar Carreras
         </button>
+
+        {/* Inscripciones */}
         <button
-          onClick={() => { setView('inscripciones'); onToggle(); }}
-          className={`${btnBase} ${view === 'inscripciones' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
+          onClick={() => { setView("inscripciones"); onToggle(); }}
+          className={`
+            w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+            ${
+              view === "inscripciones"
+                ? "bg-dh-green text-dh-dark shadow-dhSm"
+                : "text-dh-muted hover:bg-dh-soft"
+            }
+          `}
         >
-          <ClipboardIcon className="w-5 h-5 mr-2" /> Ver Inscripciones
+          <ClipboardIcon className="w-5 h-5" />
+          Ver Inscripciones
         </button>
+
+        {/* Manuales */}
         <button
-          onClick={() => { setView('inscripcionesManuales'); onToggle(); }}
-          className={`${btnBase} ${view === 'inscripcionesManuales' ? 'bg-green-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
+          onClick={() => { setView("inscripcionesManuales"); onToggle(); }}
+          className={`
+            w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+            ${
+              view === "inscripcionesManuales"
+                ? "bg-dh-green text-dh-dark shadow-dhSm"
+                : "text-dh-muted hover:bg-dh-soft"
+            }
+          `}
         >
-          <UserPlusIcon className="w-5 h-5 mr-2" /> Inscripciones Manuales
+          <UserPlusIcon className="w-5 h-5" />
+          Inscripciones Manuales
         </button>
+
+        {/* Eliminar */}
         <button
-          onClick={() => { setView('eliminarInscripciones'); onToggle(); }}
-          className={`${btnBase} ${view === 'eliminarInscripciones' ? 'bg-red-600 text-dh-ink' : 'text-gray-600 hover:bg-gray-100'}`}
+          onClick={() => { setView("eliminarInscripciones"); onToggle(); }}
+          className={`
+            w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+            ${
+              view === "eliminarInscripciones"
+                ? "bg-red-500/15 text-red-600"
+                : "text-dh-muted hover:bg-red-50 hover:text-red-600"
+            }
+          `}
         >
-          <TrashIcon className="w-5 h-5 mr-2" /> Eliminar Inscripciones
+          <TrashIcon className="w-5 h-5" />
+          Eliminar Inscripciones
         </button>
+
       </nav>
+
+      {/* Footer sutil */}
+      <div className="pt-6 border-t border-dh-border text-xs text-dh-muted">
+        Admin DHTime © {new Date().getFullYear()}
+      </div>
+
     </div>
-  );
+  </div>
+);
 }
