@@ -40,39 +40,66 @@ export default function EliminarInscripciones({
   };
 
   return (
-    <div className="bg-white p-6 rounded shadow max-w-md">
-      <h2 className="text-gray-800 text-2xl font-semibold mb-4">
-        Eliminar Inscripciones
-      </h2>
+  <div className="min-h-screen bg-[#0c0c0f] py-12 px-6 text-white">
+    <div className="max-w-xl mx-auto">
 
-      {feedback && <p className="mb-4 text-green-700">{feedback}</p>}
-      {error && <p className="mb-4 text-red-700">{error}</p>}
+      <div className="bg-[#16161d] border border-red-500/20 rounded-3xl p-8 space-y-6">
 
-      <select
-        value={selectedId}
-        onChange={(e) => setSelectedId(e.target.value)}
-        className="w-full p-2 border rounded mb-4"
-        disabled={loading}
-      >
-        <option value="">Selecciona una carrera</option>
-        {carreras.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.titulo}
-          </option>
-        ))}
-      </select>
+        <div>
+          <h2 className="text-2xl font-black text-red-400">
+            Eliminar Inscripciones
+          </h2>
+          <p className="text-sm text-white/50 mt-2">
+            Esta acción eliminará permanentemente los registros de la carrera seleccionada.
+          </p>
+        </div>
 
-      <button
-        onClick={handleClick}
-        disabled={!selectedId || loading}
-        className="w-full px-4 py-2 bg-red-600 text-dh-ink rounded hover:bg-red-700 disabled:opacity-50"
-      >
-        {loading ? "Borrando..." : "Eliminar inscripciones"}
-      </button>
+        {feedback && (
+          <div className="rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-green-400 text-sm font-medium">
+            {feedback}
+          </div>
+        )}
 
-      <p className="text-xs text-gray-500 mt-3">
-        Tip: esto borra registros en <code>inscripciones</code> para esa carrera.
-      </p>
+        {error && (
+          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-red-400 text-sm font-medium">
+            {error}
+          </div>
+        )}
+
+        <div>
+          <label className="text-sm font-semibold text-white/70">
+            Carrera
+          </label>
+
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            disabled={loading}
+            className="mt-2 w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+          >
+            <option value="">Selecciona una carrera</option>
+            {carreras.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.titulo}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <button
+          onClick={handleClick}
+          disabled={!selectedId || loading}
+          className="w-full rounded-2xl bg-red-600 py-4 font-extrabold hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? "Borrando..." : "Eliminar inscripciones"}
+        </button>
+
+        <div className="text-xs text-white/40">
+          Tip: esto borra registros en <code className="text-white/70">inscripciones</code> para esa carrera.
+        </div>
+
+      </div>
     </div>
-  );
+  </div>
+);
 }

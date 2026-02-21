@@ -108,12 +108,25 @@ export default function AdminInscripciones() {
   };
 
   return (
-    <div>
-      <h2 className="text-lg font-semibold mb-2">Inscripciones</h2>
+  <div className="space-y-8">
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+    {/* Header */}
+    <div>
+      <h2 className="text-2xl font-extrabold text-white">
+        Inscripciones
+      </h2>
+      <p className="text-sm text-white/60 mt-1">
+        Visualiza, filtra y exporta registros.
+      </p>
+    </div>
+
+    {/* Filtros */}
+    <div className="bg-[#16161d] border border-dh-purple/20 rounded-3xl p-6">
+      <div className="flex flex-col sm:flex-row gap-4">
+
+        {/* Carrera */}
         <select
-          className="border p-2 rounded"
+          className="flex-1 bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
           onChange={(e) => setCarreraId(e.target.value)}
           value={carreraId}
         >
@@ -125,12 +138,12 @@ export default function AdminInscripciones() {
           ))}
         </select>
 
+        {/* Estado pago */}
         <select
-          className="border p-2 rounded"
+          className="flex-1 bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as any)}
           disabled={!carreraId}
-          title="Filtrar por estado de pago"
         >
           <option value="all">Todos</option>
           <option value="paid">Pagado</option>
@@ -141,51 +154,85 @@ export default function AdminInscripciones() {
           <option value="failed">Failed</option>
         </select>
       </div>
-
-      {rows.length > 0 ? (
-        <>
-          <button onClick={exportCsv} className="bg-green-600 text-dh-ink px-4 py-2 rounded mb-4">
-            Exportar CSV
-          </button>
-
-          <div className="overflow-auto">
-            <table className="w-full border table-auto">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 border">#</th>
-                  <th className="p-2 border">Nombre</th>
-                  <th className="p-2 border">Email</th>
-                  <th className="p-2 border">Celular</th>
-                  <th className="p-2 border">Rama</th>
-                  <th className="p-2 border">Categoría</th>
-                  <th className="p-2 border">Distancia</th>
-                  <th className="p-2 border">Estado</th>
-                  <th className="p-2 border">Creado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="p-2 border">{r.competitorNumber || "—"}</td>
-                    <td className="p-2 border">{r.nombres || "—"}</td>
-                    <td className="p-2 border">{r.email || "—"}</td>
-                    <td className="p-2 border">{r.celular || "—"}</td>
-                    <td className="p-2 border">{r.rama || "—"}</td>
-                    <td className="p-2 border">{r.categoria || "—"}</td>
-                    <td className="p-2 border">{r.distancia || "—"}</td>
-                    <td className="p-2 border">{r.paymentStatus || "—"}</td>
-                    <td className="p-2 border">{r.createdAt || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : carreraId ? (
-        <p className="text-sm text-gray-500">No hay inscripciones para esta carrera (con ese filtro).</p>
-      ) : (
-        <p className="text-sm text-gray-500">Selecciona una carrera para ver inscripciones.</p>
-      )}
     </div>
-  );
+
+    {/* Tabla */}
+    {rows.length > 0 ? (
+      <div className="space-y-6">
+
+        <button
+          onClick={exportCsv}
+          className="bg-dh-green text-black font-bold px-6 py-3 rounded-xl hover:opacity-90 transition"
+        >
+          Exportar CSV
+        </button>
+
+        <div className="overflow-x-auto rounded-3xl border border-white/10">
+          <table className="w-full min-w-[900px] table-auto border-collapse text-sm">
+            <thead className="bg-[#1b1b22] text-white/70 uppercase text-xs tracking-wide">
+              <tr>
+                <th className="p-3 text-left">#</th>
+                <th className="p-3 text-left">Nombre</th>
+                <th className="p-3 text-left">Email</th>
+                <th className="p-3 text-left">Celular</th>
+                <th className="p-3 text-left">Rama</th>
+                <th className="p-3 text-left">Categoría</th>
+                <th className="p-3 text-left">Distancia</th>
+                <th className="p-3 text-left">Estado</th>
+                <th className="p-3 text-left">Creado</th>
+              </tr>
+            </thead>
+
+            <tbody className="bg-[#141418] text-white">
+              {rows.map((r) => (
+                <tr
+                  key={r.id}
+                  className="border-t border-white/5 hover:bg-[#1f1f27] transition"
+                >
+                  <td className="p-3 font-bold text-dh-purple">
+                    {r.competitorNumber || "—"}
+                  </td>
+                  <td className="p-3">{r.nombres || "—"}</td>
+                  <td className="p-3 text-white/70">{r.email || "—"}</td>
+                  <td className="p-3">{r.celular || "—"}</td>
+                  <td className="p-3">{r.rama || "—"}</td>
+                  <td className="p-3">{r.categoria || "—"}</td>
+                  <td className="p-3">{r.distancia || "—"}</td>
+
+                  <td className="p-3">
+                    <span
+                      className={`px-3 py-1 rounded-full text-xs font-bold ${
+                        r.paymentStatus === "paid"
+                          ? "bg-dh-green text-black"
+                          : r.paymentStatus === "pending"
+                          ? "bg-yellow-500 text-black"
+                          : r.paymentStatus === "manual"
+                          ? "bg-blue-500 text-white"
+                          : "bg-red-600 text-white"
+                      }`}
+                    >
+                      {r.paymentStatus || "—"}
+                    </span>
+                  </td>
+
+                  <td className="p-3 text-white/60">
+                    {r.createdAt || "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    ) : carreraId ? (
+      <div className="text-sm text-white/60 bg-[#16161d] border border-white/10 rounded-2xl p-6">
+        No hay inscripciones para esta carrera (con ese filtro).
+      </div>
+    ) : (
+      <div className="text-sm text-white/60 bg-[#16161d] border border-white/10 rounded-2xl p-6">
+        Selecciona una carrera para ver inscripciones.
+      </div>
+    )}
+  </div>
+);
 }

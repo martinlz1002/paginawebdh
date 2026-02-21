@@ -219,272 +219,247 @@ if (!insSnap.empty) {
   };
 
   return (
-    <AuthGuard>
-      <div className="min-h-screen bg-dh-soft py-10 px-4">
-        <div className="max-w-5xl mx-auto space-y-6">
-          {/* Header */}
-          <div className={`${cardBase} p-5 flex items-center justify-between`}>
-            <button
-              onClick={() => router.back()}
-              className="inline-flex items-center gap-2 text-dh-ink hover:text-dh-purple transition"
-            >
-              <ChevronLeftIcon className="w-5 h-5" />
-              <span className="font-semibold">Volver</span>
-            </button>
+  <AuthGuard>
+    <div className="min-h-screen bg-[#0c0c0f] py-12 px-6 text-white">
+      <div className="max-w-6xl mx-auto space-y-10">
 
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Admin</p>
-              <h1 className="text-lg font-extrabold text-dh-purple">
-                Inscripciones Manuales
-              </h1>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-2 text-white/70 hover:text-dh-purple transition"
+          >
+            <ChevronLeftIcon className="w-5 h-5" />
+            <span className="font-semibold">Volver</span>
+          </button>
+
+          <div className="text-right">
+            <p className="text-xs text-white/40 uppercase tracking-wide">
+              Panel Admin
+            </p>
+            <h1 className="text-2xl font-black bg-gradient-to-r from-dh-purple to-dh-green bg-clip-text text-transparent">
+              Inscripciones Manuales
+            </h1>
+          </div>
+        </div>
+
+        {/* Crear acceso */}
+        <section className="bg-[#16161d] border border-dh-purple/20 rounded-3xl p-8 space-y-6">
+
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-extrabold">
+              Crear Acceso Temporal
+            </h2>
+            <span className="text-xs rounded-full bg-dh-purple/10 border border-dh-purple/20 px-3 py-1 text-dh-purple">
+              Link + Usuario + Rango
+            </span>
+          </div>
+
+          {error && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+            {/* Carrera */}
+            <div>
+              <label className="text-sm font-semibold text-white/70">
+                Carrera
+              </label>
+              <select
+                className="mt-2 w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+                value={carreraId}
+                onChange={(e) => setCarreraId(e.target.value)}
+              >
+                <option value="">-- Selecciona carrera --</option>
+                {carreras.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.titulo}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Expiración */}
+            <div>
+              <label className="text-sm font-semibold text-white/70">
+                Expiración
+              </label>
+              <input
+                type="datetime-local"
+                className="mt-2 w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+              <p className="text-xs text-white/40 mt-2">
+                Se toma como hora local del dispositivo.
+              </p>
+            </div>
+
+            {/* Rango */}
+            <div className="md:col-span-2">
+              <label className="text-sm font-semibold text-white/70">
+                Rango de números
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="Número inicio"
+                  className="bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+                  value={startNumber}
+                  onChange={(e) => setStartNumber(Number(e.target.value))}
+                />
+                <input
+                  type="number"
+                  min={startNumber}
+                  placeholder="Número fin"
+                  className="bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+                  value={endNumber}
+                  onChange={(e) => setEndNumber(Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            {/* Credenciales */}
+            <div className="md:col-span-2">
+              <label className="text-sm font-semibold text-white/70">
+                Credenciales
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
+                <input
+                  type="text"
+                  placeholder="Usuario"
+                  className="bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                />
+                <input
+                  type="password"
+                  placeholder="Contraseña"
+                  className="bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Crear */}
-          <section className={`${cardBase} p-6 space-y-5`}>
-            <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-extrabold text-dh-ink">
-                Crear Acceso Temporal
-              </h2>
-              <span className="text-xs rounded-full bg-dh-soft border border-dh-purple/10 px-3 py-1 text-gray-600">
-                Genera link + usuario + rango
-              </span>
+          <button
+            onClick={handleCreate}
+            disabled={loading}
+            className="w-full rounded-2xl bg-dh-green text-black py-4 font-extrabold hover:opacity-90 transition disabled:opacity-50"
+          >
+            {loading ? "Creando..." : "Crear Acceso"}
+          </button>
+
+          {link && (
+            <div className="rounded-2xl border border-dh-green/30 bg-dh-green/10 p-5">
+              <p className="font-semibold text-dh-green">Link generado</p>
+              <a
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block mt-2 underline break-all text-white"
+              >
+                {link}
+              </a>
             </div>
+          )}
+        </section>
 
-            {error && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {error}
-              </div>
-            )}
+        {/* Lista accesos */}
+        <section className="bg-[#16161d] border border-dh-purple/20 rounded-3xl p-8 space-y-6">
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Carrera */}
-              <div>
-                <label className={labelBase}>Carrera</label>
-                <div className="relative">
-                  <LinkIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <select
-                    className={selectBase}
-                    value={carreraId}
-                    onChange={(e) => setCarreraId(e.target.value)}
-                  >
-                    <option value="">-- Selecciona carrera --</option>
-                    {carreras.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.titulo}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-extrabold">
+              Accesos Temporales
+            </h2>
+            <span className="text-sm text-white/60">
+              Total: <span className="font-bold text-dh-green">{accesses.length}</span>
+            </span>
+          </div>
 
-              {/* Expiración */}
-              <div>
-                <label className={labelBase}>Expiración</label>
-                <div className="relative">
-                  <CalendarIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="datetime-local"
-                    className={inputBase}
-                    value={expiresAt}
-                    onChange={(e) => setExpiresAt(e.target.value)}
-                  />
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Se toma como hora local del dispositivo.
-                </p>
-              </div>
-
-              {/* Rango */}
-              <div className="md:col-span-2">
-                <label className={labelBase}>Rango de números</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      min={1}
-                      className={inputBase}
-                      placeholder="Número inicio"
-                      value={startNumber}
-                      onChange={(e) => setStartNumber(Number(e.target.value))}
-                    />
-                  </div>
-                  <div className="relative">
-                    <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="number"
-                      min={startNumber}
-                      className={inputBase}
-                      placeholder="Número fin"
-                      value={endNumber}
-                      onChange={(e) => setEndNumber(Number(e.target.value))}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Credenciales */}
-              <div className="md:col-span-2">
-                <label className={labelBase}>Credenciales</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="relative">
-                    <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      className={inputBase}
-                      placeholder="Usuario"
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                    />
-                  </div>
-                  <div className="relative">
-                    <KeyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="password"
-                      className={inputBase}
-                      placeholder="Contraseña"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
+          {accesses.length === 0 ? (
+            <div className="text-white/50 text-sm">
+              No hay accesos temporales.
             </div>
+          ) : (
+            <div className="overflow-x-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[980px] table-auto border-collapse text-sm">
+                <thead className="bg-[#1b1b22] text-white/70 uppercase tracking-wide text-xs">
+                  <tr>
+                    <th className="p-3 text-left">Carrera</th>
+                    <th className="p-3 text-left">Usuario</th>
+                    <th className="p-3 text-left">Contraseña</th>
+                    <th className="p-3 text-left">Rango</th>
+                    <th className="p-3 text-left">Expira</th>
+                    <th className="p-3 text-left">Acciones</th>
+                  </tr>
+                </thead>
 
-            <button
-              onClick={handleCreate}
-              disabled={loading}
-              className="w-full rounded-xl bg-dh-green text-dh-dark py-3 font-extrabold hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {loading ? "Creando..." : "Crear Acceso"}
-            </button>
+                <tbody className="bg-[#141418] text-white">
+                  {accesses
+                    .slice()
+                    .sort((a, b) => {
+                      const at = (a.expiresAt as Date)?.getTime?.() ?? 0;
+                      const bt = (b.expiresAt as Date)?.getTime?.() ?? 0;
+                      return bt - at;
+                    })
+                    .map((acc) => {
+                      const carrera = carreras.find((c) => c.id === acc.carreraId);
+                      const isDeleting = deletingId === acc.id;
 
-            {link && (
-              <div className="rounded-2xl border border-dh-green/25 bg-green-50 p-4">
-                <p className="font-semibold text-dh-ink">Link generado</p>
-                <a
-                  href={link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-block text-dh-purple underline break-all font-medium"
-                >
-                  {link}
-                </a>
-                <p className="text-xs text-gray-600 mt-2">
-                  Tip: copia el link y mándalo con el usuario/contraseña.
-                </p>
-              </div>
-            )}
-          </section>
+                      return (
+                        <tr
+                          key={acc.id}
+                          className="border-t border-white/5 hover:bg-[#1f1f27] transition"
+                        >
+                          <td className="p-3 font-semibold">
+                            {carrera?.titulo || acc.carreraId}
+                          </td>
+                          <td className="p-3">{acc.username}</td>
+                          <td className="p-3">{acc.password}</td>
+                          <td className="p-3">
+                            {`${acc.range.start}–${acc.range.end}`}
+                          </td>
+                          <td className="p-3 text-white/60">
+                            {(acc.expiresAt as Date).toLocaleString()}
+                          </td>
+                          <td className="p-3 flex gap-4 items-center">
+                            {acc.link && (
+                              <a
+                                href={acc.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-dh-purple underline"
+                              >
+                                Ver
+                              </a>
+                            )}
 
-          {/* Lista */}
-          <section className={`${cardBase} p-6 space-y-4`}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-extrabold text-dh-ink">
-                Accesos Temporales Creados
-              </h2>
-              <span className="text-sm text-gray-600">
-                Total: <span className="font-semibold">{accesses.length}</span>
-              </span>
+                            <button
+                              onClick={() => handleDelete(acc.id)}
+                              disabled={isDeleting}
+                              className="text-red-400 hover:text-red-300 font-semibold disabled:opacity-50"
+                            >
+                              {isDeleting ? "Eliminando…" : "Eliminar"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
             </div>
-
-            {accesses.length === 0 ? (
-              <p className="text-gray-500">No hay accesos temporales.</p>
-            ) : (
-              <div className="overflow-auto rounded-2xl border border-dh-purple/10">
-                <table className="w-full min-w-[980px] table-auto border-collapse">
-                  <thead className="bg-dh-soft">
-                    <tr className="text-left">
-                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Carrera
-                      </th>
-                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Usuario
-                      </th>
-                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Contraseña
-                      </th>
-                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Rango
-                      </th>
-                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Expira
-                      </th>
-                      <th className="p-3 text-xs font-bold uppercase tracking-wide text-gray-600">
-                        Link
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="bg-white">
-                    {accesses
-                      .slice()
-                      .sort((a, b) => {
-                        const at = (a.expiresAt as Date)?.getTime?.() ?? 0;
-                        const bt = (b.expiresAt as Date)?.getTime?.() ?? 0;
-                        return bt - at;
-                      })
-                      .map((acc) => {
-                        const carrera = carreras.find((c) => c.id === acc.carreraId);
-                        const isDeleting = deletingId === acc.id;
-
-                        return (
-                          <tr
-                            key={acc.id}
-                            className="border-t border-dh-purple/10 hover:bg-gray-50 transition"
-                          >
-                            <td className="p-3 text-dh-ink font-medium">
-                              {carrera?.titulo || acc.carreraId}
-                            </td>
-                            <td className="p-3 text-dh-ink">{acc.username}</td>
-                            <td className="p-3 text-dh-ink">{acc.password}</td>
-                            <td className="p-3 text-dh-ink">
-                              {`${acc.range.start}–${acc.range.end}`}
-                            </td>
-                            <td className="p-3 text-dh-ink">
-                              {(acc.expiresAt as Date).toLocaleString()}
-                            </td>
-                            <td className="p-3">
-                              <div className="flex items-center gap-3">
-                                {acc.link ? (
-                                  <a
-                                    href={acc.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-dh-purple underline font-semibold"
-                                  >
-                                    <LinkIcon className="w-4 h-4" />
-                                    Ver
-                                  </a>
-                                ) : (
-                                  <span className="text-gray-400">-</span>
-                                )}
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(acc.id)}
-                                  disabled={isDeleting}
-                                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Eliminar link"
-                                >
-                                  <TrashIcon className="w-5 h-5" />
-                                  <span className="text-sm font-semibold">
-                                    {isDeleting ? "Eliminando…" : "Eliminar"}
-                                  </span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-        </div>
+          )}
+        </section>
       </div>
-    </AuthGuard>
-  );
+    </div>
+  </AuthGuard>
+);
 }

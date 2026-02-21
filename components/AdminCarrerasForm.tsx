@@ -332,40 +332,58 @@ const carreraFinalizada = fechaDate < today;
     </h2>
 
     {/* ================= CONTROL INSCRIPCIONES ================= */}
-    <div className="border border-dh-border rounded-2xl p-6 bg-white space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="font-bold text-dh-ink">Inscripciones en línea</p>
-          <p className="text-sm text-dh-muted">
-            Controla si Stripe puede generar pagos.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setInscripcionesAbiertas((v) => !v)}
-          className={`px-5 py-2 rounded-xl font-bold transition ${
-            inscripcionesAbiertas
-              ? "bg-dh-green text-dh-dark"
-              : "bg-red-600 text-white"
-          }`}
-        >
-          {inscripcionesAbiertas ? "Abiertas" : "Pausadas"}
-        </button>
-      </div>
-
-      {!inscripcionesAbiertas && (
-        <div>
-          <input
-            type="text"
-            value={inscripcionesMensaje}
-            onChange={(e) => setInscripcionesMensaje(e.target.value)}
-            placeholder="Mensaje visible al usuario"
-            className="w-full border border-dh-border rounded-xl px-3 py-2"
-          />
-        </div>
-      )}
+    <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
+  <div className="flex items-center justify-between">
+    <div>
+      <p className="text-lg font-extrabold text-white">
+        Inscripciones en línea
+      </p>
+      <p className="text-sm text-white/60">
+        Activa o pausa el registro y los pagos Stripe.
+      </p>
     </div>
+
+    {/* SWITCH MODERNO */}
+    <button
+      type="button"
+      onClick={() => setInscripcionesAbiertas((v) => !v)}
+      className={`relative w-32 h-12 rounded-full transition-all duration-300 font-bold ${
+        inscripcionesAbiertas
+          ? "bg-dh-green text-black"
+          : "bg-red-600 text-white"
+      }`}
+    >
+      <span
+        className={`absolute top-1.5 transition-all duration-300 w-9 h-9 bg-white rounded-full shadow-md ${
+          inscripcionesAbiertas ? "right-1.5" : "left-1.5"
+        }`}
+      />
+      <span className="relative z-10">
+        {inscripcionesAbiertas ? "Abiertas" : "Pausadas"}
+      </span>
+    </button>
+  </div>
+
+  {!inscripcionesAbiertas && (
+    <div className="bg-[#1f1f27] border border-red-500/30 rounded-2xl p-5 space-y-3">
+      <label className="block text-sm font-semibold text-red-400">
+        Mensaje visible al usuario
+      </label>
+
+      <input
+        type="text"
+        value={inscripcionesMensaje}
+        onChange={(e) => setInscripcionesMensaje(e.target.value)}
+        placeholder="Ej. Inscripciones pausadas por cupo lleno."
+        className="w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+      />
+
+      <p className="text-xs text-white/50">
+        Este mensaje se mostrará en la página de inscripción.
+      </p>
+    </div>
+  )}
+</div>
 
     {/* ================= RESULTADOS ================= */}
     {carreraFinalizada && (
