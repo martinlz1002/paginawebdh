@@ -449,182 +449,181 @@ const carreraFinalizada = fechaDate < today;
     </div>
 
     {/* ================= DISTANCIAS ================= */}
-    <div className="border border-dh-border rounded-2xl p-6 bg-white space-y-6">
-      <h3 className="text-xl font-extrabold text-dh-purple">
-        Distancias
-      </h3>
+    <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
+  <h3 className="text-xl font-extrabold text-dh-purple tracking-wide">
+    Distancias
+  </h3>
 
-      <div className="flex gap-3">
-        <input
-          type="text"
-          value={nuevaDistancia}
-          onChange={(e) => setNuevaDistancia(e.target.value)}
-          placeholder="Ej. 5K, 10K"
-          className="flex-1 border border-dh-border rounded-xl px-3 py-2"
-        />
-        <button
-          type="button"
-          onClick={handleAddDistancia}
-          className="px-4 py-2 rounded-xl bg-dh-green text-dh-dark font-bold"
-        >
-          Agregar
-        </button>
-      </div>
+  <div className="flex gap-3">
+    <input
+      type="text"
+      value={nuevaDistancia}
+      onChange={(e) => setNuevaDistancia(e.target.value)}
+      placeholder="Ej. 5K, 10K, 300m"
+      className="flex-1 bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+    />
 
-      <div className="space-y-4">
-        {distancias.map((d, dIndex) => (
-          <div
-            key={d.distancia}
-            className="border border-dh-border rounded-xl p-4 bg-dh-soft"
-          >
-            <h4 className="font-bold text-dh-ink mb-2">
-              {normalizeDist(d.distancia)}
-            </h4>
+    <button
+      type="button"
+      onClick={handleAddDistancia}
+      className="px-6 py-3 rounded-xl bg-dh-green text-black font-bold hover:scale-105 transition"
+    >
+      Agregar
+    </button>
+  </div>
 
-            <ul className="space-y-2">
-              {d.categorias.map((c, cIndex) => (
-                <li
-                  key={cIndex}
-                  className="flex justify-between items-center bg-white px-3 py-2 rounded-lg"
+  <div className="space-y-5">
+    {distancias.map((d, dIndex) => (
+      <div
+        key={d.distancia}
+        className="bg-[#1b1b22] border border-white/10 rounded-2xl p-5 space-y-3"
+      >
+        <h4 className="font-bold text-white">
+          {normalizeDist(d.distancia)}
+        </h4>
+
+        <ul className="space-y-2">
+          {d.categorias.map((c, cIndex) => (
+            <li
+              key={cIndex}
+              className="flex justify-between items-center bg-[#141418] px-4 py-3 rounded-xl"
+            >
+              <span className="text-white/80">
+                {c.nombre} ({c.minAge}-{c.maxAge}) — $
+                {Number(c.price).toFixed(2)}
+              </span>
+
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => handleEditCategoria(dIndex, cIndex)}
+                  className="text-dh-purple hover:scale-110 transition"
                 >
-                  <span>
-                    {c.nombre} ({c.minAge}-{c.maxAge}) — $
-                    {Number(c.price).toFixed(2)}
-                  </span>
+                  <PencilIcon className="w-4 h-4" />
+                </button>
 
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleEditCategoria(dIndex, cIndex)
-                      }
-                      className="text-dh-purple"
-                    >
-                      <PencilIcon className="w-4 h-4" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleDeleteCategoria(dIndex, cIndex)
-                      }
-                      className="text-red-600"
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCategoria(dIndex, cIndex)}
+                  className="text-red-500 hover:scale-110 transition"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
-    </div>
+    ))}
+  </div>
+</div>
 
     {/* ================= AGREGAR / EDITAR CATEGORÍA ================= */}
-    <div className="border border-dh-border rounded-2xl p-6 bg-white space-y-4">
-      <h4 className="font-bold text-dh-ink">
-        Agregar / Editar Categoría
-      </h4>
+    <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
+  <h4 className="text-lg font-extrabold text-dh-green">
+    Agregar / Editar Categoría
+  </h4>
 
-      <select
-        value={distanciaSeleccionada}
+  <select
+    value={distanciaSeleccionada}
+    onChange={(e) =>
+      setDistanciaSeleccionada(normalizeDist(e.target.value))
+    }
+    className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+  >
+    <option value="">Selecciona una distancia</option>
+    {distancias.map((d) => (
+      <option key={d.distancia} value={d.distancia}>
+        {normalizeDist(d.distancia)}
+      </option>
+    ))}
+  </select>
+
+  <div className="grid md:grid-cols-4 gap-4">
+    <input
+      type="text"
+      placeholder="Nombre"
+      value={nuevaCat.nombre}
+      onChange={(e) =>
+        setNuevaCat((s) => ({ ...s, nombre: e.target.value }))
+      }
+      className="bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+    />
+
+    <input
+      type="number"
+      placeholder="Edad min"
+      value={nuevaCat.minAge}
+      onChange={(e) =>
+        setNuevaCat((s) => ({ ...s, minAge: +e.target.value }))
+      }
+      className="bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+    />
+
+    <input
+      type="number"
+      placeholder="Edad max"
+      value={nuevaCat.maxAge}
+      onChange={(e) =>
+        setNuevaCat((s) => ({ ...s, maxAge: +e.target.value }))
+      }
+      className="bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+    />
+
+    <div className="flex items-center bg-[#1f1f27] border border-white/10 rounded-xl px-4">
+      <CurrencyDollarIcon className="w-5 h-5 text-white/50 mr-2" />
+      <input
+        type="number"
+        placeholder="Precio"
+        value={nuevaCat.price}
         onChange={(e) =>
-          setDistanciaSeleccionada(normalizeDist(e.target.value))
+          setNuevaCat((s) => ({ ...s, price: +e.target.value }))
         }
-        className="w-full border border-dh-border rounded-xl px-3 py-2"
-      >
-        <option value="">Selecciona una distancia</option>
-        {distancias.map((d) => (
-          <option key={d.distancia} value={d.distancia}>
-            {normalizeDist(d.distancia)}
-          </option>
-        ))}
-      </select>
-
-      <div className="grid md:grid-cols-4 gap-3">
-        <input
-          type="text"
-          placeholder="Nombre"
-          value={nuevaCat.nombre}
-          onChange={(e) =>
-            setNuevaCat((s) => ({ ...s, nombre: e.target.value }))
-          }
-          className="border border-dh-border rounded-xl px-3 py-2"
-        />
-
-        <input
-          type="number"
-          placeholder="Edad min"
-          value={nuevaCat.minAge}
-          onChange={(e) =>
-            setNuevaCat((s) => ({ ...s, minAge: +e.target.value }))
-          }
-          className="border border-dh-border rounded-xl px-3 py-2"
-        />
-
-        <input
-          type="number"
-          placeholder="Edad max"
-          value={nuevaCat.maxAge}
-          onChange={(e) =>
-            setNuevaCat((s) => ({ ...s, maxAge: +e.target.value }))
-          }
-          className="border border-dh-border rounded-xl px-3 py-2"
-        />
-
-        <div className="flex items-center border border-dh-border rounded-xl px-3">
-          <CurrencyDollarIcon className="w-5 h-5 text-dh-muted mr-2" />
-          <input
-            type="number"
-            placeholder="Precio"
-            value={nuevaCat.price}
-            onChange={(e) =>
-              setNuevaCat((s) => ({ ...s, price: +e.target.value }))
-            }
-            className="flex-1 py-2 outline-none"
-          />
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={handleAddOrSaveCategoria}
-        className="w-full py-3 rounded-xl bg-dh-purple text-white font-bold"
-      >
-        {editCatIndex !== null
-          ? "Guardar Categoría"
-          : "Agregar Categoría"}
-      </button>
+        className="flex-1 py-3 bg-transparent text-white outline-none"
+      />
     </div>
+  </div>
+
+  <button
+    type="button"
+    onClick={handleAddOrSaveCategoria}
+    className="w-full py-4 rounded-2xl bg-dh-purple text-white font-extrabold hover:opacity-90 transition"
+  >
+    {editCatIndex !== null
+      ? "Guardar Categoría"
+      : "Agregar Categoría"}
+  </button>
+</div>
 
     {/* ================= ENTREGA DE KITS ================= */}
-    <div className="border border-dh-border rounded-2xl p-6 bg-white space-y-4">
-      <h3 className="font-bold text-dh-ink">Entrega de Kits</h3>
+    <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-5">
+  <h3 className="text-lg font-extrabold text-white">
+    Entrega de Kits
+  </h3>
 
-      <input
-        type="date"
-        value={kitFecha}
-        onChange={(e) => setKitFecha(e.target.value)}
-        className="w-full border border-dh-border rounded-xl px-3 py-2"
-      />
+  <input
+    type="date"
+    value={kitFecha}
+    onChange={(e) => setKitFecha(e.target.value)}
+    className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+  />
 
-      <input
-        type="text"
-        value={kitLugar}
-        onChange={(e) => setKitLugar(e.target.value)}
-        placeholder="Lugar de entrega"
-        className="w-full border border-dh-border rounded-xl px-3 py-2"
-      />
+  <input
+    type="text"
+    value={kitLugar}
+    onChange={(e) => setKitLugar(e.target.value)}
+    placeholder="Lugar de entrega"
+    className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+  />
 
-      <input
-        type="text"
-        value={kitHorario}
-        onChange={(e) => setKitHorario(e.target.value)}
-        placeholder="Horario de entrega"
-        className="w-full border border-dh-border rounded-xl px-3 py-2"
-      />
-    </div>
+  <input
+    type="text"
+    value={kitHorario}
+    onChange={(e) => setKitHorario(e.target.value)}
+    placeholder="Horario de entrega"
+    className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+  />
+</div>
 
     {/* ================= GUARDAR ================= */}
     <button
