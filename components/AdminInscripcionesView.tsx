@@ -616,419 +616,209 @@ export default function AdminInscripcionesView() {
   );
 
   return (
-    <div className={pageWrap}>
-      <div className="max-w-7xl mx-auto px-4 py-10 text-dh-ink">
-        <div className={`${cardBase} p-6`}>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-2xl font-extrabold text-dh-ink">Ver Inscripciones</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                Busca, ordena, filtra por estado y exporta a Excel.
-              </p>
-            </div>
+  <div className="min-h-screen bg-[#0c0c0f] text-white py-12 px-6">
+    <div className="max-w-7xl mx-auto">
 
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              {/* Orden rápido */}
-              <div className="min-w-[220px]">
-                <label className="sr-only">Orden</label>
-                <select
-                  className={selectBase}
-                  value={`${sortKey}:${sortDir}`}
-                  onChange={(e) => {
-                    const [k, d] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
-                    setSortKey(k);
-                    setSortDir(d);
-                  }}
-                  disabled={!selectedCarrera}
-                  title="Orden rápido"
-                >
-                  <option value="competitorNumber:asc"># (asc)</option>
-                  <option value="competitorNumber:desc"># (desc)</option>
-                  <option value="nombres:asc">Nombre (A-Z)</option>
-                  <option value="nombres:desc">Nombre (Z-A)</option>
-                  <option value="ruta:asc">Ruta (A-Z)</option>
-                  <option value="ruta:desc">Ruta (Z-A)</option>
-                  <option value="categoria:asc">Categoría (A-Z)</option>
-                  <option value="categoria:desc">Categoría (Z-A)</option>
-                  <option value="paymentStatus:asc">Pago (A-Z)</option>
-                  <option value="paymentStatus:desc">Pago (Z-A)</option>
-                  <option value="timestamp:desc">Registrado (nuevo)</option>
-                  <option value="timestamp:asc">Registrado (viejo)</option>
-                </select>
-              </div>
+      <div className="bg-[#16161d] border border-white/5 rounded-3xl p-8 space-y-8">
 
-              {/* Filtro pago */}
-              <div className="min-w-[180px]">
-                <label className="sr-only">Filtro</label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  disabled={!selectedCarrera}
-                  className={selectBase}
-                  title="Filtrar por estado de pago"
-                >
-                  <option value="all">Todos</option>
-                  <option value="paid">Pagado</option>
-                  <option value="pending">Pendiente</option>
-                  <option value="manual">Manual</option>
-                  <option value="expired">Expirado</option>
-                  <option value="unpaid">No pagado</option>
-                  <option value="failed">Fallido</option>
-                </select>
-              </div>
-
-              <button
-                onClick={exportExcel}
-                disabled={!visible.length}
-                className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
-                title="Exportar Excel (respeta búsqueda/orden)"
-              >
-                <ArrowDownTrayIcon className="w-5 h-5" />
-                Exportar Excel
-              </button>
-            </div>
+        {/* HEADER */}
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-3xl font-black">
+              Ver <span className="text-dh-green">Inscripciones</span>
+            </h2>
+            <p className="text-sm text-white/50 mt-2">
+              Busca, ordena, filtra por estado y exporta a Excel.
+            </p>
           </div>
 
-          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelBase}>Carrera</label>
-              <select
-                value={selectedCarrera}
-                onChange={(e) => {
-                  setSelectedCarrera(e.target.value);
-                  setSearch("");
-                }}
-                className={selectBase}
-              >
-                <option value="">-- Elige una carrera --</option>
-                {carreras.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.titulo}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <div className="flex flex-col sm:flex-row gap-3">
 
-            {/* ✅ Buscador */}
-            <div>
-              <label className={labelBase}>Buscar</label>
-              <div className="relative">
-                <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  disabled={!selectedCarrera}
-                  placeholder="Número, nombre, email, celular, club, ruta, categoría…"
-                  className={`pl-10 ${inputBase}`}
-                />
-              </div>
+            <select
+              value={`${sortKey}:${sortDir}`}
+              onChange={(e) => {
+                const [k, d] = e.target.value.split(":") as [SortKey, "asc" | "desc"];
+                setSortKey(k);
+                setSortDir(d);
+              }}
+              disabled={!selectedCarrera}
+              className="bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+            >
+              <option value="competitorNumber:asc"># (asc)</option>
+              <option value="competitorNumber:desc"># (desc)</option>
+              <option value="nombres:asc">Nombre (A-Z)</option>
+              <option value="nombres:desc">Nombre (Z-A)</option>
+              <option value="ruta:asc">Ruta (A-Z)</option>
+              <option value="ruta:desc">Ruta (Z-A)</option>
+              <option value="categoria:asc">Categoría (A-Z)</option>
+              <option value="categoria:desc">Categoría (Z-A)</option>
+              <option value="paymentStatus:asc">Pago (A-Z)</option>
+              <option value="paymentStatus:desc">Pago (Z-A)</option>
+              <option value="timestamp:desc">Registrado (nuevo)</option>
+              <option value="timestamp:asc">Registrado (viejo)</option>
+            </select>
 
-              {selectedCarrera && (
-                <div className="mt-2 text-xs text-gray-500 flex items-center gap-2">
-                  <ArrowsUpDownIcon className="w-4 h-4" />
-                  Mostrando <span className="font-bold text-dh-ink">{visible.length}</span> de{" "}
-                  <span className="font-bold text-dh-ink">{inscripciones.length}</span>
-                </div>
-              )}
-            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              disabled={!selectedCarrera}
+              className="bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+            >
+              <option value="all">Todos</option>
+              <option value="paid">Pagado</option>
+              <option value="pending">Pendiente</option>
+              <option value="manual">Manual</option>
+              <option value="expired">Expirado</option>
+              <option value="unpaid">No pagado</option>
+              <option value="failed">Fallido</option>
+            </select>
+
+            <button
+              onClick={exportExcel}
+              disabled={!visible.length}
+              className="inline-flex items-center gap-2 bg-dh-green text-black font-extrabold px-6 py-3 rounded-2xl hover:scale-105 transition disabled:opacity-50"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+              Exportar Excel
+            </button>
+
+          </div>
+        </div>
+
+        {/* FILTROS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          <div>
+            <label className="text-sm text-white/60 font-semibold">
+              Carrera
+            </label>
+            <select
+              value={selectedCarrera}
+              onChange={(e) => {
+                setSelectedCarrera(e.target.value);
+                setSearch("");
+              }}
+              className="mt-2 w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white"
+            >
+              <option value="">-- Elige una carrera --</option>
+              {carreras.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.titulo}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="mt-6">
-            {loading ? (
-              <div className="text-sm text-gray-600">Cargando inscripciones…</div>
-            ) : visible.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border border-dh-purple/10">
-                <table className="w-full min-w-[980px] table-auto border-collapse">
-                  <thead className="bg-dh-soft">
-                    <tr className="text-left text-xs font-bold uppercase tracking-wide text-gray-600">
-                      <th className="p-3">{thBtn("competitorNumber", "#")}</th>
-                      <th className="p-3">{thBtn("nombres", "Nombres")}</th>
-                      <th className="p-3">{thBtn("rama", "Rama")}</th>
-                      <th className="p-3">{thBtn("ruta", "Ruta")}</th>
-                      <th className="p-3">{thBtn("categoria", "Categoría")}</th>
-                      <th className="p-3">{thBtn("edad", "Edad")}</th>
-                      <th className="p-3">{thBtn("celular", "Celular")}</th>
-                      <th className="p-3">{thBtn("paymentStatus", "Pago")}</th>
-                      <th className="p-3">{thBtn("timestamp", "Registrado")}</th>
-                      <th className="p-3 text-gray-600">Acciones</th>
-                    </tr>
-                  </thead>
+          <div>
+            <label className="text-sm text-white/60 font-semibold">
+              Buscar
+            </label>
+            <div className="relative mt-2">
+              <MagnifyingGlassIcon className="w-5 h-5 text-white/30 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                disabled={!selectedCarrera}
+                placeholder="Número, nombre, email, celular…"
+                className="pl-10 w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/30"
+              />
+            </div>
 
-                  <tbody className="bg-white">
-                    {visible.map((i) => (
-                      <tr
-                        key={i.id}
-                        className="border-t border-dh-purple/10 hover:bg-gray-50 transition-colors"
-                      >
-                        <td className="p-3 font-extrabold text-dh-purple">
-                          {i.competitorNumber || "—"}
-                        </td>
-
-                        <td className="p-3 text-dh-ink">
-                          <div className="font-semibold">
-                            {i.perfil.nombres ||
-                              fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno)}
-                          </div>
-                          <div className="text-xs text-gray-500">{i.perfil.email || "—"}</div>
-                        </td>
-
-                        <td className="p-3 text-dh-ink">{i.rama ?? i.perfil.rama ?? "-"}</td>
-                        <td className="p-3 text-dh-ink">{i.ruta ?? i.perfil.ruta ?? "-"}</td>
-                        <td className="p-3 text-dh-ink">{i.categoria}</td>
-                        <td className="p-3 text-dh-ink">{i.perfil.edad ?? "-"}</td>
-                        <td className="p-3 text-dh-ink">{i.perfil.celular ?? "-"}</td>
-
-                        <td className="p-3">
-                          <span
-                            className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-extrabold ${statusPillClass(
-                              i.paymentStatus
-                            )}`}
-                          >
-                            {statusLabel(i.paymentStatus)}
-                          </span>
-                        </td>
-
-                        <td className="p-3 text-dh-ink">{i.timestamp.toLocaleString("es-MX")}</td>
-
-                        <td className="p-3">
-                          <button
-                            onClick={() => openEdit(i)}
-                            className="inline-flex items-center gap-2 rounded-xl border border-dh-purple/15 bg-white px-3 py-2 text-sm font-extrabold text-dh-ink hover:bg-dh-soft transition"
-                            title="Editar"
-                          >
-                            <PencilSquareIcon className="w-5 h-5 text-dh-purple" />
-                            Editar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            {selectedCarrera && (
+              <div className="mt-3 text-xs text-white/50">
+                Mostrando <span className="font-bold text-white">{visible.length}</span> de{" "}
+                <span className="font-bold text-white">{inscripciones.length}</span>
               </div>
-            ) : selectedCarrera ? (
-              <div className="text-sm text-gray-600">No hay resultados con ese filtro/búsqueda.</div>
-            ) : (
-              <div className="text-sm text-gray-600">Elige una carrera para ver inscripciones.</div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* Modal editar */}
-      {editOpen && editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-3xl bg-white rounded-2xl shadow-xl border border-dh-purple/10">
-            <div className="p-5 border-b border-dh-purple/10 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-extrabold text-dh-ink">
-                  Editar inscripción #{editing.competitorNumber}
-                </h3>
-                <p className="text-xs text-gray-500 mt-1">
-                  Cambios se guardan en <code>inscripciones</code>.
-                </p>
-              </div>
+        {/* TABLA */}
+        <div>
+          {loading ? (
+            <div className="text-white/50">Cargando inscripciones…</div>
+          ) : visible.length > 0 ? (
 
-              <button onClick={closeEdit} className="p-2 rounded-xl hover:bg-gray-100" title="Cerrar">
-                <XMarkIcon className="w-6 h-6 text-gray-700" />
-              </button>
+            <div className="overflow-x-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[1000px]">
+                <thead className="bg-[#141418] text-white/60 text-xs uppercase tracking-wider">
+                  <tr>
+                    <th className="p-4 text-left">#</th>
+                    <th className="p-4 text-left">Nombre</th>
+                    <th className="p-4 text-left">Rama</th>
+                    <th className="p-4 text-left">Ruta</th>
+                    <th className="p-4 text-left">Categoría</th>
+                    <th className="p-4 text-left">Edad</th>
+                    <th className="p-4 text-left">Celular</th>
+                    <th className="p-4 text-left">Pago</th>
+                    <th className="p-4 text-left">Registrado</th>
+                    <th className="p-4 text-left">Acciones</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {visible.map((i) => (
+                    <tr
+                      key={i.id}
+                      className="border-t border-white/5 hover:bg-white/5 transition"
+                    >
+                      <td className="p-4 font-extrabold text-dh-purple">
+                        {i.competitorNumber || "—"}
+                      </td>
+
+                      <td className="p-4">
+                        <div className="font-semibold">
+                          {i.perfil.nombres ||
+                            fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno)}
+                        </div>
+                        <div className="text-xs text-white/40">
+                          {i.perfil.email || "—"}
+                        </div>
+                      </td>
+
+                      <td className="p-4">{i.rama ?? "-"}</td>
+                      <td className="p-4">{i.ruta ?? "-"}</td>
+                      <td className="p-4">{i.categoria}</td>
+                      <td className="p-4">{i.perfil.edad ?? "-"}</td>
+                      <td className="p-4">{i.perfil.celular ?? "-"}</td>
+
+                      <td className="p-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold ${statusPillClass(i.paymentStatus)}`}>
+                          {statusLabel(i.paymentStatus)}
+                        </span>
+                      </td>
+
+                      <td className="p-4 text-sm text-white/50">
+                        {i.timestamp.toLocaleString("es-MX")}
+                      </td>
+
+                      <td className="p-4">
+                        <button
+                          onClick={() => openEdit(i)}
+                          className="bg-dh-purple/20 text-dh-purple px-4 py-2 rounded-xl font-semibold hover:bg-dh-purple/30 transition"
+                        >
+                          Editar
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            <div className="p-5">
-              {editError && (
-                <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {editError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
-                  <label className={labelBase}>Número</label>
-                  <input
-                    type="number"
-                    className={inputBase}
-                    value={form.competitorNumber}
-                    onChange={(e) =>
-                      setForm((f) => ({
-                        ...f,
-                        competitorNumber: Number(e.target.value || 0),
-                        ficha: Number(e.target.value || 0),
-                        bib: Number(e.target.value || 0),
-                      }))
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Ficha</label>
-                  <input
-                    type="number"
-                    className={inputBase}
-                    value={form.ficha}
-                    onChange={(e) => setForm((f) => ({ ...f, ficha: Number(e.target.value || 0) }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Bib</label>
-                  <input
-                    type="number"
-                    className={inputBase}
-                    value={form.bib}
-                    onChange={(e) => setForm((f) => ({ ...f, bib: Number(e.target.value || 0) }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Nombre</label>
-                  <input
-                    className={inputBase}
-                    value={form.nombre}
-                    onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Paterno</label>
-                  <input
-                    className={inputBase}
-                    value={form.paterno}
-                    onChange={(e) => setForm((f) => ({ ...f, paterno: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Materno</label>
-                  <input
-                    className={inputBase}
-                    value={form.materno}
-                    onChange={(e) => setForm((f) => ({ ...f, materno: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Rama</label>
-                  <select
-                    className={selectBase}
-                    value={form.rama}
-                    onChange={(e) => setForm((f) => ({ ...f, rama: e.target.value }))}
-                  >
-                    <option value="">--</option>
-                    <option value="Femenil">Femenil</option>
-                    <option value="Varonil">Varonil</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className={labelBase}>Ruta</label>
-                  <input
-                    className={inputBase}
-                    value={form.ruta}
-                    onChange={(e) => setForm((f) => ({ ...f, ruta: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Categoría</label>
-                  <input
-                    className={inputBase}
-                    value={form.categoria}
-                    onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Fecha nacimiento</label>
-                  <input
-                    type="date"
-                    className={inputBase}
-                    value={form.fechaNacimiento}
-                    onChange={(e) => setForm((f) => ({ ...f, fechaNacimiento: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Email</label>
-                  <input
-                    className={inputBase}
-                    value={form.email}
-                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Celular</label>
-                  <input
-                    className={inputBase}
-                    value={form.celular}
-                    onChange={(e) => setForm((f) => ({ ...f, celular: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>País</label>
-                  <input
-                    className={inputBase}
-                    value={form.pais}
-                    onChange={(e) => setForm((f) => ({ ...f, pais: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Estado</label>
-                  <input
-                    className={inputBase}
-                    value={form.estado}
-                    onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}
-                  />
-                </div>
-
-                <div>
-                  <label className={labelBase}>Ciudad</label>
-                  <input
-                    className={inputBase}
-                    value={form.ciudad}
-                    onChange={(e) => setForm((f) => ({ ...f, ciudad: e.target.value }))}
-                  />
-                </div>
-
-                <div className="sm:col-span-3">
-                  <label className={labelBase}>Club</label>
-                  <input
-                    className={inputBase}
-                    value={form.club}
-                    onChange={(e) => setForm((f) => ({ ...f, club: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-6">
-                <button
-                  onClick={closeEdit}
-                  disabled={saving}
-                  className={`${btnBase} border border-dh-purple/15 bg-white text-dh-ink hover:bg-dh-soft`}
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  onClick={saveEdit}
-                  disabled={saving}
-                  className={`${btnBase} bg-dh-green text-dh-dark hover:opacity-95`}
-                >
-                  {saving ? (
-                    "Guardando…"
-                  ) : (
-                    <>
-                      <CheckIcon className="w-5 h-5" />
-                      Guardar cambios
-                    </>
-                  )}
-                </button>
-              </div>
+          ) : selectedCarrera ? (
+            <div className="text-white/50">
+              No hay resultados con ese filtro/búsqueda.
             </div>
-          </div>
+          ) : (
+            <div className="text-white/50">
+              Elige una carrera para ver inscripciones.
+            </div>
+          )}
         </div>
-      )}
+
+      </div>
     </div>
-  );
+  </div>
+);
 }
