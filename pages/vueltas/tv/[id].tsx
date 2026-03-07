@@ -8,7 +8,7 @@ type Equipo = {
   nombre: string
   vueltas: number
   metrosExtra?: number
-  ultimaVuelta?: number
+  ultimoTiempoVuelta?: number
 }
 
 type Evento = {
@@ -79,12 +79,6 @@ export default function VueltasTV() {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  function calcularTiempoTotal(e: Equipo) {
-
-    if (!e.ultimaVuelta) return 0
-    return e.ultimaVuelta * e.vueltas
-  }
-
   const lider = ranking[0]
 
   return (
@@ -140,8 +134,8 @@ export default function VueltasTV() {
 
               } else {
 
-                const tiempoLider = calcularTiempoTotal(lider)
-                const tiempoEquipo = calcularTiempoTotal(e)
+                const tiempoLider = lider.ultimoTiempoVuelta || 0
+                const tiempoEquipo = e.ultimoTiempoVuelta || 0
 
                 const diff = tiempoEquipo - tiempoLider
 
@@ -169,7 +163,7 @@ export default function VueltasTV() {
                 </td>
 
                 <td style={{ textAlign: "center" }}>
-                  {formatTime(e.ultimaVuelta)}
+                  {formatTime(e.ultimoTiempoVuelta)}
                 </td>
 
                 <td style={{ textAlign: "center" }}>
