@@ -1,6 +1,6 @@
 import { useRouter } from "next/router"
 import { useEffect, useMemo, useState } from "react"
-import { doc, collection, onSnapshot } from "firebase/firestore"
+import { doc, collection, onSnapshot, query, orderBy, limit } from "firebase/firestore"
 import { db } from "../../../lib/firebase"
 
 type Equipo = {
@@ -65,26 +65,24 @@ export default function VueltasTV() {
   }, [id])
 
 
-  // ESCUCHAR FOTOS EN FIRESTORE
+  // ESCUCHAR FOTOS
   useEffect(() => {
 
     if (!id) return
 
-    const fotosRef = collection(
-      db,
-      "eventos_vueltas",
-      id as string,
-      "fotos_evento"
+    const fotosRef = query(
+      collection(db, "eventos_vueltas", id as string, "fotos_evento"),
+      orderBy("timestamp", "desc"),
+      limit(10)
     )
 
-    const unsub = onSnapshot(fotosRef, snapshot => {
+    const unsub = onSnapshot(fotosRef, { includeMetadataChanges: true }, snapshot => {
 
       snapshot.docChanges().forEach(change => {
 
         if (change.type === "added") {
 
           const data = change.doc.data() as FotoEvento
-
           setColaFotos(prev => [...prev, data])
 
         }
@@ -98,7 +96,7 @@ export default function VueltasTV() {
   }, [id])
 
 
-  // COLA DE REPRODUCCIÓN DE FOTOS
+  // COLA DE FOTOS
   useEffect(() => {
 
     if (mostrando) return
@@ -115,7 +113,7 @@ export default function VueltasTV() {
       setColaFotos(prev => prev.slice(1))
       setMostrando(false)
 
-    }, 4000)
+    }, 5000)
 
   }, [colaFotos, mostrando])
 
@@ -151,59 +149,62 @@ export default function VueltasTV() {
 return (
 
 <div style={{
-  background: "linear-gradient(180deg,#050505,#111)",
-  color: "#fff",
-  minHeight: "100vh",
-  padding: "40px",
-  fontFamily: "system-ui, sans-serif"
+  background:"linear-gradient(180deg,#050505,#111)",
+  color:"#fff",
+  minHeight:"100vh",
+  padding:"30px",
+  fontFamily:"system-ui"
 }}>
 
 <h1 style={{
-  textAlign: "center",
-  fontSize: "56px",
-  marginBottom: "30px",
-  letterSpacing: "2px"
+  textAlign:"center",
+  fontSize:"56px",
+  marginBottom:"30px"
 }}>
 {evento?.nombreEvento || "Carrera"}
 </h1>
 
 
-{/* PODIO */}
+{/* ZONA SUPERIOR */}
 
 <div style={{
-  display: "flex",
-  justifyContent: "center",
-  gap: "30px",
-  marginBottom: "40px"
+  display:"grid",
+  gridTemplateColumns:"350px 1fr",
+  gap:"40px",
+  alignItems:"center",
+  marginBottom:"40px"
 }}>
+
+
+{/* PODIO LADO IZQUIERDO */}
+
+<div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
 
 {ranking.slice(0,3).map((e,index)=>{
 
 const distancia = e.vueltas * pista + (e.metrosExtra || 0)
 
-const colores = ["#FFD700","#C0C0C0","#CD7F32"]
+const colores=["#FFD700","#C0C0C0","#CD7F32"]
 
 return(
 
 <div key={e.id}
-style={{
-  background:"#111",
-  padding:"20px 30px",
-  borderRadius:"10px",
-  textAlign:"center",
-  border:`3px solid ${colores[index]}`,
-  boxShadow:"0 0 15px rgba(255,255,255,0.2)",
-  transform:index===0?"scale(1.1)":"scale(1)"
-}}>
 
-<div style={{fontSize:"24px"}}>
+style={{
+background:"#111",
+padding:"16px",
+borderRadius:"10px",
+border:`3px solid ${colores[index]}`,
+boxShadow:"0 0 10px rgba(255,255,255,0.15)"
+}}
+
+>
+
+<div style={{fontSize:"18px"}}>
 {["🥇","🥈","🥉"][index]}
 </div>
 
-<div style={{
-fontSize:"30px",
-fontWeight:"bold"
-}}>
+<div style={{fontSize:"22px",fontWeight:"bold"}}>
 {e.nombre}
 </div>
 
@@ -220,13 +221,67 @@ fontWeight:"bold"
 </div>
 
 
+{/* FOTO GRANDE */}
+
+<div style={{
+display:"flex",
+justifyContent:"center",
+alignItems:"center",
+height:"260px"
+}}>
+
+{fotoActual && (
+
+<div style={{
+
+background:"#000",
+padding:"12px",
+borderRadius:"10px",
+boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+animation:"fadeFoto 0.5s ease"
+
+}}>
+
+<img
+src={fotoActual.foto}
+style={{
+width:"520px",
+borderRadius:"8px",
+animation:"zoomFoto 5s linear"
+}}
+/>
+
+{fotoActual.equipoNombre && (
+
+<div style={{
+textAlign:"center",
+marginTop:"10px",
+fontSize:"24px",
+fontWeight:"bold"
+}}>
+📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
+</div>
+
+)}
+
+</div>
+
+)}
+
+</div>
+
+</div>
+
+
+{/* TABLA */}
+
 <table style={{
-  width: "100%",
-  fontSize: "26px",
-  borderCollapse: "collapse",
-  background:"#111",
-  borderRadius:"10px",
-  overflow:"hidden"
+width:"100%",
+fontSize:"26px",
+borderCollapse:"collapse",
+background:"#111",
+borderRadius:"10px",
+overflow:"hidden"
 }}>
 
 <thead>
@@ -282,9 +337,7 @@ return(
 
 style={{
 borderBottom:"1px solid #333",
-background:index===0?"#1a1a1a":"transparent",
-transition:"all 0.4s ease",
-transform:index===0?"scale(1.02)":"scale(1)"
+background:index===0?"#1a1a1a":"transparent"
 }}
 
 >
@@ -303,8 +356,7 @@ display:"inline-block"
 </td>
 
 <td style={{
-fontWeight:index===0?"bold":"normal",
-fontSize:index===0?"30px":"26px"
+fontWeight:index===0?"bold":"normal"
 }}>
 {e.nombre}
 </td>
@@ -317,10 +369,7 @@ fontSize:index===0?"30px":"26px"
 {formatTime(e.ultimoTiempoVuelta)}
 </td>
 
-<td style={{
-textAlign:"center",
-color:index===0?"#4CAF50":"#aaa"
-}}>
+<td style={{textAlign:"center"}}>
 {gap}
 </td>
 
@@ -342,80 +391,19 @@ fontWeight:"bold"
 </table>
 
 
-{/* FOTO OVERLAY */}
-
-{fotoActual && (
-
-<div style={{
-
-position:"fixed",
-bottom:"40px",
-right:"40px",
-background:"#000",
-padding:"14px",
-borderRadius:"10px",
-boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-zIndex:999,
-animation:"fadeFoto 0.5s ease"
-
-}}>
-
-<img
-src={fotoActual.foto}
-style={{
-width:"420px",
-borderRadius:"8px",
-animation:"zoomFoto 4s linear"
-}}
-/>
-
-{fotoActual.equipoNombre && (
-
-<div style={{
-textAlign:"center",
-marginTop:"10px",
-fontSize:"22px",
-fontWeight:"bold"
-}}>
-📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
-</div>
-
-)}
-
-</div>
-
-)}
-
 <style jsx>{`
 
-@keyframes fadeFoto {
-
-from{
-opacity:0;
-transform:translateY(20px);
+@keyframes fadeFoto{
+from{opacity:0;transform:translateY(20px)}
+to{opacity:1;transform:translateY(0)}
 }
 
-to{
-opacity:1;
-transform:translateY(0);
-}
-
-}
-
-@keyframes zoomFoto {
-
-from{
-transform:scale(1);
-}
-
-to{
-transform:scale(1.08);
-}
-
+@keyframes zoomFoto{
+from{transform:scale(1)}
+to{transform:scale(1.08)}
 }
 
 `}</style>
-
 
 </div>
 
