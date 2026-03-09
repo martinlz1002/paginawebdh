@@ -1,7 +1,6 @@
 import { useRouter } from "next/router"
 import { useEffect, useMemo, useState } from "react"
 import { doc, collection, onSnapshot } from "firebase/firestore"
-import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage"
 import { db } from "../../../lib/firebase"
 
 type Equipo = {
@@ -17,6 +16,12 @@ type Evento = {
   longitudPista: number
 }
 
+type FotoEvento = {
+  foto: string
+  equipoNombre?: string
+  vuelta?: number
+}
+
 export default function VueltasTV() {
 
   const router = useRouter()
@@ -25,13 +30,9 @@ export default function VueltasTV() {
   const [equipos, setEquipos] = useState<Equipo[]>([])
   const [evento, setEvento] = useState<Evento | null>(null)
 
-  const storage = getStorage()
-
-  // SISTEMA DE FOTOS
-  const [fotoActual, setFotoActual] = useState<string | null>(null)
-  const [colaFotos, setColaFotos] = useState<string[]>([])
+  const [fotoActual, setFotoActual] = useState<FotoEvento | null>(null)
+  const [colaFotos, setColaFotos] = useState<FotoEvento[]>([])
   const [mostrando, setMostrando] = useState(false)
-  const [fotosDetectadas, setFotosDetectadas] = useState<Set<string>>(new Set())
 
   useEffect(() => {
 
@@ -64,45 +65,40 @@ export default function VueltasTV() {
   }, [id])
 
 
-  // DETECTAR FOTOS NUEVAS EN STORAGE
+  // ESCUCHAR FOTOS EN FIRESTORE
   useEffect(() => {
 
-    if (!evento?.nombreEvento) return
+    if (!id) return
 
-    const intervalo = setInterval(async () => {
+    const fotosRef = collection(
+      db,
+      "eventos_vueltas",
+      id as string,
+      "fotos_evento"
+    )
 
-      try {
+    const unsub = onSnapshot(fotosRef, snapshot => {
 
-        const carpeta = ref(storage, `laps/${evento.nombreEvento}`)
+      snapshot.docChanges().forEach(change => {
 
-        const lista = await listAll(carpeta)
+        if (change.type === "added") {
 
-        for (const item of lista.items) {
+          const data = change.doc.data() as FotoEvento
 
-          if (!fotosDetectadas.has(item.fullPath)) {
-
-            const url = await getDownloadURL(item)
-
-            setColaFotos(prev => [...prev, url])
-
-            setFotosDetectadas(prev => new Set(prev).add(item.fullPath))
-
-          }
+          setColaFotos(prev => [...prev, data])
 
         }
 
-      } catch (e) {
-        console.log("error leyendo fotos", e)
-      }
+      })
 
-    }, 2000)
+    })
 
-    return () => clearInterval(intervalo)
+    return () => unsub()
 
-  }, [evento])
+  }, [id])
 
 
-  // REPRODUCCIÓN DE COLA
+  // COLA DE REPRODUCCIÓN DE FOTOS
   useEffect(() => {
 
     if (mostrando) return
@@ -356,7 +352,7 @@ position:"fixed",
 bottom:"40px",
 right:"40px",
 background:"#000",
-padding:"12px",
+padding:"14px",
 borderRadius:"10px",
 boxShadow:"0 0 40px rgba(0,0,0,0.9)",
 zIndex:999,
@@ -365,13 +361,26 @@ animation:"fadeFoto 0.5s ease"
 }}>
 
 <img
-src={fotoActual}
+src={fotoActual.foto}
 style={{
 width:"420px",
 borderRadius:"8px",
 animation:"zoomFoto 4s linear"
 }}
 />
+
+{fotoActual.equipoNombre && (
+
+<div style={{
+textAlign:"center",
+marginTop:"10px",
+fontSize:"22px",
+fontWeight:"bold"
+}}>
+📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
+</div>
+
+)}
 
 </div>
 
