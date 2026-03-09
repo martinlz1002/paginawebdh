@@ -1,6 +1,7 @@
 import { useRouter } from "next/router"
 import { useEffect, useMemo, useState } from "react"
 import { doc, collection, onSnapshot } from "firebase/firestore"
+import { getStorage, ref, listAll, getDownloadURL } from "firebase/storage"
 import { db } from "../../../lib/firebase"
 
 type Equipo = {
@@ -23,6 +24,14 @@ export default function VueltasTV() {
 
   const [equipos, setEquipos] = useState<Equipo[]>([])
   const [evento, setEvento] = useState<Evento | null>(null)
+
+  const storage = getStorage()
+
+  // SISTEMA DE FOTOS
+  const [fotoActual, setFotoActual] = useState<string | null>(null)
+  const [colaFotos, setColaFotos] = useState<string[]>([])
+  const [mostrando, setMostrando] = useState(false)
+  const [fotosDetectadas, setFotosDetectadas] = useState<Set<string>>(new Set())
 
   useEffect(() => {
 
@@ -54,6 +63,67 @@ export default function VueltasTV() {
 
   }, [id])
 
+
+  // DETECTAR FOTOS NUEVAS EN STORAGE
+  useEffect(() => {
+
+    if (!evento?.nombreEvento) return
+
+    const intervalo = setInterval(async () => {
+
+      try {
+
+        const carpeta = ref(storage, `laps/${evento.nombreEvento}`)
+
+        const lista = await listAll(carpeta)
+
+        for (const item of lista.items) {
+
+          if (!fotosDetectadas.has(item.fullPath)) {
+
+            const url = await getDownloadURL(item)
+
+            setColaFotos(prev => [...prev, url])
+
+            setFotosDetectadas(prev => new Set(prev).add(item.fullPath))
+
+          }
+
+        }
+
+      } catch (e) {
+        console.log("error leyendo fotos", e)
+      }
+
+    }, 2000)
+
+    return () => clearInterval(intervalo)
+
+  }, [evento])
+
+
+  // REPRODUCCIÓN DE COLA
+  useEffect(() => {
+
+    if (mostrando) return
+    if (colaFotos.length === 0) return
+
+    const siguiente = colaFotos[0]
+
+    setFotoActual(siguiente)
+    setMostrando(true)
+
+    setTimeout(() => {
+
+      setFotoActual(null)
+      setColaFotos(prev => prev.slice(1))
+      setMostrando(false)
+
+    }, 4000)
+
+  }, [colaFotos, mostrando])
+
+
   const pista = evento?.longitudPista || 400
 
   const ranking = useMemo(() => {
@@ -67,6 +137,7 @@ export default function VueltasTV() {
     })
 
   }, [equipos, pista])
+
 
   function formatTime(ms?: number) {
 
@@ -273,6 +344,69 @@ fontWeight:"bold"
 </tbody>
 
 </table>
+
+
+{/* FOTO OVERLAY */}
+
+{fotoActual && (
+
+<div style={{
+
+position:"fixed",
+bottom:"40px",
+right:"40px",
+background:"#000",
+padding:"12px",
+borderRadius:"10px",
+boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+zIndex:999,
+animation:"fadeFoto 0.5s ease"
+
+}}>
+
+<img
+src={fotoActual}
+style={{
+width:"420px",
+borderRadius:"8px",
+animation:"zoomFoto 4s linear"
+}}
+/>
+
+</div>
+
+)}
+
+<style jsx>{`
+
+@keyframes fadeFoto {
+
+from{
+opacity:0;
+transform:translateY(20px);
+}
+
+to{
+opacity:1;
+transform:translateY(0);
+}
+
+}
+
+@keyframes zoomFoto {
+
+from{
+transform:scale(1);
+}
+
+to{
+transform:scale(1.08);
+}
+
+}
+
+`}</style>
+
 
 </div>
 
