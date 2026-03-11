@@ -76,7 +76,7 @@ export default function VueltasTV() {
       limit(10)
     )
 
-    const unsub = onSnapshot(fotosRef, { includeMetadataChanges: true }, snapshot => {
+    const unsub = onSnapshot(fotosRef, snapshot => {
 
       snapshot.docChanges().forEach(change => {
 
@@ -165,20 +165,61 @@ return (
 </h1>
 
 
-{/* ZONA SUPERIOR */}
+{/* ZONA CENTRAL (PODIO o FOTO) */}
 
 <div style={{
-  display:"grid",
-  gridTemplateColumns:"350px 1fr",
-  gap:"40px",
+  display:"flex",
+  justifyContent:"center",
   alignItems:"center",
+  height:"260px",
   marginBottom:"40px"
 }}>
 
+{/* FOTO */}
 
-{/* PODIO LADO IZQUIERDO */}
+{fotoActual ? (
 
-<div style={{display:"flex",flexDirection:"column",gap:"20px"}}>
+<div style={{
+  background:"#000",
+  padding:"14px",
+  borderRadius:"12px",
+  boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+  animation:"fadeFoto 0.4s ease"
+}}>
+
+<img
+src={fotoActual.foto}
+style={{
+width:"600px",
+borderRadius:"10px",
+animation:"zoomFoto 5s linear"
+}}
+/>
+
+{fotoActual.equipoNombre && (
+
+<div style={{
+textAlign:"center",
+marginTop:"12px",
+fontSize:"26px",
+fontWeight:"bold"
+}}>
+📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
+</div>
+
+)}
+
+</div>
+
+) : (
+
+/* PODIO */
+
+<div style={{
+display:"flex",
+gap:"40px",
+alignItems:"flex-end"
+}}>
 
 {ranking.slice(0,3).map((e,index)=>{
 
@@ -186,25 +227,35 @@ const distancia = e.vueltas * pista + (e.metrosExtra || 0)
 
 const colores=["#FFD700","#C0C0C0","#CD7F32"]
 
+const alturas=["140px","110px","90px"]
+
 return(
 
 <div key={e.id}
 
 style={{
 background:"#111",
-padding:"16px",
-borderRadius:"10px",
+width:"200px",
+height:alturas[index],
+borderRadius:"12px",
 border:`3px solid ${colores[index]}`,
-boxShadow:"0 0 10px rgba(255,255,255,0.15)"
+display:"flex",
+flexDirection:"column",
+justifyContent:"center",
+alignItems:"center",
+boxShadow:"0 0 20px rgba(255,255,255,0.15)"
 }}
 
 >
 
-<div style={{fontSize:"18px"}}>
+<div style={{fontSize:"26px"}}>
 {["🥇","🥈","🥉"][index]}
 </div>
 
-<div style={{fontSize:"22px",fontWeight:"bold"}}>
+<div style={{
+fontSize:"26px",
+fontWeight:"bold"
+}}>
 {e.nombre}
 </div>
 
@@ -220,55 +271,7 @@ boxShadow:"0 0 10px rgba(255,255,255,0.15)"
 
 </div>
 
-
-{/* FOTO GRANDE */}
-
-<div style={{
-display:"flex",
-justifyContent:"center",
-alignItems:"center",
-height:"260px"
-}}>
-
-{fotoActual && (
-
-<div style={{
-
-background:"#000",
-padding:"12px",
-borderRadius:"10px",
-boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-animation:"fadeFoto 0.5s ease"
-
-}}>
-
-<img
-src={fotoActual.foto}
-style={{
-width:"520px",
-borderRadius:"8px",
-animation:"zoomFoto 5s linear"
-}}
-/>
-
-{fotoActual.equipoNombre && (
-
-<div style={{
-textAlign:"center",
-marginTop:"10px",
-fontSize:"24px",
-fontWeight:"bold"
-}}>
-📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
-</div>
-
 )}
-
-</div>
-
-)}
-
-</div>
 
 </div>
 
@@ -323,9 +326,8 @@ gap=`-${diffVueltas} vuelta${diffVueltas>1?"s":""}`
 const tiempoLider=lider.ultimoTiempoVuelta||0
 const tiempoEquipo=e.ultimoTiempoVuelta||0
 
-const diff=tiempoEquipo-tiempoLider
-
-gap=`+${formatTime(diff)}`
+const diff = Math.abs(tiempoEquipo - tiempoLider)
+gap = `+${formatTime(diff)}`
 
 }
 
@@ -355,9 +357,7 @@ display:"inline-block"
 
 </td>
 
-<td style={{
-fontWeight:index===0?"bold":"normal"
-}}>
+<td style={{fontWeight:index===0?"bold":"normal"}}>
 {e.nombre}
 </td>
 
