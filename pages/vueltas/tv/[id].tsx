@@ -17,6 +17,7 @@ type Evento = {
 }
 
 type FotoEvento = {
+  id: string
   foto: string
   equipoNombre?: string
   vuelta?: number
@@ -33,6 +34,20 @@ export default function VueltasTV() {
   const [fotoActual, setFotoActual] = useState<FotoEvento | null>(null)
   const [colaFotos, setColaFotos] = useState<FotoEvento[]>([])
   const [mostrando, setMostrando] = useState(false)
+
+  const [fotosMostradas, setFotosMostradas] = useState<Set<string>>(new Set())
+
+  // cargar fotos ya mostradas desde localStorage
+  useEffect(() => {
+
+    const guardadas = localStorage.getItem("fotosMostradas")
+
+    if (guardadas) {
+      setFotosMostradas(new Set(JSON.parse(guardadas)))
+    }
+
+  }, [])
+
 
   useEffect(() => {
 
@@ -73,7 +88,7 @@ export default function VueltasTV() {
     const fotosRef = query(
       collection(db, "eventos_vueltas", id as string, "fotos_evento"),
       orderBy("timestamp", "desc"),
-      limit(10)
+      limit(20)
     )
 
     const unsub = onSnapshot(fotosRef, snapshot => {
@@ -82,8 +97,16 @@ export default function VueltasTV() {
 
         if (change.type === "added") {
 
-          const data = change.doc.data() as FotoEvento
-          setColaFotos(prev => [...prev, data])
+          const data = change.doc.data() as Omit<FotoEvento, "id">
+
+const nuevaFoto: FotoEvento = {
+  id: change.doc.id,
+  ...data
+}
+
+          if (fotosMostradas.has(nuevaFoto.id)) return
+
+          setColaFotos(prev => [...prev, nuevaFoto])
 
         }
 
@@ -93,7 +116,7 @@ export default function VueltasTV() {
 
     return () => unsub()
 
-  }, [id])
+  }, [id, fotosMostradas])
 
 
   // COLA DE FOTOS
@@ -109,13 +132,26 @@ export default function VueltasTV() {
 
     setTimeout(() => {
 
+      if (siguiente) {
+
+        const nuevas = new Set(fotosMostradas)
+        nuevas.add(siguiente.id)
+
+        setFotosMostradas(nuevas)
+
+        localStorage.setItem(
+          "fotosMostradas",
+          JSON.stringify(Array.from(nuevas))
+        )
+      }
+
       setFotoActual(null)
       setColaFotos(prev => prev.slice(1))
       setMostrando(false)
 
     }, 5000)
 
-  }, [colaFotos, mostrando])
+  }, [colaFotos, mostrando, fotosMostradas])
 
 
   const pista = evento?.longitudPista || 400
@@ -165,7 +201,7 @@ return (
 </h1>
 
 
-{/* ZONA CENTRAL (PODIO o FOTO) */}
+{/* PODIO / FOTO */}
 
 <div style={{
   display:"flex",
@@ -175,16 +211,14 @@ return (
   marginBottom:"40px"
 }}>
 
-{/* FOTO */}
-
 {fotoActual ? (
 
 <div style={{
-  background:"#000",
-  padding:"14px",
-  borderRadius:"12px",
-  boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-  animation:"fadeFoto 0.4s ease"
+background:"#000",
+padding:"14px",
+borderRadius:"12px",
+boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+animation:"fadeFoto 0.4s ease"
 }}>
 
 <img
@@ -213,8 +247,6 @@ fontWeight:"bold"
 
 ) : (
 
-/* PODIO */
-
 <div style={{
 display:"flex",
 gap:"40px",
@@ -226,7 +258,6 @@ alignItems:"flex-end"
 const distancia = e.vueltas * pista + (e.metrosExtra || 0)
 
 const colores=["#FFD700","#C0C0C0","#CD7F32"]
-
 const alturas=["140px","110px","90px"]
 
 return(
@@ -345,7 +376,6 @@ background:index===0?"#1a1a1a":"transparent"
 >
 
 <td style={{textAlign:"center"}}>
-
 <div style={{
 background:index===0?"#4CAF50":"#444",
 borderRadius:"6px",
@@ -354,7 +384,6 @@ display:"inline-block"
 }}>
 {index+1}
 </div>
-
 </td>
 
 <td style={{fontWeight:index===0?"bold":"normal"}}>
