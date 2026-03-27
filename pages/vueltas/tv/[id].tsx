@@ -248,11 +248,13 @@ const obtenerTransform = (id: string, index: number) => {
 
   const prevIndex = posicionesRef.current[id]
 
-  if (prevIndex === undefined) return "translateY(0)"
+  if (prevIndex === undefined) return undefined
 
-  const delta = (prevIndex - index) * 60 // altura aproximada fila
+  const delta = (prevIndex - index) * 60
 
-  return delta !== 0 ? `translateY(${delta}px)` : "translateY(0)"
+  if (delta === 0) return undefined
+
+  return `translateY(${delta}px)`
 }
 
 return (
@@ -439,22 +441,38 @@ gap = `+${formatTime(diff)}`
 
 return(
 
-<tr key={e.id}
+<tr
+  key={e.id}
+  ref={(el) => {
+    if (!el) return
 
-style={{
-  borderBottom:"1px solid #333",
-  background:
-    movimientos[e.id] === "up"
-      ? "#1b5e20"
-      : movimientos[e.id] === "down"
-      ? "#7f0000"
-      : index===0
-      ? "#1a1a1a"
-      : "transparent",
+    const prevIndex = posicionesRef.current[e.id]
+    if (prevIndex === undefined) return
 
-  transform: obtenerTransform(e.id, index),
-  transition: "transform 0.4s ease, background 0.4s ease"
-}}
+    const delta = (prevIndex - index) * 60
+
+    if (delta !== 0) {
+      el.style.transform = `translateY(${delta}px)`
+      el.style.transition = "none"
+
+      requestAnimationFrame(() => {
+        el.style.transform = "translateY(0)"
+        el.style.transition = "transform 0.35s ease, background 0.4s ease"
+      })
+    }
+  }}
+
+  style={{
+    borderBottom:"1px solid #333",
+    background:
+      movimientos[e.id] === "up"
+        ? "#1b5e20"
+        : movimientos[e.id] === "down"
+        ? "#7f0000"
+        : index===0
+        ? "#1a1a1a"
+        : "transparent"
+  }}
 >
 
 <td style={{textAlign:"center"}}>
