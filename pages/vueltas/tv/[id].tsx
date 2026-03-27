@@ -9,6 +9,7 @@ type Equipo = {
   vueltas: number
   metrosExtra?: number
   ultimoTiempoVuelta?: number
+  ultimaVuelta?: number
 }
 
 type Evento = {
@@ -158,15 +159,25 @@ const nuevaFoto: FotoEvento = {
 
   const ranking = useMemo(() => {
 
-    return [...equipos].sort((a, b) => {
+  return [...equipos].sort((a, b) => {
 
-      const distA = a.vueltas * pista + (a.metrosExtra || 0)
-      const distB = b.vueltas * pista + (b.metrosExtra || 0)
+    const distA = a.vueltas * pista + (a.metrosExtra || 0)
+    const distB = b.vueltas * pista + (b.metrosExtra || 0)
 
+    // 🥇 1. ordenar por distancia
+    if (distB !== distA) {
       return distB - distA
-    })
+    }
 
-  }, [equipos, pista])
+    // 🥈 2. desempate por quién llegó primero
+    const tiempoA = a.ultimaVuelta || 0
+    const tiempoB = b.ultimaVuelta || 0
+
+    return tiempoA - tiempoB
+
+  })
+
+}, [equipos, pista])
 
 
   function formatTime(ms?: number) {
