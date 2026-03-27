@@ -39,6 +39,8 @@ export default function VueltasTV() {
 
   const prevRankingRef = useRef<Equipo[]>([])
 
+  const posicionesRef = useRef<Record<string, number>>({})
+
   const [fotosMostradas, setFotosMostradas] = useState<Set<string>>(new Set())
 
   // cargar fotos ya mostradas desde localStorage
@@ -227,6 +229,29 @@ const nuevaFoto: FotoEvento = {
 useEffect(() => {
   prevRankingRef.current = ranking
 }, [ranking])
+
+useEffect(() => {
+
+  const nuevasPosiciones: Record<string, number> = {}
+
+  ranking.forEach((e, index) => {
+    nuevasPosiciones[e.id] = index
+  })
+
+  posicionesRef.current = nuevasPosiciones
+
+}, [ranking])
+
+const obtenerTransform = (id: string, index: number) => {
+
+  const prevIndex = posicionesRef.current[id]
+
+  if (prevIndex === undefined) return "translateY(0)"
+
+  const delta = (prevIndex - index) * 60 // altura aproximada fila
+
+  return delta !== 0 ? `translateY(${delta}px)` : "translateY(0)"
+}
 
 return (
 
@@ -424,7 +449,9 @@ style={{
       : index===0
       ? "#1a1a1a"
       : "transparent",
-  transition: "all 0.4s ease"
+
+  transform: obtenerTransform(e.id, index),
+  transition: "transform 0.4s ease, background 0.4s ease"
 }}
 >
 
