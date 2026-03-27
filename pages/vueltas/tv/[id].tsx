@@ -1,4 +1,5 @@
 import { useRouter } from "next/router"
+import { useRef } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { doc, collection, onSnapshot, query, orderBy, limit } from "firebase/firestore"
 import { db } from "../../../lib/firebase"
@@ -35,6 +36,8 @@ export default function VueltasTV() {
   const [fotoActual, setFotoActual] = useState<FotoEvento | null>(null)
   const [colaFotos, setColaFotos] = useState<FotoEvento[]>([])
   const [mostrando, setMostrando] = useState(false)
+
+  const prevRankingRef = useRef<Equipo[]>([])
 
   const [fotosMostradas, setFotosMostradas] = useState<Set<string>>(new Set())
 
@@ -192,6 +195,38 @@ const nuevaFoto: FotoEvento = {
   }
 
   const lider = ranking[0]
+
+  const movimientos = useMemo(() => {
+
+  const prev = prevRankingRef.current
+  const cambios: Record<string, "up" | "down" | "same"> = {}
+
+  ranking.forEach((equipo, index) => {
+
+    const prevIndex = prev.findIndex(e => e.id === equipo.id)
+
+    if (prevIndex === -1) {
+      cambios[equipo.id] = "same"
+      return
+    }
+
+    if (index < prevIndex) {
+      cambios[equipo.id] = "up"
+    } else if (index > prevIndex) {
+      cambios[equipo.id] = "down"
+    } else {
+      cambios[equipo.id] = "same"
+    }
+
+  })
+
+  return cambios
+
+}, [ranking])
+
+useEffect(() => {
+  prevRankingRef.current = ranking
+}, [ranking])
 
 return (
 
@@ -380,10 +415,17 @@ return(
 <tr key={e.id}
 
 style={{
-borderBottom:"1px solid #333",
-background:index===0?"#1a1a1a":"transparent"
+  borderBottom:"1px solid #333",
+  background:
+    movimientos[e.id] === "up"
+      ? "#1b5e20"
+      : movimientos[e.id] === "down"
+      ? "#7f0000"
+      : index===0
+      ? "#1a1a1a"
+      : "transparent",
+  transition: "all 0.4s ease"
 }}
-
 >
 
 <td style={{textAlign:"center"}}>
