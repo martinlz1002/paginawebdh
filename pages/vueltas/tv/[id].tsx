@@ -250,7 +250,7 @@ const obtenerTransform = (id: string, index: number) => {
 
   if (prevIndex === undefined) return "translateY(0)"
 
-  const delta = (prevIndex - index) * 100 // altura aproximada fila
+  const delta = (prevIndex - index) * 50 // altura aproximada fila
 
   return delta !== 0 ? `translateY(${delta}px)` : "translateY(0)"
 }
