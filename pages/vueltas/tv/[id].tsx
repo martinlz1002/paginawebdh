@@ -227,18 +227,20 @@ const nuevaFoto: FotoEvento = {
 }, [ranking])
 
 useEffect(() => {
-  prevRankingRef.current = ranking
-}, [ranking])
 
-useEffect(() => {
+  // 🔥 guardar posiciones ANTES de actualizar
+  const prev = prevRankingRef.current
 
-  const nuevasPosiciones: Record<string, number> = {}
+  const prevPositions: Record<string, number> = {}
 
-  ranking.forEach((e, index) => {
-    nuevasPosiciones[e.id] = index
+  prev.forEach((e, index) => {
+    prevPositions[e.id] = index
   })
 
-  posicionesRef.current = nuevasPosiciones
+  posicionesRef.current = prevPositions
+
+  // luego actualizar ranking anterior
+  prevRankingRef.current = ranking
 
 }, [ranking])
 
