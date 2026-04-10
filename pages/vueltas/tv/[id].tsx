@@ -287,7 +287,8 @@ src={fotoActual.foto}
 style={{
 width:"550px",
 borderRadius:"10px",
-animation:"zoomFoto 5s linear"
+animation:"zoomFoto 5s linear",
+marginTop:"10px"
 }}
 />
 
