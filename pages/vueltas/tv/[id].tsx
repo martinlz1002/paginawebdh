@@ -268,7 +268,7 @@ return (
   display:"flex",
   justifyContent:"center",
   alignItems:"flex-end",
-  height:"140px",
+  height:"180px",
   marginBottom:"20px"
 }}>
 
