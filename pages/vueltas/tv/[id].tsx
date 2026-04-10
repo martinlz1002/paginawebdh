@@ -267,7 +267,8 @@ return (
 <div style={{
   display:"flex",
   justifyContent:"center",
-  alignItems:"flex-end",
+  alignItems:"flex-start",
+  paddingTop:"20px",
   height:"200px",
   marginBottom:"20px"
 }}>
