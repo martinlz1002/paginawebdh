@@ -3,6 +3,7 @@ import { useRef } from "react"
 import { useEffect, useMemo, useState } from "react"
 import { doc, collection, onSnapshot, query, orderBy, limit } from "firebase/firestore"
 import { db } from "../../../lib/firebase"
+import { where } from "firebase/firestore"
 
 type Equipo = {
   id: string
@@ -23,6 +24,7 @@ type FotoEvento = {
   foto: string
   equipoNombre?: string
   vuelta?: number
+  timestamp?: number
 }
 
 export default function VueltasTV() {
@@ -41,123 +43,107 @@ export default function VueltasTV() {
 
   const posicionesRef = useRef<Record<string, number>>({})
 
-  const [fotosMostradas, setFotosMostradas] = useState<Set<string>>(new Set())
+  const primerCargaRef = useRef(true)
 
-  // cargar fotos ya mostradas desde localStorage
-  useEffect(() => {
+  // 👉 SOLO esto se queda
+const [inicioTV, setInicioTV] = useState<number | null>(null)
 
-    const guardadas = localStorage.getItem("fotosMostradas")
-
-    if (guardadas) {
-      setFotosMostradas(new Set(JSON.parse(guardadas)))
-    }
-
-  }, [])
+useEffect(() => {
+  setInicioTV(Date.now())
+}, [])
 
 
-  useEffect(() => {
+// 🔹 EVENTO + EQUIPOS (igual)
+useEffect(() => {
 
-    if (!id) return
+  if (!id) return
 
-    const eventoRef = doc(db, "eventos_vueltas", id as string)
+  const eventoRef = doc(db, "eventos_vueltas", id as string)
 
-    const unsubEvento = onSnapshot(eventoRef, snap => {
-      if (snap.exists()) setEvento(snap.data() as Evento)
-    })
+  const unsubEvento = onSnapshot(eventoRef, snap => {
+    if (snap.exists()) setEvento(snap.data() as Evento)
+  })
 
-    const equiposRef = collection(db, "eventos_vueltas", id as string, "equipos")
+  const equiposRef = collection(db, "eventos_vueltas", id as string, "equipos")
 
-    const unsubEquipos = onSnapshot(equiposRef, snap => {
+  const unsubEquipos = onSnapshot(equiposRef, snap => {
 
-      const lista = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Equipo[]
+    const lista = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Equipo[]
 
-      setEquipos(lista)
+    setEquipos(lista)
 
-    })
+  })
 
-    return () => {
-      unsubEvento()
-      unsubEquipos()
-    }
+  return () => {
+    unsubEvento()
+    unsubEquipos()
+  }
 
-  }, [id])
+}, [id])
 
 
-  // ESCUCHAR FOTOS
-  useEffect(() => {
+// 🔥 ESCUCHAR SOLO FOTOS NUEVAS
+useEffect(() => {
 
-    if (!id) return
+  if (!id || !inicioTV) return
 
-    const fotosRef = query(
-      collection(db, "eventos_vueltas", id as string, "fotos_evento"),
-      orderBy("timestamp", "desc"),
-      limit(20)
-    )
+  const fotosRef = query(
+    collection(db, "eventos_vueltas", id as string, "fotos_evento"),
+    where("timestamp", ">", inicioTV),
+    orderBy("timestamp", "asc")
+  )
 
-    const unsub = onSnapshot(fotosRef, snapshot => {
+  const unsub = onSnapshot(fotosRef, snapshot => {
 
-      snapshot.docChanges().forEach(change => {
+    snapshot.docChanges().forEach(change => {
 
-        if (change.type === "added") {
+      if (change.type === "added") {
 
-          const data = change.doc.data() as Omit<FotoEvento, "id">
+        const data = change.doc.data() as Omit<FotoEvento, "id">
 
-const nuevaFoto: FotoEvento = {
-  id: change.doc.id,
-  ...data
-}
+        // 🔥 FILTRO REAL
+        if (!data.timestamp || data.timestamp <= inicioTV) return
 
-          if (fotosMostradas.has(nuevaFoto.id)) return
-
-          setColaFotos(prev => [...prev, nuevaFoto])
-
+        const nuevaFoto: FotoEvento = {
+          id: change.doc.id,
+          ...data
         }
 
-      })
+        setColaFotos(prev => [...prev, nuevaFoto])
+      }
 
     })
 
-    return () => unsub()
+  })
 
-  }, [id, fotosMostradas])
+  return () => unsub()
+
+}, [id, inicioTV])
 
 
-  // COLA DE FOTOS
-  useEffect(() => {
+// 🎬 COLA DE FOTOS (simplificada)
+useEffect(() => {
 
-    if (mostrando) return
-    if (colaFotos.length === 0) return
+  if (mostrando) return
+  if (colaFotos.length === 0) return
 
-    const siguiente = colaFotos[0]
+  const siguiente = colaFotos[0]
 
-    setFotoActual(siguiente)
-    setMostrando(true)
+  setFotoActual(siguiente)
+  setMostrando(true)
 
-    setTimeout(() => {
+  setTimeout(() => {
 
-      if (siguiente) {
+    setFotoActual(null)
+    setColaFotos(prev => prev.slice(1))
+    setMostrando(false)
 
-        const nuevas = new Set(fotosMostradas)
-        nuevas.add(siguiente.id)
+  }, 5000)
 
-        setFotosMostradas(nuevas)
-
-        localStorage.setItem(
-          "fotosMostradas",
-          JSON.stringify(Array.from(nuevas))
-        )
-      }
-
-      setFotoActual(null)
-      setColaFotos(prev => prev.slice(1))
-      setMostrando(false)
-
-    }, 5000)
-
-  }, [colaFotos, mostrando, fotosMostradas])
+}, [colaFotos, mostrando])
 
 
   const pista = evento?.longitudPista || 400
