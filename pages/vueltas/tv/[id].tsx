@@ -299,7 +299,7 @@ animation:"fadeFoto 0.4s ease"
 <img
 src={fotoActual.foto}
 style={{
-width:"600px",
+width:"550px",
 borderRadius:"10px",
 animation:"zoomFoto 5s linear"
 }}
@@ -333,7 +333,7 @@ alignItems:"flex-end"
 const distancia = e.vueltas * pista + (e.metrosExtra || 0)
 
 const colores=["#FFD700","#C0C0C0","#CD7F32"]
-const alturas=["140px","110px","90px"]
+const alturas=["110px","90px","75px"]
 
 return(
 
@@ -341,7 +341,7 @@ return(
 
 style={{
 background:"#111",
-width:"200px",
+width:"140px",
 height:alturas[index],
 borderRadius:"12px",
 border:`3px solid ${colores[index]}`,
@@ -354,12 +354,12 @@ boxShadow:"0 0 20px rgba(255,255,255,0.15)"
 
 >
 
-<div style={{fontSize:"26px"}}>
+<div style={{fontSize:"20px"}}>
 {["🥇","🥈","🥉"][index]}
 </div>
 
 <div style={{
-fontSize:"26px",
+fontSize:"20px",
 fontWeight:"bold"
 }}>
 {e.nombre}
