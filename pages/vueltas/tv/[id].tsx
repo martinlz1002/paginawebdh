@@ -268,8 +268,8 @@ return (
   display:"flex",
   justifyContent:"center",
   alignItems:"flex-start",
-  paddingTop:"20px",
-  height:"200px",
+  paddingTop:"5px",
+  height:"180px",
   marginBottom:"20px"
 }}>
 
@@ -288,8 +288,7 @@ src={fotoActual.foto}
 style={{
 width:"550px",
 borderRadius:"10px",
-animation:"zoomFoto 5s linear",
-marginTop:"10px"
+animation:"zoomFoto 5s linear"
 }}
 />
 
