@@ -267,9 +267,9 @@ return (
 <div style={{
   display:"flex",
   justifyContent:"center",
-  alignItems:"center",
-  height:"260px",
-  marginBottom:"40px"
+  alignItems:"flex-end",
+  height:"140px",
+  marginBottom:"20px"
 }}>
 
 {fotoActual ? (
@@ -310,7 +310,7 @@ fontWeight:"bold"
 
 <div style={{
 display:"flex",
-gap:"40px",
+gap:"30px",
 alignItems:"flex-end"
 }}>
 
