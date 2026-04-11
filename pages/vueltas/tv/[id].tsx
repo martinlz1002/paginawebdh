@@ -270,6 +270,7 @@ return (
   left:"20px",
   width:"180px",
   objectFit:"contain",
+  transform:"translateY(10px)",
   zIndex:20,
   opacity:0.95,
   filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
