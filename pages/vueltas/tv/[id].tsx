@@ -262,22 +262,6 @@ return (
 {evento?.nombreEvento || "Carrera"}
 </h1>
 
-<img
-  src="/zarigueyas_white.png"
-  style={{
-  position:"absolute",
-  top:"20px",
-  left:"20px",
-  width:"180px",
-  objectFit:"contain",
-  transform:"translateY(10px)",
-  zIndex:20,
-  opacity:0.95,
-  filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
-}}
-/>
-
-
 {/* PODIO / FOTO */}
 
 <div style={{
@@ -286,22 +270,30 @@ return (
   alignItems:"center",
   gap:"40px",
   paddingTop:"5px",
-  height:"180px",
   marginBottom:"20px"
 }}>
 
-{fotoActual ? (
+  {/* 🔥 LOGO */}
+  <img
+    src="/zarigueyas_white.png"
+    style={{
+      width:"140px",
+      objectFit:"contain",
+      opacity:0.95,
+      filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
+    }}
+  />
 
-<div style={{
-position:"absolute",
-top:"5px",  
-background:"#000",
-padding:"14px",
-borderRadius:"12px",
-boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-animation:"fadeFoto 0.4s ease",
-zIndex:10 
-}}>
+  {/* 🔥 CONTENEDOR PODIO / FOTO */}
+  {fotoActual ? (
+
+    <div style={{
+      background:"#000",
+      padding:"14px",
+      borderRadius:"12px",
+      boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+      animation:"fadeFoto 0.4s ease"
+    }}>
 
 <img
 src={fotoActual.foto}
