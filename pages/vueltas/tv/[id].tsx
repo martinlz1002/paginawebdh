@@ -263,15 +263,16 @@ return (
 </h1>
 
 <img
-  src="/zarigueyas.png"
+  src="/zarigueyas_white.png"
   style={{
-    position:"absolute",
-    top:"20px",
-    left:"20px",
-    width:"90px",
-    zIndex:20,
-    opacity:0.95
-  }}
+  position:"absolute",
+  top:"20px",
+  left:"20px",
+  width:"100px",
+  zIndex:20,
+  opacity:0.95,
+  filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
+}}
 />
 
 
