@@ -262,6 +262,18 @@ return (
 {evento?.nombreEvento || "Carrera"}
 </h1>
 
+<img
+  src="/zarigueyas.png"
+  style={{
+    position:"absolute",
+    top:"20px",
+    left:"20px",
+    width:"90px",
+    zIndex:20,
+    opacity:0.95
+  }}
+/>
+
 
 {/* PODIO / FOTO */}
 
