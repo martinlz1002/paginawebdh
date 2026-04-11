@@ -269,8 +269,6 @@ return (
   display:"flex",
   justifyContent:"center",
   alignItems:"flex-start",
-  paddingTop:"5px",
-  height:"180px",
   marginBottom:"20px"
 }}>
 
@@ -278,7 +276,7 @@ return (
 
 <div style={{
 position:"absolute",
-top:"20px",  
+top:"10px",  
 background:"#000",
 padding:"14px",
 borderRadius:"12px",
