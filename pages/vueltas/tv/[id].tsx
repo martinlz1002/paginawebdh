@@ -268,7 +268,8 @@ return (
   position:"absolute",
   top:"20px",
   left:"20px",
-  width:"100px",
+  width:"180px",
+  objectFit:"contain",
   zIndex:20,
   opacity:0.95,
   filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
@@ -281,7 +282,8 @@ return (
 <div style={{
   display:"flex",
   justifyContent:"center",
-  alignItems:"flex-start",
+  alignItems:"center",
+  gap:"40px",
   paddingTop:"5px",
   height:"180px",
   marginBottom:"20px"
