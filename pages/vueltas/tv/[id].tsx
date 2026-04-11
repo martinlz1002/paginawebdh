@@ -250,7 +250,8 @@ return (
   color:"#fff",
   minHeight:"100vh",
   padding:"30px",
-  fontFamily:"system-ui"
+  fontFamily:"system-ui",
+  position:"relative"
 }}>
 
 <h1 style={{
@@ -276,11 +277,14 @@ return (
 {fotoActual ? (
 
 <div style={{
+position:"absolute",
+top:"20px",  
 background:"#000",
 padding:"14px",
 borderRadius:"12px",
 boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-animation:"fadeFoto 0.4s ease"
+animation:"fadeFoto 0.4s ease",
+zIndex:10 
 }}>
 
 <img
