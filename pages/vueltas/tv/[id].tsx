@@ -72,18 +72,16 @@ useEffect(() => {
     const duracionMs = evento.duracionMinutos! * 60 * 1000
     const restante = duracionMs - transcurrido
 
-    if (restante <= 0) {
-      setTiempoRestante(0)
-      return
-    }
 
-    setTiempoRestante(restante)
-
-    if (restante <= 0) {
+     if (restante <= 0) {
   setTiempoRestante(0)
   setHighlight("🏁 Tiempo terminado")
   return
 }
+
+    setTiempoRestante(restante)
+
+   
 
   }, 1000)
   return () => clearInterval(interval)
@@ -349,380 +347,364 @@ const cardStyle = {
   boxShadow: "0 0 15px rgba(255,255,255,0.08)"
 }
 
-{highlight && (
+return (
+<>
+  {highlight && (
+    <div style={{
+      position: "fixed",
+      top: "20px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: "#ff9800",
+      color: "#000",
+      padding: "12px 25px",
+      borderRadius: "8px",
+      fontSize: "20px",
+      fontWeight: "bold",
+      zIndex: 999
+    }}>
+      {highlight}
+    </div>
+  )}
+
   <div style={{
     position: "fixed",
     top: "20px",
-    left: "50%",
-    transform: "translateX(-50%)",
-    background: "#ff9800",
-    color: "#000",
-    padding: "12px 25px",
-    borderRadius: "8px",
-    fontSize: "20px",
+    right: "30px",
+    background: "#000",
+    padding: "12px 20px",
+    borderRadius: "10px",
+    fontSize: "28px",
     fontWeight: "bold",
-    boxShadow: "0 0 20px rgba(255,152,0,0.7)",
-    zIndex: 999,
-    animation: "fadeSlide 0.4s ease"
+    letterSpacing: "2px",
+    boxShadow: "0 0 20px rgba(0,0,0,0.8)",
+    zIndex: 1000,
+    color:
+      tiempoRestante < 60000
+        ? "#ff1744"
+        : tiempoRestante < 5 * 60000
+        ? "#ff9800"
+        : "#00e676"
   }}>
-    {highlight}
-  </div>
-)}
-
-<div style={{
-  position: "fixed",
-  top: "20px",
-  right: "30px",
-  background: "#000",
-  padding: "12px 20px",
-  borderRadius: "10px",
-  fontSize: "28px",
-  fontWeight: "bold",
-  letterSpacing: "2px",
-  boxShadow: "0 0 20px rgba(0,0,0,0.8)",
-  zIndex: 1000,
-
-  color:
-    tiempoRestante < 60000
-      ? "#ff1744" // 🔴 último minuto
-      : tiempoRestante < 5 * 60000
-      ? "#ff9800" // 🟠 últimos 5 min
-      : "#00e676" // 🟢 normal
-}}>
-
-  ⏱ {formatTiempoRestante(tiempoRestante)}
-
-</div>
-
-
-return (
-  
-  
-
-<div style={{
-  background:"linear-gradient(180deg,#050505,#111)",
-  color:"#fff",
-  minHeight:"100vh",
-  padding:"30px",
-  fontFamily:"system-ui",
-  position:"relative"
-}}>
-
-<h1 style={{
-  textAlign:"center",
-  fontSize:"56px",
-  marginBottom:"30px"
-}}>
-{evento?.nombreEvento || "Carrera"}
-</h1>
-
-<div style={{
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "20px",
-  marginBottom: "20px"
-}}>
-
-  <div style={cardStyle}>
-    🏁 Mejor vuelta
-    <br />
-    <b>
-      {mejorVueltaEvento
-        ? `${mejorVueltaEvento.equipo} (${formatTime(mejorVueltaEvento.tiempo)})`
-        : "-"}
-    </b>
+    ⏱ {formatTiempoRestante(tiempoRestante)}
   </div>
 
-  <div style={cardStyle}>
-    ⚡ Última más rápida
-    <br />
-    <b>
-      {mejorUltimaVuelta
-        ? `${mejorUltimaVuelta.nombre} (${formatTime(mejorUltimaVuelta.ultimoTiempoVuelta)})`
-        : "-"}
-    </b>
-  </div>
+  <div style={{
+    background:"linear-gradient(180deg,#050505,#111)",
+    color:"#fff",
+    minHeight:"100vh",
+    padding:"30px",
+    fontFamily:"system-ui",
+    position:"relative"
+  }}>
 
-  <div style={cardStyle}>
-    👑 Líder
-    <br />
-    <b>{lider?.nombre || "-"}</b>
-  </div>
-
-</div>
-
-{/* PODIO / FOTO */}
-
-<div style={{
-  display:"flex",
-  justifyContent:"center",
-  alignItems:"center",
-  gap:"40px",
-  paddingTop:"5px",
-  marginBottom:"20px"
-}}>
-
-  {/* 🔥 LOGO */}
-  <img
-    src="/zarigueyas_white.png"
-    style={{
-      width:"140px",
-      objectFit:"contain",
-      opacity:0.95,
-      filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
-    }}
-  />
-
-  {/* 🔥 CONTENEDOR PODIO / FOTO */}
-  {fotoActual ? (
+    <h1 style={{
+      textAlign:"center",
+      fontSize:"56px",
+      marginBottom:"30px"
+    }}>
+      {evento?.nombreEvento || "Carrera"}
+    </h1>
 
     <div style={{
-      background:"#000",
-      padding:"14px",
-      borderRadius:"12px",
-      boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-      animation:"fadeFoto 0.4s ease"
+      display: "flex",
+      justifyContent: "space-between",
+      gap: "20px",
+      marginBottom: "20px"
     }}>
 
-<img
-src={fotoActual.foto}
-style={{
-width:"550px",
-borderRadius:"10px",
-animation:"zoomFoto 5s linear"
-}}
-/>
+      <div style={cardStyle}>
+        🏁 Mejor vuelta
+        <br />
+        <b>
+          {mejorVueltaEvento
+            ? `${mejorVueltaEvento.equipo} (${formatTime(mejorVueltaEvento.tiempo)})`
+            : "-"}
+        </b>
+      </div>
+
+      <div style={cardStyle}>
+        ⚡ Última más rápida
+        <br />
+        <b>
+          {mejorUltimaVuelta
+            ? `${mejorUltimaVuelta.nombre} (${formatTime(mejorUltimaVuelta.ultimoTiempoVuelta)})`
+            : "-"}
+        </b>
+      </div>
+
+      <div style={cardStyle}>
+        👑 Líder
+        <br />
+        <b>{lider?.nombre || "-"}</b>
+      </div>
+
+    </div>
+
+    {/* PODIO / FOTO */}
+    <div style={{
+      display:"flex",
+      justifyContent:"center",
+      alignItems:"center",
+      gap:"40px",
+      paddingTop:"5px",
+      marginBottom:"20px"
+    }}>
+
+      <img
+        src="/zarigueyas_white.png"
+        style={{
+          width:"140px",
+          objectFit:"contain",
+          opacity:0.95,
+          filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
+        }}
+      />
+
+      {fotoActual ? (
+
+        <div style={{
+          background:"#000",
+          padding:"14px",
+          borderRadius:"12px",
+          boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+          animation:"fadeFoto 0.4s ease"
+        }}>
+
+          <img
+            src={fotoActual.foto}
+            style={{
+              width:"550px",
+              borderRadius:"10px",
+              animation:"zoomFoto 5s linear"
+            }}
+          />
+
+          {fotoActual.equipoNombre && (
+            <div style={{
+              textAlign:"center",
+              marginTop:"12px",
+              fontSize:"26px",
+              fontWeight:"bold"
+            }}>
+              📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
+            </div>
+          )}
+
+        </div>
+
+      ) : (
+
+        <div style={{
+          display:"flex",
+          gap:"30px",
+          alignItems:"flex-end"
+        }}>
+
+          {ranking.slice(0,3).map((e,index)=>{
+
+            const distancia = e.vueltas * pista + (e.metrosExtra || 0)
+
+            const colores=["#FFD700","#C0C0C0","#CD7F32"]
+            const alturas=["110px","90px","75px"]
+
+            return(
+
+              <div key={e.id}
+
+              style={{
+                background:"#111",
+                width:"140px",
+                height:alturas[index],
+                borderRadius:"12px",
+                border:`3px solid ${colores[index]}`,
+                display:"flex",
+                flexDirection:"column",
+                justifyContent:"center",
+                alignItems:"center",
+                boxShadow:"0 0 20px rgba(255,255,255,0.15)"
+              }}
 
-{fotoActual.equipoNombre && (
+              >
 
-<div style={{
-textAlign:"center",
-marginTop:"12px",
-fontSize:"26px",
-fontWeight:"bold"
-}}>
-📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
-</div>
+                <div style={{fontSize:"20px"}}>
+                  {["🥇","🥈","🥉"][index]}
+                </div>
 
-)}
+                <div style={{
+                  fontSize:"20px",
+                  fontWeight:"bold"
+                }}>
+                  {e.nombre}
+                </div>
 
-</div>
+                <div>
+                  {distancia} m
+                </div>
 
-) : (
+              </div>
 
-<div style={{
-display:"flex",
-gap:"30px",
-alignItems:"flex-end"
-}}>
+            )
 
-{ranking.slice(0,3).map((e,index)=>{
+          })}
 
-const distancia = e.vueltas * pista + (e.metrosExtra || 0)
+        </div>
 
-const colores=["#FFD700","#C0C0C0","#CD7F32"]
-const alturas=["110px","90px","75px"]
+      )}
 
-return(
+    </div>
 
-<div key={e.id}
+    {/* TABLA */}
+    <table style={{
+      width:"100%",
+      fontSize:"26px",
+      borderCollapse:"collapse",
+      background:"#111",
+      borderRadius:"10px",
+      overflow:"hidden"
+    }}>
 
-style={{
-background:"#111",
-width:"140px",
-height:alturas[index],
-borderRadius:"12px",
-border:`3px solid ${colores[index]}`,
-display:"flex",
-flexDirection:"column",
-justifyContent:"center",
-alignItems:"center",
-boxShadow:"0 0 20px rgba(255,255,255,0.15)"
-}}
+      <thead>
 
->
+        <tr style={{
+          borderBottom:"3px solid #666",
+          background:"#222"
+        }}>
 
-<div style={{fontSize:"20px"}}>
-{["🥇","🥈","🥉"][index]}
-</div>
+          <th>POS</th>
+          <th style={{textAlign:"left"}}>EQUIPO</th>
+          <th>VUELTAS</th>
+          <th>ÚLTIMA</th>
+          <th>GAP</th>
+          <th>DISTANCIA</th>
 
-<div style={{
-fontSize:"20px",
-fontWeight:"bold"
-}}>
-{e.nombre}
-</div>
+        </tr>
 
-<div>
-{distancia} m
-</div>
+      </thead>
 
-</div>
+      <tbody>
 
-)
+        {ranking.map((e,index)=>{
 
-})}
+          const distancia = e.vueltas * pista + (e.metrosExtra || 0)
 
-</div>
+          let gap="---"
 
-)}
+          if(index!==0 && lider){
 
-</div>
+            const diffVueltas=lider.vueltas-e.vueltas
 
+            if(diffVueltas>0){
 
-{/* TABLA */}
+              gap=`-${diffVueltas} vuelta${diffVueltas>1?"s":""}`
 
-<table style={{
-width:"100%",
-fontSize:"26px",
-borderCollapse:"collapse",
-background:"#111",
-borderRadius:"10px",
-overflow:"hidden"
-}}>
+            }else{
 
-<thead>
+              const tiempoLider=lider.ultimoTiempoVuelta||0
+              const tiempoEquipo=e.ultimoTiempoVuelta||0
 
-<tr style={{
-borderBottom:"3px solid #666",
-background:"#222"
-}}>
+              const diff = Math.abs(tiempoEquipo - tiempoLider)
+              gap = `+${formatTime(diff)}`
 
-<th>POS</th>
-<th style={{textAlign:"left"}}>EQUIPO</th>
-<th>VUELTAS</th>
-<th>ÚLTIMA</th>
-<th>GAP</th>
-<th>DISTANCIA</th>
+            }
 
-</tr>
+          }
 
-</thead>
+          return(
 
-<tbody>
+            <tr
+              key={e.id}
+              ref={(el) => {
+                if (!el) return
 
-{ranking.map((e,index)=>{
+                const prevIndex = posicionesRef.current[e.id]
+                if (prevIndex === undefined) return
 
-const distancia = e.vueltas * pista + (e.metrosExtra || 0)
+                const delta = (prevIndex - index) * 60
 
-let gap="---"
+                if (delta !== 0) {
+                  el.style.transform = `translateY(${delta}px)`
+                  el.style.transition = "none"
 
-if(index!==0 && lider){
+                  requestAnimationFrame(() => {
+                    el.style.transform = "translateY(0)"
+                    el.style.transition = "transform 0.35s ease, background 0.4s ease"
+                  })
+                }
+              }}
 
-const diffVueltas=lider.vueltas-e.vueltas
+              style={{
+                borderBottom:"1px solid #333",
+                background:
+                  movimientos[e.id] === "up"
+                    ? "#1b5e20"
+                    : movimientos[e.id] === "down"
+                    ? "#7f0000"
+                    : index===0
+                    ? "#1a1a1a"
+                    : "transparent"
+              }}
+            >
 
-if(diffVueltas>0){
+              <td style={{textAlign:"center"}}>
+                <div style={{
+                  background:index===0?"#4CAF50":"#444",
+                  borderRadius:"6px",
+                  padding:"4px 10px",
+                  display:"inline-block"
+                }}>
+                  {index+1}
+                </div>
+              </td>
 
-gap=`-${diffVueltas} vuelta${diffVueltas>1?"s":""}`
+              <td style={{fontWeight:index===0?"bold":"normal"}}>
+                {e.nombre}
+              </td>
 
-}else{
+              <td style={{textAlign:"center"}}>
+                {e.vueltas}
+              </td>
 
-const tiempoLider=lider.ultimoTiempoVuelta||0
-const tiempoEquipo=e.ultimoTiempoVuelta||0
+              <td style={{textAlign:"center"}}>
+                {formatTime(e.ultimoTiempoVuelta)}
+              </td>
 
-const diff = Math.abs(tiempoEquipo - tiempoLider)
-gap = `+${formatTime(diff)}`
+              <td style={{textAlign:"center"}}>
+                {gap}
+              </td>
 
-}
+              <td style={{
+                textAlign:"center",
+                fontWeight:"bold"
+              }}>
+                {distancia} m
+              </td>
 
-}
+            </tr>
 
-return(
+          )
 
-<tr
-  key={e.id}
-  ref={(el) => {
-    if (!el) return
+        })}
 
-    const prevIndex = posicionesRef.current[e.id]
-    if (prevIndex === undefined) return
+      </tbody>
 
-    const delta = (prevIndex - index) * 60
+    </table>
 
-    if (delta !== 0) {
-      el.style.transform = `translateY(${delta}px)`
-      el.style.transition = "none"
+    <style jsx>{`
 
-      requestAnimationFrame(() => {
-        el.style.transform = "translateY(0)"
-        el.style.transition = "transform 0.35s ease, background 0.4s ease"
-      })
-    }
-  }}
+      @keyframes fadeFoto{
+        from{opacity:0;transform:translateY(20px)}
+        to{opacity:1;transform:translateY(0)}
+      }
 
-  style={{
-    borderBottom:"1px solid #333",
-    background:
-      movimientos[e.id] === "up"
-        ? "#1b5e20"
-        : movimientos[e.id] === "down"
-        ? "#7f0000"
-        : index===0
-        ? "#1a1a1a"
-        : "transparent"
-  }}
->
+      @keyframes zoomFoto{
+        from{transform:scale(1)}
+        to{transform:scale(1.08)}
+      }
 
-<td style={{textAlign:"center"}}>
-<div style={{
-background:index===0?"#4CAF50":"#444",
-borderRadius:"6px",
-padding:"4px 10px",
-display:"inline-block"
-}}>
-{index+1}
-</div>
-</td>
+    `}</style>
 
-<td style={{fontWeight:index===0?"bold":"normal"}}>
-{e.nombre}
-</td>
-
-<td style={{textAlign:"center"}}>
-{e.vueltas}
-</td>
-
-<td style={{textAlign:"center"}}>
-{formatTime(e.ultimoTiempoVuelta)}
-</td>
-
-<td style={{textAlign:"center"}}>
-{gap}
-</td>
-
-<td style={{
-textAlign:"center",
-fontWeight:"bold"
-}}>
-{distancia} m
-</td>
-
-</tr>
-
-)
-
-})}
-
-</tbody>
-
-</table>
-
-
-<style jsx>{`
-
-@keyframes fadeFoto{
-from{opacity:0;transform:translateY(20px)}
-to{opacity:1;transform:translateY(0)}
-}
-
-@keyframes zoomFoto{
-from{transform:scale(1)}
-to{transform:scale(1.08)}
-}
-
-`}</style>
-
-</div>
-
+  </div>
+</>
 )
 }
