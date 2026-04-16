@@ -381,7 +381,7 @@ return (
 
   <div style={{
     position: "fixed",
-    top: "20px",
+    top: "50px",
     right: "30px",
     background: "#000",
     padding: "12px 20px",
