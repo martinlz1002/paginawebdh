@@ -19,7 +19,7 @@ type Evento = {
   longitudPista: number
 
   horaInicio?: number
-  duracionMinutos?: number
+  duracion?: number 
   pausado?: boolean
 }
 
@@ -60,34 +60,46 @@ const [tiempoRestante, setTiempoRestante] = useState<number>(0)
 
 useEffect(() => {
 
-  if (!evento?.horaInicio || !evento?.duracionMinutos) return
+  if (!evento?.horaInicio || !evento?.duracion) return
 
   const interval = setInterval(() => {
 
     if (evento.pausado) return
 
     const ahora = Date.now()
-    const transcurrido = ahora - evento.horaInicio!
 
-    const duracionMs = evento.duracionMinutos! * 60 * 1000
+    let horaInicioMs: number
+
+    // 🔥 AQUÍ ESTÁ LA MAGIA
+    if (typeof evento.horaInicio === "number") {
+      horaInicioMs = evento.horaInicio
+    } else if ((evento.horaInicio as any)?.seconds) {
+      horaInicioMs = (evento.horaInicio as any).seconds * 1000
+    } else {
+      console.log("⚠️ horaInicio inválido:", evento.horaInicio)
+      return
+    }
+
+    const transcurrido = ahora - horaInicioMs
+
+    if (!evento.duracion) return
+
+const duracionMs = evento.duracion * 60 * 1000
     const restante = duracionMs - transcurrido
 
-
-     if (restante <= 0) {
-  setTiempoRestante(0)
-  setHighlight("🏁 Tiempo terminado")
-  return
-}
+    if (restante <= 0) {
+      setTiempoRestante(0)
+      setHighlight("🏁 Tiempo terminado")
+      return
+    }
 
     setTiempoRestante(restante)
 
-   
-
   }, 1000)
-  return () => clearInterval(interval)
-  
 
-}, [evento])
+  return () => clearInterval(interval)
+
+}, [evento?.horaInicio, evento?.duracion, evento?.pausado])
 
 const formatTiempoRestante = (ms: number) => {
 
