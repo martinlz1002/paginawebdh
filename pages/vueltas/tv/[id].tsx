@@ -17,6 +17,10 @@ type Equipo = {
 type Evento = {
   nombreEvento?: string
   longitudPista: number
+
+  horaInicio?: number
+  duracionMinutos?: number
+  pausado?: boolean
 }
 
 type FotoEvento = {
@@ -51,6 +55,50 @@ export default function VueltasTV() {
 } | null>(null)
 
 const [highlight, setHighlight] = useState<string | null>(null)
+
+const [tiempoRestante, setTiempoRestante] = useState<number>(0)
+
+useEffect(() => {
+
+  if (!evento?.horaInicio || !evento?.duracionMinutos) return
+
+  const interval = setInterval(() => {
+
+    if (evento.pausado) return
+
+    const ahora = Date.now()
+    const transcurrido = ahora - evento.horaInicio!
+
+    const duracionMs = evento.duracionMinutos! * 60 * 1000
+    const restante = duracionMs - transcurrido
+
+    if (restante <= 0) {
+      setTiempoRestante(0)
+      return
+    }
+
+    setTiempoRestante(restante)
+
+    if (restante <= 0) {
+  setTiempoRestante(0)
+  setHighlight("🏁 Tiempo terminado")
+  return
+}
+
+  }, 1000)
+  return () => clearInterval(interval)
+  
+
+}, [evento])
+
+const formatTiempoRestante = (ms: number) => {
+
+  const totalSeconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`
+}
 
 useEffect(() => {
 
@@ -321,8 +369,34 @@ const cardStyle = {
   </div>
 )}
 
-return (
+<div style={{
+  position: "fixed",
+  top: "20px",
+  right: "30px",
+  background: "#000",
+  padding: "12px 20px",
+  borderRadius: "10px",
+  fontSize: "28px",
+  fontWeight: "bold",
+  letterSpacing: "2px",
+  boxShadow: "0 0 20px rgba(0,0,0,0.8)",
+  zIndex: 1000,
 
+  color:
+    tiempoRestante < 60000
+      ? "#ff1744" // 🔴 último minuto
+      : tiempoRestante < 5 * 60000
+      ? "#ff9800" // 🟠 últimos 5 min
+      : "#00e676" // 🟢 normal
+}}>
+
+  ⏱ {formatTiempoRestante(tiempoRestante)}
+
+</div>
+
+
+return (
+  
   
 
 <div style={{
