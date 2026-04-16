@@ -45,6 +45,54 @@ export default function VueltasTV() {
 
   const primerCargaRef = useRef(true)
 
+  const [mejorVueltaEvento, setMejorVueltaEvento] = useState<{
+  equipo: string
+  tiempo: number
+} | null>(null)
+
+const [highlight, setHighlight] = useState<string | null>(null)
+
+useEffect(() => {
+
+  equipos.forEach(e => {
+
+    if (!e.ultimoTiempoVuelta) return
+
+    if (
+      !mejorVueltaEvento ||
+      e.ultimoTiempoVuelta < mejorVueltaEvento.tiempo
+    ) {
+
+      setMejorVueltaEvento({
+        equipo: e.nombre,
+        tiempo: e.ultimoTiempoVuelta
+      })
+
+      // 🎬 activar highlight
+      setHighlight(`🔥 Mejor vuelta: ${e.nombre}`)
+      
+      setTimeout(() => setHighlight(null), 4000)
+    }
+
+  })
+
+  
+
+}, [equipos])
+
+const mejorUltimaVuelta = useMemo(() => {
+
+  return equipos.reduce((best, e) => {
+
+    if (!e.ultimoTiempoVuelta) return best
+    if (!best || e.ultimoTiempoVuelta < best.ultimoTiempoVuelta!) return e
+
+    return best
+
+  }, null as Equipo | null)
+
+}, [equipos])
+
   // 👉 SOLO esto se queda
 const [inicioTV, setInicioTV] = useState<number | null>(null)
 
@@ -243,7 +291,39 @@ const obtenerTransform = (id: string, index: number) => {
   return `translateY(${delta}px)`
 }
 
+
+const cardStyle = {
+  flex: 1,
+  background: "#111",
+  padding: "15px",
+  borderRadius: "10px",
+  textAlign: "center" as const,
+  boxShadow: "0 0 15px rgba(255,255,255,0.08)"
+}
+
+{highlight && (
+  <div style={{
+    position: "fixed",
+    top: "20px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    background: "#ff9800",
+    color: "#000",
+    padding: "12px 25px",
+    borderRadius: "8px",
+    fontSize: "20px",
+    fontWeight: "bold",
+    boxShadow: "0 0 20px rgba(255,152,0,0.7)",
+    zIndex: 999,
+    animation: "fadeSlide 0.4s ease"
+  }}>
+    {highlight}
+  </div>
+)}
+
 return (
+
+  
 
 <div style={{
   background:"linear-gradient(180deg,#050505,#111)",
@@ -261,6 +341,41 @@ return (
 }}>
 {evento?.nombreEvento || "Carrera"}
 </h1>
+
+<div style={{
+  display: "flex",
+  justifyContent: "space-between",
+  gap: "20px",
+  marginBottom: "20px"
+}}>
+
+  <div style={cardStyle}>
+    🏁 Mejor vuelta
+    <br />
+    <b>
+      {mejorVueltaEvento
+        ? `${mejorVueltaEvento.equipo} (${formatTime(mejorVueltaEvento.tiempo)})`
+        : "-"}
+    </b>
+  </div>
+
+  <div style={cardStyle}>
+    ⚡ Última más rápida
+    <br />
+    <b>
+      {mejorUltimaVuelta
+        ? `${mejorUltimaVuelta.nombre} (${formatTime(mejorUltimaVuelta.ultimoTiempoVuelta)})`
+        : "-"}
+    </b>
+  </div>
+
+  <div style={cardStyle}>
+    👑 Líder
+    <br />
+    <b>{lider?.nombre || "-"}</b>
+  </div>
+
+</div>
 
 {/* PODIO / FOTO */}
 
