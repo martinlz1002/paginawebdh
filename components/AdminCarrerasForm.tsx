@@ -169,6 +169,15 @@ setResultadosPublicado(initialValues?.resultados?.publicado === true);
   // ✅ FIX: normalizar distancia para evitar "5k" vs "5K" vs "5K "
   const normalizeDist = (v: string) => v.replace(/\s+/g, "").trim().toUpperCase();
 
+  function generarSlug(texto: string) {
+  return texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
+}
+
   const handleAddDistancia = () => {
     const raw = nuevaDistancia.trim();
     const normalized = normalizeDist(raw);
@@ -269,8 +278,11 @@ const carreraFinalizada = fechaDate < today;
       })),
     }));
 
+    const slug = generarSlug(titulo);
+
     const payload: any = {
       titulo,
+      slug,
       descripcion,
       lugar,
       fecha: (fecha || "").trim(), // ✅ string yyyy-mm-dd

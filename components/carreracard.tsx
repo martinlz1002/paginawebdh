@@ -6,6 +6,7 @@ import { CalendarIcon, MapPinIcon } from "@heroicons/react/24/outline";
 
 export interface CarreraCardProps {
   id: string;
+  slug?: string; // 👈 NUEVO
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
@@ -18,6 +19,7 @@ export interface CarreraCardProps {
 
 const CarreraCard: FC<CarreraCardProps> = ({
   id,
+  slug, // 👈 NUEVO
   titulo,
   descripcion,
   ubicacion,
@@ -33,6 +35,9 @@ const CarreraCard: FC<CarreraCardProps> = ({
   const carreraDate = new Date(fechaISO);
   const isPast = carreraDate < today;
   const hasResults = isPast && resultadosPublicado && !!resultadosUrl;
+
+  // 🧠 Aquí sucede la magia
+  const url = `/carrera/${slug || id}`;
 
   const content = (
     <motion.div
@@ -52,10 +57,8 @@ const CarreraCard: FC<CarreraCardProps> = ({
             }`}
           />
 
-          {/* Overlay degradado */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
-          {/* Badge */}
           {hasResults && (
             <div className="absolute top-4 left-4 bg-dh-green text-black text-xs font-bold px-4 py-1 rounded-full shadow-lg">
               RESULTADOS
@@ -72,10 +75,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
 
       {/* Contenido */}
       <div className="p-6 text-white space-y-4">
-
-        <h2 className="text-2xl font-black leading-tight">
-          {titulo}
-        </h2>
+        <h2 className="text-2xl font-black leading-tight">{titulo}</h2>
 
         <div className="flex flex-wrap gap-6 text-white/60 text-sm">
           <span className="flex items-center gap-2">
@@ -97,7 +97,6 @@ const CarreraCard: FC<CarreraCardProps> = ({
           </p>
         )}
 
-        {/* CTA */}
         <div className="pt-4">
           {hasResults ? (
             <span className="text-dh-green font-bold text-sm">
@@ -111,7 +110,6 @@ const CarreraCard: FC<CarreraCardProps> = ({
         </div>
       </div>
 
-      {/* Línea inferior animada */}
       <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-green group-hover:w-full transition-all duration-500" />
     </motion.div>
   );
@@ -130,7 +128,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
   }
 
   return (
-    <Link href={`/carrera/${id}`} className="block">
+    <Link href={url} className="block">
       {content}
     </Link>
   );

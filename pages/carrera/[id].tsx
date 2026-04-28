@@ -1,7 +1,15 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { doc, getDoc, Timestamp } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  Timestamp,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
   CalendarIcon,
@@ -32,12 +40,30 @@ export default function CarreraDetalle() {
 
     (async () => {
       try {
+        // 🧠 1. Intentar como ID (flujo actual intacto)
         const snap = await getDoc(doc(db, "carreras", id as string));
-        if (!snap.exists()) {
-          setError("Carrera no encontrada");
+
+        if (snap.exists()) {
+          setCarrera({ id: snap.id, ...snap.data() });
           return;
         }
-        setCarrera({ id: snap.id, ...snap.data() });
+
+        // 🧠 2. Si no existe, intentar como SLUG
+        const q = query(
+          collection(db, "carreras"),
+          where("slug", "==", id)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+          const docData = snapshot.docs[0];
+          setCarrera({ id: docData.id, ...docData.data() });
+          return;
+        }
+
+        // 💀 Nada encontrado
+        setError("Carrera no encontrada");
       } catch (e: any) {
         setError(e?.message || "Error cargando carrera");
       } finally {
@@ -68,7 +94,8 @@ export default function CarreraDetalle() {
 
   const resultadosUrl = carrera?.resultados?.url;
   const resultadosPublicado = carrera?.resultados?.publicado === true;
-  const hayResultados = carreraFinalizada && resultadosPublicado && resultadosUrl;
+  const hayResultados =
+    carreraFinalizada && resultadosPublicado && resultadosUrl;
 
   return (
     <div className="min-h-screen bg-dh-soft px-4 py-12">
@@ -136,7 +163,7 @@ export default function CarreraDetalle() {
           </div>
         )}
 
-        {/* Footer status */}
+        {/* Footer */}
         <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
           <CheckCircleIcon className="w-4 h-4 text-dh-green" />
           Evento oficial DHTime

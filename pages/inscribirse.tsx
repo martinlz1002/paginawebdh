@@ -105,7 +105,7 @@ const pill =
 
 export default function InscribirsePage() {
   const router = useRouter();
-  const { carreraId } = router.query;
+  const { carreraId, slug } = router.query;
   const auth = getAuth(app);
 
   const [user, setUser] = useState<User | null>(null);
@@ -158,20 +158,43 @@ export default function InscribirsePage() {
 
   // Carga carrera
   useEffect(() => {
-    if (!carreraId) return;
-    (async () => {
-      try {
+  if (!carreraId && !slug) return;
+
+  (async () => {
+    try {
+      // 🔹 1. Intentar con carreraId (flujo actual)
+      if (carreraId) {
         const snap = await getDoc(doc(db, "carreras", carreraId as string));
+
         if (snap.exists()) {
           setCarrera({ id: snap.id, ...(snap.data() as any) } as CarreraFull);
-        } else {
-          setMensaje("Carrera no encontrada");
+          return;
         }
-      } catch (e: any) {
-        setMensaje(e?.message || "Error cargando carrera");
       }
-    })();
-  }, [carreraId]);
+
+      // 🔹 2. Intentar con slug
+      if (slug) {
+        const q = query(
+          collection(db, "carreras"),
+          where("slug", "==", slug)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+          const docData = snapshot.docs[0];
+          setCarrera({ id: docData.id, ...(docData.data() as any) } as CarreraFull);
+          return;
+        }
+      }
+
+      // 💀 Nada encontrado
+      setMensaje("Carrera no encontrada");
+    } catch (e: any) {
+      setMensaje(e?.message || "Error cargando carrera");
+    }
+  })();
+}, [carreraId, slug]);
 
   // Carga perfiles
   useEffect(() => {

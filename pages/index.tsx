@@ -17,6 +17,7 @@ import SearchCard from "@/components/SearchCard";
 
 interface Carrera {
   id: string;
+  slug?: string;
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
@@ -67,6 +68,7 @@ export default function HomePage() {
 
           return {
             id: docu.id,
+            slug: c.slug || "",
             titulo: c.titulo || "(sin título)",
             descripcion: c.descripcion || "",
             ubicacion: c.lugar || c.ubicacion || "",
@@ -248,7 +250,7 @@ export default function HomePage() {
                   </div>
 
                   {abiertas ? (
-                    <Link href={`/inscribirse?carreraId=${c.id}`}>
+                    <Link href={`/inscribirse?carreraId=${c.slug || c.id}`}>
                       <span className="inline-flex items-center gap-2 bg-dh-green text-black font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 transition">
                         Inscribirme
                         <ArrowRightIcon className="w-5 h-5" />
