@@ -57,9 +57,10 @@ function parseISODateYYYYMMDD(iso: any): Date {
 }
 
 const inputBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+
 const selectBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
 const cardBase =
   "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
 
