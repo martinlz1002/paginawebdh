@@ -322,13 +322,6 @@ export default function PerfilPage() {
         <h1 className="text-4xl font-extrabold text-dh-ink">
           Mi <span className="text-dh-purple">Perfil</span>
         </h1>
-
-        <button
-          onClick={logout}
-          className="px-5 py-2 rounded-2xl border border-red-200 text-red-600 font-semibold transition-all duration-200 hover:bg-red-50 hover:-translate-y-[1px]"
-        >
-          Cerrar sesión
-        </button>
       </div>
 
       {/* PERFIL PRINCIPAL */}
@@ -341,7 +334,7 @@ export default function PerfilPage() {
           </label>
 
           <select
-            className="w-full"
+            className="w-full bg-white text-gray-900 border border-dh-border rounded-xl px-3 py-2"
             value={selectedProfile?.id || userData.id}
             onChange={(e) => {
               const val = e.target.value;
@@ -472,7 +465,7 @@ export default function PerfilPage() {
                       [field]: e.target.value,
                     }))
                   }
-                  className="w-full"
+                  className="w-full bg-white text-gray-900 border border-dh-border rounded-xl px-3 py-2"
                   required={field !== "club"}
                 />
               ))}
@@ -486,7 +479,7 @@ export default function PerfilPage() {
                     rama: e.target.value,
                   }))
                 }
-                className="w-full"
+                className="w-full bg-white text-gray-900 border border-dh-border rounded-xl px-3 py-2"
                 required
               >
                 <option value="">Selecciona Rama</option>
@@ -504,7 +497,7 @@ export default function PerfilPage() {
                     fechaNacimiento: e.target.value,
                   }))
                 }
-                className="w-full"
+                className="w-full bg-white text-gray-900 border border-dh-border rounded-xl px-3 py-2"
                 required
               />
 
