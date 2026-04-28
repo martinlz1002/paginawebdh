@@ -478,6 +478,53 @@ const carreraFinalizada = fechaDate < today;
       />
     </div>
 
+    {/* ================= IMÁGENES ================= */}
+<div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
+  <h3 className="text-xl font-extrabold text-dh-purple">
+    Imágenes de la carrera
+  </h3>
+
+  {/* LOGO */}
+  <div className="space-y-2">
+    <label className="text-sm text-white/70">Logo (opcional)</label>
+
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(e) => setImagenFile(e.target.files?.[0] || null)}
+      className="w-full text-white"
+    />
+
+    {imagenUrl && (
+      <img
+        src={imagenUrl}
+        alt="Logo actual"
+        className="h-20 object-contain mt-2 bg-white p-2 rounded-xl"
+      />
+    )}
+  </div>
+
+  {/* BANNER */}
+  <div className="space-y-2">
+    <label className="text-sm text-white/70">Banner (opcional)</label>
+
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(e) => setBannerFile(e.target.files?.[0] || null)}
+      className="w-full text-white"
+    />
+
+    {bannerUrl && (
+      <img
+        src={bannerUrl}
+        alt="Banner actual"
+        className="w-full h-40 object-cover rounded-xl mt-2"
+      />
+    )}
+  </div>
+</div>
+
     {/* ================= DISTANCIAS ================= */}
     <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
   <h3 className="text-xl font-extrabold text-dh-purple tracking-wide">

@@ -250,7 +250,7 @@ export default function HomePage() {
                   </div>
 
                   {abiertas ? (
-                    <Link href={`/inscribirse?carreraId=${c.slug || c.id}`}>
+                    <Link href={`/inscribirse?slug=${c.slug || c.id}`}>
                       <span className="inline-flex items-center gap-2 bg-dh-green text-black font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 transition">
                         Inscribirme
                         <ArrowRightIcon className="w-5 h-5" />

@@ -14,6 +14,7 @@ type Slide =
   | {
       type: "carrera";
       id: string;
+      slug?: string; // 👈 NUEVO
       titulo: string;
       fecha?: string;
       ubicacion?: string;
@@ -38,6 +39,7 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
     const futuras = carreras.map((c) => ({
       type: "carrera" as const,
       id: c.id,
+      slug: c.slug, // 👈 NUEVO
       titulo: c.titulo,
       fecha: c.fecha,
       ubicacion: c.ubicacion,
@@ -65,19 +67,19 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
       current.type === "carrera" &&
       current.inscripcionesAbiertas !== false
     ) {
-      router.push(`/inscribirse?carreraId=${current.id}`);
+      // 👇 AQUÍ ESTÁ EL FIX REAL
+      router.push(`/inscribirse?slug=${current.slug || current.id}`);
     }
   };
 
   return (
     <section className="relative min-h-screen overflow-hidden">
 
-      {/* 🔥 WELCOME SLIDE = HeroBanner COMPLETO */}
+      {/* 🔥 WELCOME SLIDE */}
       {current.type === "welcome" ? (
         <>
           <HeroBanner />
 
-          {/* Barra progreso */}
           <div className="absolute bottom-0 left-0 w-full h-1 bg-white/10 z-20">
             <motion.div
               key={index}
@@ -113,7 +115,7 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
             </motion.div>
           </AnimatePresence>
 
-          {/* Contenido carrera */}
+          {/* Contenido */}
           <div className="relative z-10 min-h-screen flex items-center px-10">
             <div className="max-w-2xl text-white space-y-6">
 
@@ -148,7 +150,6 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
             </div>
           </div>
 
-          {/* Barra progreso */}
           <div className="absolute bottom-0 left-0 w-full h-1 bg-white/10">
             <motion.div
               key={index}
