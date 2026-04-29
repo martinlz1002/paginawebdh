@@ -138,9 +138,42 @@ export default function Header() {
               Inicio
             </Link>
 
-            <span className="cursor-pointer hover:text-dh-green transition">
-  {eventosEnVivo.length > 0 ? "En vivo 🔴" : "En vivo"}
-</span>
+            <div
+  className="relative"
+  onMouseEnter={() => setOpenLive(true)}
+  onMouseLeave={() => setOpenLive(false)}
+>
+  <span className="cursor-pointer hover:text-dh-green transition">
+    {eventosEnVivo.length > 0 ? "En vivo 🔴" : "En vivo"}
+  </span>
+
+  <AnimatePresence>
+    {openLive && (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        className="absolute top-8 left-0 bg-[#111116] border border-white/10 rounded-xl shadow-lg p-2 min-w-[220px] z-50"
+      >
+        {eventosEnVivo.length === 0 ? (
+          <div className="px-4 py-2 text-xs text-white/40">
+            No hay eventos en vivo
+          </div>
+        ) : (
+          eventosEnVivo.map((ev) => (
+            <Link
+              key={ev.id}
+              href={`/vueltas/tv/${ev.id}`}
+              className="block px-4 py-2 text-sm hover:bg-white/10 rounded-lg transition"
+            >
+              {ev.nombreEvento || "Evento"}
+            </Link>
+          ))
+        )}
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
 
             {user && emailVerified && (
               <>
