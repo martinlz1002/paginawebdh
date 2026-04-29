@@ -3,7 +3,14 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/router";
 import { getAuth, onAuthStateChanged, signOut, User } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  where,
+  onSnapshot
+} from "firebase/firestore";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
 import { motion, AnimatePresence } from "framer-motion";
 import { app, db } from "@/lib/firebase";
@@ -18,6 +25,10 @@ export default function Header() {
   const [emailVerified, setEmailVerified] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const [eventosEnVivo, setEventosEnVivo] = useState<any[]>([]);
+  const [openLive, setOpenLive] = useState(false);
+  
 
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -43,6 +54,21 @@ export default function Header() {
     return unsub;
   }, [auth]);
 
+  useEffect(() => {
+  const q = query(collection(db, "eventos_vueltas"));
+
+  const unsub = onSnapshot(q, (snap) => {
+    const eventos = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    setEventosEnVivo(eventos);
+  });
+
+  return () => unsub();
+}, []);
+
   /* ============================= */
   /* SCROLL EFFECT */
   /* ============================= */
@@ -53,6 +79,7 @@ export default function Header() {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
 
   /* ============================= */
   /* OUTSIDE CLICK */
@@ -75,10 +102,13 @@ export default function Header() {
 
   const isHome = router.pathname === "/";
 
+  
+
   /* ============================= */
   /* RENDER */
   /* ============================= */
 
+  
   return (
     <>
       {/* HEADER */}
@@ -107,6 +137,10 @@ export default function Header() {
             <Link href="/" className="hover:text-dh-green transition">
               Inicio
             </Link>
+
+            <span className="cursor-pointer hover:text-dh-green transition">
+  {eventosEnVivo.length > 0 ? "En vivo 🔴" : "En vivo"}
+</span>
 
             {user && emailVerified && (
               <>
@@ -206,6 +240,43 @@ export default function Header() {
               <Link href="/" onClick={() => setMenuOpen(false)}>
                 Inicio
               </Link>
+
+              <div
+  className="relative"
+  onMouseEnter={() => setOpenLive(true)}
+  onMouseLeave={() => setOpenLive(false)}
+>
+  <span className="cursor-pointer hover:text-dh-green transition">
+    En vivo
+  </span>
+
+  <AnimatePresence>
+    {openLive && (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        className="absolute top-8 left-0 bg-[#111116] border border-white/10 rounded-xl shadow-lg p-2 min-w-[220px] z-50"
+      >
+        {eventosEnVivo.length === 0 ? (
+          <div className="px-4 py-2 text-xs text-white/40">
+            No hay eventos en vivo
+          </div>
+        ) : (
+          eventosEnVivo.map((ev) => (
+            <Link
+              key={ev.id}
+              href={`/vueltas/tv/${ev.id}`}
+              className="block px-4 py-2 text-sm hover:bg-white/10 rounded-lg transition"
+            >
+              {ev.nombreEvento || "Evento"}
+            </Link>
+          ))
+        )}
+      </motion.div>
+    )}
+  </AnimatePresence>
+</div>
 
               {user && emailVerified && (
                 <>
