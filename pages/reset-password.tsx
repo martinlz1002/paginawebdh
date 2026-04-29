@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen bg-dh-soft px-4 flex items-center justify-center">
       <div className="w-full max-w-md">
         <div className={`${cardBase} p-7`}>
-          <h1 className="text-2xl font-extrabold text-dh-ink">
+          <h1 className="text-2xl font-extrabold text-gray-900">
             Restablecer contraseña
           </h1>
           <p className="mt-2 text-sm text-gray-600">
