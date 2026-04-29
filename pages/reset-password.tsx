@@ -6,7 +6,7 @@ import { app } from "@/lib/firebase";
 
 const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
 const inputBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 pl-11 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 pl-11 text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
 const btnBase =
   "w-full inline-flex items-center justify-center rounded-xl px-4 py-2.5 font-extrabold transition";
 
