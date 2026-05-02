@@ -77,7 +77,7 @@ export default function AdminPanel() {
 
       <AdminSidebar
   view={view}
-  setView={v => {
+  setView={(v: View) => {
     setView(v);
     setFeedback(null);
 
