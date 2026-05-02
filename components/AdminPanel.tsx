@@ -13,8 +13,14 @@ import { getAuth } from 'firebase/auth';
 import { app, db } from '@/lib/firebase';
 
 // Incluir la nueva vista en el tipo
-type View = 'crear' | 'listar' | 'inscripciones' | 'inscripcionesManuales' | 'eliminarInscripciones' | 'galeria';
-
+type View =
+  | 'crear'
+  | 'listar'
+  | 'inscripciones'
+  | 'inscripcionesManuales'
+  | 'eliminarInscripciones'
+  | 'galeria';
+  
 export default function AdminPanel() {
   const [view, setView] = useState<View>('crear');
   const [sidebarOpen, setSidebarOpen] = useState(false);
