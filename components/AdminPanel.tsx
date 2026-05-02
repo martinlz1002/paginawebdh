@@ -6,13 +6,14 @@ import AdminCarrerasList, { CarreraItem } from '@/components/AdminCarrerasList';
 import AdminInscripcionesView from '@/components/AdminInscripcionesView';
 import InscripcionesManualesPage from '@/pages/admin/inscripciones-manuales';
 import EliminarInscripciones, { CarreraOption } from '@/components/EliminarInscripciones';
+import AdminGaleria from '@/components/AdminGaleria';
 import { getDocs, collection } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { app, db } from '@/lib/firebase';
 
 // Incluir la nueva vista en el tipo
-type View = 'crear' | 'listar' | 'inscripciones' | 'inscripcionesManuales' | 'eliminarInscripciones';
+type View = 'crear' | 'listar' | 'inscripciones' | 'inscripcionesManuales' | 'eliminarInscripciones' | 'galeria';
 
 export default function AdminPanel() {
   const [view, setView] = useState<View>('crear');
@@ -116,6 +117,9 @@ export default function AdminPanel() {
             feedback={feedback}
           />
         )}
+
+        {view === 'galeria' && <AdminGaleria />}
+
       </main>
     </div>
   );

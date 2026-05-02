@@ -1,34 +1,129 @@
-import { useEffect, useState } from 'react'
-import { ref, listAll, getDownloadURL } from 'firebase/storage'
-import { storage } from '@/lib/firebase'
-import AuthGuard from '@/components/AuthGuard'
+import { useEffect, useState } from "react";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { motion, AnimatePresence } from "framer-motion";
+import { XMarkIcon } from "@heroicons/react/24/outline";
+
+interface Photo {
+  id: string;
+  url: string;
+  alt?: string;
+  eventoNombre?: string;
+}
 
 export default function GaleriaPage() {
-  const [photos, setPhotos] = useState<string[]>([])
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [selected, setSelected] = useState<Photo | null>(null);
 
   useEffect(() => {
-    const listRef = ref(storage, 'galeria')
-    listAll(listRef).then(res =>
-      Promise.all(res.items.map(item => getDownloadURL(item))).then(setPhotos)
-    )
-  }, [])
+    const fetchGallery = async () => {
+      try {
+        const snap = await getDocs(collection(db, "galeria"));
+
+        const data = snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Photo[];
+
+        setPhotos(data);
+      } catch (error) {
+        console.error("Error cargando galería:", error);
+      }
+    };
+
+    fetchGallery();
+  }, []);
+
+  // 🧠 Agrupar por evento
+  const grouped = photos.reduce((acc: any, photo) => {
+    const key = photo.eventoNombre || "Otros";
+
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(photo);
+
+    return acc;
+  }, {});
 
   return (
-    <AuthGuard>
-      <main className="max-w-6xl mx-auto p-8">
-        <h1 className="text-3xl font-bold mb-6">Galería Completa</h1>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {photos.map((src, i) => (
-            <div key={i} className="overflow-hidden rounded-2xl shadow-lg">
-              <img
-                src={src}
-                alt={`foto-${i}`}
-                className="w-full h-56 object-cover transition-transform hover:scale-105"
-              />
+    <div className="min-h-screen bg-[#0c0c0f] py-24 px-6">
+
+      {/* HEADER */}
+      <div className="max-w-7xl mx-auto mb-16 text-center space-y-4">
+        <h1 className="text-4xl md:text-5xl font-black text-white">
+          Galería DHTime
+        </h1>
+        <p className="text-gray-400">
+          Revive cada evento, cada meta, cada historia.
+        </p>
+      </div>
+
+      {/* CONTENIDO */}
+      <div className="max-w-7xl mx-auto space-y-20">
+
+        {Object.entries(grouped).map(([evento, fotos]: any) => (
+          <div key={evento} className="space-y-8">
+
+            {/* Título del evento */}
+            <h2 className="text-2xl md:text-3xl font-extrabold text-dh-purple">
+              {evento}
+            </h2>
+
+            {/* Grid tipo masonry */}
+            <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
+              {fotos.map((p: Photo, i: number) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: i * 0.03 }}
+                  viewport={{ once: true }}
+                  className="break-inside-avoid cursor-pointer overflow-hidden rounded-3xl group"
+                  onClick={() => setSelected(p)}
+                >
+                  <img
+                    src={p.url}
+                    alt={p.alt || ""}
+                    className="w-full object-cover rounded-3xl transition-transform duration-700 group-hover:scale-110"
+                  />
+
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition" />
+                </motion.div>
+              ))}
             </div>
-          ))}
-        </div>
-      </main>
-    </AuthGuard>
-  )
+
+          </div>
+        ))}
+
+      </div>
+
+      {/* LIGHTBOX */}
+      <AnimatePresence>
+        {selected && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-6"
+          >
+            <button
+              onClick={() => setSelected(null)}
+              className="absolute top-6 right-6 text-white hover:text-dh-green transition"
+            >
+              <XMarkIcon className="w-8 h-8" />
+            </button>
+
+            <motion.img
+              src={selected.url}
+              alt={selected.alt || ""}
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.3 }}
+              className="max-h-[85vh] rounded-3xl shadow-2xl"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+    </div>
+  );
 }

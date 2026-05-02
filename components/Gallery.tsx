@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
-import { ref, listAll, getDownloadURL } from "firebase/storage";
-import { storage } from "@/lib/firebase";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import SectionHeader from "./SectionHeader";
+import { useRouter } from "next/router";
 
 interface Photo {
   id: string;
-  src: string;
-  alt: string;
+  url: string;
+  alt?: string;
+  eventoNombre?: string;
+  destacada?: boolean;
 }
 
 interface GalleryProps {
@@ -18,32 +21,36 @@ interface GalleryProps {
 
 export default function Gallery({ limit, showAllButton }: GalleryProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [showAll, setShowAll] = useState(false);
   const [selected, setSelected] = useState<Photo | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchGallery = async () => {
-      const galleryRef = ref(storage, "galeria");
-      const { items } = await listAll(galleryRef);
+      try {
+        const snap = await getDocs(collection(db, "galeria"));
 
-      const urls = await Promise.all(
-        items.map(async (itemRef) => {
-          const url = await getDownloadURL(itemRef);
-          return {
-            id: itemRef.name,
-            src: url,
-            alt: itemRef.name,
-          };
-        })
-      );
+        const data = snap.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Photo[];
 
-      setPhotos(urls);
+        setPhotos(data);
+      } catch (error) {
+        console.error("Error cargando galería:", error);
+      }
     };
 
     fetchGallery();
   }, []);
 
-  const displayed = showAll || !limit ? photos : photos.slice(0, limit);
+  // ⭐ Solo destacadas para home
+  const destacadas = photos.filter((p) => p.destacada);
+
+  // 🎯 Qué mostrar
+  const displayed =
+    limit != null
+      ? destacadas.slice(0, limit)
+      : photos;
 
   return (
     <section className="relative py-24 bg-[#0c0c0f] overflow-hidden">
@@ -54,8 +61,8 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
       <div className="relative z-10 max-w-7xl mx-auto px-6 space-y-16">
 
         <SectionHeader
-          title="Momentos que no se olvidan"
-          subtitle="La energía antes del disparo, el esfuerzo en cada zancada."
+          title="DHTime el paso de los años!"
+          subtitle="Cada carrera deja una historia."
         />
 
         {/* Grid Masonry */}
@@ -71,8 +78,8 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
               onClick={() => setSelected(p)}
             >
               <img
-                src={p.src}
-                alt={p.alt}
+                src={p.url}
+                alt={p.alt || "Foto"}
                 loading="lazy"
                 className="w-full object-cover rounded-3xl transition-transform duration-700 group-hover:scale-110"
               />
@@ -82,26 +89,24 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
 
               <div className="absolute bottom-4 left-4 text-white opacity-0 group-hover:opacity-100 transition">
                 <p className="text-sm font-semibold">
-                  {p.alt.replace(/\.[^/.]+$/, "")}
+                  {p.eventoNombre || "Evento"}
                 </p>
               </div>
             </motion.div>
           ))}
         </div>
 
-        {/* Botón Ver todas */}
-        {showAllButton &&
-          photos.length > (limit ?? photos.length) &&
-          !showAll && (
-            <div className="text-center">
-              <button
-                onClick={() => setShowAll(true)}
-                className="bg-dh-green text-black font-bold px-8 py-4 rounded-full hover:scale-105 hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
-              >
-                Ver todas
-              </button>
-            </div>
-          )}
+        {/* Botón Ver más */}
+        {showAllButton && limit != null && photos.length > limit && (
+          <div className="text-center">
+            <button
+              onClick={() => router.push("/galeria")}
+              className="bg-dh-green text-black font-bold px-8 py-4 rounded-full hover:scale-105 hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
+            >
+              Ver más
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Modal Lightbox */}
@@ -121,8 +126,8 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
             </button>
 
             <motion.img
-              src={selected.src}
-              alt={selected.alt}
+              src={selected.url}
+              alt={selected.alt || ""}
               initial={{ scale: 0.9 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.3 }}

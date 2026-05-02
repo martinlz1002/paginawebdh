@@ -8,7 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
-  view: 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones' | 'inscripcionesManuales';
+  view: 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones' | 'inscripcionesManuales' | 'galeria';
   setView: (v: SidebarProps['view']) => void;
   open: boolean;
   onToggle: () => void;
@@ -136,6 +136,21 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
           <TrashIcon className="w-5 h-5" />
           Eliminar Inscripciones
         </button>
+
+
+        <button
+  onClick={() => { setView("galeria"); onToggle(); }}
+  className={`
+    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+    ${
+      view === "galeria"
+        ? "bg-dh-green text-dh-dark shadow-dhSm"
+        : "text-dh-muted hover:bg-dh-soft"
+    }
+  `}
+>
+  🖼 Galería
+</button>
 
       </nav>
 
