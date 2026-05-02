@@ -16,7 +16,8 @@ type View =
   | "listar"
   | "inscripciones"
   | "inscripcionesManuales"
-  | "eliminarInscripciones";
+  | "eliminarInscripciones"
+  | "galeria";
 
 export default function AdminPage() {
   const [view, setView] = useState<View>("crear");
