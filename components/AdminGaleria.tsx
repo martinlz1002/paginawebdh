@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from "react";
-import { collection, addDoc, getDocs } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import {
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc
+} from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject
+} from "firebase/storage";
 import { db, storage } from "@/lib/firebase";
 
 interface Carrera {
@@ -8,135 +20,247 @@ interface Carrera {
   titulo: string;
 }
 
+interface Foto {
+  id: string;
+  url: string;
+  eventoId: string;
+  eventoNombre: string;
+  destacada: boolean;
+}
+
 export default function AdminGaleria() {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const [preview, setPreview] = useState<string[]>([]);
   const [carreras, setCarreras] = useState<Carrera[]>([]);
   const [eventoId, setEventoId] = useState("");
-  const [destacada, setDestacada] = useState(false);
+  const [galeria, setGaleria] = useState<Foto[]>([]);
   const [loading, setLoading] = useState(false);
+  const [filtro, setFiltro] = useState("");
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // 📥 cargar carreras
   useEffect(() => {
     const loadCarreras = async () => {
       const snap = await getDocs(collection(db, "carreras"));
-      const data = snap.docs.map(doc => ({
-        id: doc.id,
-        titulo: (doc.data() as any).titulo
-      }));
-      setCarreras(data);
+      setCarreras(
+        snap.docs.map(d => ({
+          id: d.id,
+          titulo: (d.data() as any).titulo
+        }))
+      );
     };
 
     loadCarreras();
   }, []);
 
+  // 📥 cargar galería
+  const loadGaleria = async () => {
+    const snap = await getDocs(collection(db, "galeria"));
+    const data = snap.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Foto[];
+
+    setGaleria(data);
+  };
+
+  useEffect(() => {
+    loadGaleria();
+  }, []);
+
+  // 📤 subir múltiples fotos
   const handleUpload = async () => {
-    if (!file || !eventoId) {
-      alert("Selecciona una carrera y una imagen");
+    if (files.length === 0 || !eventoId) {
+      alert("Selecciona carrera y fotos");
       return;
     }
 
     setLoading(true);
 
     try {
-      const storageRef = ref(storage, `galeria/${eventoId}/${file.name}`);
-      await uploadBytes(storageRef, file);
-
-      const url = await getDownloadURL(storageRef);
-
       const carrera = carreras.find(c => c.id === eventoId);
 
-      await addDoc(collection(db, "galeria"), {
-        url,
-        eventoId,
-        eventoNombre: carrera?.titulo || "",
-        destacada,
-        createdAt: Date.now()
-      });
+      for (const file of files) {
+        const storageRef = ref(
+          storage,
+          `galeria/${eventoId}/${Date.now()}_${file.name}`
+        );
 
-      alert("Foto subida 🚀");
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
 
-      // 🔄 reset limpio
-      setFile(null);
-      setDestacada(false);
+        await addDoc(collection(db, "galeria"), {
+          url,
+          eventoId,
+          eventoNombre: carrera?.titulo || "",
+          destacada: false,
+          createdAt: Date.now()
+        });
+      }
+
+      alert("Fotos subidas 🚀");
+
+      setFiles([]);
+      setPreview([]);
       setEventoId("");
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
 
+      loadGaleria();
+
     } catch (err) {
       console.error(err);
-      alert("Error subiendo imagen");
+      alert("Error subiendo imágenes");
     } finally {
       setLoading(false);
     }
   };
 
+  // ⭐ toggle destacada
+  const toggleDestacada = async (id: string, value: boolean) => {
+    await updateDoc(doc(db, "galeria", id), {
+      destacada: !value
+    });
+
+    loadGaleria();
+  };
+
+  // 🗑 eliminar foto
+  const eliminarFoto = async (foto: Foto) => {
+    if (!confirm("¿Eliminar esta foto?")) return;
+
+    try {
+      const fileRef = ref(storage, foto.url);
+      await deleteObject(fileRef);
+
+      await deleteDoc(doc(db, "galeria", foto.id));
+
+      loadGaleria();
+    } catch (err) {
+      console.error(err);
+      alert("Error eliminando foto");
+    }
+  };
+
+  // 🔍 filtro
+  const filtradas = filtro
+    ? galeria.filter(f => f.eventoId === filtro)
+    : galeria;
+
   return (
-    <div className="bg-white text-gray-900 p-6 rounded-2xl shadow-md space-y-6 max-w-2xl">
+    <div className="bg-white text-gray-900 p-6 rounded-2xl shadow-md space-y-6">
 
-      <h2 className="text-xl font-bold">
-        Subir foto a galería
-      </h2>
+      <h2 className="text-xl font-bold">Galería de fotos</h2>
 
-      {/* Select carrera */}
-      <div className="space-y-2">
-        <label className="text-sm font-semibold text-gray-700">
-          Carrera
-        </label>
+      {/* SELECT */}
+      <select
+        value={eventoId}
+        onChange={(e) => setEventoId(e.target.value)}
+        className="w-full border rounded-xl px-3 py-2"
+      >
+        <option value="">Selecciona carrera</option>
+        {carreras.map(c => (
+          <option key={c.id} value={c.id}>
+            {c.titulo}
+          </option>
+        ))}
+      </select>
 
-        <select
-          value={eventoId}
-          onChange={(e) => setEventoId(e.target.value)}
-          className="w-full border border-gray-300 rounded-xl px-3 py-2 bg-white text-gray-900 focus:ring-2 focus:ring-dh-green/40 outline-none"
-        >
-          <option value="">Selecciona carrera</option>
-          {carreras.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.titulo}
-            </option>
+      {/* INPUT MULTIPLE */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={(e) => {
+          const files = e.target.files;
+          if (!files) return;
+
+          const arr = Array.from(files);
+          setFiles(arr);
+
+          const previews = arr.map(file => URL.createObjectURL(file));
+          setPreview(previews);
+        }}
+      />
+
+      {/* PREVIEW */}
+      {preview.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {preview.map((src, i) => (
+            <img key={i} src={src} className="rounded-xl h-24 object-cover" />
           ))}
-        </select>
-      </div>
+        </div>
+      )}
 
-      {/* Input file */}
-      <div className="space-y-2">
-        <label className="text-sm font-semibold text-gray-700">
-          Imagen
-        </label>
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={(e) => setFile(e.target.files?.[0] || null)}
-          className="w-full text-gray-900"
-        />
-      </div>
-
-      {/* Checkbox */}
-      <label className="flex items-center gap-2 text-gray-800">
-        <input
-          type="checkbox"
-          checked={destacada}
-          onChange={(e) => setDestacada(e.target.checked)}
-        />
-        Marcar como destacada
-      </label>
-
-      {/* Botón */}
+      {/* BOTÓN */}
       <button
         onClick={handleUpload}
         disabled={loading}
-        className={`w-full py-3 rounded-xl font-bold transition ${
+        className={`w-full py-3 rounded-xl font-bold ${
           loading
-            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+            ? "bg-gray-300"
             : "bg-dh-green text-black hover:scale-[1.02]"
         }`}
       >
-        {loading ? "Subiendo..." : "Subir imagen"}
+        {loading ? "Subiendo..." : "Subir fotos"}
       </button>
+
+      {/* FILTRO */}
+      <select
+        value={filtro}
+        onChange={(e) => setFiltro(e.target.value)}
+        className="w-full border rounded-xl px-3 py-2"
+      >
+        <option value="">Todas las carreras</option>
+        {carreras.map(c => (
+          <option key={c.id} value={c.id}>
+            {c.titulo}
+          </option>
+        ))}
+      </select>
+
+      {/* GALERÍA */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {filtradas.map((foto) => (
+          <div key={foto.id} className="relative group">
+
+            <img
+              src={foto.url}
+              className="w-full h-40 object-cover rounded-xl"
+            />
+
+            {/* BADGE */}
+            {foto.destacada && (
+              <span className="absolute top-2 left-2 bg-yellow-400 text-black text-xs px-2 py-1 rounded">
+                ⭐
+              </span>
+            )}
+
+            {/* ACTIONS */}
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition">
+
+              <button
+                onClick={() => toggleDestacada(foto.id, foto.destacada)}
+                className="bg-white px-2 py-1 rounded text-xs"
+              >
+                ⭐
+              </button>
+
+              <button
+                onClick={() => eliminarFoto(foto)}
+                className="bg-red-500 text-white px-2 py-1 rounded text-xs"
+              >
+                🗑
+              </button>
+
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
