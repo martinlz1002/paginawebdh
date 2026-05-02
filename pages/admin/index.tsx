@@ -8,6 +8,7 @@ import AdminCarrerasForm from "@/components/AdminCarrerasForm";
 import AdminCarrerasList, { CarreraItem } from "@/components/AdminCarrerasList";
 import AdminInscripcionesView from "@/components/AdminInscripcionesView";
 import InscripcionesManualesPage from "./inscripciones-manuales";
+import AdminGaleria from "@/components/AdminGaleria";
 import EliminarInscripciones, { CarreraOption } from "@/components/EliminarInscripciones";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
@@ -164,6 +165,8 @@ export default function AdminPage() {
             feedback={feedback}
           />
         )}
+
+        {view === "galeria" && <AdminGaleria />}
       </main>
     </div>
   );
