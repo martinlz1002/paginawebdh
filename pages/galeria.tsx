@@ -9,6 +9,7 @@ interface Photo {
   url: string;
   alt?: string;
   eventoNombre?: string;
+  createdAt?: number;
 }
 
 export default function GaleriaPage() {
@@ -22,10 +23,16 @@ export default function GaleriaPage() {
 
         const data = snap.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
+          ...(doc.data() as any),
         })) as Photo[];
 
-        setPhotos(data);
+        // 🔥 ordenar global (más recientes primero)
+        const sorted = data.sort(
+          (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+        );
+
+        setPhotos(sorted);
+
       } catch (error) {
         console.error("Error cargando galería:", error);
       }
@@ -34,8 +41,8 @@ export default function GaleriaPage() {
     fetchGallery();
   }, []);
 
-  // 🧠 Agrupar por evento
-  const grouped = photos.reduce((acc: any, photo) => {
+  // 🧠 Agrupar por evento (ordenado)
+  const grouped = photos.reduce<Record<string, Photo[]>>((acc, photo) => {
     const key = photo.eventoNombre || "Otros";
 
     if (!acc[key]) acc[key] = [];
@@ -48,7 +55,7 @@ export default function GaleriaPage() {
     <div className="min-h-screen bg-[#0c0c0f] py-24 px-6">
 
       {/* HEADER */}
-      <div className="max-w-7xl mx-auto mb-16 text-center space-y-4">
+      <div className="max-w-7xl mx-auto mb-20 text-center space-y-4">
         <h1 className="text-4xl md:text-5xl font-black text-white">
           Galería DHTime
         </h1>
@@ -60,24 +67,24 @@ export default function GaleriaPage() {
       {/* CONTENIDO */}
       <div className="max-w-7xl mx-auto space-y-20">
 
-        {Object.entries(grouped).map(([evento, fotos]: any) => (
+        {Object.entries(grouped).map(([evento, fotos]) => (
           <div key={evento} className="space-y-8">
 
-            {/* Título del evento */}
+            {/* Título evento */}
             <h2 className="text-2xl md:text-3xl font-extrabold text-dh-purple">
               {evento}
             </h2>
 
-            {/* Grid tipo masonry */}
+            {/* Grid */}
             <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-              {fotos.map((p: Photo, i: number) => (
+              {fotos.map((p, i) => (
                 <motion.div
                   key={p.id}
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: i * 0.03 }}
                   viewport={{ once: true }}
-                  className="break-inside-avoid cursor-pointer overflow-hidden rounded-3xl group"
+                  className="break-inside-avoid cursor-pointer overflow-hidden rounded-3xl group relative"
                   onClick={() => setSelected(p)}
                 >
                   <img
@@ -86,6 +93,7 @@ export default function GaleriaPage() {
                     className="w-full object-cover rounded-3xl transition-transform duration-700 group-hover:scale-110"
                   />
 
+                  {/* overlay */}
                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition" />
                 </motion.div>
               ))}

@@ -4,6 +4,7 @@ import { collection, getDocs, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import Gallery from "@/components/Gallery";
 import {
   CalendarIcon,
   MapPinIcon,
@@ -268,6 +269,14 @@ export default function HomePage() {
           })}
         </div>
       </section>
+
+      
+        {/* GALERÍA DESTACADA */}
+<section className="py-28 px-6">
+  <Gallery limit={6} showAllButton />
+</section>
     </div>
+
+    
   );
 }

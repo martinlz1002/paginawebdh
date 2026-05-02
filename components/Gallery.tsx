@@ -12,6 +12,7 @@ interface Photo {
   alt?: string;
   eventoNombre?: string;
   destacada?: boolean;
+  createdAt?: number;
 }
 
 interface GalleryProps {
@@ -31,26 +32,29 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
 
         const data = snap.docs.map((doc) => ({
           id: doc.id,
-          ...doc.data(),
+          ...(doc.data() as any),
         })) as Photo[];
 
-        setPhotos(data);
+        // 🔥 separar destacadas
+        const destacadas = data
+          .filter((p) => p.destacada)
+          .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+        // 🎯 lógica final
+        const resultado =
+          limit != null
+            ? destacadas.slice(0, limit) // HOME → máximo 6
+            : data.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // GALERÍA completa
+
+        setPhotos(resultado);
+
       } catch (error) {
         console.error("Error cargando galería:", error);
       }
     };
 
     fetchGallery();
-  }, []);
-
-  // ⭐ Solo destacadas para home
-  const destacadas = photos.filter((p) => p.destacada);
-
-  // 🎯 Qué mostrar
-  const displayed =
-    limit != null
-      ? destacadas.slice(0, limit)
-      : photos;
+  }, [limit]);
 
   return (
     <section className="relative py-24 bg-[#0c0c0f] overflow-hidden">
@@ -62,12 +66,12 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
 
         <SectionHeader
           title="DHTime el paso de los años!"
-          subtitle="Cada carrera deja una historia."
+          subtitle="Momentos que construyen historia en cada meta."
         />
 
-        {/* Grid Masonry */}
+        {/* Grid */}
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-          {displayed.map((p, i) => (
+          {photos.map((p, i) => (
             <motion.div
               key={p.id}
               initial={{ opacity: 0, y: 30 }}
@@ -84,7 +88,6 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
                 className="w-full object-cover rounded-3xl transition-transform duration-700 group-hover:scale-110"
               />
 
-              {/* Overlay */}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-500" />
 
               <div className="absolute bottom-4 left-4 text-white opacity-0 group-hover:opacity-100 transition">
@@ -96,8 +99,8 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
           ))}
         </div>
 
-        {/* Botón Ver más */}
-        {showAllButton && limit != null && photos.length > limit && (
+        {/* Botón */}
+        {showAllButton && limit != null && (
           <div className="text-center">
             <button
               onClick={() => router.push("/galeria")}
@@ -107,9 +110,10 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
             </button>
           </div>
         )}
+
       </div>
 
-      {/* Modal Lightbox */}
+      {/* Lightbox */}
       <AnimatePresence>
         {selected && (
           <motion.div
