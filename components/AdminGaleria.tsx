@@ -39,7 +39,6 @@ export default function AdminGaleria() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 📥 cargar carreras
   useEffect(() => {
     const loadCarreras = async () => {
       const snap = await getDocs(collection(db, "carreras"));
@@ -54,7 +53,6 @@ export default function AdminGaleria() {
     loadCarreras();
   }, []);
 
-  // 📥 cargar galería
   const loadGaleria = async () => {
     const snap = await getDocs(collection(db, "galeria"));
     const data = snap.docs.map(doc => ({
@@ -69,7 +67,6 @@ export default function AdminGaleria() {
     loadGaleria();
   }, []);
 
-  // 📤 subir múltiples fotos
   const handleUpload = async () => {
     if (files.length === 0 || !eventoId) {
       alert("Selecciona carrera y fotos");
@@ -119,7 +116,6 @@ export default function AdminGaleria() {
     }
   };
 
-  // ⭐ toggle destacada
   const toggleDestacada = async (id: string, value: boolean) => {
     await updateDoc(doc(db, "galeria", id), {
       destacada: !value
@@ -128,7 +124,6 @@ export default function AdminGaleria() {
     loadGaleria();
   };
 
-  // 🗑 eliminar foto
   const eliminarFoto = async (foto: Foto) => {
     if (!confirm("¿Eliminar esta foto?")) return;
 
@@ -145,21 +140,22 @@ export default function AdminGaleria() {
     }
   };
 
-  // 🔍 filtro
   const filtradas = filtro
     ? galeria.filter(f => f.eventoId === filtro)
     : galeria;
 
   return (
-    <div className="bg-white text-gray-900 p-6 rounded-2xl shadow-md space-y-6">
+    <div className="bg-dh-panel text-dh-ink p-6 rounded-2xl shadow-dh border border-dh-border space-y-6">
 
-      <h2 className="text-xl font-bold">Galería de fotos</h2>
+      <h2 className="text-xl font-bold text-dh-ink">
+        Galería de fotos
+      </h2>
 
       {/* SELECT */}
       <select
         value={eventoId}
         onChange={(e) => setEventoId(e.target.value)}
-        className="w-full border rounded-xl px-3 py-2"
+        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-green/40"
       >
         <option value="">Selecciona carrera</option>
         {carreras.map(c => (
@@ -185,6 +181,7 @@ export default function AdminGaleria() {
           const previews = arr.map(file => URL.createObjectURL(file));
           setPreview(previews);
         }}
+        className="text-sm text-dh-ink file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-dh-green file:text-black file:font-bold hover:file:opacity-90"
       />
 
       {/* PREVIEW */}
@@ -200,9 +197,9 @@ export default function AdminGaleria() {
       <button
         onClick={handleUpload}
         disabled={loading}
-        className={`w-full py-3 rounded-xl font-bold ${
+        className={`w-full py-3 rounded-xl font-bold transition ${
           loading
-            ? "bg-gray-300"
+            ? "bg-gray-500 text-white"
             : "bg-dh-green text-black hover:scale-[1.02]"
         }`}
       >
@@ -213,7 +210,7 @@ export default function AdminGaleria() {
       <select
         value={filtro}
         onChange={(e) => setFiltro(e.target.value)}
-        className="w-full border rounded-xl px-3 py-2"
+        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-green/40"
       >
         <option value="">Todas las carreras</option>
         {carreras.map(c => (
@@ -233,26 +230,24 @@ export default function AdminGaleria() {
               className="w-full h-40 object-cover rounded-xl"
             />
 
-            {/* BADGE */}
             {foto.destacada && (
-              <span className="absolute top-2 left-2 bg-yellow-400 text-black text-xs px-2 py-1 rounded">
+              <span className="absolute top-2 left-2 bg-dh-green text-black text-xs px-2 py-1 rounded">
                 ⭐
               </span>
             )}
 
-            {/* ACTIONS */}
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition">
+            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition">
 
               <button
                 onClick={() => toggleDestacada(foto.id, foto.destacada)}
-                className="bg-white px-2 py-1 rounded text-xs"
+                className="bg-white/90 text-black px-3 py-1 rounded-lg text-xs font-bold hover:scale-105"
               >
                 ⭐
               </button>
 
               <button
                 onClick={() => eliminarFoto(foto)}
-                className="bg-red-500 text-white px-2 py-1 rounded text-xs"
+                className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold hover:scale-105"
               >
                 🗑
               </button>
