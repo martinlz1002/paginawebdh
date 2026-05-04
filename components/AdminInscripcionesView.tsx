@@ -907,53 +907,6 @@ export default function AdminInscripcionesView() {
 
       </div>
 
-      {/* INPUTS */}
-      <div className="grid grid-cols-2 gap-4">
-
-        <input
-          value={form.nombre}
-          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          placeholder="Nombre"
-          className="bg-[#141418] border border-white/10 rounded-xl p-3"
-        />
-
-        <input
-          value={form.paterno}
-          onChange={(e) => setForm({ ...form, paterno: e.target.value })}
-          placeholder="Apellido paterno"
-          className="bg-[#141418] border border-white/10 rounded-xl p-3"
-        />
-
-        <input
-          value={form.materno}
-          onChange={(e) => setForm({ ...form, materno: e.target.value })}
-          placeholder="Apellido materno"
-          className="bg-[#141418] border border-white/10 rounded-xl p-3"
-        />
-
-        <input
-          value={form.celular}
-          onChange={(e) => setForm({ ...form, celular: e.target.value })}
-          placeholder="Celular"
-          className="bg-[#141418] border border-white/10 rounded-xl p-3"
-        />
-
-        <input
-          value={form.ruta}
-          onChange={(e) => setForm({ ...form, ruta: e.target.value })}
-          placeholder="Ruta"
-          className="bg-[#141418] border border-white/10 rounded-xl p-3"
-        />
-
-        <input
-          value={form.categoria}
-          onChange={(e) => setForm({ ...form, categoria: e.target.value })}
-          placeholder="Categoría"
-          className="bg-[#141418] border border-white/10 rounded-xl p-3"
-        />
-
-      </div>
-
       <div className="col-span-2">
   <label className="text-xs text-white/50 mb-1 block">
     Estado de pago
