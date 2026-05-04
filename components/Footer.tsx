@@ -29,7 +29,7 @@ export default function Footer() {
               alt="DHTime"
               className="w-36 opacity-90"
             />
-            <p className="text-white/60 text-sm leading-relaxed">
+            <p className="text-white/70 text-sm leading-relaxed">
               Tecnología, precisión y pasión por el cronometraje deportivo.
               Cada segundo cuenta, cada meta importa.
             </p>
@@ -38,7 +38,7 @@ export default function Footer() {
           {/* Navegación */}
           <div>
             <h4 className="text-lg font-bold mb-6 text-white">Navegación</h4>
-            <ul className="space-y-3 text-white/60 text-sm">
+            <ul className="space-y-3 text-white/70 text-sm">
               <li>
                 <Link href="/" className="hover:text-white transition">
                   Inicio
@@ -63,7 +63,7 @@ export default function Footer() {
           {/* Legal */}
           <div>
             <h4 className="text-lg font-bold mb-6 text-white">Legal</h4>
-            <ul className="space-y-3 text-white/60 text-sm">
+            <ul className="space-y-3 text-white/70 text-sm">
               <li className="flex items-center gap-2">
                 <DocumentTextIcon className="w-4 h-4 text-dh-purple" />
                 <Link
@@ -89,7 +89,7 @@ export default function Footer() {
           <div>
             <h4 className="text-lg font-bold mb-6 text-white">Contacto</h4>
 
-            <p className="flex items-center gap-3 text-white/60 text-sm mb-3">
+            <p className="flex items-center gap-3 text-white/70 text-sm mb-3">
               <PhoneIcon className="w-4 h-4 text-white/70" />
               +52 66 8820 7434
             </p>
@@ -98,7 +98,7 @@ export default function Footer() {
               href="https://wa.me/526688207434"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-3 text-white/60 hover:text-white transition text-sm mb-6"
+              className="flex items-center gap-3 text-white/70 hover:text-white transition text-sm mb-6"
             >
               <WhatsappIcon className="text-dh-purple text-lg" />
               WhatsApp directo

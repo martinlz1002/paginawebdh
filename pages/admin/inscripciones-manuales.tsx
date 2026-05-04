@@ -379,7 +379,7 @@ if (!insSnap.empty) {
             <h2 className="text-xl font-extrabold">
               Accesos Temporales
             </h2>
-            <span className="text-sm text-white/60">
+            <span className="text-sm text-white/70">
               Total: <span className="font-bold text-dh-green">{accesses.length}</span>
             </span>
           </div>
@@ -427,7 +427,7 @@ if (!insSnap.empty) {
                           <td className="p-3">
                             {`${acc.range.start}–${acc.range.end}`}
                           </td>
-                          <td className="p-3 text-white/60">
+                          <td className="p-3 text-white/70">
                             {(acc.expiresAt as Date).toLocaleString()}
                           </td>
                           <td className="p-3 flex gap-4 items-center">

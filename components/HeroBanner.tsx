@@ -8,10 +8,10 @@ export default function HeroBanner() {
       <div className="absolute inset-0 -z-10 bg-dh-glow" />
 
       {/* ✨ Glow adicional centrado */}
-      <div className="absolute top-[-200px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-dh-purple/10 blur-[120px]" />
+      <div className="absolute top-[-200px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-dh-purple/6 blur-[100px]" />
 
       {/* 🧊 Gradiente suave */}
-      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-transparent to-black opacity-40" />
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/10 via-transparent to-transparent" />
 
       {/* 🧩 Textura ligera (opcional pero pro) */}
       <div className="absolute inset-0 bg-noise pointer-events-none" />

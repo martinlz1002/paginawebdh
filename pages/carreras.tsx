@@ -82,7 +82,7 @@ export default function CarrerasPage() {
               Carreras
             </span>
           </h1>
-          <p className="text-white/60 max-w-2xl mx-auto">
+          <p className="text-white/70 max-w-2xl mx-auto">
             Encuentra tu próximo reto y prepárate para cruzar la meta.
           </p>
         </motion.div>
@@ -122,7 +122,7 @@ export default function CarrerasPage() {
                   {c.titulo}
                 </h2>
 
-                <div className="flex flex-wrap gap-6 text-white/60 text-sm">
+                <div className="flex flex-wrap gap-6 text-white/70 text-sm">
                   <span className="flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5" />
                     {c.fecha || "Fecha por definir"}

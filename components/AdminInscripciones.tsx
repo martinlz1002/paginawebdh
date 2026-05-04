@@ -115,7 +115,7 @@ export default function AdminInscripciones() {
       <h2 className="text-2xl font-extrabold text-white">
         Inscripciones
       </h2>
-      <p className="text-sm text-white/60 mt-1">
+      <p className="text-sm text-white/70 mt-1">
         Visualiza, filtra y exporta registros.
       </p>
     </div>
@@ -215,7 +215,7 @@ export default function AdminInscripciones() {
                     </span>
                   </td>
 
-                  <td className="p-3 text-white/60">
+                  <td className="p-3 text-white/70">
                     {r.createdAt || "—"}
                   </td>
                 </tr>
@@ -225,11 +225,11 @@ export default function AdminInscripciones() {
         </div>
       </div>
     ) : carreraId ? (
-      <div className="text-sm text-white/60 bg-[#16161d] border border-white/10 rounded-2xl p-6">
+      <div className="text-sm text-white/70 bg-[#16161d] border border-white/10 rounded-2xl p-6">
         No hay inscripciones para esta carrera (con ese filtro).
       </div>
     ) : (
-      <div className="text-sm text-white/60 bg-[#16161d] border border-white/10 rounded-2xl p-6">
+      <div className="text-sm text-white/70 bg-[#16161d] border border-white/10 rounded-2xl p-6">
         Selecciona una carrera para ver inscripciones.
       </div>
     )}

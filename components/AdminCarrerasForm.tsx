@@ -361,7 +361,7 @@ const carreraFinalizada = fechaDate < today;
       onClick={() => setInscripcionesAbiertas((v) => !v)}
       className={`relative w-32 h-12 rounded-full transition-all duration-300 font-bold ${
         inscripcionesAbiertas
-          ? "bg-dh-green text-black"
+          ? "bg-dh-purple text-black"
           : "bg-red-600 text-white"
       }`}
     >
@@ -543,7 +543,7 @@ const carreraFinalizada = fechaDate < today;
     <button
       type="button"
       onClick={handleAddDistancia}
-      className="px-6 py-3 rounded-xl bg-dh-green text-black font-bold hover:scale-105 transition"
+      className="px-6 py-3 rounded-xl bg-dh-purple text-black font-bold hover:scale-105 transition"
     >
       Agregar
     </button>
@@ -597,7 +597,7 @@ const carreraFinalizada = fechaDate < today;
 
     {/* ================= AGREGAR / EDITAR CATEGORÍA ================= */}
     <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
-  <h4 className="text-lg font-extrabold text-dh-green">
+  <h4 className="text-lg font-extrabold text-dh-purple">
     Agregar / Editar Categoría
   </h4>
 
@@ -705,7 +705,7 @@ const carreraFinalizada = fechaDate < today;
     {/* ================= GUARDAR ================= */}
     <button
       type="submit"
-      className="w-full py-4 rounded-2xl bg-dh-green text-dh-dark font-extrabold text-lg"
+      className="w-full py-4 rounded-2xl bg-dh-purple text-dh-dark font-extrabold text-lg"
     >
       Guardar Carrera
     </button>

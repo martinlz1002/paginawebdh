@@ -11,7 +11,8 @@
   }
 
   body {
-    @apply bg-[#0f0f14] text-white;
+    /* 🔥 DARK SUAVE */
+    @apply bg-[#141419] text-white;
     @apply antialiased;
   }
 
@@ -19,13 +20,13 @@
     @apply bg-dh-purple text-white;
   }
 
-  /* Scrollbar personalizada */
+  /* Scrollbar */
   ::-webkit-scrollbar {
     width: 10px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #0f0f14;
+    background: #141419;
   }
 
   ::-webkit-scrollbar-thumb {
@@ -38,14 +39,14 @@
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    opacity: 0.8;
+    opacity: 0.85;
   }
 
-  /* Inputs base */
+  /* Inputs */
   input,
   textarea,
   select {
-    @apply bg-[#1a1a22] text-white placeholder-white/40;
+    @apply bg-[#1f1f28] text-white placeholder-white/50;
     @apply border border-white/10 rounded-xl;
     @apply focus:outline-none focus:ring-2 focus:ring-dh-purple/40 focus:border-dh-purple;
     @apply transition duration-200;
@@ -61,25 +62,25 @@
 ========================= */
 @layer components {
 
-  /* 🔲 CARDS (más sólidas, menos transparentes) */
+  /* 💎 CARD (más clara y ligera) */
   .card {
-    @apply bg-[#1a1a22];
-    @apply border border-white/5 rounded-2xl;
-    @apply shadow-dh;
+    @apply bg-white/5 backdrop-blur-md;
+    @apply border border-white/10 rounded-2xl;
+    @apply shadow-dhSoft;
     transition: all 0.25s ease;
   }
 
   .card:hover {
-    box-shadow: 0 0 25px rgba(123,47,247,0.15);
+    box-shadow: 0 0 20px rgba(123,47,247,0.12);
     transform: translateY(-2px);
   }
 
-  /* 🧊 GLASS (usar solo en elementos especiales) */
+  /* 🧊 GLASS */
   .glass {
     @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl;
   }
 
-  /* 🌈 TEXTO CON GRADIENTE */
+  /* 🌈 TEXTO GRADIENTE */
   .gradient-text {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(
@@ -95,14 +96,14 @@
     @apply bg-gradient-to-r from-dh-purple to-dh-purpleLight;
     @apply hover:scale-105 active:scale-95;
     @apply shadow-lg;
-    box-shadow: 0 0 20px rgba(123,47,247,0.35);
+    box-shadow: 0 0 18px rgba(123,47,247,0.3);
   }
 
   /* ⚪ BOTÓN OUTLINE */
   .btn-outline {
     @apply px-5 py-2.5 rounded-xl font-semibold;
-    @apply border border-white/20 text-white;
-    @apply hover:bg-white/10;
+    @apply border border-white/20 text-white/80;
+    @apply hover:bg-white/10 hover:text-white;
   }
 
   /* 🎬 Animación */
@@ -122,8 +123,17 @@
    EFECTOS EXTRA PRO
 ========================= */
 
-/* 🌫️ Ruido sutil para evitar fondo plano */
+/* 🌫️ Ruido sutil */
 .bg-noise {
   background-image: url("https://www.transparenttextures.com/patterns/noise.png");
-  opacity: 0.03;
+  opacity: 0.025;
+}
+
+/* 🌟 Glow más suave */
+.bg-soft-glow {
+  background: radial-gradient(
+    circle at top,
+    rgba(123,47,247,0.08),
+    transparent 70%
+  );
 }

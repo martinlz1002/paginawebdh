@@ -42,7 +42,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
     <motion.div
       whileHover={{ y: -8 }}
       transition={{ duration: 0.25 }}
-      className="group relative overflow-hidden rounded-3xl bg-dh-surface border border-white/5 shadow-dhSoft"
+      className="group relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-md border border-white/5 shadow-dhSoft"
     >
 
       {/* 🌫️ Glow sutil */}
@@ -87,7 +87,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
         </h2>
 
         {/* Info */}
-        <div className="flex flex-wrap gap-5 text-white/60 text-sm">
+        <div className="flex flex-wrap gap-5 text-white/70 text-sm">
           <span className="flex items-center gap-2">
             <CalendarIcon className="w-5 h-5 text-dh-purple" />
             {fecha}
@@ -103,7 +103,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
 
         {/* Descripción */}
         {descripcion && (
-          <p className="text-white/60 text-sm leading-relaxed line-clamp-2">
+          <p className="text-white/70 text-sm leading-relaxed line-clamp-2">
             {descripcion}
           </p>
         )}

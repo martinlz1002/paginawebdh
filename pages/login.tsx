@@ -85,7 +85,7 @@ export default function LoginPage() {
             Iniciar sesión
           </h1>
 
-          <p className="mt-3 text-center text-white/60 text-sm">
+          <p className="mt-3 text-center text-white/70 text-sm">
             Accede a tu panel y gestiona tus carreras.
           </p>
 
@@ -118,7 +118,7 @@ export default function LoginPage() {
             </div>
 
             {/* LINKS */}
-            <div className="flex justify-between text-sm text-white/60">
+            <div className="flex justify-between text-sm text-white/70">
               <Link href="/reset-password" className="hover:text-dh-green transition">
                 ¿Olvidaste tu contraseña?
               </Link>

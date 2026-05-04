@@ -155,7 +155,7 @@ export default function AdminGaleria() {
       <select
         value={eventoId}
         onChange={(e) => setEventoId(e.target.value)}
-        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
+        className="w-full rounded-xl bg-white/5 backdrop-blur-md border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
       >
         <option value="">Selecciona carrera</option>
         {carreras.map(c => (
@@ -210,7 +210,7 @@ export default function AdminGaleria() {
       <select
         value={filtro}
         onChange={(e) => setFiltro(e.target.value)}
-        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
+        className="w-full rounded-xl bg-white/5 backdrop-blur-md border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
       >
         <option value="">Todas las carreras</option>
         {carreras.map(c => (

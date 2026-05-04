@@ -689,7 +689,7 @@ export default function AdminInscripcionesView() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           <div>
-            <label className="text-sm text-white/60 font-semibold">
+            <label className="text-sm text-white/70 font-semibold">
               Carrera
             </label>
             <select
@@ -710,7 +710,7 @@ export default function AdminInscripcionesView() {
           </div>
 
           <div>
-            <label className="text-sm text-white/60 font-semibold">
+            <label className="text-sm text-white/70 font-semibold">
               Buscar
             </label>
             <div className="relative mt-2">
@@ -741,7 +741,7 @@ export default function AdminInscripcionesView() {
 
             <div className="overflow-x-auto rounded-2xl border border-white/10">
               <table className="w-full min-w-[1000px]">
-                <thead className="bg-[#141418] text-white/60 text-xs uppercase tracking-wider">
+                <thead className="bg-[#141418] text-white/70 text-xs uppercase tracking-wider">
                   <tr>
                     <th className="p-4 text-left">#</th>
                     <th className="p-4 text-left">Nombre</th>

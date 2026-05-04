@@ -156,7 +156,7 @@ export default function HomePage() {
 
     {/* 🌫️ GLOW GLOBAL (clave total) */}
     <div className="pointer-events-none fixed inset-0 -z-10">
-      <div className="absolute top-[-200px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-dh-purple/10 blur-[120px]" />
+      <div className="absolute top-[-200px] left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-dh-purple/6 blur-[100px]" />
     </div>
 
     {/* HERO FULLSCREEN */}
@@ -175,7 +175,7 @@ export default function HomePage() {
         whileInView={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4 }}
         viewport={{ once: true }}
-        className="max-w-4xl mx-auto bg-dh-surface border border-white/5 rounded-3xl p-10 shadow-dh"
+        className="max-w-4xl mx-auto bg-white/5 backdrop-blur-md border border-white/5 rounded-3xl p-10 shadow-dh"
       >
         <SearchCard />
       </motion.div>
@@ -250,7 +250,7 @@ export default function HomePage() {
                   {c.titulo}
                 </h3>
 
-                <div className="flex gap-6 text-white/60">
+                <div className="flex gap-6 text-white/70">
                   <span className="flex items-center gap-2">
                     <CalendarIcon className="w-5 h-5 text-dh-purple" />
                     {c.fecha}
