@@ -94,7 +94,7 @@ export default function SearchCard() {
           {hasFilters && (
             <button
               onClick={clearAll}
-              className="flex items-center gap-2 text-sm text-white/60 hover:text-white transition"
+              className="flex items-center gap-2 text-sm text-white/70 hover:text-white transition"
             >
               <XMarkIcon className="w-4 h-4" />
               Limpiar
@@ -166,7 +166,7 @@ export default function SearchCard() {
                             </p>
                           )}
                         </div>
-                        <span className="text-sm text-white/60">
+                        <span className="text-sm text-white/70">
                           {c.fecha}
                         </span>
                       </span>

@@ -350,7 +350,7 @@ const carreraFinalizada = fechaDate < today;
       <p className="text-lg font-extrabold text-white">
         Inscripciones en línea
       </p>
-      <p className="text-sm text-white/60">
+      <p className="text-sm text-white/70">
         Activa o pausa el registro y los pagos Stripe.
       </p>
     </div>

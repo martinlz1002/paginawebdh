@@ -13,9 +13,9 @@ module.exports = {
           purpleLight: "#9b4dff",
           purpleDark: "#5a1fcf",
 
-          bg: "#0f0f14",
-          surface: "#16161d",
-          panel: "#1c1c24",
+          bg: "#141419",
+          surface: "#1b1b22",
+          panel: "#20202a",
           border: "rgba(255,255,255,0.08)",
 
           ink: "#ffffff",
