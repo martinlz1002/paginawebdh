@@ -155,7 +155,7 @@ export default function AdminGaleria() {
       <select
         value={eventoId}
         onChange={(e) => setEventoId(e.target.value)}
-        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-green/40"
+        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
       >
         <option value="">Selecciona carrera</option>
         {carreras.map(c => (
@@ -181,7 +181,7 @@ export default function AdminGaleria() {
           const previews = arr.map(file => URL.createObjectURL(file));
           setPreview(previews);
         }}
-        className="text-sm text-dh-ink file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-dh-green file:text-black file:font-bold hover:file:opacity-90"
+        className="text-sm text-dh-ink file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-dh-purple file:text-black file:font-bold hover:file:opacity-90"
       />
 
       {/* PREVIEW */}
@@ -200,7 +200,7 @@ export default function AdminGaleria() {
         className={`w-full py-3 rounded-xl font-bold transition ${
           loading
             ? "bg-gray-500 text-white"
-            : "bg-dh-green text-black hover:scale-[1.02]"
+            : "bg-dh-purple text-black hover:scale-[1.02]"
         }`}
       >
         {loading ? "Subiendo..." : "Subir fotos"}
@@ -210,7 +210,7 @@ export default function AdminGaleria() {
       <select
         value={filtro}
         onChange={(e) => setFiltro(e.target.value)}
-        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-green/40"
+        className="w-full rounded-xl bg-dh-surface border border-dh-border px-3 py-2 text-dh-ink focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
       >
         <option value="">Todas las carreras</option>
         {carreras.map(c => (
@@ -231,7 +231,7 @@ export default function AdminGaleria() {
             />
 
             {foto.destacada && (
-              <span className="absolute top-2 left-2 bg-dh-green text-black text-xs px-2 py-1 rounded">
+              <span className="absolute top-2 left-2 bg-dh-purple text-black text-xs px-2 py-1 rounded">
                 ⭐
               </span>
             )}

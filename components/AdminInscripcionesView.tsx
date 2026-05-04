@@ -106,9 +106,9 @@ const pageWrap = "min-h-screen bg-dh-soft";
 const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
 const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
 const selectBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40";
 const inputBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40";
 const btnBase =
   "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-extrabold transition disabled:opacity-50 disabled:cursor-not-allowed";
 
@@ -123,7 +123,7 @@ function statusLabel(s?: string) {
 }
 
 function statusPillClass(s?: string) {
-  if (s === "paid") return "bg-dh-green/15 text-dh-ink border-dh-green/30";
+  if (s === "paid") return "bg-dh-purple/15 text-dh-ink border-dh-purple/30";
   if (s === "pending") return "bg-yellow-50 text-yellow-900 border-yellow-200";
   if (s === "manual") return "bg-blue-50 text-blue-900 border-blue-200";
   if (s === "expired") return "bg-orange-50 text-orange-900 border-orange-200";
@@ -625,7 +625,7 @@ export default function AdminInscripcionesView() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-3xl font-black">
-              Ver <span className="text-dh-green">Inscripciones</span>
+              Ver <span className="text-dh-purple">Inscripciones</span>
             </h2>
             <p className="text-sm text-white/50 mt-2">
               Busca, ordena, filtra por estado y exporta a Excel.
@@ -676,7 +676,7 @@ export default function AdminInscripcionesView() {
             <button
               onClick={exportExcel}
               disabled={!visible.length}
-              className="inline-flex items-center gap-2 bg-dh-green text-black font-extrabold px-6 py-3 rounded-2xl hover:scale-105 transition disabled:opacity-50"
+              className="inline-flex items-center gap-2 bg-dh-purple text-black font-extrabold px-6 py-3 rounded-2xl hover:scale-105 transition disabled:opacity-50"
             >
               <ArrowDownTrayIcon className="w-5 h-5" />
               Exportar Excel

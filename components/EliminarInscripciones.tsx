@@ -55,7 +55,7 @@ export default function EliminarInscripciones({
         </div>
 
         {feedback && (
-          <div className="rounded-2xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-green-400 text-sm font-medium">
+          <div className="rounded-2xl border border-purple-500/30 bg-purple-500/10 px-4 py-3 text-purple-400 text-sm font-medium">
             {feedback}
           </div>
         )}

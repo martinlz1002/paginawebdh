@@ -162,7 +162,7 @@ export default function AdminInscripciones() {
 
         <button
           onClick={exportCsv}
-          className="bg-dh-green text-black font-bold px-6 py-3 rounded-xl hover:opacity-90 transition"
+          className="bg-dh-purple text-black font-bold px-6 py-3 rounded-xl hover:opacity-90 transition"
         >
           Exportar CSV
         </button>
@@ -203,7 +203,7 @@ export default function AdminInscripciones() {
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-bold ${
                         r.paymentStatus === "paid"
-                          ? "bg-dh-green text-black"
+                          ? "bg-dh-purple text-black"
                           : r.paymentStatus === "pending"
                           ? "bg-yellow-500 text-black"
                           : r.paymentStatus === "manual"

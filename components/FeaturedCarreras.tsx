@@ -25,7 +25,7 @@ export default function FeaturedCarreras({ carreras }: { carreras: Carrera[] }) 
   return (
     <section className="space-y-6">
       <h2 className="text-2xl font-extrabold text-dh-muted text-center">
-        Carreras <span className="text-dh-green">Destacadas</span>
+        Carreras <span className="text-dh-purple">Destacadas</span>
       </h2>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -78,7 +78,7 @@ export default function FeaturedCarreras({ carreras }: { carreras: Carrera[] }) 
                         className={[
                           "px-4 py-2 rounded-xl text-sm font-extrabold backdrop-blur",
                           resultadosPublicados
-                            ? "bg-dh-green/90 text-dh-dark"
+                            ? "bg-dh-purple/90 text-dh-dark"
                             : "bg-black/60 text-white",
                         ].join(" ")}
                       >
@@ -106,7 +106,7 @@ export default function FeaturedCarreras({ carreras }: { carreras: Carrera[] }) 
                   </div>
 
                   {/* Glow */}
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition pointer-events-none ring-1 ring-dh-green/30 rounded-2xl" />
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition pointer-events-none ring-1 ring-dh-purple/30 rounded-2xl" />
                 </a>
               </Link>
             );

@@ -70,7 +70,7 @@ export default function AdminPanel() {
     <div className="relative flex pt-16">
       <button
         onClick={toggleSidebar}
-        className="fixed top-20 left-4 z-50 p-2 bg-green-600 text-dh-ink rounded-full shadow-lg hover:bg-green-700 transition"
+        className="fixed top-20 left-4 z-50 p-2 bg-purple-600 text-dh-ink rounded-full shadow-lg hover:bg-purple-700 transition"
       >
         {sidebarOpen ? <ChevronLeftIcon className="w-6 h-6" /> : <ChevronRightIcon className="w-6 h-6" />}
       </button>

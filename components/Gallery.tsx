@@ -60,7 +60,7 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
     <section className="relative py-24 bg-[#0c0c0f] overflow-hidden">
 
       {/* Fondo glow */}
-      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-30" />
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-purple/20 blur-3xl opacity-30" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 space-y-16">
 
@@ -104,7 +104,7 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
           <div className="text-center">
             <button
               onClick={() => router.push("/galeria")}
-              className="bg-dh-green text-black font-bold px-8 py-4 rounded-full hover:scale-105 hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
+              className="bg-dh-purple text-black font-bold px-8 py-4 rounded-full hover:scale-105 hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
             >
               Ver más
             </button>

@@ -60,7 +60,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
           {hasResults && (
-            <div className="absolute top-4 left-4 bg-dh-green text-black text-xs font-bold px-4 py-1 rounded-full shadow-lg">
+            <div className="absolute top-4 left-4 bg-dh-purple text-black text-xs font-bold px-4 py-1 rounded-full shadow-lg">
               RESULTADOS
             </div>
           )}
@@ -99,18 +99,18 @@ const CarreraCard: FC<CarreraCardProps> = ({
 
         <div className="pt-4">
           {hasResults ? (
-            <span className="text-dh-green font-bold text-sm">
+            <span className="text-dh-purple font-bold text-sm">
               Ver resultados oficiales →
             </span>
           ) : (
-            <span className="text-white/80 text-sm group-hover:text-dh-green transition">
+            <span className="text-white/80 text-sm group-hover:text-dh-purple transition">
               Ver detalles →
             </span>
           )}
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-green group-hover:w-full transition-all duration-500" />
+      <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-purple group-hover:w-full transition-all duration-500" />
     </motion.div>
   );
 

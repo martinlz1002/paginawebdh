@@ -16,7 +16,7 @@ export default function Footer() {
     <footer className="relative bg-[#0c0c0f] text-white overflow-hidden">
 
       {/* Glow de fondo */}
-      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-30" />
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-purple/20 blur-3xl opacity-30" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-20">
 
@@ -100,7 +100,7 @@ export default function Footer() {
               rel="noopener noreferrer"
               className="flex items-center gap-3 text-white/60 hover:text-white transition text-sm mb-6"
             >
-              <WhatsappIcon className="text-dh-green text-lg" />
+              <WhatsappIcon className="text-dh-purple text-lg" />
               WhatsApp directo
             </a>
 
@@ -139,7 +139,7 @@ export default function Footer() {
         </div>
 
         {/* Separador elegante */}
-        <div className="mt-16 h-px w-full bg-gradient-to-r from-dh-purple/40 via-white/10 to-dh-green/40" />
+        <div className="mt-16 h-px w-full bg-gradient-to-r from-dh-purple/40 via-white/10 to-dh-purple/40" />
 
         {/* Bottom */}
         <div className="mt-8 text-center text-white/40 text-xs">

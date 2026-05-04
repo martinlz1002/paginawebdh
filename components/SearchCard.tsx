@@ -113,7 +113,7 @@ export default function SearchCard() {
               placeholder="Nombre de la carrera"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
             />
           </div>
 
@@ -125,7 +125,7 @@ export default function SearchCard() {
               placeholder="Ciudad"
               value={city}
               onChange={(e) => setCity(e.target.value)}
-              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
             />
           </div>
 
@@ -136,7 +136,7 @@ export default function SearchCard() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
             />
           </div>
         </div>

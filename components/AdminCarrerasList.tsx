@@ -126,7 +126,7 @@ export default function AdminCarrerasList({ onEdit }: Props) {
                 <span
                   className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-extrabold border ${
                     abiertas
-                      ? "bg-dh-green/10 text-dh-green border-dh-green/20"
+                      ? "bg-dh-purple/10 text-dh-purple border-dh-purple/20"
                       : "bg-red-50 text-red-600 border-red-200"
                   }`}
                 >
