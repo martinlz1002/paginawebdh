@@ -907,26 +907,6 @@ export default function AdminInscripcionesView() {
 
       </div>
 
-      <div className="col-span-2">
-  <label className="text-xs text-white/50 mb-1 block">
-    Estado de pago
-  </label>
-
-  <select
-    value={form.paymentStatus}
-    onChange={(e) =>
-      setForm({ ...form, paymentStatus: e.target.value })
-    }
-    className="w-full bg-[#141418] border border-white/10 rounded-xl p-3"
-  >
-    <option value="paid">Pagado</option>
-    <option value="pending">Pendiente</option>
-    <option value="manual">Manual</option>
-    <option value="expired">Expirado</option>
-    <option value="failed">Fallido</option>
-  </select>
-</div>
-
       {/* BOTONES */}
       <div className="flex justify-end gap-4 pt-4">
 
