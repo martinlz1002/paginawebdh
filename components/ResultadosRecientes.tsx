@@ -34,12 +34,12 @@ export default function ResultadosRecientes({
       <div className="relative backdrop-blur-2xl bg-white/5 border border-white/10 rounded-3xl p-10 shadow-[0_0_60px_rgba(0,0,0,0.4)]">
 
         {/* Glow sutil */}
-        <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-dh-green/20 blur-3xl opacity-40" />
+        <div className="pointer-events-none absolute -top-20 -right-20 h-72 w-72 rounded-full bg-dh-purple/20 blur-3xl opacity-40" />
 
         <div className="relative z-10">
 
           <h3 className="text-3xl font-black text-white flex items-center gap-3 mb-8">
-            <TrophyIcon className="w-7 h-7 text-dh-green" />
+            <TrophyIcon className="w-7 h-7 text-dh-purple" />
             Resultados recientes
           </h3>
 
@@ -66,11 +66,11 @@ export default function ResultadosRecientes({
                     </p>
                   </div>
 
-                  <ArrowTopRightOnSquareIcon className="w-5 h-5 text-dh-green opacity-70 group-hover:translate-x-1 group-hover:-translate-y-1 transition" />
+                  <ArrowTopRightOnSquareIcon className="w-5 h-5 text-dh-purple opacity-70 group-hover:translate-x-1 group-hover:-translate-y-1 transition" />
                 </div>
 
                 {/* Línea glow inferior */}
-                <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-green group-hover:w-full transition-all duration-500 rounded-full" />
+                <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-purple group-hover:w-full transition-all duration-500 rounded-full" />
               </motion.a>
             ))}
           </div>
