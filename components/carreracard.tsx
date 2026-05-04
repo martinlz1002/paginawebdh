@@ -19,7 +19,7 @@ export interface CarreraCardProps {
 
 const CarreraCard: FC<CarreraCardProps> = ({
   id,
-  slug, // 👈 NUEVO
+  slug,
   titulo,
   descripcion,
   ubicacion,
@@ -36,81 +36,98 @@ const CarreraCard: FC<CarreraCardProps> = ({
   const isPast = carreraDate < today;
   const hasResults = isPast && resultadosPublicado && !!resultadosUrl;
 
-  // 🧠 Aquí sucede la magia
   const url = `/carrera/${slug || id}`;
 
   const content = (
     <motion.div
-      whileHover={{ y: -6 }}
+      whileHover={{ y: -8 }}
       transition={{ duration: 0.25 }}
-      className="group relative overflow-hidden rounded-3xl bg-black border border-white/10"
+      className="group relative overflow-hidden rounded-3xl bg-dh-surface border border-white/5 shadow-dhSoft"
     >
-      {/* Imagen */}
+
+      {/* 🌫️ Glow sutil */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-500 bg-dh-glow" />
+
+      {/* 🖼️ Imagen */}
       {imagenUrl && (
-        <div className="relative h-60 overflow-hidden">
+        <div className="relative h-64 overflow-hidden">
           <Image
             src={imagenUrl}
             alt={titulo}
             fill
             className={`object-cover transition-transform duration-700 group-hover:scale-110 ${
-              isPast ? "grayscale opacity-70" : ""
+              isPast ? "grayscale opacity-60" : ""
             }`}
           />
 
+          {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
+          {/* 🏷️ Badge */}
           {hasResults && (
-            <div className="absolute top-4 left-4 bg-dh-purple text-black text-xs font-bold px-4 py-1 rounded-full shadow-lg">
+            <div className="absolute top-4 left-4 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
               RESULTADOS
             </div>
           )}
 
           {isPast && !hasResults && (
-            <div className="absolute top-4 left-4 bg-white/20 backdrop-blur px-4 py-1 text-xs font-semibold text-white rounded-full">
+            <div className="absolute top-4 left-4 bg-white/10 backdrop-blur px-4 py-1 text-xs font-semibold text-white rounded-full border border-white/10">
               Finalizada
             </div>
           )}
         </div>
       )}
 
-      {/* Contenido */}
-      <div className="p-6 text-white space-y-4">
-        <h2 className="text-2xl font-black leading-tight">{titulo}</h2>
+      {/* 📦 CONTENIDO */}
+      <div className="p-6 space-y-5">
 
-        <div className="flex flex-wrap gap-6 text-white/60 text-sm">
+        {/* Título */}
+        <h2 className="text-2xl font-black leading-tight text-white/95 group-hover:text-white transition">
+          {titulo}
+        </h2>
+
+        {/* Info */}
+        <div className="flex flex-wrap gap-5 text-white/60 text-sm">
           <span className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5" />
+            <CalendarIcon className="w-5 h-5 text-dh-purple" />
             {fecha}
           </span>
 
           {ubicacion && (
             <span className="flex items-center gap-2">
-              <MapPinIcon className="w-5 h-5" />
+              <MapPinIcon className="w-5 h-5 text-dh-purple" />
               {ubicacion}
             </span>
           )}
         </div>
 
+        {/* Descripción */}
         {descripcion && (
-          <p className="text-white/70 text-sm line-clamp-2">
+          <p className="text-white/60 text-sm leading-relaxed line-clamp-2">
             {descripcion}
           </p>
         )}
 
-        <div className="pt-4">
+        {/* CTA */}
+        <div className="pt-3 flex items-center justify-between">
+
           {hasResults ? (
-            <span className="text-dh-purple font-bold text-sm">
-              Ver resultados oficiales →
+            <span className="text-dh-purple font-semibold text-sm">
+              Ver resultados →
             </span>
           ) : (
-            <span className="text-white/80 text-sm group-hover:text-dh-purple transition">
+            <span className="text-white/70 text-sm group-hover:text-dh-purple transition">
               Ver detalles →
             </span>
           )}
+
+          {/* 👉 Mini indicador visual */}
+          <div className="w-2 h-2 rounded-full bg-dh-purple opacity-0 group-hover:opacity-100 transition" />
         </div>
       </div>
 
-      <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-purple group-hover:w-full transition-all duration-500" />
+      {/* 🔥 Línea animada inferior */}
+      <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-dh-purple to-dh-purpleLight group-hover:w-full transition-all duration-500" />
     </motion.div>
   );
 
@@ -133,5 +150,3 @@ const CarreraCard: FC<CarreraCardProps> = ({
     </Link>
   );
 };
-
-export default CarreraCard;

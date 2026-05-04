@@ -8,35 +8,35 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-  dh: {
-    purple: "#7B2FF7",
-    purpleLight: "#9b4dff",
-    purpleDark: "#5a1fcf",
+        dh: {
+          purple: "#7B2FF7",
+          purpleLight: "#9b4dff",
+          purpleDark: "#5a1fcf",
 
-    bg: "#0a0a0a",
-    surface: "#121212",
-    panel: "#17171d",
-    border: "rgba(255,255,255,0.08)",
+          bg: "#0f0f14",
+          surface: "#16161d",
+          panel: "#1c1c24",
+          border: "rgba(255,255,255,0.08)",
 
-    ink: "#ffffff",
-    muted: "rgba(255,255,255,0.55)",
+          ink: "#ffffff",
+          muted: "rgba(255,255,255,0.55)",
 
-    success: "#22c55e",
-    danger: "#ef4444",
-    warning: "#f59e0b",
-  },
-},
+          success: "#22c55e",
+          danger: "#ef4444",
+          warning: "#f59e0b",
+        },
+      },
 
       boxShadow: {
-        dh: "0 20px 50px rgba(0,0,0,0.6)",
-        dhSm: "0 8px 25px rgba(0,0,0,0.45)",
-        glowPurple: "0 0 40px rgba(106,27,154,0.35)",
-        glowGreen: "0 0 40px rgba(124,194,66,0.35)",
+        dh: "0 20px 60px rgba(0,0,0,0.6)",
+        dhSoft: "0 10px 30px rgba(0,0,0,0.4)",
+        glowPurple: "0 0 30px rgba(123,47,247,0.25)",
       },
 
       backgroundImage: {
         "dh-gradient": "linear-gradient(135deg, #7B2FF7, #9b4dff)",
-        "dh-radial": "radial-gradient(circle at center, rgba(106,27,154,0.25), transparent 60%)",
+        "dh-radial": "radial-gradient(circle at center, rgba(123,47,247,0.25), transparent 60%)",
+        "dh-glow": "radial-gradient(circle at top, rgba(123,47,247,0.15), transparent 70%)",
       },
 
       borderRadius: {
@@ -47,6 +47,15 @@ module.exports = {
 
       backdropBlur: {
         xs: "2px",
+      },
+
+      spacing: {
+        18: "4.5rem",
+        22: "5.5rem",
+      },
+
+      fontFamily: {
+        sans: ["Inter", "sans-serif"],
       },
     },
   },
