@@ -71,7 +71,7 @@ export default function LoginPage() {
     <div className="relative min-h-screen bg-[#0c0c0f] flex items-center justify-center overflow-hidden px-6">
 
       {/* Fondo dinámico */}
-      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-40" />
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-purpleDark/20 blur-3xl opacity-40" />
 
       <motion.div
         initial={{ opacity: 0, y: 40 }}
@@ -100,7 +100,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
-                className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
               />
             </div>
 
@@ -113,16 +113,16 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
-                className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
               />
             </div>
 
             {/* LINKS */}
             <div className="flex justify-between text-sm text-white/70">
-              <Link href="/reset-password" className="hover:text-dh-green transition">
+              <Link href="/reset-password" className="hover:text-dh-purple transition">
                 ¿Olvidaste tu contraseña?
               </Link>
-              <Link href="/signup" className="hover:text-dh-green transition">
+              <Link href="/signup" className="hover:text-dh-purple transition">
                 Crear cuenta
               </Link>
             </div>
@@ -134,7 +134,7 @@ export default function LoginPage() {
               className={`w-full py-3 rounded-2xl font-bold transition-all duration-300 ${
                 cargando || !emailOk
                   ? "bg-white/10 text-white/40 cursor-not-allowed"
-                  : "bg-dh-green text-black hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)]"
+                  : "bg-dh-purple text-black hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)]"
               }`}
             >
               {cargando ? "Entrando..." : "Entrar"}

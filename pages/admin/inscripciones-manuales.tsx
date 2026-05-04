@@ -49,9 +49,9 @@ function parseDateTimeLocal(value: string): Date | null {
 
 const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
 const inputBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40";
 const selectBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40";
 const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
 
 export default function InscripcionesManualesAdmin() {
@@ -237,7 +237,7 @@ if (!insSnap.empty) {
             <p className="text-xs text-white/40 uppercase tracking-wide">
               Panel Admin
             </p>
-            <h1 className="text-2xl font-black bg-gradient-to-r from-dh-purple to-dh-green bg-clip-text text-transparent">
+            <h1 className="text-2xl font-black bg-gradient-to-r from-dh-purple to-dh-purpleDark bg-clip-text text-transparent">
               Inscripciones Manuales
             </h1>
           </div>
@@ -352,14 +352,14 @@ if (!insSnap.empty) {
           <button
             onClick={handleCreate}
             disabled={loading}
-            className="w-full rounded-2xl bg-dh-green text-black py-4 font-extrabold hover:opacity-90 transition disabled:opacity-50"
+            className="w-full rounded-2xl bg-dh-purple text-black py-4 font-extrabold hover:opacity-90 transition disabled:opacity-50"
           >
             {loading ? "Creando..." : "Crear Acceso"}
           </button>
 
           {link && (
-            <div className="rounded-2xl border border-dh-green/30 bg-dh-green/10 p-5">
-              <p className="font-semibold text-dh-green">Link generado</p>
+            <div className="rounded-2xl border border-dh-purple/30 bg-dh-purple/10 p-5">
+              <p className="font-semibold text-dh-purple">Link generado</p>
               <a
                 href={link}
                 target="_blank"
@@ -380,7 +380,7 @@ if (!insSnap.empty) {
               Accesos Temporales
             </h2>
             <span className="text-sm text-white/70">
-              Total: <span className="font-bold text-dh-green">{accesses.length}</span>
+              Total: <span className="font-bold text-dh-purple">{accesses.length}</span>
             </span>
           </div>
 

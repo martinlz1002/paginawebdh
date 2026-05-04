@@ -370,7 +370,7 @@ export default function PerfilPage() {
                 className={`px-3 py-1 rounded-full text-xs font-bold ${
                   ramaLabel === "Pendiente"
                     ? "bg-red-100 text-red-600"
-                    : "bg-dh-green/20 text-dh-green"
+                    : "bg-dh-purple/20 text-dh-purple"
                 }`}
               >
                 {ramaLabel}
@@ -541,7 +541,7 @@ export default function PerfilPage() {
                       className={`text-xs font-semibold px-2 py-1 rounded-full ${
                         r === "Pendiente"
                           ? "bg-red-100 text-red-600"
-                          : "bg-dh-green/20 text-dh-green"
+                          : "bg-dh-purple/20 text-dh-purple"
                       }`}
                     >
                       {r}

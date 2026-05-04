@@ -141,7 +141,7 @@ export default function RegistroUsuarioPage() {
     <div className="relative min-h-screen bg-[#0c0c0f] flex items-center justify-center px-6 overflow-hidden">
 
       {/* Fondo dinámico DH */}
-      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-40" />
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-purpleDark/20 blur-3xl opacity-40" />
 
       <motion.div
         initial={{ opacity: 0, y: 40 }}
@@ -168,7 +168,7 @@ export default function RegistroUsuarioPage() {
                     value={(formData as any)[n]}
                     onChange={handleChange}
                     required
-                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
                   />
                 </div>
               ))}
@@ -186,7 +186,7 @@ export default function RegistroUsuarioPage() {
                     value={(formData as any)[n]}
                     onChange={handleChange}
                     required
-                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
                   />
                 </div>
               ))}
@@ -204,7 +204,7 @@ export default function RegistroUsuarioPage() {
                     value={(formData as any)[n]}
                     onChange={handleChange}
                     required
-                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-green/50 transition"
+                    className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 pl-12 pr-4 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-dh-purple/50 transition"
                   />
                 </div>
               ))}
@@ -304,14 +304,14 @@ export default function RegistroUsuarioPage() {
 
             <button
               type="submit"
-              className="w-full mt-6 bg-dh-green text-black font-bold py-4 rounded-2xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
+              className="w-full mt-6 bg-dh-purple text-black font-bold py-4 rounded-2xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
             >
               Crear cuenta
             </button>
           </form>
 
           {mensaje && (
-            <p className={`mt-6 text-center ${mensaje.type === "error" ? "text-red-400" : "text-green-400"}`}>
+            <p className={`mt-6 text-center ${mensaje.type === "error" ? "text-red-400" : "text-purple-400"}`}>
               {mensaje.text}
             </p>
           )}

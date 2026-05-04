@@ -292,7 +292,7 @@ export default function MisInscripcionesPage() {
 
   const pill = (status?: string) => {
     if (status === "paid")
-      return `${pillBase} bg-dh-green/15 text-dh-ink border-dh-green/30`;
+      return `${pillBase} bg-dh-purple/15 text-dh-ink border-dh-purple/30`;
     if (status === "pending")
       return `${pillBase} bg-yellow-50 text-yellow-900 border-yellow-200`;
     if (status === "manual")

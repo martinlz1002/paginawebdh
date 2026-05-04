@@ -65,7 +65,7 @@ export default function CarrerasPage() {
     <div className="min-h-screen bg-[#0c0c0f] text-white relative overflow-hidden">
 
       {/* Glow fondo */}
-      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-green/20 blur-3xl opacity-30" />
+      <div className="absolute inset-0 bg-gradient-to-br from-dh-purple/20 via-black to-dh-purpleDark/20 blur-3xl opacity-30" />
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-24 space-y-16">
 
@@ -78,7 +78,7 @@ export default function CarrerasPage() {
         >
           <h1 className="text-5xl md:text-6xl font-black leading-tight">
             Explora todas las
-            <span className="block bg-gradient-to-r from-dh-purple to-dh-green bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-dh-purple to-dh-purpleDark bg-clip-text text-transparent">
               Carreras
             </span>
           </h1>
@@ -144,7 +144,7 @@ export default function CarrerasPage() {
                   onClick={() =>
                     router.push(`/inscribirse?carreraId=${c.id}`)
                   }
-                  className="mt-4 w-full bg-dh-green text-black font-bold py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.03] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
+                  className="mt-4 w-full bg-dh-purple text-black font-bold py-3 rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.03] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
                 >
                   Inscribirme
                   <ArrowRightIcon className="w-5 h-5" />
@@ -152,7 +152,7 @@ export default function CarrerasPage() {
               </div>
 
               {/* Línea animada inferior */}
-              <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-green group-hover:w-full transition-all duration-500" />
+              <div className="absolute bottom-0 left-0 h-1 w-0 bg-gradient-to-r from-dh-purple to-dh-purpleDark group-hover:w-full transition-all duration-500" />
             </motion.div>
           ))}
         </div>

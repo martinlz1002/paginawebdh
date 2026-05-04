@@ -124,7 +124,7 @@ export default function Gallery({ limit, showAllButton }: GalleryProps) {
           >
             <button
               onClick={() => setSelected(null)}
-              className="absolute top-6 right-6 text-white hover:text-dh-green transition"
+              className="absolute top-6 right-6 text-white hover:text-dh-purple transition"
             >
               <XMarkIcon className="w-8 h-8" />
             </button>

@@ -108,7 +108,7 @@ export default function AdminPage() {
     <div className="relative flex pt-16">
       <button
         onClick={() => setSidebarOpen((o) => !o)}
-        className="fixed top-20 left-4 z-50 p-2 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition"
+        className="fixed top-20 left-4 z-50 p-2 bg-purple-600 text-white rounded-full shadow-lg hover:bg-purple-700 transition"
         title={sidebarOpen ? "Cerrar menú" : "Abrir menú"}
       >
         {sidebarOpen ? (

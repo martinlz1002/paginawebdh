@@ -81,7 +81,7 @@ export default function TempLoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50"
+          className="w-full bg-purple-600 text-white py-2 rounded hover:bg-purple-700 disabled:opacity-50"
         >
           {loading ? "Verificando..." : "Ingresar"}
         </button>

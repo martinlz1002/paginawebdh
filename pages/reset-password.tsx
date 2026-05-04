@@ -6,7 +6,7 @@ import { app } from "@/lib/firebase";
 
 const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
 const inputBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 pl-11 text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 pl-11 text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40";
 const btnBase =
   "w-full inline-flex items-center justify-center rounded-xl px-4 py-2.5 font-extrabold transition";
 
@@ -97,7 +97,7 @@ export default function ResetPasswordPage() {
               className={`${btnBase} ${
                 enviando || !emailOk
                   ? "bg-gray-300 text-gray-600 cursor-not-allowed"
-                  : "bg-dh-green text-dh-dark hover:opacity-95"
+                  : "bg-dh-purple text-dh-dark hover:opacity-95"
               }`}
             >
               {enviando ? "Enviando..." : "Enviar enlace"}
@@ -105,7 +105,7 @@ export default function ResetPasswordPage() {
           </form>
 
           {mensaje && (
-            <div className="mt-4 rounded-xl border border-dh-green/30 bg-dh-green/10 px-3 py-2 text-sm text-dh-ink">
+            <div className="mt-4 rounded-xl border border-dh-purple/30 bg-dh-purple/10 px-3 py-2 text-sm text-dh-ink">
               {mensaje}
             </div>
           )}
@@ -119,7 +119,7 @@ export default function ResetPasswordPage() {
             <Link href="/login" className="font-semibold text-dh-purple hover:underline">
               Volver a iniciar sesión
             </Link>
-            <Link href="/signup" className="font-semibold text-dh-green hover:underline">
+            <Link href="/signup" className="font-semibold text-dh-purple hover:underline">
               Crear cuenta
             </Link>
           </div>

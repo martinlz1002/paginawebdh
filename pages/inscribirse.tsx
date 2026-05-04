@@ -98,7 +98,7 @@ function normalizeRama(v: any): "Femenil" | "Varonil" | "" {
 // UI tokens DH
 const cardBase = "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
 const selectBase =
-  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-3 py-2.5 text-dh-ink shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40";
 const labelBase = "block text-sm font-semibold text-dh-ink mb-2";
 const pill =
   "inline-flex items-center gap-2 rounded-full border border-dh-purple/10 bg-dh-soft px-3 py-1 text-xs font-semibold text-gray-700";
@@ -463,7 +463,7 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
         <div className="absolute inset-0 bg-black/60" />
       </div>
     ) : (
-      <div className="h-56 bg-gradient-to-r from-dh-purple to-dh-green" />
+      <div className="h-56 bg-gradient-to-r from-dh-purple to-dh-purpleDark" />
     )}
 
     <div className="max-w-6xl mx-auto px-4 -mt-20 relative z-10 pb-16">
@@ -529,8 +529,8 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
                       onClick={() => setDistancia(d.distancia)}
                       className={`p-6 rounded-2xl border transition ${
                         distancia === d.distancia
-                          ? "border-dh-green bg-dh-green/5"
-                          : "border-dh-border hover:border-dh-green/40"
+                          ? "border-dh-purple bg-dh-purple/5"
+                          : "border-dh-border hover:border-dh-purple/40"
                       }`}
                     >
                       <div className="text-lg font-bold">
@@ -556,8 +556,8 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
                       onClick={() => setCategoria(cat.nombre)}
                       className={`p-6 rounded-2xl border transition text-left ${
                         categoria === cat.nombre
-                          ? "border-dh-green bg-dh-green/5"
-                          : "border-dh-border hover:border-dh-green/40"
+                          ? "border-dh-purple bg-dh-purple/5"
+                          : "border-dh-border hover:border-dh-purple/40"
                       }`}
                     >
                       <div className="font-bold">{cat.nombre}</div>
@@ -625,7 +625,7 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
               }
               className={`w-full py-4 rounded-2xl font-extrabold transition ${
                 perfilId && distancia && categoria
-                  ? "bg-dh-green text-dh-dark hover:opacity-95"
+                  ? "bg-dh-purple text-dh-dark hover:opacity-95"
                   : "bg-gray-300 text-gray-600 cursor-not-allowed"
               }`}
             >
