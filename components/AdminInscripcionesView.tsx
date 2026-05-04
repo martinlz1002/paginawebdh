@@ -829,55 +829,83 @@ export default function AdminInscripcionesView() {
       </div>
     </div>
 
+{/* MODAL PRO */}
 {editOpen && editing && (
   <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
 
-    <div className="bg-[#16161d] rounded-3xl w-full max-w-2xl p-8 space-y-6 border border-white/10">
+    <div className="bg-[#16161d] rounded-3xl w-full max-w-2xl p-8 space-y-6 border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.6)]">
 
+      {/* HEADER */}
       <div className="flex justify-between items-center">
         <h3 className="text-xl font-bold text-dh-purple">
           Editar inscripción #{editing.competitorNumber}
         </h3>
-
         <button onClick={closeEdit}>
           <XMarkIcon className="w-6 h-6 text-white/60 hover:text-white" />
         </button>
       </div>
 
-      {editError && (
-        <div className="text-red-400 text-sm">{editError}</div>
-      )}
+      {/* TABS PRO */}
+      <div className="relative flex gap-6 border-b border-white/10 pb-3">
+        {["datos", "carrera", "pago"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab as any)}
+            className={`relative px-2 py-2 text-sm font-semibold transition-all duration-200
+              ${
+                activeTab === tab
+                  ? "text-white"
+                  : "text-white/40 hover:text-white/70"
+              }`}
+          >
+            {tab === "datos" && "Datos"}
+            {tab === "carrera" && "Carrera"}
+            {tab === "pago" && "Pago"}
 
-      <div className="flex gap-2 border-b border-white/10 pb-4">
+            {activeTab === tab && (
+              <div className="absolute -bottom-[6px] left-0 right-0 h-[3px] rounded-full bg-gradient-to-r from-dh-purple to-dh-purpleLight" />
+            )}
+          </button>
+        ))}
+      </div>
 
-  <button
-    onClick={() => setActiveTab("datos")}
-    className={`px-4 py-2 rounded-xl ${
-      activeTab === "datos" ? "bg-dh-purple text-black" : "text-white/60"
-    }`}
-  >
-    Datos
-  </button>
+      {/* CONTENIDO POR TAB */}
+      <div className="mt-4">
 
-  <button
-    onClick={() => setActiveTab("carrera")}
-    className={`px-4 py-2 rounded-xl ${
-      activeTab === "carrera" ? "bg-dh-purple text-black" : "text-white/60"
-    }`}
-  >
-    Carrera
-  </button>
+        {activeTab === "datos" && (
+          <div className="grid grid-cols-2 gap-4">
+            <input value={form.nombre} onChange={(e)=>setForm({...form,nombre:e.target.value})} placeholder="Nombre" className="input" />
+            <input value={form.paterno} onChange={(e)=>setForm({...form,paterno:e.target.value})} placeholder="Apellido paterno" className="input" />
+            <input value={form.materno} onChange={(e)=>setForm({...form,materno:e.target.value})} placeholder="Apellido materno" className="input" />
+            <input value={form.celular} onChange={(e)=>setForm({...form,celular:e.target.value})} placeholder="Celular" className="input" />
+          </div>
+        )}
 
-  <button
-    onClick={() => setActiveTab("pago")}
-    className={`px-4 py-2 rounded-xl ${
-      activeTab === "pago" ? "bg-dh-purple text-black" : "text-white/60"
-    }`}
-  >
-    Pago
-  </button>
+        {activeTab === "carrera" && (
+          <div className="grid grid-cols-2 gap-4">
+            <input value={form.ruta} onChange={(e)=>setForm({...form,ruta:e.target.value})} placeholder="Ruta" className="input" />
+            <input value={form.categoria} onChange={(e)=>setForm({...form,categoria:e.target.value})} placeholder="Categoría" className="input" />
+          </div>
+        )}
 
-</div>
+        {activeTab === "pago" && (
+          <div>
+            <label className="text-xs text-white/50 mb-1 block">Estado de pago</label>
+            <select
+              value={form.paymentStatus}
+              onChange={(e)=>setForm({...form,paymentStatus:e.target.value})}
+              className="w-full input"
+            >
+              <option value="paid">Pagado</option>
+              <option value="pending">Pendiente</option>
+              <option value="manual">Manual</option>
+              <option value="expired">Expirado</option>
+              <option value="failed">Fallido</option>
+            </select>
+          </div>
+        )}
+
+      </div>
 
       {/* INPUTS */}
       <div className="grid grid-cols-2 gap-4">
