@@ -819,6 +819,97 @@ export default function AdminInscripcionesView() {
 
       </div>
     </div>
+
+{editOpen && editing && (
+  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+
+    <div className="bg-[#16161d] rounded-3xl w-full max-w-2xl p-8 space-y-6 border border-white/10">
+
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-bold text-dh-purple">
+          Editar inscripción #{editing.competitorNumber}
+        </h3>
+
+        <button onClick={closeEdit}>
+          <XMarkIcon className="w-6 h-6 text-white/60 hover:text-white" />
+        </button>
+      </div>
+
+      {editError && (
+        <div className="text-red-400 text-sm">{editError}</div>
+      )}
+
+      {/* INPUTS */}
+      <div className="grid grid-cols-2 gap-4">
+
+        <input
+          value={form.nombre}
+          onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+          placeholder="Nombre"
+          className="bg-[#141418] border border-white/10 rounded-xl p-3"
+        />
+
+        <input
+          value={form.paterno}
+          onChange={(e) => setForm({ ...form, paterno: e.target.value })}
+          placeholder="Apellido paterno"
+          className="bg-[#141418] border border-white/10 rounded-xl p-3"
+        />
+
+        <input
+          value={form.materno}
+          onChange={(e) => setForm({ ...form, materno: e.target.value })}
+          placeholder="Apellido materno"
+          className="bg-[#141418] border border-white/10 rounded-xl p-3"
+        />
+
+        <input
+          value={form.celular}
+          onChange={(e) => setForm({ ...form, celular: e.target.value })}
+          placeholder="Celular"
+          className="bg-[#141418] border border-white/10 rounded-xl p-3"
+        />
+
+        <input
+          value={form.ruta}
+          onChange={(e) => setForm({ ...form, ruta: e.target.value })}
+          placeholder="Ruta"
+          className="bg-[#141418] border border-white/10 rounded-xl p-3"
+        />
+
+        <input
+          value={form.categoria}
+          onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+          placeholder="Categoría"
+          className="bg-[#141418] border border-white/10 rounded-xl p-3"
+        />
+
+      </div>
+
+      {/* BOTONES */}
+      <div className="flex justify-end gap-4 pt-4">
+
+        <button
+          onClick={closeEdit}
+          className="px-5 py-2 rounded-xl border border-white/20"
+        >
+          Cancelar
+        </button>
+
+        <button
+          onClick={saveEdit}
+          disabled={saving}
+          className="px-5 py-2 rounded-xl bg-dh-purple text-black font-bold hover:scale-105 transition"
+        >
+          {saving ? "Guardando..." : "Guardar"}
+        </button>
+
+      </div>
+
+    </div>
+  </div>
+)}
+
   </div>
 );
 }
