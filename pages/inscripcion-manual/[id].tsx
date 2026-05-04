@@ -34,7 +34,7 @@ interface DistanciaConCategorias {
   categorias: Categoria[];
 }
 
-type Step = "checking" | "login" | "form" | "expired";
+type Step = "checking" | "login" | "form" | "list" | "expired";
 
 function fullName(nombre: string, paterno: string, materno: string) {
   return `${(nombre || "").trim()} ${(paterno || "").trim()} ${(materno || "").trim()}`
@@ -70,6 +70,9 @@ export default function ManualPage() {
 
   const [step, setStep] = useState<Step>("checking");
 
+  const [inscripciones, setInscripciones] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+
   const [linkUser, setLinkUser] = useState<APIUser | null>(null);
   const [race, setRace] = useState<(CarreraData & { id: string }) | null>(null);
   const [distancias, setDistancias] = useState<DistanciaConCategorias[]>([]);
@@ -99,6 +102,26 @@ export default function ManualPage() {
     pais: "",
     club: "",
   });
+
+  const loadInscripciones = async () => {
+  if (!linkUser) return;
+
+  setLoadingList(true);
+
+  try {
+    const res = await fetch(
+      `/api/get-inscripciones-by-carrera?carreraId=${linkUser.carreraId}`
+    );
+
+    const data = await res.json();
+
+    setInscripciones(data || []);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    setLoadingList(false);
+  }
+};
 
   const [loginLoading, setLoginLoading] = useState(false);
 
@@ -486,6 +509,59 @@ export default function ManualPage() {
     );
   }
 
+  if (step === "list") {
+  return (
+    <div className="min-h-screen bg-dh-soft py-10 px-4">
+      <div className="max-w-5xl mx-auto">
+
+        <h2 className="text-2xl font-bold text-dh-purple mb-6">
+          Inscripciones
+        </h2>
+
+        <button
+          onClick={() => setStep("form")}
+          className="mb-4 text-sm text-dh-purple underline"
+        >
+          ← Volver a registrar
+        </button>
+
+        {loadingList ? (
+          <p>Cargando...</p>
+        ) : (
+          <div className="overflow-x-auto bg-white rounded-xl shadow">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-100 text-left">
+                <tr>
+                  <th className="p-3">#</th>
+                  <th className="p-3">Nombre</th>
+                  <th className="p-3">Ruta</th>
+                  <th className="p-3">Categoría</th>
+                  <th className="p-3">Pago</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {inscripciones.map((i, idx) => (
+                  <tr key={i.id} className="border-t">
+                    <td className="p-3">{i.competitorNumber}</td>
+                    <td className="p-3">{i.nombres}</td>
+                    <td className="p-3">{i.ruta}</td>
+                    <td className="p-3">{i.categoria}</td>
+                    <td className="p-3">
+                      {i.paymentStatus === "paid" && "Pagado"}
+                      {i.paymentStatus === "manual" && "Manual"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
   // form (resto igual)
   return (
     <div className="min-h-screen bg-dh-soft py-10 px-4">
@@ -511,6 +587,16 @@ export default function ManualPage() {
             </div>
           )}
         </div>
+
+        <button
+  onClick={() => {
+    loadInscripciones();
+    setStep("list");
+  }}
+  className="w-full rounded-xl border border-dh-purple text-dh-purple py-2 font-semibold hover:bg-dh-purple/10 transition"
+>
+  Ver inscritos 👁️
+</button>
 
         <div className={`${cardBase} p-6 space-y-5`}>
           {/* Fecha de nacimiento */}
