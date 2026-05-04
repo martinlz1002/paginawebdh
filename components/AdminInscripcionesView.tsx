@@ -163,6 +163,7 @@ export default function AdminInscripcionesView() {
   const [saving, setSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<InscripcionItem | null>(null);
+  const [activeTab, setActiveTab] = useState<"datos" | "carrera" | "pago">("datos");
 
   const [form, setForm] = useState({
     competitorNumber: 0,
@@ -186,6 +187,7 @@ export default function AdminInscripcionesView() {
     club: "",
 
     fechaNacimiento: "",
+    paymentStatus: "paid"
   });
 
   const selectedCarreraInfo = useMemo(
@@ -395,47 +397,50 @@ export default function AdminInscripcionesView() {
   }, [inscripciones, search, sortKey, sortDir]);
 
   const openEdit = (it: InscripcionItem) => {
-    setEditError(null);
-    setEditing(it);
+  setEditError(null);
+  setEditing(it);
 
-    const bd = it.perfil.fechaNacimiento;
-    const yyyyMmDd =
-      bd instanceof Date
-        ? `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(
-            bd.getDate()
-          ).padStart(2, "0")}`
-        : "";
+  const bd = it.perfil.fechaNacimiento;
+  const yyyyMmDd =
+    bd instanceof Date
+      ? `${bd.getFullYear()}-${String(bd.getMonth() + 1).padStart(2, "0")}-${String(
+          bd.getDate()
+        ).padStart(2, "0")}`
+      : "";
 
-    const nombre = it.perfil.nombre || "";
-    const paterno = it.perfil.paterno || "";
-    const materno = it.perfil.materno || "";
+  const nombre = it.perfil.nombre || "";
+  const paterno = it.perfil.paterno || "";
+  const materno = it.perfil.materno || "";
 
-    setForm({
-      competitorNumber: it.competitorNumber || 0,
-      ficha: (it.ficha ?? it.competitorNumber) || 0,
-      bib: (it.bib ?? it.competitorNumber) || 0,
+  setForm({
+    competitorNumber: it.competitorNumber || 0,
+    ficha: (it.ficha ?? it.competitorNumber) || 0,
+    bib: (it.bib ?? it.competitorNumber) || 0,
 
-      nombre,
-      paterno,
-      materno,
-      nombres: it.perfil.nombres || fullName(nombre, paterno, materno),
+    nombre,
+    paterno,
+    materno,
+    nombres: it.perfil.nombres || fullName(nombre, paterno, materno),
 
-      rama: it.rama || it.perfil.rama || "",
-      ruta: it.ruta || it.perfil.ruta || "",
-      categoria: it.categoria || "",
+    rama: it.rama || it.perfil.rama || "",
+    ruta: it.ruta || it.perfil.ruta || "",
+    categoria: it.categoria || "",
 
-      email: it.perfil.email || "",
-      celular: it.perfil.celular || "",
-      pais: it.perfil.pais || "",
-      estado: it.perfil.estado || "",
-      ciudad: it.perfil.ciudad || "",
-      club: it.perfil.club || "",
+    email: it.perfil.email || "",
+    celular: it.perfil.celular || "",
+    pais: it.perfil.pais || "",
+    estado: it.perfil.estado || "",
+    ciudad: it.perfil.ciudad || "",
+    club: it.perfil.club || "",
 
-      fechaNacimiento: yyyyMmDd,
-    });
+    fechaNacimiento: yyyyMmDd,
 
-    setEditOpen(true);
-  };
+    // 🔥 ESTA LÍNEA ES LA QUE TE FALTABA
+    paymentStatus: it.paymentStatus || "manual",
+  });
+
+  setEditOpen(true);
+};
 
   const closeEdit = () => {
     if (saving) return;
@@ -518,6 +523,7 @@ export default function AdminInscripcionesView() {
         club: form.club.trim() || null,
 
         fechaNacimiento: Timestamp.fromDate(new Date(form.fechaNacimiento)),
+        paymentStatus: form.paymentStatus
       });
 
       setInscripciones((prev) => {
@@ -532,6 +538,9 @@ export default function AdminInscripcionesView() {
             categoria: form.categoria.trim(),
             ruta: form.ruta.trim(),
             rama: form.rama.trim(),
+
+            paymentStatus: form.paymentStatus,
+
             perfil: {
               ...x.perfil,
               nombre: form.nombre.trim(),
@@ -839,6 +848,37 @@ export default function AdminInscripcionesView() {
         <div className="text-red-400 text-sm">{editError}</div>
       )}
 
+      <div className="flex gap-2 border-b border-white/10 pb-4">
+
+  <button
+    onClick={() => setActiveTab("datos")}
+    className={`px-4 py-2 rounded-xl ${
+      activeTab === "datos" ? "bg-dh-purple text-black" : "text-white/60"
+    }`}
+  >
+    Datos
+  </button>
+
+  <button
+    onClick={() => setActiveTab("carrera")}
+    className={`px-4 py-2 rounded-xl ${
+      activeTab === "carrera" ? "bg-dh-purple text-black" : "text-white/60"
+    }`}
+  >
+    Carrera
+  </button>
+
+  <button
+    onClick={() => setActiveTab("pago")}
+    className={`px-4 py-2 rounded-xl ${
+      activeTab === "pago" ? "bg-dh-purple text-black" : "text-white/60"
+    }`}
+  >
+    Pago
+  </button>
+
+</div>
+
       {/* INPUTS */}
       <div className="grid grid-cols-2 gap-4">
 
@@ -885,6 +925,26 @@ export default function AdminInscripcionesView() {
         />
 
       </div>
+
+      <div className="col-span-2">
+  <label className="text-xs text-white/50 mb-1 block">
+    Estado de pago
+  </label>
+
+  <select
+    value={form.paymentStatus}
+    onChange={(e) =>
+      setForm({ ...form, paymentStatus: e.target.value })
+    }
+    className="w-full bg-[#141418] border border-white/10 rounded-xl p-3"
+  >
+    <option value="paid">Pagado</option>
+    <option value="pending">Pendiente</option>
+    <option value="manual">Manual</option>
+    <option value="expired">Expirado</option>
+    <option value="failed">Fallido</option>
+  </select>
+</div>
 
       {/* BOTONES */}
       <div className="flex justify-end gap-4 pt-4">
