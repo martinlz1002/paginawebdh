@@ -215,7 +215,7 @@ export default function HomePage() {
     )}
 
     {/* PRÓXIMAS CARRERAS */}
-    <section className="py-32 px-6">
+    <section id="carreras" className="py-32 px-6 scroll-mt-28">
       <h2 className="text-5xl font-black mb-20 text-center">
         Próximas <span className="text-dh-purple">Carreras</span>
       </h2>
