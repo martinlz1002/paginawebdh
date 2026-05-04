@@ -16,7 +16,7 @@
   }
 
   ::selection {
-    @apply bg-dh-green text-black;
+  @apply bg-dh-purple text-white;
   }
 
   /* Scrollbar personalizada */
@@ -43,7 +43,7 @@
   select {
     @apply bg-white/5 text-white placeholder-white/40;
     @apply border border-white/10 rounded-xl;
-    @apply focus:outline-none focus:ring-2 focus:ring-dh-green/40 focus:border-dh-green;
+    @apply focus:outline-none focus:ring-2 focus:ring-dh-purple/40 focus:border-dh-purple;
     @apply transition duration-200;
   }
 
@@ -78,7 +78,7 @@
 
   .btn-primary {
     @apply px-5 py-2.5 rounded-xl font-bold text-white;
-    @apply bg-gradient-to-r from-dh-purple to-dh-green;
+    @apply bg-gradient-to-r from-dh-purple to-dh-purpleLight;
     @apply hover:scale-105 active:scale-95;
     @apply shadow-lg;
   }

@@ -156,7 +156,7 @@ export default function HomePage() {
 
       {/* HERO FULLSCREEN */}
       <section className="relative min-h-screen flex items-center justify-center">
-        <div className="absolute inset-0 opacity-20 bg-gradient-to-br from-dh-purple via-black to-dh-green" />
+        <div className="absolute inset-0 opacity-20 bg-gradient-to-br from-dh-purple via-black to-dh-purple" />
         <div className="relative z-10 w-full">
           <HeroSlider carreras={carreras} />
         </div>
@@ -180,7 +180,7 @@ export default function HomePage() {
         <section className="py-20 border-t border-white/10">
           <div className="px-6">
             <h2 className="text-3xl font-bold mb-12 flex items-center gap-3">
-              <TrophyIcon className="w-6 h-6 text-dh-green" />
+              <TrophyIcon className="w-6 h-6 text-dh-purple" />
               Últimos resultados
             </h2>
 
@@ -195,7 +195,7 @@ export default function HomePage() {
                   className="min-w-[280px] bg-[#1b1b22] p-6 rounded-2xl border border-white/10"
                 >
                   <p className="font-semibold">{r.titulo}</p>
-                  <span className="text-sm text-dh-green">
+                  <span className="text-sm text-dh-purple">
                     Ver resultados →
                   </span>
                 </motion.a>
@@ -208,7 +208,7 @@ export default function HomePage() {
       {/* PRÓXIMAS CARRERAS */}
       <section className="py-32 px-6">
         <h2 className="text-5xl font-black mb-20 text-center">
-          Próximas <span className="text-dh-green">Carreras</span>
+          Próximas <span className="text-dh-purple">Carreras</span>
         </h2>
 
         <div className="space-y-16 max-w-6xl mx-auto">
@@ -252,7 +252,7 @@ export default function HomePage() {
 
                   {abiertas ? (
                     <Link href={`/inscribirse?slug=${c.slug || c.id}`}>
-                      <span className="inline-flex items-center gap-2 bg-dh-green text-black font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 transition">
+                      <span className="inline-flex items-center gap-2 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold px-6 py-3 rounded-full cursor-pointer hover:scale-105 transition">
                         Inscribirme
                         <ArrowRightIcon className="w-5 h-5" />
                       </span>

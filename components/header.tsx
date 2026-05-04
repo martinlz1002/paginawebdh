@@ -134,7 +134,7 @@ export default function Header() {
 
           {/* NAV DESKTOP */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-            <Link href="/" className="hover:text-dh-green transition">
+            <Link href="/" className="hover:text-dh-purple transition">
               Inicio
             </Link>
 
@@ -143,7 +143,7 @@ export default function Header() {
   onMouseEnter={() => setOpenLive(true)}
   onMouseLeave={() => setOpenLive(false)}
 >
-  <span className="cursor-pointer hover:text-dh-green transition">
+  <span className="cursor-pointer hover:text-dh-purple transition">
     {eventosEnVivo.length > 0 ? "En vivo 🔴" : "En vivo"}
   </span>
 
@@ -179,13 +179,13 @@ export default function Header() {
               <>
                 <Link
                   href="/mis-inscripciones"
-                  className="hover:text-dh-green transition"
+                  className="hover:text-dh-purple transition"
                 >
                   Mis Inscripciones
                 </Link>
                 <Link
                   href="/perfil"
-                  className="hover:text-dh-green transition"
+                  className="hover:text-dh-purple transition"
                 >
                   Perfil
                 </Link>
@@ -195,7 +195,7 @@ export default function Header() {
             {esAdmin && (
               <Link
                 href="/admin"
-                className="hover:text-dh-green transition"
+                className="hover:text-dh-purple transition"
               >
                 Admin
               </Link>
@@ -206,12 +206,12 @@ export default function Header() {
           <div className="hidden md:flex items-center gap-6">
             {!user ? (
               <>
-                <Link href="/login" className="hover:text-dh-green transition">
+                <Link href="/login" className="hover:text-dh-purple transition">
                   Iniciar sesión
                 </Link>
                 <Link
                   href="/signup"
-                  className="bg-dh-green text-black px-5 py-2 rounded-full font-semibold hover:scale-105 transition"
+                  className="bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white px-5 py-2 rounded-full font-semibold hover:scale-105 transition"
                 >
                   Crear cuenta
                 </Link>
@@ -279,7 +279,7 @@ export default function Header() {
   onMouseEnter={() => setOpenLive(true)}
   onMouseLeave={() => setOpenLive(false)}
 >
-  <span className="cursor-pointer hover:text-dh-green transition">
+  <span className="cursor-pointer hover:text-dh-purple transition">
     En vivo
   </span>
 
@@ -348,7 +348,7 @@ export default function Header() {
                   <Link
                     href="/signup"
                     onClick={() => setMenuOpen(false)}
-                    className="mt-4 bg-dh-green text-black text-center py-3 rounded-full font-semibold"
+                    className="mt-4 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-black text-center py-3 rounded-full font-semibold"
                   >
                     Crear cuenta
                   </Link>

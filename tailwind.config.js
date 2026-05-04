@@ -8,27 +8,24 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        dh: {
-          /* Colores marca */
-          purple: "#6A1B9A",
-          green: "#7CC242",
+  dh: {
+    purple: "#7B2FF7",
+    purpleLight: "#9b4dff",
+    purpleDark: "#5a1fcf",
 
-          /* Dark System */
-          bg: "#0c0c0f",          // fondo principal
-          surface: "#121217",     // tarjetas base
-          panel: "#17171d",       // contenedores secundarios
-          border: "rgba(255,255,255,0.08)",
+    bg: "#0a0a0a",
+    surface: "#121212",
+    panel: "#17171d",
+    border: "rgba(255,255,255,0.08)",
 
-          /* Texto */
-          ink: "#ffffff",
-          muted: "rgba(255,255,255,0.55)",
+    ink: "#ffffff",
+    muted: "rgba(255,255,255,0.55)",
 
-          /* Estados */
-          success: "#7CC242",
-          danger: "#ef4444",
-          warning: "#f59e0b",
-        },
-      },
+    success: "#22c55e",
+    danger: "#ef4444",
+    warning: "#f59e0b",
+  },
+},
 
       boxShadow: {
         dh: "0 20px 50px rgba(0,0,0,0.6)",
@@ -38,7 +35,7 @@ module.exports = {
       },
 
       backgroundImage: {
-        "dh-gradient": "linear-gradient(to right, #6A1B9A, #7CC242)",
+        "dh-gradient": "linear-gradient(135deg, #7B2FF7, #9b4dff)",
         "dh-radial": "radial-gradient(circle at center, rgba(106,27,154,0.25), transparent 60%)",
       },
 
