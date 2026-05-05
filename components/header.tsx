@@ -129,8 +129,8 @@ export default function Header() {
           <Image
             src="/mi-logo.png"
             alt="DHTime"
-            width={150}
-            height={150}
+            width={190}
+            height={190}
             priority
             className="transition duration-300 group-hover:scale-105"
           />
