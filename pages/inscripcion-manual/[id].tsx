@@ -450,7 +450,7 @@ export default function ManualPage() {
             <h2 className="text-2xl font-extrabold text-dh-purple">Acceso Temporal</h2>
             {race?.titulo ? (
               <p className="text-sm text-gray-600">
-                Evento: <span className="font-semibold text-dh-ink">{race.titulo}</span>
+                Evento: <span className="font-semibold text-gray-800">{race.titulo}</span>
               </p>
             ) : (
               <p className="text-sm text-gray-500">Ingresa tus credenciales para continuar.</p>
@@ -597,7 +597,7 @@ export default function ManualPage() {
 
           {race?.titulo && (
             <p className="text-sm text-gray-600 mt-1">
-              Evento: <span className="font-semibold text-dh-ink">{race.titulo}</span>
+              Evento: <span className="font-semibold text-gray-800">{race.titulo}</span>
             </p>
           )}
 
