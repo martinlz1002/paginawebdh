@@ -1,7 +1,6 @@
 // lib/firebaseAdmin.ts
 import * as admin from 'firebase-admin';
 
-// Estas variables las defines en tu .env.local
 const {
   FIREBASE_PROJECT_ID,
   FIREBASE_CLIENT_EMAIL,
@@ -14,11 +13,13 @@ if (!admin.apps.length) {
     credential: admin.credential.cert({
       projectId: FIREBASE_PROJECT_ID,
       clientEmail: FIREBASE_CLIENT_EMAIL,
-      // las líneas nuevas (\n) suelen venir escapadas en .env
       privateKey: FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
     }),
     storageBucket: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   });
 }
+
+// 👇 ESTA ES LA LÍNEA QUE TE FALTABA
+export const adminDb = admin.firestore();
 
 export { admin };
