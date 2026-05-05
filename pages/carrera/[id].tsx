@@ -122,13 +122,13 @@ export default function CarreraDetalle() {
           )}
 
           <div className="flex flex-wrap justify-center gap-3 pt-3 text-sm">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dh-soft border">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dh-soft border text-gray-900">
               <CalendarIcon className="w-4 h-4 text-dh-purple" />
               {fechaTexto}
             </span>
 
             {carrera.lugar && (
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dh-soft border">
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dh-soft border text-gray-900">
                 <MapPinIcon className="w-4 h-4 text-dh-green" />
                 {carrera.lugar}
               </span>
@@ -201,15 +201,17 @@ export default function CarreraDetalle() {
   // 🟢 NORMAL
   <div className="rounded-2xl border border-dh-green/20 bg-white p-6 text-center space-y-4">
     <div className="text-lg font-extrabold text-gray-900">
+
+      <a
+  href="https://eventosdeportivos.com.mx/contador2026"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="btn-primary"
+>
+  Inscribirme
+</a>
       Inscripciones abiertas
     </div>
-
-    <Link
-      href={`/inscribirse?carreraId=${encodeURIComponent(carrera.id)}`}
-      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold"
-    >
-      Inscribirme
-    </Link>
   </div>
 )}
 
