@@ -100,6 +100,15 @@ export default function CarreraDetalle() {
   return (
     <div className="min-h-screen bg-dh-soft px-4 py-12">
       <div className="max-w-4xl mx-auto space-y-8">
+
+        {carrera.imagenUrl && (
+  <div className="w-full h-64 md:h-96 rounded-2xl overflow-hidden">
+    <img
+      src={carrera.imagenUrl}
+      className="w-full h-full object-cover"
+    />
+  </div>
+)}
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-dh p-6 text-center space-y-2">
           <h1 className="text-3xl font-extrabold text-dh-ink">
@@ -127,41 +136,69 @@ export default function CarreraDetalle() {
           </div>
         </div>
 
+
+{Array.isArray(carrera.distancias) && carrera.distancias.length > 0 && (
+  <div className="bg-white rounded-2xl shadow-dh p-6 space-y-4">
+    <h2 className="text-xl font-bold text-dh-ink">
+      Distancias y categorías
+    </h2>
+
+    {carrera.distancias.map((d: any, idx: number) => (
+      <div key={idx} className="border-t pt-3">
+        <p className="font-semibold text-dh-ink">
+          {d.distancia}
+        </p>
+
+        {Array.isArray(d.categorias) && (
+          <p className="text-sm text-gray-600">
+            {d.categorias.map((c: any) => c.nombre).join(", ")}
+          </p>
+        )}
+      </div>
+    ))}
+  </div>
+)}
+
+
         {/* Estado */}
-        {carreraFinalizada ? (
-  // 🏁 YA TERMINÓ
+       {carreraFinalizada ? (
+  // 🏁 FINALIZADA
   <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-6 text-center space-y-4">
     <div className="text-lg font-extrabold text-dh-ink">
       🏁 Carrera finalizada
     </div>
-    <p className="text-sm text-gray-600">
-      Este evento ya se llevó a cabo.
-    </p>
 
     {hayResultados && (
       <a
         href={resultadosUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold"
       >
-        🏁 Ver resultados oficiales
+        Ver resultados
       </a>
     )}
   </div>
-) : carrera.inscripcionesAbiertas === false ? (
-  // ⛔ INSCRIPCIONES PAUSADAS
-  <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-6 text-center space-y-4">
-    <div className="text-lg font-extrabold text-yellow-700">
-      ⛔ Inscripciones pausadas
+) : carrera.linkExterno ? (
+  // 🌐 INSCRIPCIÓN EXTERNA
+  <div className="rounded-2xl border border-dh-purple/20 bg-white p-6 text-center space-y-4">
+
+    <div className="text-lg font-extrabold text-dh-ink">
+      Inscripciones disponibles
     </div>
 
-    <p className="text-sm text-yellow-700">
-      {carrera.inscripcionesMensaje || "Las inscripciones están temporalmente cerradas."}
-    </p>
+    <a
+      href={carrera.linkExterno}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-purple text-white font-extrabold hover:opacity-90 transition"
+    >
+      Ir a inscripción
+    </a>
+
   </div>
 ) : (
-  // 🟢 TODO NORMAL
+  // 🟢 NORMAL
   <div className="rounded-2xl border border-dh-green/20 bg-white p-6 text-center space-y-4">
     <div className="text-lg font-extrabold text-dh-ink">
       Inscripciones abiertas
@@ -169,7 +206,7 @@ export default function CarreraDetalle() {
 
     <Link
       href={`/inscribirse?carreraId=${encodeURIComponent(carrera.id)}`}
-      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
+      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold"
     >
       Inscribirme
     </Link>
