@@ -54,6 +54,8 @@ export interface CarreraData {
   kitLugar?: string;
   kitHorario?: string;
 
+  linkExterno?: string;
+
   // ✅ pausar inscripciones
   inscripcionesAbiertas?: boolean; // false = pausadas
   inscripcionesMensaje?: string;   // mensaje cuando está pausado

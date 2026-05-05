@@ -31,6 +31,7 @@ interface Carrera {
     publicado?: boolean;
   };
   carreraDate?: Date;
+  linkExterno?: string;
 }
 
 function pad(n: number) {
@@ -79,6 +80,7 @@ export default function HomePage() {
             inscripcionesMensaje: c.inscripcionesMensaje || "",
             resultados: c.resultados || null,
             carreraDate,
+            linkExterno: c.linkExterno || "",
           } as Carrera & { carreraDate: Date | null };
         })
         .filter(
@@ -265,19 +267,31 @@ export default function HomePage() {
                 </div>
 
                 {/* CTA */}
-                {abiertas ? (
-                  <Link href={`/inscribirse?slug=${c.slug || c.id}`}>
-                    <span className="inline-flex items-center gap-2 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold px-7 py-3 rounded-full cursor-pointer hover:scale-105 active:scale-95 transition shadow-[0_0_20px_rgba(123,47,247,0.35)]">
-                      Inscribirme
-                      <ArrowRightIcon className="w-5 h-5" />
-                    </span>
-                  </Link>
-                ) : (
-                  <div className="inline-flex items-center gap-2 text-red-400">
-                    <LockClosedIcon className="w-5 h-5" />
-                    Inscripciones pausadas
-                  </div>
-                )}
+{c.linkExterno ? (
+  <a
+    href={c.linkExterno}
+    target="_blank"
+    rel="noopener noreferrer"
+    className="inline-flex items-center gap-2 bg-green-600 text-white font-bold px-7 py-3 rounded-full hover:scale-105 active:scale-95 transition shadow-lg"
+  >
+    Inscribirme
+    <ArrowRightIcon className="w-5 h-5" />
+  </a>
+) : abiertas ? (
+  <Link href={`/inscribirse?slug=${c.slug || c.id}`}>
+    <span className="inline-flex items-center gap-2 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold px-7 py-3 rounded-full cursor-pointer hover:scale-105 active:scale-95 transition shadow-[0_0_20px_rgba(123,47,247,0.35)]">
+      Inscribirme
+      <ArrowRightIcon className="w-5 h-5" />
+    </span>
+  </Link>
+) : (
+  <Link href={`/carrera/${c.slug || c.id}`}>
+    <span className="inline-flex items-center gap-2 border border-white/20 text-white/80 font-semibold px-7 py-3 rounded-full cursor-pointer hover:bg-white/10 transition">
+      Ver detalles 👀
+      <ArrowRightIcon className="w-5 h-5" />
+    </span>
+  </Link>
+)}
               </div>
             </motion.div>
           );
