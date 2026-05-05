@@ -111,7 +111,7 @@ export default function CarreraDetalle() {
 )}
         {/* Header */}
         <div className="bg-white rounded-2xl shadow-dh p-6 text-center space-y-2">
-          <h1 className="text-3xl font-extrabold text-dh-ink">
+          <h1 className="text-3xl font-extrabold text-gray-900">
             {carrera.titulo}
           </h1>
 
@@ -139,13 +139,13 @@ export default function CarreraDetalle() {
 
 {Array.isArray(carrera.distancias) && carrera.distancias.length > 0 && (
   <div className="bg-white rounded-2xl shadow-dh p-6 space-y-4">
-    <h2 className="text-xl font-bold text-dh-ink">
+    <h2 className="text-xl font-bold text-gray-900">
       Distancias y categorías
     </h2>
 
     {carrera.distancias.map((d: any, idx: number) => (
       <div key={idx} className="border-t pt-3">
-        <p className="font-semibold text-dh-ink">
+        <p className="font-semibold text-gray-900">
           {d.distancia}
         </p>
 
@@ -164,7 +164,7 @@ export default function CarreraDetalle() {
        {carreraFinalizada ? (
   // 🏁 FINALIZADA
   <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-6 text-center space-y-4">
-    <div className="text-lg font-extrabold text-dh-ink">
+    <div className="text-lg font-extrabold text-gray-900">
       🏁 Carrera finalizada
     </div>
 
@@ -183,7 +183,7 @@ export default function CarreraDetalle() {
   // 🌐 INSCRIPCIÓN EXTERNA
   <div className="rounded-2xl border border-dh-purple/20 bg-white p-6 text-center space-y-4">
 
-    <div className="text-lg font-extrabold text-dh-ink">
+    <div className="text-lg font-extrabold text-gray-900">
       Inscripciones disponibles
     </div>
 
@@ -191,7 +191,7 @@ export default function CarreraDetalle() {
       href={carrera.linkExterno}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-purple text-white font-extrabold hover:opacity-90 transition"
+      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-purple text-gray-900 font-extrabold hover:opacity-90 transition"
     >
       Ir a inscripción
     </a>
@@ -200,7 +200,7 @@ export default function CarreraDetalle() {
 ) : (
   // 🟢 NORMAL
   <div className="rounded-2xl border border-dh-green/20 bg-white p-6 text-center space-y-4">
-    <div className="text-lg font-extrabold text-dh-ink">
+    <div className="text-lg font-extrabold text-gray-900">
       Inscripciones abiertas
     </div>
 
