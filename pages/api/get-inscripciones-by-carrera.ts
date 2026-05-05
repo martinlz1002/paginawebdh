@@ -6,7 +6,9 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { carreraId } = req.query;
+  const carreraId = Array.isArray(req.query.carreraId)
+  ? req.query.carreraId[0]
+  : req.query.carreraId;
 
   if (!carreraId) {
     return res.status(400).json({ error: "Falta carreraId" });

@@ -115,7 +115,9 @@ export default function ManualPage() {
 
     const data = await res.json();
 
-    setInscripciones(data || []);
+  console.log("DATA:", data); // 👈 debug opcional
+
+  setInscripciones(Array.isArray(data) ? data : []);
   } catch (e) {
     console.error(e);
   } finally {
@@ -541,19 +543,36 @@ export default function ManualPage() {
               </thead>
 
               <tbody>
-                {inscripciones.map((i, idx) => (
-                  <tr key={i.id} className="border-t">
-                    <td className="p-3">{i.competitorNumber}</td>
-                    <td className="p-3">{i.nombres}</td>
-                    <td className="p-3">{i.ruta}</td>
-                    <td className="p-3">{i.categoria}</td>
-                    <td className="p-3">
-                      {i.paymentStatus === "paid" && "Pagado"}
-                      {i.paymentStatus === "manual" && "Manual"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+  {(Array.isArray(inscripciones) ? inscripciones : []).length === 0 ? (
+    <tr>
+      <td colSpan={5} className="text-center py-6 text-white/50">
+        No hay inscripciones aún 👀
+      </td>
+    </tr>
+  ) : (
+    (Array.isArray(inscripciones) ? inscripciones : []).map((i, idx) => (
+      <tr key={i.id} className="border-t hover:bg-white/5 transition">
+        <td className="p-3">{i.competitorNumber || "-"}</td>
+        <td className="p-3">{i.nombres || "-"}</td>
+        <td className="p-3">{i.ruta || "-"}</td>
+        <td className="p-3">{i.categoria || "-"}</td>
+        <td className="p-3">
+          {i.paymentStatus === "paid" && (
+            <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
+              Pagado
+            </span>
+          )}
+          {i.paymentStatus === "manual" && (
+            <span className="px-3 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">
+              Manual
+            </span>
+          )}
+          {!i.paymentStatus && "-"}
+        </td>
+      </tr>
+    ))
+  )}
+</tbody>
             </table>
           </div>
         )}
