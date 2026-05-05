@@ -98,129 +98,143 @@ export default function CarreraDetalle() {
     carreraFinalizada && resultadosPublicado && resultadosUrl;
 
   return (
-    <div className="min-h-screen bg-dh-soft px-4 py-12">
-      <div className="max-w-4xl mx-auto space-y-8">
+  <div className="min-h-screen bg-dh-soft px-4 py-12">
+    <div className="max-w-5xl mx-auto space-y-10">
 
-        {carrera.imagenUrl && (
-  <div className="w-full h-64 md:h-96 rounded-2xl overflow-hidden">
-    <img
-      src={carrera.imagenUrl}
-      className="w-full h-full object-cover"
-    />
-  </div>
-)}
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-dh p-6 text-center space-y-2">
-          <h1 className="text-3xl font-extrabold text-gray-900">
-            {carrera.titulo}
-          </h1>
-
-          {carrera.descripcion && (
-            <p className="text-gray-600 max-w-2xl mx-auto">
-              {carrera.descripcion}
-            </p>
-          )}
-
-          <div className="flex flex-wrap justify-center gap-3 pt-3 text-sm">
-            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dh-soft border text-gray-900">
-              <CalendarIcon className="w-4 h-4 text-dh-purple" />
-              {fechaTexto}
-            </span>
-
-            {carrera.lugar && (
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-dh-soft border text-gray-900">
-                <MapPinIcon className="w-4 h-4 text-dh-green" />
-                {carrera.lugar}
-              </span>
-            )}
-          </div>
+      {/* 🖼️ Banner */}
+      {carrera.imagenUrl && (
+        <div className="w-full h-64 md:h-96 rounded-3xl overflow-hidden shadow-dhSoft">
+          <img
+            src={carrera.imagenUrl}
+            className="w-full h-full object-cover"
+          />
         </div>
+      )}
 
+      {/* 🧾 HEADER */}
+      <div className="bg-white rounded-3xl shadow-dh p-8 text-center space-y-4">
+        <h1 className="text-3xl md:text-4xl font-black text-gray-900">
+          {carrera.titulo}
+        </h1>
 
-{Array.isArray(carrera.distancias) && carrera.distancias.length > 0 && (
-  <div className="bg-white rounded-2xl shadow-dh p-6 space-y-4">
-    <h2 className="text-xl font-bold text-gray-900">
-      Distancias y categorías
-    </h2>
-
-    {carrera.distancias.map((d: any, idx: number) => (
-      <div key={idx} className="border-t pt-3">
-        <p className="font-semibold text-gray-900">
-          {d.distancia}
-        </p>
-
-        {Array.isArray(d.categorias) && (
-          <p className="text-sm text-gray-600">
-            {d.categorias.map((c: any) => c.nombre).join(", ")}
+        {carrera.descripcion && (
+          <p className="text-gray-600 max-w-2xl mx-auto leading-relaxed">
+            {carrera.descripcion}
           </p>
         )}
-      </div>
-    ))}
-  </div>
-)}
 
+        <div className="flex flex-wrap justify-center gap-3 pt-3 text-sm">
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dh-soft border text-gray-900">
+            <CalendarIcon className="w-4 h-4 text-dh-purple" />
+            {fechaTexto}
+          </span>
 
-        {/* Estado */}
-       {carreraFinalizada ? (
-  // 🏁 FINALIZADA
-  <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-6 text-center space-y-4">
-    <div className="text-lg font-extrabold text-gray-900">
-      🏁 Carrera finalizada
-    </div>
-
-    {hayResultados && (
-      <a
-        href={resultadosUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold"
-      >
-        Ver resultados
-      </a>
-    )}
-  </div>
-) : carrera.linkExterno ? (
-  // 🌐 INSCRIPCIÓN EXTERNA
-  <div className="rounded-2xl border border-dh-purple/20 bg-white p-6 text-center space-y-4">
-
-    <div className="text-lg font-extrabold text-gray-900">
-      Inscripciones disponibles
-    </div>
-
-    <a
-      href={carrera.linkExterno}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-purple text-gray-900 font-extrabold hover:opacity-90 transition"
-    >
-      Ir a inscripción
-    </a>
-
-  </div>
-) : (
-  // 🟢 NORMAL
-  <div className="rounded-2xl border border-dh-purple/20 bg-white p-6 text-center space-y-4">
-    <div className="text-lg font-extrabold text-gray-900">
-
-      <a
-  href="https://eventosdeportivos.com.mx/contador2026"
-  target="_blank"
-  rel="noopener noreferrer"
-  className="btn-primary"
->
-  Inscribirme
-</a>
-      Inscripciones abiertas
-    </div>
-  </div>
-)}
-
-        {/* Footer */}
-        <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
-          <CheckCircleIcon className="w-4 h-4 text-dh-green" />
-          Evento oficial DHTime
+          {carrera.lugar && (
+            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-dh-soft border text-gray-900">
+              <MapPinIcon className="w-4 h-4 text-dh-green" />
+              {carrera.lugar}
+            </span>
+          )}
         </div>
       </div>
+
+      {/* 🏁 DISTANCIAS PRO */}
+      {Array.isArray(carrera.distancias) && carrera.distancias.length > 0 && (
+        <div className="bg-white rounded-3xl shadow-dh p-8 space-y-6">
+          <h2 className="text-2xl font-black text-gray-900">
+            Distancias y categorías
+          </h2>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            {carrera.distancias.map((d: any, idx: number) => (
+              <div
+                key={idx}
+                className="group relative p-6 rounded-2xl bg-dh-soft border border-gray-200 hover:border-dh-purple/40 transition"
+              >
+                {/* glow */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition bg-dh-glow rounded-2xl" />
+
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-extrabold text-gray-900">
+                    {d.distancia}
+                  </h3>
+
+                  <span className="text-xs px-3 py-1 rounded-full bg-dh-purple/10 text-dh-purple font-semibold">
+                    {d.categorias?.length || 0} categorías
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {d.categorias?.map((c: any, i: number) => (
+                    <span
+                      key={i}
+                      className="text-xs px-3 py-1 rounded-full bg-white border text-gray-700 hover:bg-dh-purple/10 hover:text-dh-purple transition"
+                    >
+                      {c.nombre}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 🎯 ESTADO */}
+      {carreraFinalizada ? (
+        <div className="rounded-3xl border border-dh-purple/20 bg-dh-soft p-8 text-center space-y-4">
+          <div className="text-lg font-extrabold text-gray-900">
+            🏁 Carrera finalizada
+          </div>
+
+          {hayResultados && (
+            <a
+              href={resultadosUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:scale-105 transition"
+            >
+              Ver resultados
+            </a>
+          )}
+        </div>
+      ) : carrera.linkExterno ? (
+        // 🌐 EXTERNO (tu caso actual)
+        <div className="rounded-3xl border border-dh-purple/20 bg-white p-8 text-center space-y-4">
+          <div className="text-lg font-extrabold text-gray-900">
+            Inscripciones disponibles
+          </div>
+
+          <a
+            href={carrera.linkExterno}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold hover:scale-105 active:scale-95 transition shadow-lg"
+          >
+            Inscribirme
+          </a>
+        </div>
+      ) : (
+        // 🟢 NORMAL
+        <div className="rounded-3xl border border-dh-purple/20 bg-white p-8 text-center space-y-4">
+          <div className="text-lg font-extrabold text-gray-900">
+            Inscripciones abiertas
+          </div>
+
+          <Link href={`/inscribirse?slug=${carrera.id}`}>
+            <span className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg">
+              Inscribirme
+            </span>
+          </Link>
+        </div>
+      )}
+
+      {/* FOOTER */}
+      <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+        <CheckCircleIcon className="w-4 h-4 text-dh-green" />
+        Evento oficial DHTime
+      </div>
     </div>
-  );
+  </div>
+);
 }
