@@ -115,11 +115,18 @@ export default function ManualPage() {
 
     const data = await res.json();
 
-  console.log("DATA:", data); // 👈 debug opcional
+    console.log("🔥 DATA:", data);
 
-  setInscripciones(Array.isArray(data) ? data : []);
+    if (!Array.isArray(data)) {
+      console.warn("No es array:", data);
+      setInscripciones([]);
+      return;
+    }
+
+    setInscripciones(data);
   } catch (e) {
-    console.error(e);
+    console.error("Error cargando inscripciones:", e);
+    setInscripciones([]);
   } finally {
     setLoadingList(false);
   }
@@ -531,7 +538,7 @@ export default function ManualPage() {
           <p>Cargando...</p>
         ) : (
           <div className="bg-[#0c0c0f] border border-white/10 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm text-white">
               <thead className="bg-white/5 text-white/80 text-sm">
                 <tr>
                   <th className="p-3">#</th>
@@ -608,10 +615,10 @@ export default function ManualPage() {
         </div>
 
         <button
-  onClick={() => {
-    loadInscripciones();
-    setStep("list");
-  }}
+    onClick={async () => {
+      await loadInscripciones();
+      setStep("list");
+    }}
   className="w-full rounded-xl border border-dh-purple text-dh-purple py-2 font-semibold hover:bg-dh-purple/10 transition"
 >
   Ver inscritos 👁️
@@ -620,7 +627,7 @@ export default function ManualPage() {
         <div className={`${cardBase} p-6 space-y-5`}>
           {/* Fecha de nacimiento */}
           <div>
-            <label className="block text-sm font-semibold text-dh-ink mb-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
               Fecha de nacimiento
             </label>
             <div className="relative">
@@ -645,7 +652,7 @@ export default function ManualPage() {
           {/* Distancia / Categoría / Número */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-dh-ink mb-2">Distancia</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Distancia</label>
               <div className="relative">
                 <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <select
@@ -664,7 +671,7 @@ export default function ManualPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-dh-ink mb-2">Categoría</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Categoría</label>
               <div className="relative">
                 <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <select
@@ -689,7 +696,7 @@ export default function ManualPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-dh-ink mb-2">Número</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Número</label>
               <div className="relative">
                 <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <select
@@ -713,7 +720,7 @@ export default function ManualPage() {
 
           {/* Rama */}
           <div>
-            <label className="block text-sm font-semibold text-dh-ink mb-2">Rama</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Rama</label>
             <div className="relative">
               <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <select
