@@ -530,9 +530,9 @@ export default function ManualPage() {
         {loadingList ? (
           <p>Cargando...</p>
         ) : (
-          <div className="overflow-x-auto bg-white rounded-xl shadow">
+          <div className="bg-[#0c0c0f] border border-white/10 rounded-2xl overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-100 text-left">
+              <thead className="bg-white/5 text-white/80 text-sm">
                 <tr>
                   <th className="p-3">#</th>
                   <th className="p-3">Nombre</th>
@@ -552,11 +552,11 @@ export default function ManualPage() {
   ) : (
     (Array.isArray(inscripciones) ? inscripciones : []).map((i, idx) => (
       <tr key={i.id} className="border-t hover:bg-white/5 transition">
-        <td className="p-3">{i.competitorNumber || "-"}</td>
-        <td className="p-3">{i.nombres || "-"}</td>
-        <td className="p-3">{i.ruta || "-"}</td>
-        <td className="p-3">{i.categoria || "-"}</td>
-        <td className="p-3">
+        <td className="p-3 text-white/90">{i.competitorNumber || "-"}</td>
+        <td className="p-3 text-white/90">{i.nombres || "-"}</td>
+        <td className="p-3 text-white/90">{i.ruta || "-"}</td>
+        <td className="p-3 text-white/90">{i.categoria || "-"}</td>
+        <td className="p-3 text-white/90">
           {i.paymentStatus === "paid" && (
             <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
               Pagado
