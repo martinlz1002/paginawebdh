@@ -129,39 +129,52 @@ export default function CarreraDetalle() {
 
         {/* Estado */}
         {carreraFinalizada ? (
-          <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-6 text-center space-y-4">
-            <div className="text-lg font-extrabold text-dh-ink">
-              🏁 Carrera finalizada
-            </div>
-            <p className="text-sm text-gray-600">
-              Este evento ya se llevó a cabo.
-            </p>
+  // 🏁 YA TERMINÓ
+  <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-6 text-center space-y-4">
+    <div className="text-lg font-extrabold text-dh-ink">
+      🏁 Carrera finalizada
+    </div>
+    <p className="text-sm text-gray-600">
+      Este evento ya se llevó a cabo.
+    </p>
 
-            {hayResultados && (
-              <a
-                href={resultadosUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
-              >
-                🏁 Ver resultados oficiales
-              </a>
-            )}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dh-green/20 bg-white p-6 text-center space-y-4">
-            <div className="text-lg font-extrabold text-dh-ink">
-              Inscripciones abiertas
-            </div>
+    {hayResultados && (
+      <a
+        href={resultadosUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
+      >
+        🏁 Ver resultados oficiales
+      </a>
+    )}
+  </div>
+) : carrera.inscripcionesAbiertas === false ? (
+  // ⛔ INSCRIPCIONES PAUSADAS
+  <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-6 text-center space-y-4">
+    <div className="text-lg font-extrabold text-yellow-700">
+      ⛔ Inscripciones pausadas
+    </div>
 
-            <Link
-              href={`/inscribirse?carreraId=${encodeURIComponent(carrera.id)}`}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
-            >
-              Inscribirme
-            </Link>
-          </div>
-        )}
+    <p className="text-sm text-yellow-700">
+      {carrera.inscripcionesMensaje || "Las inscripciones están temporalmente cerradas."}
+    </p>
+  </div>
+) : (
+  // 🟢 TODO NORMAL
+  <div className="rounded-2xl border border-dh-green/20 bg-white p-6 text-center space-y-4">
+    <div className="text-lg font-extrabold text-dh-ink">
+      Inscripciones abiertas
+    </div>
+
+    <Link
+      href={`/inscribirse?carreraId=${encodeURIComponent(carrera.id)}`}
+      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-dh-green text-dh-dark font-extrabold hover:opacity-95 transition"
+    >
+      Inscribirme
+    </Link>
+  </div>
+)}
 
         {/* Footer */}
         <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
