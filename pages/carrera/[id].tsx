@@ -215,18 +215,29 @@ export default function CarreraDetalle() {
           </a>
         </div>
       ) : (
-        // 🟢 NORMAL
-        <div className="rounded-3xl border border-dh-purple/20 bg-white p-8 text-center space-y-4">
-          <div className="text-lg font-extrabold text-gray-900">
-            Inscripciones abiertas
-          </div>
+        // 🟢 NORMAL / EXTERNO
+<div className="rounded-3xl border border-dh-purple/20 bg-white p-8 text-center space-y-4">
+  <div className="text-lg font-extrabold text-gray-900">
+    Inscripciones abiertas
+  </div>
 
-          <Link href={`/inscribirse?slug=${carrera.id}`}>
-            <span className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg">
-              Inscribirme
-            </span>
-          </Link>
-        </div>
+  {carrera.linkExterno ? (
+    <a
+      href={carrera.linkExterno}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold hover:scale-105 active:scale-95 transition shadow-lg"
+    >
+      Inscribirme
+    </a>
+  ) : (
+    <Link href={`/inscribirse?slug=${carrera.id}`}>
+      <span className="inline-flex items-center gap-2 px-7 py-3 rounded-full bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold cursor-pointer hover:scale-105 active:scale-95 transition shadow-lg">
+        Inscribirme
+      </span>
+    </Link>
+  )}
+</div>
       )}
 
       {/* FOOTER */}
