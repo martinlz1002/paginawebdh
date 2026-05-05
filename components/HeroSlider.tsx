@@ -147,14 +147,23 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
               </div>
 
               {/* CTA */}
-              {current.inscripcionesAbiertas !== false && (
-                <button
-                  onClick={handleClick}
-                  className="mt-6 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold px-8 py-4 rounded-full hover:scale-105 active:scale-95 transition shadow-[0_0_30px_rgba(123,47,247,0.4)]"
-                >
-                  Inscribirme
-                </button>
-              )}
+              {current.inscripcionesAbiertas !== false ? (
+  <button
+    onClick={handleClick}
+    className="mt-6 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white font-bold px-8 py-4 rounded-full hover:scale-105 active:scale-95 transition shadow-[0_0_30px_rgba(123,47,247,0.4)]"
+  >
+    Inscribirme
+  </button>
+) : (
+  <button
+    onClick={() =>
+      router.push(`/carrera/${current.slug || current.id}`)
+    }
+    className="mt-6 bg-white/10 border border-white/30 text-white font-bold px-8 py-4 rounded-full hover:bg-white/20 transition"
+  >
+    Ver detalles
+  </button>
+)}
             </div>
           </div>
 
