@@ -6,7 +6,7 @@ import { CalendarIcon, MapPinIcon } from "@heroicons/react/24/outline";
 
 export interface CarreraCardProps {
   id: string;
-  slug?: string; // 👈 NUEVO
+  slug?: string;
   titulo: string;
   descripcion?: string;
   ubicacion?: string;
@@ -15,6 +15,10 @@ export interface CarreraCardProps {
   imagenUrl?: string;
   resultadosUrl?: string;
   resultadosPublicado?: boolean;
+
+  // 🔥 NUEVOS
+  inscripcionesAbiertas?: boolean;
+  linkExterno?: string;
 }
 
 const CarreraCard: FC<CarreraCardProps> = ({
@@ -28,13 +32,19 @@ const CarreraCard: FC<CarreraCardProps> = ({
   imagenUrl,
   resultadosUrl,
   resultadosPublicado,
+  inscripcionesAbiertas = true,
+  linkExterno,
 }) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const carreraDate = new Date(fechaISO);
   const isPast = carreraDate < today;
+
   const hasResults = isPast && resultadosPublicado && !!resultadosUrl;
+
+  // 🔥 estado pausado (pero no pasada)
+  const isPaused = !inscripcionesAbiertas && !isPast;
 
   const url = `/carrera/${slug || id}`;
 
@@ -44,8 +54,7 @@ const CarreraCard: FC<CarreraCardProps> = ({
       transition={{ duration: 0.25 }}
       className="group relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-md border border-white/5 shadow-dhSoft"
     >
-
-      {/* 🌫️ Glow sutil */}
+      {/* 🌫️ Glow */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition duration-500 bg-dh-glow" />
 
       {/* 🖼️ Imagen */}
@@ -60,13 +69,18 @@ const CarreraCard: FC<CarreraCardProps> = ({
             }`}
           />
 
-          {/* Overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
 
-          {/* 🏷️ Badge */}
+          {/* 🏷️ BADGES */}
           {hasResults && (
             <div className="absolute top-4 left-4 bg-gradient-to-r from-dh-purple to-dh-purpleLight text-white text-xs font-bold px-4 py-1 rounded-full shadow-lg">
               RESULTADOS
+            </div>
+          )}
+
+          {isPaused && (
+            <div className="absolute top-4 left-4 bg-yellow-500/90 text-black text-xs font-bold px-4 py-1 rounded-full shadow-lg">
+              PAUSADA
             </div>
           )}
 
@@ -80,7 +94,6 @@ const CarreraCard: FC<CarreraCardProps> = ({
 
       {/* 📦 CONTENIDO */}
       <div className="p-6 space-y-5">
-
         {/* Título */}
         <h2 className="text-2xl font-black leading-tight text-white/95 group-hover:text-white transition">
           {titulo}
@@ -110,43 +123,58 @@ const CarreraCard: FC<CarreraCardProps> = ({
 
         {/* CTA */}
         <div className="pt-3 flex items-center justify-between">
-
           {hasResults ? (
             <span className="text-dh-purple font-semibold text-sm">
               Ver resultados →
             </span>
+          ) : linkExterno ? (
+            <span className="text-green-400 font-semibold text-sm">
+              Inscribirme →
+            </span>
+          ) : isPaused ? (
+            <span className="text-yellow-400 font-semibold text-sm">
+              Ver detalles 👀
+            </span>
           ) : (
             <span className="text-white/70 text-sm group-hover:text-dh-purple transition">
-              Ver detalles →
+              Inscribirme →
             </span>
           )}
 
-          {/* 👉 Mini indicador visual */}
           <div className="w-2 h-2 rounded-full bg-dh-purple opacity-0 group-hover:opacity-100 transition" />
         </div>
       </div>
 
-      {/* 🔥 Línea animada inferior */}
+      {/* Línea animada */}
       <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-dh-purple to-dh-purpleLight group-hover:w-full transition-all duration-500" />
     </motion.div>
   );
 
+  // 🔥 CONTROL DE CLICK
+
   if (hasResults) {
     return (
-      <a
-        href={resultadosUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="block"
-      >
+      <a href={resultadosUrl} target="_blank" rel="noopener noreferrer" className="block">
         {content}
       </a>
     );
   }
 
+  // 👉 prioridad: link externo
+  if (linkExterno) {
+    return (
+      <a href={linkExterno} target="_blank" rel="noopener noreferrer" className="block">
+        {content}
+      </a>
+    );
+  }
+
+  // 👉 default: detalles
   return (
     <Link href={url} className="block">
       {content}
     </Link>
   );
 };
+
+export default CarreraCard;

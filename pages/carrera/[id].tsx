@@ -199,7 +199,7 @@ export default function CarreraDetalle() {
   </div>
 ) : (
   // 🟢 NORMAL
-  <div className="rounded-2xl border border-dh-green/20 bg-white p-6 text-center space-y-4">
+  <div className="rounded-2xl border border-dh-purple/20 bg-white p-6 text-center space-y-4">
     <div className="text-lg font-extrabold text-gray-900">
 
       <a
