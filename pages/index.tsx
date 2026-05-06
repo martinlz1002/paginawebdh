@@ -272,7 +272,7 @@ export default function HomePage() {
     href={c.linkExterno}
     target="_blank"
     rel="noopener noreferrer"
-    className="inline-flex items-center gap-2 bg-green-600 text-white font-bold px-7 py-3 rounded-full hover:scale-105 active:scale-95 transition shadow-lg"
+    className="inline-flex items-center gap-2 bg-purple-600 text-white font-bold px-7 py-3 rounded-full hover:scale-105 active:scale-95 transition shadow-lg"
   >
     Inscribirme
     <ArrowRightIcon className="w-5 h-5" />
@@ -305,6 +305,24 @@ export default function HomePage() {
         <Gallery limit={6} showAllButton />
       </div>
     </section>
+
+
+    <section className="py-28 px-6 text-center">
+  <h2 className="text-4xl font-black mb-6">
+    ¿Organizas un evento?
+  </h2>
+
+  <p className="text-white/60 mb-8">
+    Nosotros nos encargamos del cronometraje y logística.
+  </p>
+
+  <a
+    href="https://wa.me/+526688207434"
+    className="inline-flex items-center gap-2 bg-dh-purple text-white px-8 py-4 rounded-full font-bold hover:scale-105 transition"
+  >
+    Contáctanos
+  </a>
+</section>
 
   </div>
 );

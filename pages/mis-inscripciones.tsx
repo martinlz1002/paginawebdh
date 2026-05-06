@@ -466,7 +466,7 @@ export default function MisInscripcionesPage() {
                         <>
                           <button
                             onClick={() => generarPDF(i)}
-                            className="w-full bg-dh-green text-dh-dark py-2 rounded-xl font-extrabold hover:opacity-95 transition"
+                            className="w-full bg-dh-purple text-dh-dark py-2 rounded-xl font-extrabold hover:opacity-95 transition"
                           >
                             Descargar Confirmación
                           </button>
