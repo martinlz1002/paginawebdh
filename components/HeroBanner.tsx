@@ -70,39 +70,39 @@ export default function HeroBanner() {
 
         {/* 🚀 CTA */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-          className="mt-10 flex justify-center gap-4 flex-wrap"
-        >
+  initial={{ opacity: 0, y: 30 }}
+  animate={{ opacity: 1, y: 0 }}
+  transition={{ duration: 0.7, delay: 0.3 }}
+  className="mt-10 flex justify-center items-center gap-4 flex-wrap"
+>
 
-          {/* 🔥 BOTÓN PRINCIPAL */}
-          <button
-            onClick={handleScroll}
-            className="group relative px-8 py-3 rounded-full font-semibold text-white transition-all duration-300
-                       bg-gradient-to-r from-dh-purple to-dh-purpleLight
-                       shadow-[0_0_25px_rgba(123,47,247,0.35)]
-                       hover:scale-105 active:scale-95"
-          >
-            <span className="relative z-10">Ver carreras</span>
+  {/* 🔥 BOTÓN PRINCIPAL */}
+  <button
+    onClick={handleScroll}
+    className="group relative px-8 py-4 rounded-full font-semibold text-white transition-all duration-300
+               bg-gradient-to-r from-dh-purple to-dh-purpleLight
+               shadow-[0_0_25px_rgba(123,47,247,0.35)]
+               hover:scale-105 active:scale-95"
+  >
+    <span className="relative z-10">Ver carreras</span>
 
-            {/* glow hover */}
-            <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition
-                             bg-gradient-to-r from-dh-purple to-dh-purpleLight blur-md" />
-          </button>
+    <span className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition
+                     bg-gradient-to-r from-dh-purple to-dh-purpleLight blur-md" />
+  </button>
 
-          {/* 🔒 LOGIN SOLO SI NO HAY SESIÓN */}
-          {!user && (
-            <Link href="/login">
-              <span className="px-8 py-3 rounded-full border border-white/20 text-white/80
-                               hover:bg-white/10 hover:text-white
-                               transition cursor-pointer">
-                Iniciar sesión
-              </span>
-            </Link>
-          )}
+  {/* 🔒 LOGIN */}
+  {!user && (
+    <Link href="/login">
+      <span className="group relative px-8 py-4 rounded-full font-semibold text-white/80 transition-all duration-300
+                       border border-white/20
+                       hover:bg-white/10 hover:text-white
+                       hover:scale-105 active:scale-95 cursor-pointer">
+        <span className="relative z-10">Iniciar sesión</span>
+      </span>
+    </Link>
+  )}
 
-        </motion.div>
+</motion.div>
       </div>
     </section>
   );

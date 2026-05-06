@@ -97,8 +97,8 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
           <AnimatePresence mode="wait">
             <motion.div
               key={index}
-              initial={{ opacity: 0, scale: 1.08 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0, scale: 1.1, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.8 }}
               className="absolute inset-0"
@@ -116,7 +116,7 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
               {/* 🎭 CAPAS DE PROFUNDIDAD */}
               <div className="absolute inset-0 bg-black/60" />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-black via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
             </motion.div>
           </AnimatePresence>
 
@@ -125,9 +125,15 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
             <div className="max-w-2xl text-white space-y-8">
 
               {/* Título */}
-              <h2 className="text-5xl md:text-6xl font-black leading-tight">
+              <motion.h2
+                key={current.titulo}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-5xl md:text-6xl font-black leading-tight"
+                >
                 {current.titulo}
-              </h2>
+              </motion.h2>
 
               {/* Info */}
               <div className="flex flex-wrap gap-6 text-white/70">
@@ -144,6 +150,10 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
                     {current.ubicacion}
                   </span>
                 )}
+
+                <p className="text-white/60 max-w-md">
+                  Vive la experiencia de esta carrera y compite con los mejores.
+                </p>
               </div>
 
               {/* CTA */}
@@ -166,6 +176,21 @@ export default function HeroSlider({ carreras }: HeroSliderProps) {
 )}
             </div>
           </div>
+
+
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+            {slides.map((_, i) => (
+          <div
+            key={i}
+            onClick={() => setIndex(i)}
+            className={`w-2.5 h-2.5 rounded-full cursor-pointer transition ${
+            i === index
+          ? "bg-dh-purple scale-125"
+          : "bg-white/30 hover:bg-white/60"
+      }`}
+    />
+  ))}
+</div>
 
           {/* 🔥 PROGRESS BAR */}
           <div className="absolute bottom-0 left-0 w-full h-[2px] bg-white/10">

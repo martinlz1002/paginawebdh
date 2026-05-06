@@ -184,37 +184,60 @@ export default function HomePage() {
     </section>
 
     {/* RESULTADOS */}
-    {resultadosRecientes.length > 0 && (
-      <section className="py-24 border-t border-white/5">
-        <div className="px-6 max-w-6xl mx-auto">
+    <div className="flex gap-6 overflow-x-auto pb-6">
+  {resultadosRecientes.map((r) => (
+    <motion.a
+      key={r.id}
+      href={r.resultados!.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      whileHover={{ y: -6, scale: 1.03 }}
+      className="group relative min-w-[300px] rounded-3xl overflow-hidden
+                 bg-gradient-to-br from-white/5 to-white/0
+                 border border-white/10 backdrop-blur-md
+                 shadow-[0_10px_30px_rgba(0,0,0,0.4)]
+                 transition"
+    >
 
-          <h2 className="text-3xl font-bold mb-12 flex items-center gap-3">
-            <TrophyIcon className="w-6 h-6 text-dh-purple" />
-            Últimos resultados
-          </h2>
+      {/* Glow hover */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition
+                      bg-dh-purple/10 blur-xl" />
 
-          <div className="flex gap-6 overflow-x-auto pb-4">
-            {resultadosRecientes.map((r) => (
-              <motion.a
-                key={r.id}
-                href={r.resultados!.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                whileHover={{ scale: 1.04 }}
-                className="min-w-[280px] bg-dh-panel p-6 rounded-2xl border border-white/5 shadow-dhSoft transition"
-              >
-                <p className="font-semibold text-white/90">{r.titulo}</p>
+      {/* Contenido */}
+      <div className="relative p-6 space-y-4">
 
-                <span className="text-sm text-dh-purple mt-2 inline-block">
-                  Ver resultados →
-                </span>
-              </motion.a>
-            ))}
-          </div>
+        {/* Badge */}
+        <span className="inline-block text-xs font-bold px-3 py-1 rounded-full
+                         bg-dh-purple/20 text-dh-purple">
+          RESULTADOS
+        </span>
 
+        {/* Título */}
+        <h3 className="text-lg font-bold text-white/90 group-hover:text-white transition leading-snug">
+          {r.titulo}
+        </h3>
+
+        {/* Línea decorativa */}
+        <div className="w-10 h-[2px] bg-dh-purple/50 group-hover:w-16 transition-all" />
+
+        {/* CTA */}
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-sm text-white/60 group-hover:text-dh-purple transition">
+            Ver resultados →
+          </span>
+
+          {/* Puntito animado */}
+          <div className="w-2 h-2 rounded-full bg-dh-purple opacity-0 group-hover:opacity-100 transition" />
         </div>
-      </section>
-    )}
+
+      </div>
+
+      {/* Línea inferior animada */}
+      <div className="absolute bottom-0 left-0 h-[2px] w-0 bg-gradient-to-r from-dh-purple to-dh-purpleLight group-hover:w-full transition-all duration-500" />
+
+    </motion.a>
+  ))}
+</div>
 
     {/* PRÓXIMAS CARRERAS */}
     <section id="carreras" className="py-32 px-6 scroll-mt-28">
@@ -317,7 +340,7 @@ export default function HomePage() {
   </p>
 
   <a
-    href="https://wa.me/+526688207434"
+    href="https://wa.me/+526683963132"
     className="inline-flex items-center gap-2 bg-dh-purple text-white px-8 py-4 rounded-full font-bold hover:scale-105 transition"
   >
     Contáctanos
