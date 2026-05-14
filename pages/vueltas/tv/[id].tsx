@@ -12,6 +12,7 @@ type Equipo = {
   metrosExtra?: number
   ultimoTiempoVuelta?: number
   ultimaVuelta?: number
+  categoria?: string
 }
 
 type Evento = {
@@ -47,6 +48,8 @@ export default function VueltasTV() {
 
   const posicionesRef = useRef<Record<string, number>>({})
 
+  const animadasRef = useRef<Record<string, number>>({})
+
   const primerCargaRef = useRef(true)
 
   const [mejorVueltaEvento, setMejorVueltaEvento] = useState<{
@@ -55,6 +58,35 @@ export default function VueltasTV() {
 } | null>(null)
 
 const [highlight, setHighlight] = useState<string | null>(null)
+
+const [tabCategoria, setTabCategoria] = useState<
+  "general" | "varonil" | "femenil" | "mixto"
+>("general")
+
+const tabs = useMemo(() => {
+
+  const disponibles = ["general"]
+
+  if (equipos.some(e => e.categoria === "varonil")) {
+    disponibles.push("varonil")
+  }
+
+  if (equipos.some(e => e.categoria === "femenil")) {
+    disponibles.push("femenil")
+  }
+
+  if (equipos.some(e => e.categoria === "mixto")) {
+    disponibles.push("mixto")
+  }
+
+  return disponibles as (
+    "general" |
+    "varonil" |
+    "femenil" |
+    "mixto"
+  )[]
+
+}, [equipos])
 
 const [tiempoRestante, setTiempoRestante] = useState<number>(0)
 
@@ -151,11 +183,31 @@ const mejorUltimaVuelta = useMemo(() => {
 
 }, [equipos])
 
-  // 👉 SOLO esto se queda
 const [inicioTV, setInicioTV] = useState<number | null>(null)
 
 useEffect(() => {
   setInicioTV(Date.now())
+}, [])
+
+useEffect(() => {
+
+  const interval = setInterval(() => {
+
+    setTabCategoria(prev => {
+
+      const currentIndex = tabs.indexOf(prev)
+
+      const nextIndex =
+        (currentIndex + 1) % tabs.length
+
+      return tabs[nextIndex]
+
+    })
+
+  }, 15000)
+
+  return () => clearInterval(interval)
+
 }, [])
 
 
@@ -254,9 +306,21 @@ useEffect(() => {
 
   const pista = evento?.longitudPista || 400
 
+  const equiposFiltrados = useMemo(() => {
+
+  if (tabCategoria === "general") {
+    return equipos
+  }
+
+  return equipos.filter(
+    e => e.categoria === tabCategoria
+  )
+
+}, [equipos, tabCategoria])
+
   const ranking = useMemo(() => {
 
-  return [...equipos].sort((a, b) => {
+  return [...equiposFiltrados].sort((a, b) => {
 
     const distA = a.vueltas * pista + (a.metrosExtra || 0)
     const distB = b.vueltas * pista + (b.metrosExtra || 0)
@@ -274,7 +338,7 @@ useEffect(() => {
 
   })
 
-}, [equipos, pista])
+}, [equiposFiltrados, pista])
 
 
   function formatTime(ms?: number) {
@@ -412,11 +476,64 @@ return (
 
     <h1 style={{
       textAlign:"center",
-      fontSize:"56px",
+      fontSize:"36px",
       marginBottom:"30px"
     }}>
       {evento?.nombreEvento || "Carrera"}
     </h1>
+
+    <div style={{
+  display:"flex",
+  justifyContent:"center",
+  gap:"12px",
+  marginBottom:"25px"
+}}>
+
+  {[
+    "general",
+    "varonil",
+    "femenil",
+  ].map(tab => (
+
+    <button
+      key={tab}
+
+      onClick={() =>
+        setTabCategoria(tab as any)
+      }
+
+      style={{
+
+        background:
+          tabCategoria === tab
+            ? "#4CAF50"
+            : "#222",
+
+        color:"#fff",
+
+        border:"none",
+
+        padding:"12px 22px",
+
+        borderRadius:"10px",
+
+        fontSize:"18px",
+
+        fontWeight:"bold",
+
+        cursor:"pointer",
+
+        transition:"0.25s"
+      }}
+    >
+
+      {tab.toUpperCase()}
+
+    </button>
+
+  ))}
+
+</div>
 
     <div style={{
       display: "flex",
@@ -627,23 +744,39 @@ return (
             <tr
               key={e.id}
               ref={(el) => {
-                if (!el) return
 
-                const prevIndex = posicionesRef.current[e.id]
-                if (prevIndex === undefined) return
+  if (!el) return
 
-                const delta = (prevIndex - index) * 60
+  const prevIndex = posicionesRef.current[e.id]
 
-                if (delta !== 0) {
-                  el.style.transform = `translateY(${delta}px)`
-                  el.style.transition = "none"
+  if (prevIndex === undefined) return
 
-                  requestAnimationFrame(() => {
-                    el.style.transform = "translateY(0)"
-                    el.style.transition = "transform 0.35s ease, background 0.4s ease"
-                  })
-                }
-              }}
+  // 👇 evitar repetir misma animación
+  if (animadasRef.current[e.id] === index) return
+
+  const delta = (prevIndex - index) * 60
+
+  if (delta !== 0) {
+
+    animadasRef.current[e.id] = index
+
+    el.style.transition = "none"
+    el.style.transform = `translateY(${delta}px)`
+
+    requestAnimationFrame(() => {
+
+      requestAnimationFrame(() => {
+
+        el.style.transition =
+          "transform 0.45s ease, background 0.4s ease"
+
+        el.style.transform = "translateY(0)"
+      })
+
+    })
+  }
+
+}}
 
               style={{
                 borderBottom:"1px solid #333",
