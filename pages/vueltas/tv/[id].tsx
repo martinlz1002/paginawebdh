@@ -63,6 +63,8 @@ const [tabCategoria, setTabCategoria] = useState<
   "general" | "varonil" | "femenil" | "mixto"
 >("general")
 
+const [animandoTab, setAnimandoTab] = useState(false)
+
 const tabs = useMemo(() => {
 
   const disponibles = ["general"]
@@ -193,22 +195,32 @@ useEffect(() => {
 
   const interval = setInterval(() => {
 
-    setTabCategoria(prev => {
+    setAnimandoTab(true)
 
-      const currentIndex = tabs.indexOf(prev)
+    setTimeout(() => {
 
-      const nextIndex =
-        (currentIndex + 1) % tabs.length
+      setTabCategoria(prev => {
 
-      return tabs[nextIndex]
+        const currentIndex = tabs.indexOf(prev)
 
-    })
+        const nextIndex =
+          (currentIndex + 1) % tabs.length
+
+        return tabs[nextIndex]
+
+      })
+
+      setTimeout(() => {
+        setAnimandoTab(false)
+      }, 80)
+
+    }, 350)
 
   }, 15000)
 
   return () => clearInterval(interval)
 
-}, [])
+}, [tabs])
 
 
 // 🔹 EVENTO + EQUIPOS (igual)
@@ -476,7 +488,7 @@ return (
 
     <h1 style={{
       textAlign:"center",
-      fontSize:"36px",
+      fontSize:"30px",
       marginBottom:"30px"
     }}>
       {evento?.nombreEvento || "Carrera"}
