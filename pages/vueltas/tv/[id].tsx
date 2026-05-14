@@ -694,9 +694,23 @@ return (
       )}
 
     </div>
-
     {/* TABLA */}
-    <table style={{
+
+<div
+  style={{
+
+    opacity: animandoTab ? 0 : 1,
+
+    transform:
+      animandoTab
+        ? "translateY(25px)"
+        : "translateY(0)",
+
+    transition: "all 0.35s ease"
+  }}
+>
+
+<table style={{
       width:"100%",
       fontSize:"26px",
       borderCollapse:"collapse",
@@ -846,6 +860,8 @@ return (
       </tbody>
 
     </table>
+
+    </div>
 
     <style jsx>{`
 
