@@ -63,6 +63,8 @@ const [tabCategoria, setTabCategoria] = useState<
   "general" | "varonil" | "femenil" | "mixto"
 >("general")
 
+const [sponsorIndex, setSponsorIndex] = useState(0)
+
 const [animandoTab, setAnimandoTab] = useState(false)
 
 const tabs = useMemo(() => {
@@ -221,6 +223,17 @@ useEffect(() => {
   return () => clearInterval(interval)
 
 }, [tabs])
+
+
+useEffect(() => {
+
+  prevRankingRef.current = ranking
+
+  posicionesRef.current = {}
+
+  animadasRef.current = {}
+
+}, [tabCategoria])
 
 
 // 🔹 EVENTO + EQUIPOS (igual)
@@ -435,6 +448,48 @@ const cardStyle = {
   boxShadow: "0 0 15px rgba(255,255,255,0.08)"
 }
 
+const sponsors = [
+
+  {
+    src:"/Caffenio_blanco.png",
+    height:"200px"
+  },
+
+  {
+    src:"/mizuno.png",
+    height:"80px"
+  },
+
+  {
+    src:"/nissan.png",
+    height:"85px"
+  },
+
+  {
+    src:"/Calzzasport_Logo_White.png",
+    height:"95px"
+  },
+  {
+    src:"/zarigueyas_white.png",
+    height:"150px"
+  }
+
+]
+
+useEffect(() => {
+
+  const interval = setInterval(() => {
+
+    setSponsorIndex(prev =>
+      (prev + 1) % sponsors.length
+    )
+
+  }, 4000)
+
+  return () => clearInterval(interval)
+
+}, [])
+
 return (
 <>
   {highlight && (
@@ -496,54 +551,115 @@ return (
 
     <div style={{
   display:"flex",
-  justifyContent:"center",
-  gap:"12px",
-  marginBottom:"25px"
+  justifyContent:"space-between",
+  alignItems:"center",
+  marginBottom:"25px",
+  width:"100%"
 }}>
 
-  {[
-    "general",
-    "varonil",
-    "femenil",
-  ].map(tab => (
+  {/* SPONSOR IZQUIERDA */}
+  <div style={{
+    width:"220px",
+    display:"flex",
+    justifyContent:"center",
+    alignItems:"center",
+    height:"60px"
+  }}>
 
-    <button
-      key={tab}
-
-      onClick={() =>
-        setTabCategoria(tab as any)
-      }
-
+    <img
+      key={sponsors[sponsorIndex].src}
+      src={sponsors[sponsorIndex].src}
       style={{
-
-        background:
-          tabCategoria === tab
-            ? "#4CAF50"
-            : "#222",
-
-        color:"#fff",
-
-        border:"none",
-
-        padding:"12px 22px",
-
-        borderRadius:"10px",
-
-        fontSize:"18px",
-
-        fontWeight:"bold",
-
-        cursor:"pointer",
-
-        transition:"0.25s"
+        height:sponsors[sponsorIndex].height,
+        width:"auto",
+        objectFit:"contain",
+        opacity:0.9,
+        transition:"0.4s",
+        animation:"fadeSponsor 0.5s ease",
+        filter:"drop-shadow(0 0 8px rgba(0,0,0,0.7))"
       }}
-    >
+    />
 
-      {tab.toUpperCase()}
+  </div>
 
-    </button>
+  {/* TABS */}
+  <div style={{
+    display:"flex",
+    justifyContent:"center",
+    gap:"12px",
+    flex:1
+  }}>
 
-  ))}
+    {[
+      "general",
+      "varonil",
+      "femenil",
+    ].map(tab => (
+
+      <button
+        key={tab}
+
+        onClick={() =>
+          setTabCategoria(tab as any)
+        }
+
+        style={{
+
+          background:
+            tabCategoria === tab
+              ? "#4CAF50"
+              : "#222",
+
+          color:"#fff",
+
+          border:"none",
+
+          padding:"12px 22px",
+
+          borderRadius:"10px",
+
+          fontSize:"18px",
+
+          fontWeight:"bold",
+
+          cursor:"pointer",
+
+          transition:"0.25s"
+        }}
+      >
+
+        {tab.toUpperCase()}
+
+      </button>
+
+    ))}
+
+  </div>
+
+  {/* SPONSOR DERECHA */}
+  <div style={{
+    width:"220px",
+    display:"flex",
+    justifyContent:"center",
+    alignItems:"center",
+    height:"60px"
+  }}>
+
+    <img
+      key={sponsors[sponsorIndex].src}
+      src={sponsors[sponsorIndex].src}
+      style={{
+        height:sponsors[sponsorIndex].height,
+        width:"auto",
+        objectFit:"contain",
+        opacity:0.9,
+        transition:"0.4s",
+        animation:"fadeSponsor 0.5s ease",
+        filter:"drop-shadow(0 0 8px rgba(0,0,0,0.7))"
+      }}
+    />
+
+  </div>
 
 </div>
 
@@ -582,124 +698,128 @@ return (
 
     </div>
 
-    {/* PODIO / FOTO */}
+    {/* PODIO / FOTO / SPONSORS */}
+<div style={{
+  display:"flex",
+  justifyContent:"space-evenly",
+  alignItems:"center",
+  gap:"25px",
+  paddingTop:"10px",
+  marginBottom:"25px",
+  width:"100%"
+}}>
+
+
+  {/* FOTO / PODIO */}
+  {fotoActual ? (
+
     <div style={{
-      display:"flex",
-      justifyContent:"center",
-      alignItems:"center",
-      gap:"40px",
-      paddingTop:"5px",
-      marginBottom:"20px"
+      background:"#000",
+      padding:"14px",
+      borderRadius:"12px",
+      boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+      animation:"fadeFoto 0.4s ease"
     }}>
 
       <img
-        src="/zarigueyas_white.png"
+        src={fotoActual.foto}
         style={{
-          width:"140px",
-          objectFit:"contain",
-          opacity:0.95,
-          filter:"drop-shadow(0 0 10px rgba(0,0,0,0.8))"
+          width:"550px",
+          borderRadius:"10px",
+          animation:"zoomFoto 5s linear"
         }}
       />
 
-      {fotoActual ? (
-
+      {fotoActual.equipoNombre && (
         <div style={{
-          background:"#000",
-          padding:"14px",
-          borderRadius:"12px",
-          boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-          animation:"fadeFoto 0.4s ease"
+          textAlign:"center",
+          marginTop:"12px",
+          fontSize:"26px",
+          fontWeight:"bold"
         }}>
-
-          <img
-            src={fotoActual.foto}
-            style={{
-              width:"550px",
-              borderRadius:"10px",
-              animation:"zoomFoto 5s linear"
-            }}
-          />
-
-          {fotoActual.equipoNombre && (
-            <div style={{
-              textAlign:"center",
-              marginTop:"12px",
-              fontSize:"26px",
-              fontWeight:"bold"
-            }}>
-              📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
-            </div>
-          )}
-
+          📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
         </div>
-
-      ) : (
-
-        <div style={{
-          display:"flex",
-          gap:"30px",
-          alignItems:"flex-end"
-        }}>
-
-          {ranking.slice(0,3).map((e,index)=>{
-
-            const distancia = e.vueltas * pista + (e.metrosExtra || 0)
-
-            const colores=["#FFD700","#C0C0C0","#CD7F32"]
-            const alturas=["110px","90px","75px"]
-
-            return(
-
-              <div key={e.id}
-
-              style={{
-                background:"#111",
-                width:"140px",
-                height:alturas[index],
-                borderRadius:"12px",
-                border:`3px solid ${colores[index]}`,
-                display:"flex",
-                flexDirection:"column",
-                justifyContent:"center",
-                alignItems:"center",
-                boxShadow:"0 0 20px rgba(255,255,255,0.15)"
-              }}
-
-              >
-
-                <div style={{fontSize:"20px"}}>
-                  {["🥇","🥈","🥉"][index]}
-                </div>
-
-                <div style={{
-                  fontSize:"20px",
-                  fontWeight:"bold"
-                }}>
-                  {e.nombre}
-                </div>
-
-                <div>
-                  {distancia} m
-                </div>
-
-              </div>
-
-            )
-
-          })}
-
-        </div>
-
       )}
 
     </div>
+
+  ) : (
+
+    <div style={{
+      display:"flex",
+      gap:"30px",
+      alignItems:"flex-end"
+    }}>
+
+      {ranking.slice(0,3).map((e,index)=>{
+
+        const distancia =
+          e.vueltas * pista + (e.metrosExtra || 0)
+
+        const colores=[
+          "#FFD700",
+          "#C0C0C0",
+          "#CD7F32"
+        ]
+
+        const alturas=[
+          "110px",
+          "90px",
+          "75px"
+        ]
+
+        return(
+
+          <div
+            key={e.id}
+            style={{
+              background:"#111",
+              width:"140px",
+              height:alturas[index],
+              borderRadius:"12px",
+              border:`3px solid ${colores[index]}`,
+              display:"flex",
+              flexDirection:"column",
+              justifyContent:"center",
+              alignItems:"center",
+              boxShadow:"0 0 20px rgba(255,255,255,0.15)"
+            }}
+          >
+
+            <div style={{fontSize:"20px"}}>
+              {["🥇","🥈","🥉"][index]}
+            </div>
+
+            <div style={{
+              fontSize:"20px",
+              fontWeight:"bold"
+            }}>
+              {e.nombre}
+            </div>
+
+            <div>
+              {distancia} m
+            </div>
+
+          </div>
+
+        )
+
+      })}
+
+    </div>
+
+  )}
+
+
+</div>
+
     {/* TABLA */}
 
 <div
   style={{
 
-    opacity: animandoTab ? 0 : 1,
+    opacity: animandoTab ? 0 : 1, 
 
     transform:
       animandoTab
@@ -874,6 +994,18 @@ return (
         from{transform:scale(1)}
         to{transform:scale(1.08)}
       }
+
+      @keyframes fadeSponsor{
+  from{
+    opacity:0;
+    transform:translateY(10px);
+  }
+
+  to{
+    opacity:0.9;
+    transform:translateY(0);
+  }
+}
 
     `}</style>
 
