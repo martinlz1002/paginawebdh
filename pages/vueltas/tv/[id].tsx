@@ -59,6 +59,9 @@ export default function VueltasTV() {
 
 const [highlight, setHighlight] = useState<string | null>(null)
 
+const [mostrarEstadisticas,
+setMostrarEstadisticas] = useState(true)
+
 const [tabCategoria, setTabCategoria] = useState<
   "general" | "varonil" | "femenil" | "mixto"
 >("general")
@@ -244,8 +247,20 @@ useEffect(() => {
   const eventoRef = doc(db, "eventos_vueltas", id as string)
 
   const unsubEvento = onSnapshot(eventoRef, snap => {
-    if (snap.exists()) setEvento(snap.data() as Evento)
-  })
+
+  if (!snap.exists()) return
+
+  const data = snap.data()
+
+  setEvento(data as Evento)
+
+  // 🔥 MOSTRAR / OCULTAR ESTADÍSTICAS
+  setMostrarEstadisticas(
+    data.mostrarEstadisticas !== false
+  )
+
+})
+  
 
   const equiposRef = collection(db, "eventos_vueltas", id as string, "equipos")
 
@@ -641,6 +656,7 @@ return (
 
 </div>
 
+{mostrarEstadisticas && (
     <div style={{
       display: "flex",
       justifyContent: "space-between",
@@ -675,6 +691,7 @@ return (
       </div>
 
     </div>
+    )}
 
     {/* PODIO / FOTO + RELOJ */}
 <div style={{
