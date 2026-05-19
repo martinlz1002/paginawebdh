@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react"
 import { doc, collection, onSnapshot, query, orderBy, limit } from "firebase/firestore"
 import { db } from "../../../lib/firebase"
 import { where } from "firebase/firestore"
+import {
+  getDatabase,
+  ref,
+  onValue
+} from "firebase/database"
 
 type Equipo = {
   id: string
@@ -62,6 +67,9 @@ const [highlight, setHighlight] = useState<string | null>(null)
 const [mostrarEstadisticas,
 setMostrarEstadisticas] = useState(true)
 
+const [realtimeData,
+setRealtimeData] = useState<any>(null)
+
 const [tabCategoria, setTabCategoria] = useState<
   "general" | "varonil" | "femenil" | "mixto"
 >("general")
@@ -99,46 +107,68 @@ const [tiempoRestante, setTiempoRestante] = useState<number>(0)
 
 useEffect(() => {
 
-  if (!evento?.horaInicio || !evento?.duracion) return
+  if (!id) return
+
+  const realtimeDb = getDatabase()
+
+  const relojRef = ref(
+    realtimeDb,
+    `cronometro/${id}`
+  )
+
+  const unsubscribe = onValue(
+    relojRef,
+    snap => {
+
+      const data = snap.val()
+
+      if (!data) return
+
+      setRealtimeData(data)
+
+    }
+  )
+
+  return () => unsubscribe()
+
+}, [id])
+
+useEffect(() => {
+
+  if (!realtimeData) return
 
   const interval = setInterval(() => {
 
-    if (evento.pausado) return
+    if (realtimeData.paused) return
 
     const ahora = Date.now()
 
-    let horaInicioMs: number
+    const transcurrido =
+      ahora - realtimeData.startedAt
 
-    // 🔥 AQUÍ ESTÁ LA MAGIA
-    if (typeof evento.horaInicio === "number") {
-      horaInicioMs = evento.horaInicio
-    } else if ((evento.horaInicio as any)?.seconds) {
-      horaInicioMs = (evento.horaInicio as any).seconds * 1000
-    } else {
-      console.log("⚠️ horaInicio inválido:", evento.horaInicio)
-      return
-    }
-
-    const transcurrido = ahora - horaInicioMs
-
-    if (!evento.duracion) return
-
-const duracionMs = evento.duracion * 60 * 1000
-    const restante = duracionMs - transcurrido
+    const restante =
+      realtimeData.duracion - transcurrido
 
     if (restante <= 0) {
+
       setTiempoRestante(0)
-      setHighlight("🏁 Tiempo terminado")
+
+      setHighlight(
+        "🏁 Tiempo terminado"
+      )
+
       return
     }
 
-    setTiempoRestante(restante)
+    setTiempoRestante(
+      restante
+    )
 
   }, 1000)
 
   return () => clearInterval(interval)
 
-}, [evento?.horaInicio, evento?.duracion, evento?.pausado])
+}, [realtimeData])
 
 const formatTiempoRestante = (ms: number) => {
 
@@ -237,6 +267,8 @@ useEffect(() => {
   animadasRef.current = {}
 
 }, [tabCategoria])
+
+
 
 
 // 🔹 EVENTO + EQUIPOS (igual)
@@ -381,6 +413,7 @@ useEffect(() => {
 }, [equiposFiltrados, pista])
 
 
+
   function formatTime(ms?: number) {
 
     if (!ms) return "-"
@@ -490,6 +523,8 @@ const sponsors = [
   }
 
 ]
+
+
 
 useEffect(() => {
 
