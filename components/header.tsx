@@ -277,7 +277,123 @@ export default function Header() {
               Inicio
             </Link>
 
-            <span className="text-white/70">En vivo</span>
+            <div>
+
+  {/* BOTÓN */}
+  <button
+    onClick={() => setOpenLive(!openLive)}
+
+    className="
+      flex items-center
+      justify-between
+      w-full
+      text-left
+      text-white/70
+    "
+  >
+
+    <span className="flex items-center gap-2">
+
+      En vivo
+
+      {eventosEnVivo.length > 0 && (
+        <span className="
+          w-2 h-2
+          bg-red-500
+          rounded-full
+          animate-pulse
+        " />
+      )}
+
+    </span>
+
+    <span className="text-xs">
+      {openLive ? "▲" : "▼"}
+    </span>
+
+  </button>
+
+  {/* SUBMENÚ */}
+  <AnimatePresence>
+
+    {openLive && (
+
+      <motion.div
+
+        initial={{
+          opacity:0,
+          height:0
+        }}
+
+        animate={{
+          opacity:1,
+          height:"auto"
+        }}
+
+        exit={{
+          opacity:0,
+          height:0
+        }}
+
+        className="
+          overflow-hidden
+          mt-3
+          ml-2
+          flex
+          flex-col
+          gap-2
+        "
+      >
+
+        {eventosEnVivo.length === 0 ? (
+
+          <div className="
+            text-sm
+            text-white/40
+          ">
+            No hay eventos en vivo
+          </div>
+
+        ) : (
+
+          eventosEnVivo.map((ev) => (
+
+            <Link
+              key={ev.id}
+
+              href={`/vueltas/tv/${ev.id}`}
+
+              onClick={() => {
+                setMenuOpen(false)
+                setOpenLive(false)
+              }}
+
+              className="
+                bg-white/5
+                hover:bg-white/10
+                transition
+                rounded-xl
+                px-4
+                py-3
+                text-sm
+              "
+            >
+
+              🔴 {ev.nombreEvento || "Evento"}
+
+            </Link>
+
+          ))
+
+        )}
+
+      </motion.div>
+
+    )}
+
+  </AnimatePresence>
+
+</div>
 
             {user && emailVerified && (
               <>

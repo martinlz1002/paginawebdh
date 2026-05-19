@@ -105,6 +105,9 @@ const tabs = useMemo(() => {
 
 const [tiempoRestante, setTiempoRestante] = useState<number>(0)
 
+const [isPortrait, setIsPortrait] =
+  useState(false)
+
 useEffect(() => {
 
   if (!id) return
@@ -224,6 +227,38 @@ const [inicioTV, setInicioTV] = useState<number | null>(null)
 
 useEffect(() => {
   setInicioTV(Date.now())
+}, [])
+
+useEffect(() => {
+
+  const checkOrientation = () => {
+
+    const mobile =
+      window.innerWidth < 900
+
+    const portrait =
+      window.innerHeight >
+      window.innerWidth
+
+    setIsPortrait(
+      mobile && portrait
+    )
+
+  }
+
+  checkOrientation()
+
+  window.addEventListener(
+    "resize",
+    checkOrientation
+  )
+
+  return () =>
+    window.removeEventListener(
+      "resize",
+      checkOrientation
+    )
+
 }, [])
 
 useEffect(() => {
@@ -539,6 +574,62 @@ useEffect(() => {
   return () => clearInterval(interval)
 
 }, [])
+
+if (isPortrait) {
+
+  return (
+
+    <div style={{
+      width:"100vw",
+      height:"100vh",
+      background:"#050505",
+      color:"#fff",
+
+      display:"flex",
+      flexDirection:"column",
+
+      justifyContent:"center",
+      alignItems:"center",
+
+      textAlign:"center",
+
+      padding:"30px",
+
+      fontFamily:"system-ui"
+    }}>
+
+      <div style={{
+        fontSize:"90px",
+        marginBottom:"25px",
+        animation:"rotatePhone 2s ease-in-out infinite"
+      }}>
+        📱
+      </div>
+
+      <h1 style={{
+        fontSize:"34px",
+        marginBottom:"15px",
+        fontWeight:"bold"
+      }}>
+        Gira tu dispositivo
+      </h1>
+
+      <p style={{
+        fontSize:"20px",
+        opacity:0.75,
+        maxWidth:"420px",
+        lineHeight:"1.5"
+      }}>
+        La tabla de cronometraje
+        se aprecia mucho mejor
+        en horizontal
+      </p>
+
+    </div>
+
+  )
+
+}
 
 return (
 <>
@@ -1082,6 +1173,26 @@ return (
     opacity:0;
     transform:translateY(10px);
   }
+
+  @keyframes rotatePhone{
+
+  0%{
+    transform:rotate(0deg)
+  }
+
+  40%{
+    transform:rotate(0deg)
+  }
+
+  70%{
+    transform:rotate(90deg)
+  }
+
+  100%{
+    transform:rotate(90deg)
+  }
+
+}
 
   to{
     opacity:0.9;
