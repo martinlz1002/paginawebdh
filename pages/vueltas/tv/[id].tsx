@@ -511,28 +511,6 @@ return (
   )}
 
   <div style={{
-    position: "fixed",
-    top: "50px",
-    right: "30px",
-    background: "#000",
-    padding: "12px 20px",
-    borderRadius: "10px",
-    fontSize: "28px",
-    fontWeight: "bold",
-    letterSpacing: "2px",
-    boxShadow: "0 0 20px rgba(0,0,0,0.8)",
-    zIndex: 1000,
-    color:
-      tiempoRestante < 60000
-        ? "#ff1744"
-        : tiempoRestante < 5 * 60000
-        ? "#ff9800"
-        : "#00e676"
-  }}>
-    ⏱ {formatTiempoRestante(tiempoRestante)}
-  </div>
-
-  <div style={{
     background:"linear-gradient(180deg,#050505,#111)",
     color:"#fff",
     minHeight:"100vh",
@@ -698,121 +676,173 @@ return (
 
     </div>
 
-    {/* PODIO / FOTO / SPONSORS */}
+    {/* PODIO / FOTO + RELOJ */}
 <div style={{
-  display:"flex",
-  justifyContent:"space-evenly",
-  alignItems:"center",
-  gap:"25px",
-  paddingTop:"10px",
+  position:"relative",
+  width:"100%",
   marginBottom:"25px",
-  width:"100%"
+  marginTop:"10px"
 }}>
 
-
-  {/* FOTO / PODIO */}
-  {fotoActual ? (
+  {/* RELOJ */}
+  <div style={{
+    position:"absolute",
+    right:"40px",
+    top:"50%",
+    transform:"translateY(-50%)",
+    zIndex:5
+  }}>
 
     <div style={{
-      background:"#000",
-      padding:"14px",
-      borderRadius:"12px",
-      boxShadow:"0 0 40px rgba(0,0,0,0.9)",
-      animation:"fadeFoto 0.4s ease"
+      background:"#050505",
+      padding:"16px 34px",
+      borderRadius:"16px",
+      fontSize:"32px",
+      fontWeight:"bold",
+      letterSpacing:"2px",
+      boxShadow:"0 0 25px rgba(0,0,0,0.9)",
+
+      color:
+        tiempoRestante < 60000
+          ? "#ff1744"
+          : tiempoRestante < 5 * 60000
+          ? "#ff9800"
+          : "#00e676",
+
+      border:`2px solid ${
+        tiempoRestante < 60000
+          ? "#ff1744"
+          : tiempoRestante < 5 * 60000
+          ? "#ff9800"
+          : "#00e676"
+      }`,
+
+      minWidth:"220px",
+      textAlign:"center"
     }}>
 
-      <img
-        src={fotoActual.foto}
-        style={{
-          width:"550px",
-          borderRadius:"10px",
-          animation:"zoomFoto 5s linear"
-        }}
-      />
-
-      {fotoActual.equipoNombre && (
-        <div style={{
-          textAlign:"center",
-          marginTop:"12px",
-          fontSize:"26px",
-          fontWeight:"bold"
-        }}>
-          📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
-        </div>
-      )}
+      ⏱ {formatTiempoRestante(tiempoRestante)}
 
     </div>
 
-  ) : (
+  </div>
 
-    <div style={{
-      display:"flex",
-      gap:"30px",
-      alignItems:"flex-end"
-    }}>
+  {/* CONTENIDO CENTRAL */}
+  <div style={{
+    display:"flex",
+    justifyContent:"center",
+    alignItems:"center"
+  }}>
 
-      {ranking.slice(0,3).map((e,index)=>{
+    {/* FOTO / PODIO */}
+    {fotoActual ? (
 
-        const distancia =
-          e.vueltas * pista + (e.metrosExtra || 0)
+      <div style={{
+        background:"#000",
+        padding:"14px",
+        borderRadius:"12px",
+        boxShadow:"0 0 40px rgba(0,0,0,0.9)",
+        animation:"fadeFoto 0.4s ease"
+      }}>
 
-        const colores=[
-          "#FFD700",
-          "#C0C0C0",
-          "#CD7F32"
-        ]
+        <img
+          src={fotoActual.foto}
+          style={{
+            width:"550px",
+            borderRadius:"10px",
+            animation:"zoomFoto 5s linear"
+          }}
+        />
 
-        const alturas=[
-          "110px",
-          "90px",
-          "75px"
-        ]
-
-        return(
-
-          <div
-            key={e.id}
-            style={{
-              background:"#111",
-              width:"140px",
-              height:alturas[index],
-              borderRadius:"12px",
-              border:`3px solid ${colores[index]}`,
-              display:"flex",
-              flexDirection:"column",
-              justifyContent:"center",
-              alignItems:"center",
-              boxShadow:"0 0 20px rgba(255,255,255,0.15)"
-            }}
-          >
-
-            <div style={{fontSize:"20px"}}>
-              {["🥇","🥈","🥉"][index]}
-            </div>
-
-            <div style={{
-              fontSize:"20px",
-              fontWeight:"bold"
-            }}>
-              {e.nombre}
-            </div>
-
-            <div>
-              {distancia} m
-            </div>
-
+        {fotoActual.equipoNombre && (
+          <div style={{
+            textAlign:"center",
+            marginTop:"12px",
+            fontSize:"26px",
+            fontWeight:"bold"
+          }}>
+            📸 {fotoActual.equipoNombre} — vuelta {fotoActual.vuelta}
           </div>
+        )}
 
-        )
+      </div>
 
-      })}
+    ) : (
 
-    </div>
+      <div style={{
+        display:"flex",
+        gap:"30px",
+        alignItems:"flex-end"
+      }}>
 
-  )}
+        {ranking.slice(0,3).map((e,index)=>{
 
+          const distancia =
+            e.vueltas * pista + (e.metrosExtra || 0)
+
+          const colores=[
+            "#FFD700",
+            "#C0C0C0",
+            "#CD7F32"
+          ]
+
+          const alturas=[
+            "110px",
+            "90px",
+            "75px"
+          ]
+
+          return(
+
+            <div
+              key={e.id}
+
+              style={{
+                background:"#111",
+                width:"140px",
+                height:alturas[index],
+                borderRadius:"12px",
+                border:`3px solid ${colores[index]}`,
+                display:"flex",
+                flexDirection:"column",
+                justifyContent:"center",
+                alignItems:"center",
+                boxShadow:"0 0 20px rgba(255,255,255,0.15)"
+              }}
+            >
+
+              <div style={{fontSize:"20px"}}>
+                {["🥇","🥈","🥉"][index]}
+              </div>
+
+              <div style={{
+                fontSize:"20px",
+                fontWeight:"bold",
+                textAlign:"center",
+                padding:"0 6px"
+              }}>
+                {e.nombre}
+              </div>
+
+              <div>
+                {distancia} m
+              </div>
+
+            </div>
+
+          )
+
+        })}
+
+      </div>
+
+    )}
+
+  </div>
 
 </div>
+
+
 
     {/* TABLA */}
 
