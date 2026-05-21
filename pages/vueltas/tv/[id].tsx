@@ -36,9 +36,14 @@ type Evento = {
 
 type FotoEvento = {
   id: string
-  foto: string
+
+  url?: string
+  foto?: string
+
   equipoNombre?: string
+
   vuelta?: number
+
   timestamp?: number
 }
 
@@ -925,7 +930,7 @@ return (
       }}>
 
         <img
-          src={fotoActual.foto}
+          src={fotoActual.url || fotoActual.foto}
           style={{
             width:"550px",
             borderRadius:"10px",
