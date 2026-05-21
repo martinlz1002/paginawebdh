@@ -18,6 +18,11 @@ type Equipo = {
   ultimoTiempoVuelta?: number
   ultimaVuelta?: number
   categoria?: string
+
+  penalizaciones?: {
+  metros: number
+  motivo?: string
+}[]
 }
 
 type Evento = {
@@ -413,6 +418,37 @@ useEffect(() => {
 
   const pista = evento?.longitudPista || 400
 
+  const calcularDistancia = (e: Equipo) => {
+
+  const penalizacion =
+    e.penalizaciones?.reduce(
+      (acc, p) => acc + p.metros,
+      0
+    ) || 0
+
+  const total =
+    (e.vueltas * pista)
+    + (e.metrosExtra || 0)
+    - penalizacion
+
+  return Math.max(total, 0)
+}
+
+const tienePenalizacion = (e: Equipo) => {
+
+  return (
+    (e.penalizaciones?.length || 0) > 0
+  )
+}
+
+const totalPenalizacion = (e: Equipo) => {
+
+  return e.penalizaciones?.reduce(
+    (acc, p) => acc + p.metros,
+    0
+  ) || 0
+}
+
   const equiposFiltrados = useMemo(() => {
 
   if (tabCategoria === "general") {
@@ -429,8 +465,8 @@ useEffect(() => {
 
   return [...equiposFiltrados].sort((a, b) => {
 
-    const distA = a.vueltas * pista + (a.metrosExtra || 0)
-    const distB = b.vueltas * pista + (b.metrosExtra || 0)
+    const distA = calcularDistancia(a)
+    const distB = calcularDistancia(b)
 
     // 🥇 1. ordenar por distancia
     if (distB !== distA) {
@@ -921,7 +957,7 @@ return (
         {ranking.slice(0,3).map((e,index)=>{
 
           const distancia =
-            e.vueltas * pista + (e.metrosExtra || 0)
+            calcularDistancia(e)
 
           const colores=[
             "#FFD700",
@@ -967,9 +1003,29 @@ return (
                 {e.nombre}
               </div>
 
-              <div>
-                {distancia} m
-              </div>
+              <div style={{
+  color:
+    tienePenalizacion(e)
+      ? "#ff9800"
+      : "#fff",
+
+  fontWeight:"bold",
+
+  display:"flex",
+  alignItems:"center",
+  justifyContent:"center",
+  gap:"6px"
+}}>
+
+  {tienePenalizacion(e) && (
+    <span>⚠️</span>
+  )}
+
+  <span>
+    {distancia} m
+  </span>
+
+</div>
 
             </div>
 
@@ -1034,7 +1090,14 @@ return (
 
         {ranking.map((e,index)=>{
 
-          const distancia = e.vueltas * pista + (e.metrosExtra || 0)
+          const distancia =
+            calcularDistancia(e)
+
+          const penalizado =
+            tienePenalizacion(e)
+
+          const penalizacion =
+            totalPenalizacion(e)
 
           let gap="---"
 
@@ -1138,11 +1201,42 @@ return (
               </td>
 
               <td style={{
-                textAlign:"center",
-                fontWeight:"bold"
-              }}>
-                {distancia} m
-              </td>
+  textAlign:"center",
+  fontWeight:"bold",
+
+  color:
+    penalizado
+      ? "#ff9800"
+      : "#fff",
+
+  textShadow:
+    penalizado
+      ? "0 0 12px rgba(255,152,0,0.8)"
+      : "none"
+}}>
+
+  <div style={{
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    gap:"8px"
+  }}>
+
+    {penalizado && (
+      <span style={{
+        fontSize:"22px"
+      }}>
+        ⚠️
+      </span>
+    )}
+
+    <span>
+      {distancia} m
+    </span>
+
+  </div>
+
+</td>
 
             </tr>
 
