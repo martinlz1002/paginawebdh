@@ -92,15 +92,30 @@ const tabs = useMemo(() => {
 
   const disponibles = ["general"]
 
-  if (equipos.some(e => e.categoria === "varonil")) {
+  if (
+  equipos.some(
+    e =>
+      e.categoria?.toLowerCase() === "varonil"
+  )
+) {
     disponibles.push("varonil")
   }
 
-  if (equipos.some(e => e.categoria === "femenil")) {
+  if (
+  equipos.some(
+    e =>
+      e.categoria?.toLowerCase() === "femenil"
+  )
+) {
     disponibles.push("femenil")
   }
 
-  if (equipos.some(e => e.categoria === "mixto")) {
+  if (
+  equipos.some(
+    e =>
+      e.categoria?.toLowerCase() === "mixto"
+  )
+) {
     disponibles.push("mixto")
   }
 
@@ -461,8 +476,13 @@ const totalPenalizacion = (e: Equipo) => {
   }
 
   return equipos.filter(
-    e => e.categoria === tabCategoria
-  )
+
+  e =>
+
+    e.categoria?.toLowerCase()
+      === tabCategoria
+
+)
 
 }, [equipos, tabCategoria])
 
