@@ -58,13 +58,30 @@ export default function Header() {
   const q = query(collection(db, "eventos_vueltas"));
 
   const unsub = onSnapshot(q, (snap) => {
-    const eventos = snap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
 
-    setEventosEnVivo(eventos);
+  const eventos = snap.docs.map((doc) => ({
+    id: doc.id,
+    ...doc.data(),
+  }));
+
+  // 🔥 FILTRAR EVENTOS OCULTOS
+  const filtrados = eventos.filter((ev: any) => {
+
+    const nombre =
+      ev.nombreEvento?.toLowerCase() || "";
+
+    return (
+
+      !nombre.includes("prueba")
+
+      &&
+
+      !nombre.includes("admin")
+    );
   });
+
+  setEventosEnVivo(filtrados);
+});
 
   return () => unsub();
 }, []);

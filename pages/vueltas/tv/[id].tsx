@@ -18,6 +18,8 @@ type Equipo = {
   ultimoTiempoVuelta?: number
   ultimaVuelta?: number
   categoria?: string
+  amonestado?: boolean
+  penalizarRojoEquipo?: boolean
 
   penalizaciones?: {
   metros: number
@@ -1210,7 +1212,29 @@ return (
               </td>
 
               <td style={{fontWeight:index===0?"bold":"normal"}}>
-                {e.nombre}
+                <div style={{
+  display:"flex",
+  alignItems:"center",
+  gap:"10px"
+}}>
+
+  <span>
+    {e.nombre}
+  </span>
+
+  {e.amonestado && (
+    <span title="Amonestado">
+      🟨
+    </span>
+  )}
+
+  {e.penalizarRojoEquipo && (
+    <span title="Expulsado">
+      🟥
+    </span>
+  )}
+
+</div>
               </td>
 
               <td style={{textAlign:"center"}}>
