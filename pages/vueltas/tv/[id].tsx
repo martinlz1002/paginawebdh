@@ -19,7 +19,7 @@ type Equipo = {
   ultimaVuelta?: number
   categoria?: string
   amonestado?: boolean
-  penalizarRojoEquipo?: boolean
+  tarjetaRoja?: boolean
 
   penalizaciones?: {
   metros: number
@@ -1228,8 +1228,8 @@ return (
     </span>
   )}
 
-  {e.penalizarRojoEquipo && (
-    <span title="Expulsado">
+  {e.tarjetaRoja && (
+    <span title="Tarjeta_roja">
       🟥
     </span>
   )}
