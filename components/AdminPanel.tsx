@@ -11,6 +11,7 @@ import { getDocs, collection } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { app, db } from '@/lib/firebase';
+import AdminBusquedaCompetidor from '@/components/AdminBusquedaCompetidor';
 
 // Incluir la nueva vista en el tipo
 type View =
@@ -19,7 +20,8 @@ type View =
   | 'inscripciones'
   | 'inscripcionesManuales'
   | 'eliminarInscripciones'
-  | 'galeria';
+  | 'galeria'
+  | 'buscarCompetidor';
   
 export default function AdminPanel() {
   const [view, setView] = useState<View>('crear');
@@ -125,6 +127,10 @@ export default function AdminPanel() {
         )}
 
         {view === 'galeria' && <AdminGaleria />}
+
+        {view === 'buscarCompetidor' && (
+  <AdminBusquedaCompetidor carreras={carreras} />
+)}
 
       </main>
     </div>

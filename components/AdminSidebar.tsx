@@ -4,11 +4,19 @@ import {
   PencilIcon,
   ClipboardIcon,
   TrashIcon,
-  UserPlusIcon
+  UserPlusIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
-  view: 'crear' | 'listar' | 'inscripciones' | 'eliminarInscripciones' | 'inscripcionesManuales' | 'galeria';
+  view:
+  | 'crear'
+  | 'listar'
+  | 'inscripciones'
+  | 'eliminarInscripciones'
+  | 'inscripcionesManuales'
+  | 'galeria'
+  | 'buscarCompetidor';
   setView: (v: SidebarProps['view']) => void;
   open: boolean;
   onToggle: () => void;
@@ -150,6 +158,21 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
   `}
 >
   🖼 Galería
+</button>
+
+<button
+  onClick={() => { setView("buscarCompetidor"); onToggle(); }}
+  className={`
+    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+    ${
+      view === "buscarCompetidor"
+        ? "bg-dh-purple text-dh-dark shadow-dhSm"
+        : "text-dh-muted hover:bg-dh-soft"
+    }
+  `}
+>
+  <MagnifyingGlassIcon className="w-5 h-5" />
+  Buscar Competidor
 </button>
 
       </nav>

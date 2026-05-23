@@ -44,8 +44,8 @@
 
   /* Inputs */
   input,
-  textarea,
-  select {
+  textarea
+  {
     @apply bg-[#1f1f28] text-white placeholder-white/50;
     @apply border border-white/10 rounded-xl;
     @apply focus:outline-none focus:ring-2 focus:ring-dh-purple/40 focus:border-dh-purple;
@@ -106,6 +106,12 @@
     @apply hover:bg-white/10 hover:text-white;
   }
 
+  .select-dark {
+  @apply bg-[#1f1f28] text-white;
+  @apply border border-white/10 rounded-xl;
+  @apply focus:outline-none focus:ring-2 focus:ring-dh-purple/40 focus:border-dh-purple;
+}
+
   /* 🎬 Animación */
   @keyframes fadeSlide {
     from {
@@ -117,6 +123,20 @@
       transform: translate(-50%, 0);
     }
   }
+}
+
+@keyframes fadeIn {
+
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
 }
 
 /* =========================
