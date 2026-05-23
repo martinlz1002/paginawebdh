@@ -939,7 +939,7 @@ transition:"opacity 0.6s ease",
 
     setCerrandoComercial(false)
 
-  }, 600)
+  }, 250)
 
 }}
 
