@@ -39,7 +39,7 @@ export default function BusquedaCompetidor() {
 
     const [tituloEvento, setTituloEvento] = useState('');
 
-const fieldIcons: Record<string, any> = {
+    const fieldIcons: Record<string, any> = {
 
   Estado: MapPin,
   Ciudad: MapPin,
