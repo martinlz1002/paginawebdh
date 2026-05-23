@@ -146,9 +146,9 @@ const fieldIcons: Record<string, any> = {
 
         setLogoUrl(data.logoUrl || '');
 
-setBannerUrl(data.bannerUrl || '');
+        setBannerUrl(data.bannerUrl || '');
 
-setTituloEvento(data.tituloEvento || '');
+        setTituloEvento(data.tituloEvento || '');
 
       } catch (error) {
 
