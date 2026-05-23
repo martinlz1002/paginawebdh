@@ -35,7 +35,7 @@ export default function BusquedaCompetidor() {
 
   const [logoUrl, setLogoUrl] = useState('');
 
-const [bannerUrl, setBannerUrl] = useState('');
+    const [bannerUrl, setBannerUrl] = useState('');
 
 const [tituloEvento, setTituloEvento] = useState('');
 
