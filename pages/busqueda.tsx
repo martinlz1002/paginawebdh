@@ -37,7 +37,7 @@ export default function BusquedaCompetidor() {
 
     const [bannerUrl, setBannerUrl] = useState('');
 
-const [tituloEvento, setTituloEvento] = useState('');
+    const [tituloEvento, setTituloEvento] = useState('');
 
 const fieldIcons: Record<string, any> = {
 
