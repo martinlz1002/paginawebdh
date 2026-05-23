@@ -49,6 +49,19 @@ type FotoEvento = {
   timestamp?: number
 }
 
+type Comercial = {
+
+  id:string
+
+  nombre?:string
+
+  url:string
+
+  activo?:boolean
+
+  duracion?:number
+}
+
 export default function VueltasTV() {
 
   const router = useRouter()
@@ -62,6 +75,9 @@ export default function VueltasTV() {
   const [mostrando, setMostrando] = useState(false)
 
   const prevRankingRef = useRef<Equipo[]>([])
+
+  const preloadVideoRef =
+  useRef<HTMLVideoElement | null>(null)
 
   const posicionesRef = useRef<Record<string, number>>({})
 
@@ -89,6 +105,28 @@ const [tabCategoria, setTabCategoria] = useState<
 const [sponsorIndex, setSponsorIndex] = useState(0)
 
 const [animandoTab, setAnimandoTab] = useState(false)
+
+const [comerciales,
+setComerciales] = useState<Comercial[]>([])
+
+const [comercialActual,
+setComercialActual] =
+useState<Comercial | null>(null)
+
+const [mostrarComercial,
+setMostrarComercial] =
+useState(false)
+
+const [indiceComercial,
+setIndiceComercial] = useState(0)
+
+const [
+  cerrandoComercial,
+  setCerrandoComercial
+] = useState(false)
+
+const [contadorTabs,
+setContadorTabs] = useState(0)
 
 const tabs = useMemo(() => {
 
@@ -129,6 +167,7 @@ const tabs = useMemo(() => {
   )[]
 
 }, [equipos])
+
 
 const [tiempoRestante, setTiempoRestante] = useState<number>(0)
 
@@ -298,14 +337,19 @@ useEffect(() => {
 
       setTabCategoria(prev => {
 
-        const currentIndex = tabs.indexOf(prev)
+  const currentIndex =
+    tabs.indexOf(prev)
 
-        const nextIndex =
-          (currentIndex + 1) % tabs.length
+  const nextIndex =
+    (currentIndex + 1) %
+    tabs.length
 
-        return tabs[nextIndex]
+  // 🔥 CONTAR CAMBIOS DE TAB
+  setContadorTabs(prev => prev + 1)
 
-      })
+  return tabs[nextIndex]
+
+})
 
       setTimeout(() => {
         setAnimandoTab(false)
@@ -318,6 +362,62 @@ useEffect(() => {
   return () => clearInterval(interval)
 
 }, [tabs])
+
+useEffect(() => {
+
+  if (
+    contadorTabs < 3 ||
+    comerciales.length === 0 ||
+    mostrarComercial
+  ) {
+    return
+  }
+
+  const comercial =
+    comerciales[
+      indiceComercial %
+      comerciales.length
+    ]
+
+  console.log("🎬 MOSTRANDO:", comercial)
+
+  setComercialActual(comercial)
+
+  setMostrarComercial(true)
+
+}, [
+  contadorTabs,
+  comerciales
+])
+
+useEffect(() => {
+
+  if (
+    comerciales.length === 0
+  ) return
+
+  const siguiente =
+    comerciales[
+      (indiceComercial + 1)
+      % comerciales.length
+    ]
+
+  if (!siguiente?.url) return
+
+  const video =
+    document.createElement("video")
+
+  video.src = siguiente.url
+
+  video.preload = "auto"
+
+  preloadVideoRef.current =
+    video
+
+}, [
+  indiceComercial,
+  comerciales
+])
 
 
 useEffect(() => {
@@ -373,6 +473,45 @@ useEffect(() => {
     unsubEvento()
     unsubEquipos()
   }
+
+}, [id])
+
+useEffect(() => {
+
+  if (!id) return
+
+  const comercialesRef = collection(
+    db,
+    "eventos_vueltas",
+    id as string,
+    "comerciales"
+  )
+
+  const unsub = onSnapshot(
+
+    comercialesRef,
+
+    snap => {
+
+      const activos = snap.docs
+
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }) as Comercial)
+
+        .filter(c =>
+          c.activo &&
+          c.url
+        )
+
+      setComerciales(activos)
+
+    }
+
+  )
+
+  return () => unsub()
 
 }, [id])
 
@@ -696,6 +835,119 @@ if (isPortrait) {
 
 return (
 <>
+
+{mostrarComercial &&
+comercialActual && (
+
+  <div style={{
+
+  position:"fixed",
+
+  inset:0,
+
+  zIndex:999999,
+
+  background:"rgba(0,0,0,0.96)",
+
+  backdropFilter:"blur(8px)",
+
+  display:"flex",
+
+  justifyContent:"center",
+
+  alignItems:"center",
+
+  animation:"fadeCommercial 0.7s ease",
+
+opacity:
+  cerrandoComercial
+    ? 0
+    : 1,
+
+transition:"opacity 0.6s ease",
+
+  
+
+}}>
+
+    <video
+
+  key={comercialActual.url}
+
+  src={comercialActual.url}
+
+  autoPlay
+
+  playsInline
+
+  preload="metadata"
+
+  controls={false}
+
+  loop={false}
+
+  onLoadedData={() => {
+
+    console.log(
+      "✅ VIDEO CARGADO"
+    )
+
+  }}
+
+  onError={(e) => {
+
+    console.log(
+      "❌ ERROR VIDEO"
+    )
+
+    console.log(e)
+
+  }}
+
+  style={{
+
+  width:"100%",
+
+  height:"100%",
+
+  objectFit:"cover",
+
+  animation:"zoomCommercial linear forwards",
+
+  animationDuration: `${
+    (comercialActual.duracion || 30000)
+    / 1000
+  }s`
+
+}}
+
+  onEnded={() => {
+
+  setCerrandoComercial(true)
+
+  setTimeout(() => {
+
+    setMostrarComercial(false)
+
+    setComercialActual(null)
+
+    setIndiceComercial(
+      prev => prev + 1
+    )
+
+    setContadorTabs(0)
+
+    setCerrandoComercial(false)
+
+  }, 600)
+
+}}
+
+/>
+
+  </div>
+)}
+
   {highlight && (
     <div style={{
       position: "fixed",
@@ -1310,6 +1562,40 @@ return (
         from{transform:scale(1)}
         to{transform:scale(1.08)}
       }
+
+      @keyframes fadeCommercial {
+
+  from {
+
+    opacity:0;
+
+    transform:scale(1.03);
+
+  }
+
+  to {
+
+    opacity:1;
+
+    transform:scale(1);
+
+  }
+}
+
+@keyframes zoomCommercial {
+
+  from {
+
+    transform:scale(1);
+
+  }
+
+  to {
+
+    transform:scale(1.05);
+
+  }
+}
 
       @keyframes fadeSponsor{
   from{
