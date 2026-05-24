@@ -77,6 +77,10 @@ export default function Header() {
       &&
 
       !nombre.includes("admin")
+
+      &&
+
+      !nombre.includes("la hora por equipos")
     );
   });
 
