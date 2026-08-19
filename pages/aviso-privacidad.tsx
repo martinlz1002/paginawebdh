@@ -3,7 +3,7 @@ export default function AvisoPrivacidad() {
     <div className="max-w-3xl mx-auto py-16 px-4 space-y-6">
       <h1 className="text-3xl font-bold text-green-800">Aviso de Privacidad</h1>
       <p className="text-gray-700">
-        Aquí va tu texto de aviso de privacidad...
+        ...
       </p>
     </div>
   );
