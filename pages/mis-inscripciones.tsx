@@ -275,8 +275,19 @@ export default function MisInscripcionesPage() {
           })
         );
 
-        setList(all);
-        setLoading(false);
+        const visibles = all.filter((item) => {
+  const fechaLimite = new Date(item.carreraDate);
+
+  // La carrera permanece visible durante los 7 días posteriores
+  fechaLimite.setDate(fechaLimite.getDate() + 7);
+
+  // El día 7 todavía aparece.
+  // A partir del día 8 desaparece.
+  return today <= fechaLimite;
+});
+
+setList(visibles);
+setLoading(false);
       });
 
       return () => unsubSnap();
