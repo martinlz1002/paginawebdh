@@ -102,14 +102,15 @@ export default function CarreraDetalle() {
     <div className="max-w-5xl mx-auto space-y-10">
 
       {/* 🖼️ Banner */}
-      {carrera.imagenUrl && (
-        <div className="w-full h-64 md:h-96 rounded-3xl overflow-hidden shadow-dhSoft">
-          <img
-            src={carrera.imagenUrl}
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
+{(carrera.bannerUrl || carrera.imagenUrl) && (
+  <div className="w-full h-64 md:h-96 rounded-3xl overflow-hidden shadow-dhSoft">
+    <img
+      src={carrera.bannerUrl || carrera.imagenUrl}
+      className="w-full h-full object-cover"
+      alt={carrera.titulo || "Banner de la carrera"}
+    />
+  </div>
+)}
 
       {/* 🧾 HEADER */}
       <div className="bg-white rounded-3xl shadow-dh p-8 text-center space-y-4">
