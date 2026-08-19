@@ -103,7 +103,7 @@ export default function CarreraDetalle() {
 
       {/* 🖼️ Banner */}
 {(carrera.bannerUrl || carrera.imagenUrl) && (
-  <div className="w-full h-64 md:h-96 rounded-3xl overflow-hidden shadow-dhSoft">
+  <div className="w-full aspect-video rounded-3xl overflow-hidden shadow-dhSoft">
     <img
       src={carrera.bannerUrl || carrera.imagenUrl}
       className="w-full h-full object-cover"
