@@ -72,6 +72,8 @@ export default function CarreraEnVivo() {
   const [distanciaSeleccionada, setDistanciaSeleccionada] =
   useState("");
 
+  const [eventoIdReal, setEventoIdReal] = useState<string | null>(null);
+
 const [distanciasDisponibles, setDistanciasDisponibles] =
   useState<string[]>([]);
 
@@ -123,13 +125,67 @@ const distanciaKeyFirebase = (distancia: string) => {
     .replace(/\//g, "_");
 };
 
+useEffect(() => {
+  if (!router.isReady || !id) return;
+
+  const db = getDatabase(app);
+  const eventosRef = ref(db, "eventos");
+
+  const unsubscribe = onValue(eventosRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      setEventoIdReal(null);
+      return;
+    }
+
+    const eventos = snapshot.val() || {};
+
+    const slug = String(id)
+      .trim()
+      .toLowerCase();
+
+    const encontrado = Object.entries(eventos).find(
+      ([eventoId, evento]: [string, any]) => {
+
+        const nombre = String(
+          evento?.nombre ?? ""
+        )
+          .trim()
+          .toLowerCase();
+
+        const nombreSlug = nombre
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "_")
+          .replace(/^_+|_+$/g, "");
+
+        return (
+          eventoId === String(id).trim() ||
+          nombreSlug === slug
+        );
+      }
+    );
+
+    if (encontrado) {
+      setEventoIdReal(encontrado[0]);
+    } else {
+      setEventoIdReal(null);
+      console.error(
+        "No se encontró el evento para:",
+        id
+      );
+    }
+  });
+
+  return () => unsubscribe();
+}, [router.isReady, id]);
+
   // REGISTROS: Firebase filtra por eventoId. El navegador ya no descarga
   // los registros de todas las carreras ni los reagrupa en cada render.
   useEffect(() => {
-    if (!router.isReady || !id) return;
+    if (!router.isReady || !eventoIdReal) return;
     const db = getDatabase(app);
-    const registrosRef = query(ref(db, "registros"), orderByChild("eventoId"), equalTo(String(id).trim()));
-
+    const registrosRef = query(ref(db, "registros"), orderByChild("eventoId"), equalTo(eventoIdReal));
+    
     const unsubscribe = onValue(registrosRef, (snapshot) => {
       const data = snapshot.val() || {};
       const agrupados: Record<string, Record<string, CheckpointReal>> = {};
@@ -158,7 +214,7 @@ const distanciaKeyFirebase = (distancia: string) => {
     });
 
     return () => unsubscribe();
-  }, [router.isReady, id]);
+  }, [router.isReady, eventoIdReal]);
 
   // ==========================================
 // INSCRITOS
@@ -170,28 +226,27 @@ const distanciaKeyFirebase = (distancia: string) => {
 
 useEffect(() => {
 
-  if (!router.isReady || !id) {
-    return;
-  }
+  if (!router.isReady || !eventoIdReal) return;
 
-  const db = getDatabase(app);
+const db = getDatabase(app);
 
-  const competidoresRef =
-    ref(
-      db,
-      `eventos/${id}/competidores`
-    );
+const competidoresRef = ref(
+  db,
+  `eventos/${eventoIdReal}/competidores`
+);
 
   const unsubscribe =
     onValue(
       competidoresRef,
       (snapshot) => {
 
+        // ==========================================
+        // SI NO HAY COMPETIDORES
+        // ==========================================
+
         if (!snapshot.exists()) {
 
           setCompetidoresInscritos([]);
-          setDistanciasDisponibles([]);
-          setDistanciaSeleccionada("");
 
           return;
         }
@@ -224,82 +279,14 @@ useEffect(() => {
           );
 
         // ==========================================
-        // DISTANCIAS DISPONIBLES
-        // ==========================================
-
-        const distancias =
-          Array.from(
-            new Set(
-              lista
-                .map(
-                  (competidor) =>
-                    competidor.distancia
-                )
-                .filter(Boolean)
-            )
-          ).sort(
-            (a, b) => {
-
-              const numeroA =
-                parseFloat(
-                  a.replace("K", "")
-                );
-
-              const numeroB =
-                parseFloat(
-                  b.replace("K", "")
-                );
-
-              if (
-                Number.isFinite(numeroA) &&
-                Number.isFinite(numeroB)
-              ) {
-                return numeroA - numeroB;
-              }
-
-              return a.localeCompare(b);
-            }
-          );
-
-        setDistanciasDisponibles(
-          distancias
-        );
-
-        // ==========================================
-        // SELECCIÓN INICIAL
-        // ==========================================
-
-        setDistanciaSeleccionada(
-          (actual) => {
-
-            // Mantener la actual si todavía existe
-            if (
-              actual &&
-              distancias.includes(actual)
-            ) {
-              return actual;
-            }
-
-            // Durante pruebas, preferir 10K
-            if (
-              distancias.includes("10K")
-            ) {
-              return "10K";
-            }
-
-            // Producción con una sola distancia
-            return distancias[0] || "";
-          }
-        );
-
-        // ==========================================
-        // GUARDAMOS TODOS
+        // GUARDAMOS TODOS LOS COMPETIDORES
         // ==========================================
 
         setCompetidoresInscritos(
           lista
         );
       },
+
       (err) => {
 
         console.error(
@@ -308,7 +295,6 @@ useEffect(() => {
         );
 
         setCompetidoresInscritos([]);
-        setDistanciasDisponibles([]);
       }
     );
 
@@ -317,7 +303,7 @@ useEffect(() => {
 
 }, [
   router.isReady,
-  id
+  eventoIdReal
 ]);
 
 
@@ -342,9 +328,9 @@ const competidoresDistancia =
 
   // CRONÓMETRO
   useEffect(() => {
-    if (!router.isReady || !id) return;
+    if (!router.isReady || !eventoIdReal) return;
     const db = getDatabase(app);
-    const cronoRef = ref(db, `eventos/${id}/crono`);
+    const cronoRef = ref(db, `eventos/${eventoIdReal}/crono`);
 
     const unsubscribe = onValue(cronoRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -361,7 +347,7 @@ const competidoresDistancia =
     }, (err) => console.error("Error cargando cronómetro:", err));
 
     return () => unsubscribe();
-  }, [router.isReady, id]);
+  }, [router.isReady, eventoIdReal]);
 
   // HORA SERVIDOR
   useEffect(() => {
@@ -425,7 +411,7 @@ const competidoresDistancia =
 
 useEffect(() => {
 
-  if (!router.isReady || !id) {
+  if (!router.isReady || !eventoIdReal) {
     return;
   }
 
@@ -433,7 +419,7 @@ useEffect(() => {
 
   const rutasRef = ref(
     db,
-    `eventos/${id}/rutas`
+    `eventos/${eventoIdReal}/rutas`
   );
 
   const unsubscribe = onValue(
@@ -515,7 +501,7 @@ useEffect(() => {
 
 }, [
   router.isReady,
-  id
+  eventoIdReal
 ]);
 
 // ==========================================
@@ -526,7 +512,7 @@ useEffect(() => {
 
   if (
     !router.isReady ||
-    !id ||
+    !eventoIdReal ||
     !distanciaSeleccionada
   ) {
     return;
@@ -541,9 +527,9 @@ useEffect(() => {
 
   const rutaRef =
     ref(
-      db,
-      `eventos/${id}/rutas/${distanciaKey}`
-    );
+  db,
+  `eventos/${eventoIdReal}/rutas/${distanciaKey}`
+);
 
   setCargando(true);
   setRuta(null);
@@ -599,7 +585,7 @@ useEffect(() => {
 
 }, [
   router.isReady,
-  id,
+  eventoIdReal,
   distanciaSeleccionada
 ]);
 
