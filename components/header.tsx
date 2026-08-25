@@ -8,7 +8,6 @@ import {
   getDoc,
   collection,
   query,
-  where,
   onSnapshot
 } from "firebase/firestore";
 import { Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -26,8 +25,25 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  const [eventosEnVivo, setEventosEnVivo] = useState<any[]>([]);
+  const [eventosVueltas, setEventosVueltas] = useState<any[]>([]);
+const [eventosNormales, setEventosNormales] = useState<any[]>([]);
   const [openLive, setOpenLive] = useState(false);
+
+  const eventosEnVivo = [
+  ...eventosNormales,
+  ...eventosVueltas
+].filter((ev: any) => {
+
+  const nombre =
+    ev.nombreEvento?.toLowerCase() || "";
+
+  return (
+    !nombre.includes("prueba") &&
+    !nombre.includes("admin") &&
+    !nombre.includes("la hora por equipos")
+  );
+
+});
   
 
   const menuRef = useRef<HTMLDivElement>(null);
@@ -54,40 +70,60 @@ export default function Header() {
     return unsub;
   }, [auth]);
 
+
   useEffect(() => {
-  const q = query(collection(db, "eventos_vueltas"));
 
-  const unsub = onSnapshot(q, (snap) => {
+  // ================================
+  // CARRERAS POR VUELTAS
+  // ================================
 
-  const eventos = snap.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  }));
+  const qVueltas = query(
+    collection(db, "eventos_vueltas")
+  );
 
-  // 🔥 FILTRAR EVENTOS OCULTOS
-  const filtrados = eventos.filter((ev: any) => {
+  const unsubVueltas = onSnapshot(
+    qVueltas,
+    (snap) => {
 
-    const nombre =
-      ev.nombreEvento?.toLowerCase() || "";
+      const eventosVueltas = snap.docs.map((doc) => ({
+        id: doc.id,
+        tipo: "vueltas",
+        ...doc.data(),
+      }));
 
-    return (
+      setEventosVueltas(eventosVueltas);
+    }
+  );
 
-      !nombre.includes("prueba")
 
-      &&
+  // ================================
+  // CARRERAS NORMALES
+  // ================================
 
-      !nombre.includes("admin")
+  const qNormales = query(
+    collection(db, "eventos")
+  );
 
-      &&
+  const unsubNormales = onSnapshot(
+    qNormales,
+    (snap) => {
 
-      !nombre.includes("la hora por equipos")
-    );
-  });
+      const eventosNormales = snap.docs.map((doc) => ({
+        id: doc.id,
+        tipo: "normal",
+        ...doc.data(),
+      }));
 
-  setEventosEnVivo(filtrados);
-});
+      setEventosNormales(eventosNormales);
+    }
+  );
 
-  return () => unsub();
+
+  return () => {
+    unsubVueltas();
+    unsubNormales();
+  };
+
 }, []);
 
   /* ============================= */
@@ -193,8 +229,12 @@ export default function Header() {
                   ) : (
                     eventosEnVivo.map((ev) => (
                       <Link
-                        key={ev.id}
-                        href={`/vueltas/tv/${ev.id}`}
+  key={`${ev.tipo}-${ev.id}`}
+  href={
+  ev.tipo === "vueltas"
+    ? `/vueltas/tv/${ev.id}`
+    : `/carreraenvivo/${ev.id}`
+}
                         className="block px-4 py-2 text-sm hover:bg-white/10 rounded-lg transition"
                       >
                         {ev.nombreEvento || "Evento"}
@@ -380,29 +420,28 @@ export default function Header() {
           eventosEnVivo.map((ev) => (
 
             <Link
-              key={ev.id}
-
-              href={`/vueltas/tv/${ev.id}`}
-
-              onClick={() => {
-                setMenuOpen(false)
-                setOpenLive(false)
-              }}
-
-              className="
-                bg-white/5
-                hover:bg-white/10
-                transition
-                rounded-xl
-                px-4
-                py-3
-                text-sm
-              "
-            >
-
-              🔴 {ev.nombreEvento || "Evento"}
-
-            </Link>
+  key={`${ev.tipo}-${ev.id}`}
+  href={
+    ev.tipo === "vueltas"
+      ? `/vueltas/tv/${ev.id}`
+      : `/carreraenvivo/${ev.id}`
+  }
+  onClick={() => {
+    setMenuOpen(false)
+    setOpenLive(false)
+  }}
+  className="
+    bg-white/5
+    hover:bg-white/10
+    transition
+    rounded-xl
+    px-4
+    py-3
+    text-sm
+  " 
+>
+  🔴 {ev.nombreEvento || "Evento"}
+</Link>
 
           ))
 
