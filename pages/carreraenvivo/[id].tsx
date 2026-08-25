@@ -419,6 +419,105 @@ const competidoresDistancia =
   }, [competidoresDistancia,
   registrosPorCompetidor]);
 
+  // ==========================================
+// DISTANCIAS DISPONIBLES SEGÚN LAS RUTAS
+// ==========================================
+
+useEffect(() => {
+
+  if (!router.isReady || !id) {
+    return;
+  }
+
+  const db = getDatabase(app);
+
+  const rutasRef = ref(
+    db,
+    `eventos/${id}/rutas`
+  );
+
+  const unsubscribe = onValue(
+    rutasRef,
+    (snapshot) => {
+
+      if (!snapshot.exists()) {
+
+        setDistanciasDisponibles([]);
+        setDistanciaSeleccionada("");
+        return;
+      }
+
+      const data = snapshot.val() || {};
+
+      const distancias = Object.keys(data)
+        .map((distancia) =>
+          normalizarDistancia(distancia)
+        )
+        .filter(Boolean)
+        .sort((a, b) => {
+
+          const numeroA = parseFloat(
+            a.replace("K", "")
+          );
+
+          const numeroB = parseFloat(
+            b.replace("K", "")
+          );
+
+          if (
+            Number.isFinite(numeroA) &&
+            Number.isFinite(numeroB)
+          ) {
+            return numeroA - numeroB;
+          }
+
+          return a.localeCompare(b);
+        });
+
+      setDistanciasDisponibles(distancias);
+
+      setDistanciaSeleccionada((actual) => {
+
+        // Mantener la distancia actual
+        // si todavía existe
+        if (
+          actual &&
+          distancias.includes(actual)
+        ) {
+          return actual;
+        }
+
+        // Durante pruebas, preferir 10K
+        if (
+          distancias.includes("10K")
+        ) {
+          return "10K";
+        }
+
+        // Primera distancia disponible
+        return distancias[0] || "";
+      });
+
+    },
+    (err) => {
+
+      console.error(
+        "Error cargando rutas:",
+        err
+      );
+
+      setDistanciasDisponibles([]);
+      setDistanciaSeleccionada("");
+    }
+  );
+
+  return () => unsubscribe();
+
+}, [
+  router.isReady,
+  id
+]);
+
 // ==========================================
 // CARGAR RUTA DE LA DISTANCIA SELECCIONADA
 // ==========================================
