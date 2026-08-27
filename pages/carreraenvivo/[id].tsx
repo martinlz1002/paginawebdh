@@ -99,7 +99,8 @@ const [distanciasDisponibles, setDistanciasDisponibles] =
   String(valor ?? "")
     .trim()
     .toUpperCase()
-    .replace(/\s+/g, "");
+    .replace(/\s+/g, "")
+    .replace(/_/g, ".");
 
     const formatearDistancia = (distancia: string) => {
   const valor = normalizarDistancia(distancia);
