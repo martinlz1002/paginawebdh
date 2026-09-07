@@ -1,6 +1,13 @@
 // next.config.js
 const path = require('path');
 
+console.log(
+  "🔑 GOOGLE MAPS ENV EN BUILD:",
+  process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    ? `CONFIGURADA (${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY.length} caracteres)`
+    : "NO CONFIGURADA"
+);
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 reactStrictMode: true,
