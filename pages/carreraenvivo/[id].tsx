@@ -74,7 +74,13 @@ const cargarGoogleMaps = (): Promise<any> => {
   }
 
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-  if (!apiKey) {
+
+console.log(
+  "🔑 GOOGLE MAPS KEY:",
+  apiKey ? `CONFIGURADA (${apiKey.length} caracteres)` : "NO CONFIGURADA"
+);
+
+if (!apiKey) {
     return Promise.reject(
       new Error(
         "Falta NEXT_PUBLIC_GOOGLE_MAPS_API_KEY en las variables de entorno."
