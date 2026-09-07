@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   equalTo,
   onValue,
@@ -28,6 +28,7 @@ type CorredorBase = {
   distancia: string;
   team: string;
   checkpoints: CheckpointReal[];
+  datosInscripcion?: Record<string, any>;
 };
 type EstadoCorredor = CorredorBase & {
   posicion: number;
@@ -47,13 +48,191 @@ type TramoMetricos = Tramo & {
   distanciaAcumuladaInicioKm: number;
   distanciaAcumuladaFinKm: number;
 };
-type TramoSVG = {
+type TramoGoogle = {
   id: string;
   desde?: string;
   hasta?: string;
-  puntos: { x: number; y: number }[];
-  segmentos: { inicio: { x: number; y: number }; fin: { x: number; y: number }; longitud: number }[];
+  puntos: Punto[];
+  segmentos: { inicio: Punto; fin: Punto; longitud: number }[];
   longitudTotal: number;
+  fuente: "google" | "configurada";
+};
+
+// Google Maps se carga dinámicamente para no romper SSR de Next.js.
+//
+// No dependemos de google.maps.importLibrary(). En este proyecto usamos
+// la carga directa de Maps JS solicitando explícitamente las librerías
+// Routes y Marker. Esto evita el problema de compatibilidad que aparece
+// cuando existe una instancia previa de Google Maps sin importLibrary().
+let googleMapsPromise: Promise<any> | null = null;
+
+const cargarGoogleMaps = (): Promise<any> => {
+  if (typeof window === "undefined") {
+    return Promise.reject(
+      new Error("Google Maps solo puede cargarse en el navegador.")
+    );
+  }
+
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  if (!apiKey) {
+    return Promise.reject(
+      new Error(
+        "Falta NEXT_PUBLIC_GOOGLE_MAPS_API_KEY en las variables de entorno."
+      )
+    );
+  }
+
+  const googleMapsListo = () => {
+    const g = (window as any).google;
+    return !!(
+      g?.maps?.Map &&
+      g?.maps?.Polyline &&
+      g?.maps?.LatLngBounds &&
+      g?.maps?.routes?.Route &&
+      g?.maps?.marker?.AdvancedMarkerElement &&
+      g?.maps?.marker?.PinElement
+    );
+  };
+
+  if (googleMapsListo()) {
+    return Promise.resolve((window as any).google);
+  }
+
+  if (googleMapsPromise) return googleMapsPromise;
+
+  googleMapsPromise = new Promise((resolve, reject) => {
+    let terminado = false;
+
+    const resolver = () => {
+      if (terminado) return;
+      if (googleMapsListo()) {
+        terminado = true;
+        resolve((window as any).google);
+      }
+    };
+
+    const rechazar = (mensaje: string) => {
+      if (terminado) return;
+      terminado = true;
+      reject(new Error(mensaje));
+    };
+
+    // Si otro componente ya cargó Google Maps, no intentamos cargarlo otra vez.
+    // Esperamos a que la instancia existente termine de inicializarse.
+    const existente = document.querySelector<HTMLScriptElement>(
+      'script[src*="maps.googleapis.com/maps/api/js"]'
+    );
+
+    if (existente) {
+      let intentos = 0;
+      const revisarExistente = () => {
+        if (googleMapsListo()) {
+          resolver();
+          return;
+        }
+
+        if (++intentos >= 100) {
+          rechazar(
+            "Google Maps ya estaba cargado, pero la instancia existente no contiene Routes/Marker."
+          );
+          return;
+        }
+
+        window.setTimeout(revisarExistente, 100);
+      };
+
+      revisarExistente();
+      return;
+    }
+
+    // Con loading=async, el evento load del <script> NO es la señal de que
+    // Maps terminó de cargar. Google recomienda callback=... para eso.
+    const callbackName = `__dhtimeGoogleMapsReady_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2)}`;
+
+    (window as any)[callbackName] = () => {
+      // El callback se ejecuta cuando la carga de Maps terminó completamente.
+      // Damos un tick para que las librerías queden expuestas en google.maps.
+      window.setTimeout(() => {
+        if (googleMapsListo()) {
+          resolver();
+        } else {
+          rechazar(
+            "Google Maps terminó de cargar, pero Routes/Marker no están disponibles."
+          );
+        }
+
+        try {
+          delete (window as any)[callbackName];
+        } catch {
+          (window as any)[callbackName] = undefined;
+        }
+      }, 0);
+    };
+
+    const script = document.createElement("script");
+    const parametros = new URLSearchParams({
+      key: apiKey,
+      v: "weekly",
+      loading: "async",
+      libraries: "maps,routes,marker",
+      callback: callbackName,
+    });
+
+    script.src =
+      `https://maps.googleapis.com/maps/api/js?${parametros.toString()}`;
+    script.async = true;
+    script.defer = true;
+    script.dataset.dhtimeGoogleMaps = "true";
+
+    script.onerror = () => {
+      rechazar("No se pudo cargar Google Maps.");
+    };
+
+    document.head.appendChild(script);
+  });
+
+  googleMapsPromise.catch(() => {
+    googleMapsPromise = null;
+  });
+
+  return googleMapsPromise;
+};
+
+const construirTramoVisual = (
+  id: string,
+  desde: string | undefined,
+  hasta: string | undefined,
+  puntos: Punto[],
+  fuente: "google" | "configurada"
+): TramoGoogle => {
+  const segmentos: TramoGoogle["segmentos"] = [];
+  let longitudTotal = 0;
+
+  for (let i = 0; i < puntos.length - 1; i++) {
+    const inicio = puntos[i];
+    const fin = puntos[i + 1];
+    const longitud = distanciaGPSGlobal(inicio, fin);
+    segmentos.push({ inicio, fin, longitud });
+    longitudTotal += longitud;
+  }
+
+  return { id, desde, hasta, puntos, segmentos, longitudTotal, fuente };
+};
+
+const distanciaGPSGlobal = (a: Punto, b: Punto) => {
+  const R = 6371000;
+  const lat1 = (a.latitud * Math.PI) / 180;
+  const lat2 = (b.latitud * Math.PI) / 180;
+  const dLat = ((b.latitud - a.latitud) * Math.PI) / 180;
+  const dLng = ((b.longitud - a.longitud) * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
+  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(Math.max(0, 1 - h)));
 };
 
 export default function CarreraEnVivo() {
@@ -69,16 +248,25 @@ export default function CarreraEnVivo() {
   const [tiempoActual, setTiempoActual] = useState(0);
   const [serverTimeOffset, setServerTimeOffset] = useState(0);
   const [bibBusqueda, setBibBusqueda] = useState("");
+  const [competidorHover, setCompetidorHover] = useState<EstadoCorredor | null>(null);
   const [distanciaSeleccionada, setDistanciaSeleccionada] =
   useState("");
 
   const [eventoIdReal, setEventoIdReal] = useState<string | null>(null);
+  const [nombreEvento, setNombreEvento] = useState("");
 
 const [distanciasDisponibles, setDistanciasDisponibles] =
   useState<string[]>([]);
 
   const [errorRuta, setErrorRuta] =
   useState("");
+
+  // ==========================================
+  // GOOGLE MAPS
+  // ==========================================
+  const [googleListo, setGoogleListo] = useState(false);
+  const [tramosGoogle, setTramosGoogle] = useState<TramoGoogle[]>([]);
+  const [errorGoogleMaps, setErrorGoogleMaps] = useState("");
 
   const normalizarCompetidor = (valor: any) => {
     const texto = String(valor ?? "").trim();
@@ -168,6 +356,7 @@ useEffect(() => {
 
     if (encontrado) {
       setEventoIdReal(encontrado[0]);
+      setNombreEvento(String((encontrado[1] as any)?.nombre ?? "").trim());
     } else {
       setEventoIdReal(null);
       console.error(
@@ -401,6 +590,9 @@ const competidoresDistancia =
         distancia: String(inscrito.distancia ?? "10K"),
         team: String(inscrito.team ?? ""),
         checkpoints: registrosPorCompetidor[competidor] || [],
+        // Conservamos todos los campos de inscripción para poder mostrarlos
+        // completos en la ficha del ranking sin afectar la lógica de carrera.
+        datosInscripcion: { ...inscrito },
       };
     });
   }, [competidoresDistancia,
@@ -812,6 +1004,207 @@ const tramosRecorrido = useMemo(() => {
 }, [ruta]);
 
 
+// ==========================================
+// GOOGLE MAPS + RUTAS POR CALLES
+// ==========================================
+//
+// La ruta configurada por DHTime sigue siendo la fuente de
+// verdad para distancias, tiempos, ranking y progreso.
+// Google solo aporta la geometría visual siguiendo calles.
+// ==========================================
+
+useEffect(() => {
+  let cancelado = false;
+
+  if (!router.isReady || tramosRecorrido.length === 0) {
+    setTramosGoogle([]);
+    return;
+  }
+
+  cargarGoogleMaps()
+    .then(async (google: any) => {
+      if (cancelado) return;
+
+      if (cancelado) return;
+
+      const Route = google.maps.routes?.Route;
+      if (!Route) {
+        throw new Error(
+          "La biblioteca Routes no está disponible en Google Maps."
+        );
+      }
+
+      setGoogleListo(true);
+      setErrorGoogleMaps("");
+
+      const resultados: TramoGoogle[] = [];
+
+      for (const tramo of tramosRecorrido) {
+        if (cancelado) return;
+
+        const puntos = tramo.puntos;
+
+        if (puntos.length < 2) continue;
+
+        // Routes API admite hasta 25 puntos intermedios.
+        // Si un tramo tiene más, conservamos la geometría configurada.
+        if (puntos.length - 2 > 25) {
+          resultados.push(
+            construirTramoVisual(
+              tramo.id,
+              tramo.desde,
+              tramo.hasta,
+              puntos,
+              "configurada"
+            )
+          );
+          continue;
+        }
+
+        try {
+          // Calculamos cada tramo entre dos puntos consecutivos por separado.
+          // Esto evita que Routes intente resolver todo el tramo como una sola
+          // ruta con waypoints y termine haciendo desvíos/retornos innecesarios
+          // cerca de la meta o de checkpoints anteriores.
+          const puntosGoogle: Punto[] = [];
+
+          for (let i = 0; i < puntos.length - 1; i++) {
+            const origen = puntos[i];
+            const destino = puntos[i + 1];
+
+            const request: any = {
+              origin: {
+                lat: origen.latitud,
+                lng: origen.longitud,
+              },
+              destination: {
+                lat: destino.latitud,
+                lng: destino.longitud,
+              },
+              // Es una carrera a pie. WALKING evita que las restricciones
+              // de circulación vehicular/one-way de DRIVING introduzcan
+              // vueltas que no forman parte del recorrido configurado.
+              travelMode: "WALKING",
+              fields: ["path"],
+            };
+
+            const resultado = await Route.computeRoutes(request);
+            const rutaGoogle = resultado?.routes?.[0];
+            const path = rutaGoogle?.path;
+
+            if (!path || path.length < 2) {
+              throw new Error(
+                `Google no devolvió geometría para ${tramo.desde} → ${tramo.hasta}, segmento ${i + 1}.`
+              );
+            }
+
+            const segmentoGoogle: Punto[] = path
+              .map((p: any) => ({
+                latitud: typeof p.lat === "function" ? p.lat() : Number(p.lat),
+                longitud: typeof p.lng === "function" ? p.lng() : Number(p.lng),
+              }))
+              .filter(
+                (p: Punto) =>
+                  Number.isFinite(p.latitud) && Number.isFinite(p.longitud)
+              );
+
+            if (segmentoGoogle.length < 2) {
+              throw new Error(`Geometría inválida en segmento ${i + 1}.`);
+            }
+
+            if (puntosGoogle.length === 0) {
+              puntosGoogle.push(...segmentoGoogle);
+            } else {
+              // Evitamos duplicar el punto donde termina el segmento anterior.
+              puntosGoogle.push(...segmentoGoogle.slice(1));
+            }
+          }
+
+          if (puntosGoogle.length < 2) {
+            throw new Error("Geometría de Google inválida.");
+          }
+
+          resultados.push(
+            construirTramoVisual(
+              tramo.id,
+              tramo.desde,
+              tramo.hasta,
+              puntosGoogle,
+              "google"
+            )
+          );
+        } catch (error) {
+          console.warn(
+            `Google Maps no pudo calcular el tramo ${tramo.desde} → ${tramo.hasta}. Se usará la ruta configurada.`,
+            error
+          );
+
+          resultados.push(
+            construirTramoVisual(
+              tramo.id,
+              tramo.desde,
+              tramo.hasta,
+              puntos,
+              "configurada"
+            )
+          );
+        }
+      }
+
+      if (!cancelado) {
+        resultados.sort(
+          (a, b) =>
+            tramosRecorrido.findIndex((x) => x.id === a.id) -
+            tramosRecorrido.findIndex((x) => x.id === b.id)
+        );
+        setTramosGoogle(resultados);
+      }
+    })
+    .catch((error) => {
+      if (cancelado) return;
+      console.error("Error inicializando Google Maps:", error);
+      setGoogleListo(false);
+      setErrorGoogleMaps(
+        error instanceof Error
+          ? error.message
+          : "No se pudo inicializar Google Maps."
+      );
+
+      // Fallback visual: DHTime continúa funcionando con la geometría configurada.
+      setTramosGoogle(
+        tramosRecorrido.map((tramo) =>
+          construirTramoVisual(
+            tramo.id,
+            tramo.desde,
+            tramo.hasta,
+            tramo.puntos,
+            "configurada"
+          )
+        )
+      );
+    });
+
+  return () => {
+    cancelado = true;
+  };
+}, [tramosRecorrido]);
+
+const tramosVisuales = useMemo<TramoGoogle[]>(() => {
+  if (tramosGoogle.length === tramosRecorrido.length && tramosGoogle.length > 0) {
+    return tramosGoogle;
+  }
+
+  return tramosRecorrido.map((tramo) =>
+    construirTramoVisual(
+      tramo.id,
+      tramo.desde,
+      tramo.hasta,
+      tramo.puntos,
+      "configurada"
+    )
+  );
+}, [tramosGoogle, tramosRecorrido]);
+
   // ==========================================
   // OBTENER CHECKPOINTS DEL MAPA
   // ==========================================
@@ -831,220 +1224,6 @@ const tramosRecorrido = useMemo(() => {
     );
 
   }, [ruta]);
-
-
-  // ==========================================
-  // TRANSFORMAR GPS → SVG
-  // ==========================================
-  //
-  // IMPORTANTE:
-  //
-  // NO vamos a juntar todos los puntos
-  // en una sola lista.
-  //
-  // Cada tramo conserva su propia línea.
-  //
-  // Esto evita que SVG dibuje diagonales
-  // entre el final de un tramo y el inicio
-  // de otro tramo.
-  //
-  // ==========================================
-
-  const mapa = useMemo(() => {
-
-    if (
-      tramosRecorrido.length === 0
-    ) {
-
-      return null;
-    }
-
-
-    // ==========================================
-    // JUNTAR PUNTOS SOLAMENTE PARA CALCULAR
-    // LOS LÍMITES DEL MAPA
-    //
-    // OJO:
-    //
-    // Esto NO significa que vayamos a dibujarlos
-    // como una sola línea.
-    // ==========================================
-
-    const todosPuntos: Punto[] = [];
-
-
-    for (
-      const tramo of tramosRecorrido
-    ) {
-
-      todosPuntos.push(
-        ...tramo.puntos
-      );
-    }
-
-
-    todosPuntos.push(
-      ...puntosMapa
-    );
-
-
-    // ==========================================
-    // CALCULAR LÍMITES
-    // ==========================================
-
-    const latitudes =
-      todosPuntos.map(
-        (p) => p.latitud
-      );
-
-    const longitudes =
-      todosPuntos.map(
-        (p) => p.longitud
-      );
-
-
-    const minLat =
-      Math.min(...latitudes);
-
-    const maxLat =
-      Math.max(...latitudes);
-
-    const minLng =
-      Math.min(...longitudes);
-
-    const maxLng =
-      Math.max(...longitudes);
-
-
-    // ==========================================
-    // TAMAÑO DEL SVG
-    // ==========================================
-
-    const ancho = 1000;
-    const alto = 650;
-
-    const margen = 60;
-
-
-    // ==========================================
-    // RANGOS
-    // ==========================================
-
-    const rangoLng =
-      maxLng - minLng || 0.0001;
-
-    const rangoLat =
-      maxLat - minLat || 0.0001;
-
-
-    // ==========================================
-    // CONVERTIR GPS → COORDENADAS SVG
-    // ==========================================
-
-    const convertir = (
-      punto: Punto
-    ) => {
-
-      const x =
-        margen +
-        (
-          (punto.longitud - minLng) /
-          rangoLng
-        ) *
-        (ancho - margen * 2);
-
-
-      // ========================================
-      // SVG CRECE HACIA ABAJO
-      //
-      // Por eso invertimos la latitud.
-      // ========================================
-
-      const y =
-        alto -
-        margen -
-        (
-          (punto.latitud - minLat) /
-          rangoLat
-        ) *
-        (alto - margen * 2);
-
-
-      return {
-        x,
-        y,
-      };
-    };
-
-
-    // ==========================================
-    // CONVERTIR CADA TRAMO POR SEPARADO
-    // ==========================================
-
-    const tramosSVG: TramoSVG[] =
-      tramosRecorrido.map((tramo) => {
-        const puntos = tramo.puntos.map(convertir);
-        const segmentos: TramoSVG["segmentos"] = [];
-        let longitudTotal = 0;
-
-        for (let i = 0; i < puntos.length - 1; i++) {
-          const inicio = puntos[i];
-          const fin = puntos[i + 1];
-          const dx = fin.x - inicio.x;
-          const dy = fin.y - inicio.y;
-          const longitud = Math.sqrt(dx * dx + dy * dy);
-          segmentos.push({ inicio, fin, longitud });
-          longitudTotal += longitud;
-        }
-
-        return {
-          id: tramo.id,
-          desde: tramo.desde,
-          hasta: tramo.hasta,
-          puntos,
-          segmentos,
-          longitudTotal,
-        };
-      });
-
-
-    // ==========================================
-    // CONVERTIR CHECKPOINTS
-    // ==========================================
-
-    const puntosMapaSVG =
-      puntosMapa.map(
-        (punto) => ({
-
-          ...punto,
-
-          ...convertir(punto),
-
-        })
-      );
-
-
-    // ==========================================
-    // DEVOLVER INFORMACIÓN DEL MAPA
-    // ==========================================
-
-    return {
-
-      ancho,
-
-      alto,
-
-      tramosSVG,
-
-      puntosMapaSVG,
-
-    };
-
-  }, [
-    tramosRecorrido,
-    puntosMapa,
-  ]);
-
 
 
 // ==========================================
@@ -1160,10 +1339,12 @@ const tramosMetricos = useMemo<TramoMetricos[]>(() => {
   });
 }, [tramosRecorrido]);
 
-// POSICIÓN SOBRE LA GEOMETRÍA SVG
+// POSICIÓN SOBRE LA GEOMETRÍA DE GOOGLE MAPS
 // ==========================================
+// La geometría visual puede ser la ruta real por calles de Google.
+// El progreso sigue siendo el calculado por DHTime.
 
-const posicionSobreTramoSVG = (tramo: TramoSVG, progreso: number) => {
+const posicionSobreTramoGoogle = (tramo: TramoGoogle, progreso: number) => {
   const segmentos = tramo.segmentos;
   if (!segmentos || segmentos.length === 0) return tramo.puntos[0] || null;
 
@@ -1177,8 +1358,14 @@ const posicionSobreTramoSVG = (tramo: TramoSVG, progreso: number) => {
       const restante = distanciaObjetivo - acumulado;
       const porcentaje = segmento.longitud > 0 ? restante / segmento.longitud : 0;
       return {
-        x: segmento.inicio.x + (segmento.fin.x - segmento.inicio.x) * porcentaje,
-        y: segmento.inicio.y + (segmento.fin.y - segmento.inicio.y) * porcentaje,
+        latitud:
+          segmento.inicio.latitud +
+          (segmento.fin.latitud - segmento.inicio.latitud) *
+            porcentaje,
+        longitud:
+          segmento.inicio.longitud +
+          (segmento.fin.longitud - segmento.inicio.longitud) *
+            porcentaje,
       };
     }
     acumulado = siguiente;
@@ -1233,7 +1420,7 @@ const calcularEstadoCorredor = (
   corredor: CorredorBase,
   ahora: number
 ): Omit<EstadoCorredor, "posicion" | keyof CorredorBase> | null => {
-  if (!mapa || tramosMetricos.length === 0) return null;
+  if (tramosMetricos.length === 0 || tramosVisuales.length !== tramosMetricos.length) return null;
 
   const checkpoints = corredor.checkpoints;
 
@@ -1289,7 +1476,7 @@ const calcularEstadoCorredor = (
       ? tramosMetricos[segmentoInicio]?.distanciaAcumuladaInicioKm || 0
       : 0;
 
-  let posicionFinal: { x: number; y: number } | null = null;
+  let posicionFinal: Punto | null = null;
   let puntoActual = puntoAncla;
   let siguientePunto = "";
 
@@ -1303,8 +1490,8 @@ const calcularEstadoCorredor = (
 
   while (segmentoActual < tramosMetricos.length) {
     const tramo = tramosMetricos[segmentoActual];
-    const tramoSVG = mapa.tramosSVG[segmentoActual];
-    if (!tramo || !tramoSVG || tramo.distanciaKm <= 0) return null;
+    const tramoVisual = tramosVisuales[segmentoActual];
+    if (!tramo || !tramoVisual || tramo.distanciaKm <= 0) return null;
 
     const duracionTramo = tramo.distanciaKm * ritmoMsPorKm;
 
@@ -1312,7 +1499,7 @@ const calcularEstadoCorredor = (
     if (tiempoDisponible < duracionTramo) {
       progreso = duracionTramo > 0 ? tiempoDisponible / duracionTramo : 0;
       progreso = Math.max(0, Math.min(1, progreso));
-      const posicion = posicionSobreTramoSVG(tramoSVG, progreso);
+      const posicion = posicionSobreTramoGoogle(tramoVisual, progreso);
       if (!posicion) return null;
 
       posicionFinal = posicion;
@@ -1326,7 +1513,7 @@ const calcularEstadoCorredor = (
     // exista el registro real, igual que el comportamiento actual.
     const nombrePuntoHasta = normalizarPunto(tramo.hasta);
     if (!checkpointsConfirmados.has(nombrePuntoHasta)) {
-      const posicion = posicionSobreTramoSVG(tramoSVG, 1);
+      const posicion = posicionSobreTramoGoogle(tramoVisual, 1);
       if (!posicion) return null;
 
       posicionFinal = posicion;
@@ -1342,12 +1529,15 @@ const calcularEstadoCorredor = (
     segmentoActual++;
 
     if (segmentoActual >= tramosMetricos.length) {
-      const metaSVG = mapa.puntosMapaSVG.find(
+      const meta = puntosMapa.find(
         (punto) => normalizarPunto(punto.nombre) === "META"
       );
-      if (!metaSVG) return null;
+      if (!meta) return null;
 
-      posicionFinal = { x: metaSVG.x, y: metaSVG.y };
+      posicionFinal = {
+        latitud: meta.latitud,
+        longitud: meta.longitud,
+      };
       puntoActual = normalizarPunto(tramo.hasta);
       siguientePunto = "META";
       progreso = 1;
@@ -1359,8 +1549,8 @@ const calcularEstadoCorredor = (
   if (!posicionFinal) return null;
 
   return {
-    x: posicionFinal.x,
-    y: posicionFinal.y,
+    x: posicionFinal.longitud,
+    y: posicionFinal.latitud,
     progreso,
     distanciaRecorridaKm,
     puntoActual,
@@ -1376,7 +1566,7 @@ const calcularEstadoCorredor = (
 // ==========================================
 
 const rankingCorredores = useMemo(() => {
-  if (!mapa || tramosMetricos.length === 0 || posicionesCorredores.length === 0) return [];
+  if (tramosVisuales.length !== tramosMetricos.length || posicionesCorredores.length === 0) return [];
 
   const posiciones = posicionesCorredores.map((corredor) => {
     const estado = calcularEstadoCorredor(corredor, tiempoRanking);
@@ -1400,7 +1590,7 @@ const rankingCorredores = useMemo(() => {
   });
 
   return posiciones.slice(0, 10);
-}, [mapa, tramosMetricos, posicionesCorredores, tiempoRanking]);
+}, [tramosVisuales, tramosMetricos, posicionesCorredores, tiempoRanking]);
 
 // ==========================================
 // CORREDORES VISIBLES
@@ -1409,8 +1599,8 @@ const rankingCorredores = useMemo(() => {
 // Con BIB: solo ese corredor.
 // ==========================================
 
-const corredoresSVG = useMemo<EstadoCorredor[]>(() => {
-  if (!mapa || tramosMetricos.length === 0) return [];
+const corredoresMapa = useMemo<EstadoCorredor[]>(() => {
+  if (tramosVisuales.length !== tramosMetricos.length) return [];
 
   const bibNormalizado = normalizarCompetidor(bibBusqueda);
   const corredoresAProcesar = bibNormalizado
@@ -1429,13 +1619,68 @@ const corredoresSVG = useMemo<EstadoCorredor[]>(() => {
     posicion: bibNormalizado ? 1 : index + 1,
   }));
 }, [
-  mapa,
+  tramosVisuales,
   tramosMetricos,
   posicionesCorredores,
   rankingCorredores,
   tiempoActual,
   bibBusqueda,
 ]);
+
+// ==========================================
+// DATOS PARA LA FICHA DEL COMPETIDOR
+// ==========================================
+const obtenerCamposFichaCompetidor = (corredor: EstadoCorredor) => {
+  const datos = corredor.datosInscripcion || {};
+
+  const conocidos: Array<[string, string[]]> = [
+    ["Nombre", ["nombre", "name"]],
+    ["BIB", ["competidor"]],
+    ["Equipo", ["team", "equipo", "EquipoName"]],
+    ["Categoría", ["categoria", "categoriaNombre", "CategoryName"]],
+    ["Distancia", ["distancia", "ruta", "RouteName"]],
+    ["Ciudad", ["ciudad", "Ciudad"]],
+    ["Estado", ["estado", "Estado"]],
+    ["Municipio", ["municipio", "Municipio"]],
+    ["País", ["pais", "país", "Country"]],
+    ["Fecha de nacimiento", ["fechaNacimiento", "fechaNac", "Fecha Nac."]],
+    ["Celular", ["celular", "telefono", "phone"]],
+    ["Correo", ["email", "correo"]],
+  ];
+
+  const usados = new Set<string>();
+  const campos: Array<[string, string]> = [];
+
+  for (const [etiqueta, claves] of conocidos) {
+    const claveEncontrada = claves.find((clave) =>
+      Object.prototype.hasOwnProperty.call(datos, clave) &&
+      String(datos[clave] ?? "").trim() !== ""
+    );
+    if (!claveEncontrada) continue;
+    usados.add(claveEncontrada);
+    campos.push([etiqueta, String(datos[claveEncontrada])]);
+  }
+
+  // También mostramos cualquier otro dato de inscripción que exista, para
+  // que "datos completos" no dependa de una lista fija de columnas.
+  for (const [clave, valor] of Object.entries(datos)) {
+    if (usados.has(clave) || clave === "checkpoints") continue;
+    if (valor === null || valor === undefined || typeof valor === "object") continue;
+    const texto = String(valor).trim();
+    if (!texto) continue;
+    campos.push([clave, texto]);
+  }
+
+  return campos;
+};
+
+const formatearTiempoCarrera = (ms: number) => {
+  const totalSegundos = Math.max(0, Math.floor(Number(ms || 0) / 1000));
+  const horas = Math.floor(totalSegundos / 3600);
+  const minutos = Math.floor((totalSegundos % 3600) / 60);
+  const segundos = totalSegundos % 60;
+  return [horas, minutos, segundos].map((valor) => String(valor).padStart(2, "0")).join(":");
+};
 
 // ESTADOS
   // ==========================================
@@ -1494,705 +1739,758 @@ const corredoresSVG = useMemo<EstadoCorredor[]>(() => {
       ====================================== */}
 
       <header style={styles.header}>
-
-        <div>
-
-          <div style={styles.subtitulo}>
-            CARRERA EN VIVO
-          </div>
-
-        </div>
-
-
-        <div style={styles.estado}>
-
-          <span
-            style={styles.puntoVivo}
-          ></span>
-
-          EN VIVO
-
-        </div>
-
       </header>
 
-
+      <style jsx>{`
+        @media (max-width: 1050px) {
+          .dhtime-live-content { grid-template-columns: minmax(0, 1fr) 330px !important; }
+        }
+        @media (max-width: 820px) {
+          .dhtime-live-content { grid-template-columns: 1fr !important; }
+          .dhtime-event-summary { grid-template-columns: minmax(0, 1fr) auto !important; }
+        }
+        @media (max-width: 640px) {
+          .dhtime-live-content { grid-template-columns: 1fr !important; }
+          .dhtime-event-summary { grid-template-columns: 1fr !important; gap: 10px !important; }
+          .dhtime-event-summary > div { border-left: none !important; padding-left: 0 !important; align-items: flex-start !important; }
+        }
+      `}</style>
 
 {/* =====================================
-    SELECTOR DE DISTANCIA
+    CONTENIDO PRINCIPAL: MAPA + PANEL LATERAL
 ====================================== */}
+<section className="dhtime-live-layout" style={styles.liveLayout}>
 
-<section
-  style={{
-    ...styles.info,
-    marginTop: 16,
-    marginBottom: 16,
-    alignItems: "center",
-  }}
->
+  {/* ================================
+      RESUMEN DE LA CARRERA
+      Ocupa todo el ancho para dejar más espacio al ranking.
+  ================================= */}
+  <div className="dhtime-event-summary" style={styles.eventSummary}>
+    <div style={styles.eventSummaryMain}>
+      <div style={styles.eventSummaryLabel}>CARRERA EN VIVO</div>
+      <div style={styles.eventName}>{nombreEvento || "Carrera en vivo"}</div>
+      <div style={styles.eventRoute}>
+        Ruta {formatearDistancia(distanciaSeleccionada)}
+      </div>
+    </div>
 
-  <div
-    style={{
-      flex: 1,
-      minWidth: 220,
-    }}
-  >
+    <div style={styles.eventSummaryTimer}>
+      <span style={styles.eventSummaryTimerLabel}>TIEMPO DE CARRERA</span>
+      <strong style={styles.eventSummaryTimerStrong}>{formatearTiempoCarrera(tiempoActual)}</strong>
+    </div>
 
-    <span
-      style={styles.etiqueta}
-    >
-      DISTANCIA A VISUALIZAR
-    </span>
-
-    <select
-      value={distanciaSeleccionada}
-      onChange={(e) =>
-        setDistanciaSeleccionada(
-          e.target.value
-        )
-      }
-      disabled={
-        distanciasDisponibles.length <= 1
-      }
-      style={{
-        width: "100%",
-        marginTop: 8,
-        padding: "12px 14px",
-        borderRadius: 12,
-        border:
-          "1px solid rgba(255,255,255,0.15)",
-        background:
-          "rgba(255,255,255,0.07)",
-        color: "white",
-        fontSize: 16,
-        fontWeight: 800,
-        outline: "none",
-        cursor:
-          distanciasDisponibles.length > 1
-            ? "pointer"
-            : "default",
-      }}
-    >
-
-      {distanciasDisponibles.map(
-        (distancia) => (
-          <option
-            key={distancia}
-            value={distancia}
-            style={{
-              color: "#111827",
-            }}
-          >
-            {formatearDistancia(
-              distancia
-            )}
-          </option>
-        )
-      )}
-
-    </select>
-
+    <div style={styles.liveBadgeSummary}>
+      <span style={styles.liveDot}></span>
+      EN VIVO
+    </div>
   </div>
 
-</section>
+  <div className="dhtime-live-content" style={styles.liveContent}>
 
-{errorRuta && (
-  <div
-    style={{
-      margin: "12px 25px 20px",
-      padding: "14px 18px",
-      borderRadius: 14,
-      background:
-        "rgba(245,158,11,0.10)",
-      border:
-        "1px solid rgba(245,158,11,0.25)",
-      color: "#fbbf24",
-      fontWeight: 700,
-    }}
-  >
-    ⚠️ {errorRuta}
-  </div>
-)}
+    {/* ================================
+        MAPA
+    ================================= */}
+    <div style={styles.mapColumn}>
 
-
-      {/* =====================================
-          INFORMACIÓN DE LA CARRERA
-      ====================================== */}
-
-      <section style={styles.info}>
-
-        <div>
-
-          <span style={styles.etiqueta}>
-            RUTA
-          </span>
-
-          <strong>
-  {distanciaSeleccionada}
-</strong>
-
-        </div>
-
-
-        <div>
-
-          <span style={styles.etiqueta}>
-            DISTANCIA
-          </span>
-
-          <strong>
-  {formatearDistancia(
-    distanciaSeleccionada
-  )}
-</strong>
-
-        </div>
-
-
-        <div>
-
-          <span style={styles.etiqueta}>
-            CHECKPOINTS
-          </span>
-
-          <strong>
-            {puntosMapa.length}
-          </strong>
-
-        </div>
-
-
-        <div>
-
-          <span style={styles.etiqueta}>
-  INSCRITOS {distanciaSeleccionada}
-</span>
-
-<strong>
-  {competidoresDistancia.length}
-</strong>
-
-        </div>
-
-      </section>
-
-
-
-      {/* =====================================
-          MAPA
-      ====================================== */}
-
-      <section style={styles.mapaContainer}>
-
-
-
-        {/* =====================================
-    BUSCADOR DE BIB
-====================================== */}
-
-<div
-  style={{
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    marginBottom: 20,
-    flexWrap: "wrap",
-  }}
->
-
-  <div
-    style={{
-      flex: "1 1 300px",
-      position: "relative",
-    }}
-  >
-
-    <input
-      type="text"
-      inputMode="numeric"
-      value={bibBusqueda}
-      onChange={(e) =>
-        setBibBusqueda(
-          e.target.value
-        )
-      }
-      placeholder="Buscar BIB..."
-      style={{
-        width: "100%",
-        boxSizing: "border-box",
-        padding: "16px 48px 16px 18px",
-        borderRadius: 14,
-        border:
-          "1px solid rgba(255,255,255,0.12)",
-        background:
-          "rgba(255,255,255,0.07)",
-        color: "white",
-        fontSize: 17,
-        fontWeight: 700,
-        outline: "none",
-      }}
-    />
-
-    {bibBusqueda && (
-      <button
-        type="button"
-        onClick={() =>
-          setBibBusqueda("")
-        }
-        style={{
-          position: "absolute",
-          right: 10,
-          top: "50%",
-          transform:
-            "translateY(-50%)",
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          border: "none",
-          background:
-            "rgba(255,255,255,0.12)",
-          color: "white",
-          cursor: "pointer",
-          fontSize: 18,
-          fontWeight: 900,
+      <GoogleRaceMap
+        tramos={tramosVisuales}
+        puntosMapa={puntosMapa}
+        corredores={corredoresMapa}
+        bibBusqueda={bibBusqueda}
+        googleListo={googleListo}
+        errorGoogleMaps={errorGoogleMaps}
+        onRetry={() => {
+          googleMapsPromise = null;
+          setGoogleListo(false);
+          setErrorGoogleMaps("");
+          setTramosGoogle([]);
         }}
+      />
+
+    </div>
+
+    {/* ================================
+        PANEL LATERAL
+    ================================= */}
+    <aside style={styles.sidePanel}>
+
+    <div style={styles.distanceCard}>
+      <span style={styles.etiqueta}>DISTANCIA A VISUALIZAR</span>
+      <select
+        value={distanciaSeleccionada}
+        onChange={(e) => setDistanciaSeleccionada(e.target.value)}
+        disabled={distanciasDisponibles.length <= 1}
+        style={styles.distanceSelect}
       >
-        ×
-      </button>
+        {distanciasDisponibles.map((distancia) => (
+          <option key={distancia} value={distancia} style={{ color: "#111827" }}>
+            {formatearDistancia(distancia)}
+          </option>
+        ))}
+      </select>
+    </div>
+
+    <div style={styles.searchBox}>
+      <span style={styles.searchIcon}>⌕</span>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={bibBusqueda}
+        onChange={(e) => setBibBusqueda(e.target.value)}
+        placeholder="Buscar BIB..."
+        style={styles.searchInput}
+      />
+      {bibBusqueda && (
+        <button
+          type="button"
+          onClick={() => setBibBusqueda("")}
+          style={styles.clearSearch}
+          aria-label="Limpiar búsqueda"
+        >
+          ×
+        </button>
+      )}
+    </div>
+
+    {errorRuta && (
+      <div style={styles.routeWarning}>⚠️ {errorRuta}</div>
     )}
 
-  </div>
+    <div style={styles.rankingPanel}>
+      <div style={styles.rankingTitleRow}>
+        <div>
+          <div style={styles.rankingTitle}>POSICIONES EN VIVO</div>
+          <div style={styles.rankingSubtitle}>
+            {bibBusqueda ? `Siguiendo BIB ${formatearCompetidor(bibBusqueda)}` : "Siguiendo al líder"}
+          </div>
+        </div>
+        {!bibBusqueda && <span style={styles.top10Badge}>TOP 10</span>}
+      </div>
 
-  <div
-    style={{
-      fontSize: 13,
-      opacity: 0.65,
-      fontWeight: 700,
-      whiteSpace: "nowrap",
-    }}
-  >
-    {bibBusqueda
-      ? `Mostrando BIB ${formatearCompetidor(
-          bibBusqueda
-        )}`
-      : "TOP 10 EN PISTA"}
-  </div>
+      <div style={styles.rankingHeader}>
+        <span>#</span>
+        <span>BIB</span>
+        <span>COMPETIDOR</span>
+        <span>KM</span>
+      </div>
 
-</div>
-
-
-{/* =====================================
-    TOP 10
-====================================== */}
-
-{!bibBusqueda && (
-  <div
-    style={{
-      marginBottom: 12,
-      padding: "12px 14px",
-      borderRadius: 18,
-      background:
-        "rgba(255,255,255,0.04)",
-      border:
-        "1px solid rgba(255,255,255,0.07)",
-    }}
-  >
-
-    <div
-      style={{
-        fontSize: 12,
-        letterSpacing: 2,
-        fontWeight: 900,
-        opacity: 0.55,
-        marginBottom: 15,
-      }}
-    >
-      TOP 10
-    </div>
-
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns:
-  "repeat(10, minmax(0, 1fr))",
-gap: 8,
-      }}
-    >
-
-      {corredoresSVG.map(
-        (corredor) => (
+      <div style={styles.rankingList}>
+        {corredoresMapa.map((corredor) => (
           <div
-            key={
-              `top-${corredor.competidor}`
-            }
+            key={`ranking-${corredor.competidor}`}
+            onMouseEnter={() => setCompetidorHover(corredor)}
+            onMouseLeave={() => setCompetidorHover(null)}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding:
-                "8px 10px",
-              borderRadius: 14,
-              background:
-                "rgba(255,255,255,0.05)",
+              ...styles.rankingRow,
+              ...(corredor.posicion === 1 ? styles.rankingLeader : {}),
             }}
           >
-
-            <div
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background:
-                  "#9EBC39",
-                color: "#111827",
-                fontWeight: 900,
-              }}
-            >
-              {corredor.posicion}
+            <div style={styles.rankBubble}>{corredor.posicion}</div>
+            <div style={styles.rankingBib}>#{corredor.competidorDisplay}</div>
+            <div style={styles.rankingName} title={corredor.nombre || "Sin nombre"}>
+              {corredor.nombre || "Sin nombre"}
             </div>
-
-            <div>
-
-              <div
-                style={{
-                  fontWeight: 900,
-                  fontSize: 16,
-                }}
-              >
-                #{corredor.competidor}
-              </div>
-
-              <div
-                style={{
-                  fontSize: 11,
-                  opacity: 0.55,
-                  marginTop: 2,
-                }}
-              >
-                {corredor.puntoActual}
-              </div>
-
+            <div style={styles.rankingKm}>
+              {corredor.distanciaRecorridaKm.toFixed(1)}
             </div>
-
           </div>
-        )
-      )}
+        ))}
 
+        {corredoresMapa.length === 0 && (
+          <div style={styles.emptyRanking}>Esperando posiciones...</div>
+        )}
+      </div>
     </div>
 
-  </div>
-)}
-
-
-
-        {/* =================================
-            TÍTULO
-        ================================== */}
-
-        <div style={styles.mapaTitulo}>
-
-          <div>
-
-            <span
-              style={styles.mapaTituloGrande}
-            >
-              RECORRIDO
-            </span>
-
-            <span
-  style={styles.mapaTituloPequeno}
->
-  Ruta {distanciaSeleccionada}
-</span>
-
-          </div>
-
-
-          <div style={styles.mapaLeyenda}>
-
-            <span>
-              ● Checkpoint
-            </span>
-
-            <span>
-              ● Recorrido
-            </span>
-
-          </div>
-
-        </div>
-
-
-
-        {/* =================================
-            SVG
-        ================================== */}
-
-        <div style={styles.svgWrapper}>
-
-
-          {mapa ? (
-
-            <svg
-              viewBox={`0 0 ${mapa.ancho} ${mapa.alto}`}
-              preserveAspectRatio="xMidYMid meet"
-              style={styles.svg}
-            >
-
-
-              {/* =================================
-                  RECORRIDO
-                  
-                  IMPORTANTE:
-                  
-                  CADA TRAMO SE DIBUJA
-                  DE FORMA INDEPENDIENTE.
-                  
-                  Esto evita que SVG conecte
-                  automáticamente el final de
-                  un tramo con el inicio del
-                  siguiente.
-              ================================== */}
-
-              {mapa.tramosSVG.map(
-                (tramo) => {
-
-                  if (
-                    tramo.puntos.length < 2
-                  ) {
-                    return null;
-                  }
-
-
-                  const puntos =
-                    tramo.puntos
-                      .map(
-                        (p) =>
-                          `${p.x},${p.y}`
-                      )
-                      .join(" ");
-
-
-                  return (
-                    <g
-                      key={tramo.id}
-                    >
-
-
-                      {/* =================================
-                          SOMBRA DEL TRAMO
-                      ================================== */}
-
-                      <polyline
-                        points={puntos}
-                        fill="none"
-                        stroke="rgba(0,0,0,0.35)"
-                        strokeWidth="20"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-
-
-                      {/* =================================
-                          RECORRIDO PRINCIPAL
-                      ================================== */}
-
-                      <polyline
-                        points={puntos}
-                        fill="none"
-                        stroke="#7E57C2"
-                        strokeWidth="12"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-
-                    </g>
-                  );
-
-                }
-              )}
-
-              {/* =================================
-    TOP 10 CORREDORES
-================================= */}
-
-{corredoresSVG.map(
-  (corredor) => (
-
-    <g
-      key={`corredor-${corredor.competidor}`}
-    >
-
-      {/* =================================
-          SOMBRA
-      ================================= */}
-
-      <circle
-        cx={corredor.x}
-        cy={corredor.y}
-        r="30"
-        fill="rgba(0,0,0,0.45)"
-      />
-
-
-      {/* =================================
-          CÍRCULO DEL CORREDOR
-      ================================= */}
-
-      <circle
-        cx={corredor.x}
-        cy={corredor.y}
-        r="24"
-        fill="#ffffff"
-        stroke="#9EBC39"
-        strokeWidth="6"
-      />
-
-
-      {/* =================================
-          CENTRO
-      ================================= */}
-
-      <circle
-        cx={corredor.x}
-        cy={corredor.y}
-        r="10"
-        fill="#9EBC39"
-      />
-
-
-      {/* =================================
-          POSICIÓN
-      ================================= */}
-
-      <text
-        x={corredor.x}
-        y={corredor.y + 7}
-        textAnchor="middle"
-        fill="#111827"
-        fontSize="14"
-        fontWeight="900"
-      >
-        {corredor.posicion}
-      </text>
-
-
-      {/* =================================
-          BIB
-      ================================= */}
-
-      <text
-        x={corredor.x}
-        y={corredor.y - 40}
-        textAnchor="middle"
-        fill="white"
-        fontSize="18"
-        fontWeight="900"
-        style={{
-          paintOrder: "stroke",
-          stroke: "#111827",
-          strokeWidth: 6,
-        }}
-      >
-        #{corredor.competidor}
-      </text>
-
-    </g>
-
-  )
-)}
-
-
-
-              {/* =================================
-                  CHECKPOINTS
-              ================================== */}
-
-              {mapa.puntosMapaSVG.map(
-                (punto, index) => (
-
-                  <g
-                    key={
-                      `${punto.nombre}-${index}`
-                    }
-                  >
-
-
-                    {/* =================================
-                        CÍRCULO EXTERIOR
-                    ================================== */}
-
-                    <circle
-                      cx={punto.x}
-                      cy={punto.y}
-                      r="20"
-                      fill="white"
-                      stroke="#7E57C2"
-                      strokeWidth="5"
-                    />
-
-
-                    {/* =================================
-                        PUNTO CENTRAL
-                    ================================== */}
-
-                    <circle
-                      cx={punto.x}
-                      cy={punto.y}
-                      r="9"
-                      fill="#7E57C2"
-                    />
-
-
-                    {/* =================================
-                        NOMBRE DEL CHECKPOINT
-                    ================================== */}
-
-                    <text
-                      x={punto.x}
-                      y={punto.y - 30}
-                      textAnchor="middle"
-                      fill="white"
-                      fontSize="20"
-                      fontWeight="700"
-                      style={{
-                        paintOrder: "stroke",
-                        stroke: "#111827",
-                        strokeWidth: 5,
-                      }}
-                    >
-                      {punto.nombre}
-                    </text>
-
-                  </g>
-
-                )
-              )}
-
-            </svg>
-
-          ) : (
-
-            <div style={styles.sinMapa}>
-
-              No hay datos suficientes para
-              dibujar el recorrido.
-
+    {competidorHover && (
+      <div style={styles.competitorDialogOverlay} aria-live="polite">
+        <div style={styles.competitorDetails}>
+          <div style={styles.detailsHeader}>
+            <div style={styles.detailsRank}>{competidorHover.posicion}</div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div style={styles.detailsBib}>#{competidorHover.competidorDisplay}</div>
+              <div style={styles.detailsName}>{competidorHover.nombre || "Sin nombre"}</div>
             </div>
-
-          )}
-
+            <div style={styles.detailsHoverHint}>HOVER</div>
+          </div>
+          <div style={styles.detailsDivider}></div>
+          <div style={styles.detailsGrid}>
+            {obtenerCamposFichaCompetidor(competidorHover).map(([etiqueta, valor]) => (
+              <div key={`${etiqueta}-${valor}`} style={styles.detailItem}>
+                <span>{etiqueta}</span>
+                <strong title={valor}>{valor}</strong>
+              </div>
+            ))}
+            <div style={styles.detailItem}>
+              <span>Distancia recorrida</span>
+              <strong>{competidorHover.distanciaRecorridaKm.toFixed(2)} km</strong>
+            </div>
+            <div style={styles.detailItem}>
+              <span>Punto actual</span>
+              <strong>{competidorHover.puntoActual}</strong>
+            </div>
+            <div style={styles.detailItem}>
+              <span>Siguiente</span>
+              <strong>{competidorHover.siguientePunto || "Meta"}</strong>
+            </div>
+          </div>
         </div>
+      </div>
+    )}
 
-      </section>
-
+    </aside>
+  </div>
+</section>
     </main>
   );
 }
 
+
+// =====================================================
+// COMPONENTE GOOGLE MAPS PARA LA CARRERA
+// =====================================================
+
+type GoogleRaceMapProps = {
+  tramos: TramoGoogle[];
+  puntosMapa: PuntoMapa[];
+  corredores: EstadoCorredor[];
+  bibBusqueda: string;
+  googleListo: boolean;
+  errorGoogleMaps: string;
+  onRetry: () => void;
+};
+
+function GoogleRaceMap({
+  tramos,
+  puntosMapa,
+  corredores,
+  bibBusqueda,
+  googleListo,
+  errorGoogleMaps,
+  onRetry,
+}: GoogleRaceMapProps) {
+  const contenedorRef = useRef<HTMLDivElement | null>(null);
+  const mapaRef = useRef<any>(null);
+  const polylinesRef = useRef<any[]>([]);
+  const markersRef = useRef<any[]>([]);
+  const corredoresMarkersRef = useRef<Map<string, { marker: any; contenido: HTMLDivElement; posicion: HTMLDivElement; bib: HTMLDivElement; nombre: HTMLDivElement; flecha: HTMLDivElement }>>(new Map());
+  const inicializadoRef = useRef(false);
+  const vistaInicialAplicadaRef = useRef(false);
+  const [mapaListo, setMapaListo] = useState(false);
+  const [rutaMapaLista, setRutaMapaLista] = useState(false);
+
+  const limpiarOverlays = () => {
+    for (const polyline of polylinesRef.current) {
+      polyline.setMap(null);
+    }
+    polylinesRef.current = [];
+
+    for (const marker of markersRef.current) {
+      marker.map = null;
+    }
+    markersRef.current = [];
+
+    for (const { marker } of corredoresMarkersRef.current.values()) {
+      marker.map = null;
+    }
+    corredoresMarkersRef.current.clear();
+  };
+
+  useEffect(() => {
+    let cancelado = false;
+
+    if (!googleListo || !contenedorRef.current || inicializadoRef.current) {
+      return;
+    }
+
+    const iniciar = async () => {
+      try {
+        const google = await cargarGoogleMaps();
+        if (cancelado || !contenedorRef.current) return;
+
+        const Map = google.maps.Map;
+        if (!Map || !google.maps.marker?.AdvancedMarkerElement) {
+          throw new Error(
+            "Las librerías de Google Maps necesarias no están disponibles."
+          );
+        }
+
+        if (cancelado) return;
+
+        const primerPunto =
+          puntosMapa[0] || tramos[0]?.puntos[0] || { latitud: 25.7905, longitud: -108.9859 };
+
+        mapaRef.current = new Map(contenedorRef.current, {
+          center: {
+            lat: primerPunto.latitud,
+            lng: primerPunto.longitud,
+          },
+          zoom: 14,
+          // La vista inclinada y la rotación necesitan un mapa VECTOR.
+          // El mapa ID anterior estaba renderizándose como raster, por eso
+          // setTilt()/setHeading() no producían una perspectiva visible.
+          mapId: "DEMO_MAP_ID",
+          renderingType: "VECTOR",
+          tiltInteractionEnabled: true,
+          headingInteractionEnabled: true,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: true,
+          gestureHandling: "greedy",
+        });
+
+        inicializadoRef.current = true;
+        setMapaListo(true);
+      } catch (error) {
+        console.error("No se pudo crear el mapa:", error);
+      }
+    };
+
+    void iniciar();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [googleListo]);
+
+  // Dibujar ruta y checkpoints cuando cambia la ruta.
+  useEffect(() => {
+    const mapa = mapaRef.current;
+    if (!mapa || tramos.length === 0) return;
+
+    const dibujar = async () => {
+      const google = await cargarGoogleMaps();
+      const AdvancedMarkerElement =
+        google.maps.marker?.AdvancedMarkerElement;
+      const PinElement = google.maps.marker?.PinElement;
+
+      if (!AdvancedMarkerElement || !PinElement) {
+        throw new Error(
+          "La librería Marker no está disponible en Google Maps."
+        );
+      }
+
+      for (const polyline of polylinesRef.current) {
+        polyline.setMap(null);
+      }
+      polylinesRef.current = [];
+
+      for (const marker of markersRef.current) {
+        marker.map = null;
+      }
+      markersRef.current = [];
+
+      const bounds = new google.maps.LatLngBounds();
+
+      for (const tramo of tramos) {
+        if (tramo.puntos.length < 2) continue;
+
+        const path = tramo.puntos.map((punto) => ({
+          lat: punto.latitud,
+          lng: punto.longitud,
+        }));
+
+        path.forEach((punto) => bounds.extend(punto));
+
+        const sombra = new google.maps.Polyline({
+          map: mapa,
+          path,
+          geodesic: true,
+          strokeColor: "#000000",
+          strokeOpacity: 0.35,
+          strokeWeight: 12,
+          zIndex: 10,
+        });
+
+        const ruta = new google.maps.Polyline({
+          map: mapa,
+          path,
+          geodesic: true,
+          strokeColor: "#7E57C2",
+          strokeOpacity: 0.95,
+          strokeWeight: 7,
+          zIndex: 11,
+        });
+
+        polylinesRef.current.push(sombra, ruta);
+      }
+
+      for (const punto of puntosMapa) {
+        const nombreNormalizado = String(punto.nombre ?? "").trim().toUpperCase();
+        const numeroCheckpoint = nombreNormalizado.match(/\d+/)?.[0] || nombreNormalizado;
+
+        const pin = new PinElement({
+          background: "#7E57C2",
+          borderColor: "#020202",
+          glyphColor: "#8a00c1",
+          // Nunca usamos el índice de Object.values() para numerar.
+          // El número debe corresponder al checkpoint real.
+          glyphText: numeroCheckpoint,
+          scale: 0.9,
+        });
+
+        const marker = new AdvancedMarkerElement({
+          map: mapa,
+          position: {
+            lat: punto.latitud,
+            lng: punto.longitud,
+          },
+          title: punto.nombre,
+          zIndex: 100,
+          content: pin.element,
+        });
+
+        markersRef.current.push(marker);
+        bounds.extend({ lat: punto.latitud, lng: punto.longitud });
+      }
+
+      if (!bounds.isEmpty()) {
+        // Primero dejamos que Google encuadre la ruta completa. La vista
+        // "primera persona" se aplica después, para que fitBounds() no la pise.
+        mapa.fitBounds(bounds, 60);
+      }
+
+      setRutaMapaLista(true);
+    };
+
+    setRutaMapaLista(false);
+    void dibujar();
+  }, [tramos, puntosMapa, mapaListo]);
+
+  // Seguimiento de cámara tipo "primera persona".
+  // Al cargar la carrera seguimos al líder. Si el usuario escribe/selecciona
+  // un BIB, seguimos exclusivamente a ese corredor. Al limpiar el BIB,
+  // volvemos automáticamente al primer lugar.
+  useEffect(() => {
+    const mapa = mapaRef.current;
+
+    if (!mapa || !mapaListo || !rutaMapaLista || corredores.length === 0) {
+      return;
+    }
+
+    const bibNormalizado = String(bibBusqueda ?? "").trim().toUpperCase();
+
+    const corredorSeguimiento = bibNormalizado
+      ? corredores.find(
+          (corredor) =>
+            String(corredor.competidor ?? "").trim().toUpperCase() ===
+            bibNormalizado
+        ) || corredores[0]
+      : corredores.find((corredor) => corredor.posicion === 1) || corredores[0];
+
+    if (!corredorSeguimiento) return;
+
+    const lat = Number(corredorSeguimiento.y);
+    const lng = Number(corredorSeguimiento.x);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+    const siguienteNombre = String(corredorSeguimiento.siguientePunto ?? "")
+      .trim()
+      .toUpperCase();
+
+    const siguientePunto = puntosMapa.find(
+      (punto) =>
+        String(punto.nombre ?? "").trim().toUpperCase() === siguienteNombre
+    );
+
+    const toRad = (valor: number) => (valor * Math.PI) / 180;
+    const toDeg = (valor: number) => (valor * 180) / Math.PI;
+
+    let destinoLat = lat;
+    let destinoLng = lng;
+    let heading = 0;
+
+    if (siguientePunto) {
+      destinoLat = Number(siguientePunto.latitud);
+      destinoLng = Number(siguientePunto.longitud);
+    }
+
+    if (
+      Number.isFinite(destinoLat) &&
+      Number.isFinite(destinoLng) &&
+      (Math.abs(destinoLat - lat) > 0.000001 ||
+        Math.abs(destinoLng - lng) > 0.000001)
+    ) {
+      const lat1 = toRad(lat);
+      const lat2 = toRad(destinoLat);
+      const dLng = toRad(destinoLng - lng);
+
+      const y = Math.sin(dLng) * Math.cos(lat2);
+      const x =
+        Math.cos(lat1) * Math.sin(lat2) -
+        Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+
+      heading = (toDeg(Math.atan2(y, x)) + 360) % 360;
+    } else if (typeof mapa.getHeading === "function") {
+      heading = Number(mapa.getHeading()) || 0;
+    }
+
+    // El centro de la cámara es SIEMPRE la posición exacta del corredor.
+    // Con la vista inclinada, el heading ya deja el recorrido hacia la parte
+    // superior del mapa. No desplazamos el centro hacia el siguiente punto,
+    // porque eso puede sacar al corredor por la parte inferior de la pantalla.
+    const centro = { lat, lng };
+
+    // En cada actualización de posiciones movemos la cámara al corredor
+    // seleccionado. moveCamera mantiene zoom, rumbo e inclinación sin
+    // desmontar ni recrear los marcadores.
+    if (typeof mapa.moveCamera === "function") {
+      mapa.moveCamera({
+        center: centro,
+        zoom: 17,
+        heading,
+        tilt: 55,
+      });
+    } else {
+      mapa.setCenter(centro);
+      mapa.setZoom(17);
+      mapa.setHeading(heading);
+      if (typeof mapa.setTilt === "function") {
+        mapa.setTilt(55);
+      }
+    }
+
+    if (typeof mapa.setTiltInteractionEnabled === "function") {
+      mapa.setTiltInteractionEnabled(true);
+    }
+    if (typeof mapa.setHeadingInteractionEnabled === "function") {
+      mapa.setHeadingInteractionEnabled(true);
+    }
+  }, [
+    corredores,
+    puntosMapa,
+    bibBusqueda,
+    mapaListo,
+    rutaMapaLista,
+  ]);
+
+  // Corredores: se actualizan cada segundo sin redibujar la ruta.
+  useEffect(() => {
+    const mapa = mapaRef.current;
+    if (!mapa) return;
+
+    const actualizar = async () => {
+      const google = await cargarGoogleMaps();
+      const AdvancedMarkerElement =
+        google.maps.marker?.AdvancedMarkerElement;
+
+      if (!AdvancedMarkerElement) {
+        throw new Error(
+          "La librería Marker no está disponible en Google Maps."
+        );
+      }
+
+      // IMPORTANT: no recreamos los AdvancedMarkerElement en cada tick.
+      // Hacerlo provoca que Google quite el marcador y lo vuelva a insertar,
+      // produciendo el parpadeo que se veía en el mapa.
+      const presentes = new Set<string>();
+
+      const bibNormalizado = String(bibBusqueda ?? "").trim().toUpperCase();
+      const corredorSeguimiento = bibNormalizado
+        ? corredores.find(
+            (corredor) =>
+              String(corredor.competidor ?? "").trim().toUpperCase() ===
+              bibNormalizado
+          ) || corredores[0]
+        : corredores.find((corredor) => corredor.posicion === 1) || corredores[0];
+      const keySeguimiento = corredorSeguimiento
+        ? String(corredorSeguimiento.competidor)
+        : "";
+
+      for (const corredor of corredores) {
+        const key = String(corredor.competidor);
+        presentes.add(key);
+        const esSeguimiento = key === keySeguimiento;
+
+        // En la vista inclinada los edificios 3D pueden tapar un marcador
+        // que está a nivel de calle. El corredor que estamos siguiendo es
+        // prioritario: lo elevamos ligeramente para que su BIB siga visible
+        // aunque la cámara quede lateral respecto a la calle.
+        const posicionMarker = {
+          lat: Number(corredor.y),
+          lng: Number(corredor.x),
+          ...(esSeguimiento ? { altitude: 25 } : {}),
+        };
+
+        const existente = corredoresMarkersRef.current.get(key);
+
+        if (existente) {
+          // Actualizamos solo lo que cambió. El marcador permanece montado.
+          existente.marker.position = posicionMarker;
+          existente.marker.zIndex = esSeguimiento
+            ? 100000
+            : 1000 + (100 - corredor.posicion);
+          existente.marker.title = `BIB ${corredor.competidorDisplay}`;
+          existente.marker.collisionBehavior = "REQUIRED";
+          existente.posicion.textContent = String(corredor.posicion);
+          existente.bib.textContent = `#${corredor.competidorDisplay}`;
+          existente.nombre.textContent = corredor.nombre || "Sin nombre";
+          existente.nombre.style.display = esSeguimiento ? "block" : "none";
+          existente.flecha.style.display = esSeguimiento ? "block" : "none";
+          existente.contenido.style.transform = esSeguimiento
+            ? "scale(1.08)"
+            : "scale(1)";
+          continue;
+        }
+
+        const contenido = document.createElement("div");
+        contenido.style.width = "220px";
+        contenido.style.height = "104px";
+        contenido.style.position = "relative";
+        contenido.style.fontFamily = "Inter, system-ui, sans-serif";
+        contenido.style.fontWeight = "900";
+        contenido.style.color = "#111827";
+        contenido.style.fontSize = "18px";
+        contenido.style.display = "flex";
+        contenido.style.alignItems = "flex-start";
+        contenido.style.justifyContent = "center";
+
+        const circulo = document.createElement("div");
+        circulo.style.width = "52px";
+        circulo.style.height = "52px";
+        circulo.style.borderRadius = "50%";
+        circulo.style.background = "white";
+        circulo.style.border = "5px solid #9EBC39";
+        circulo.style.boxShadow = "0 4px 14px rgba(0,0,0,0.45)";
+        circulo.style.display = "flex";
+        circulo.style.alignItems = "center";
+        circulo.style.justifyContent = "center";
+        circulo.style.position = "absolute";
+        circulo.style.left = "50%";
+        circulo.style.top = "28px";
+        circulo.style.transform = "translateX(-50%)";
+        contenido.appendChild(circulo);
+
+        const posicion = document.createElement("div");
+        posicion.textContent = String(corredor.posicion);
+        circulo.appendChild(posicion);
+
+        const bib = document.createElement("div");
+        bib.textContent = `#${corredor.competidorDisplay}`;
+        bib.style.position = "absolute";
+        bib.style.left = "50%";
+        bib.style.bottom = "58px";
+        bib.style.transform = "translateX(-50%)";
+        bib.style.padding = "4px 8px";
+        bib.style.borderRadius = "8px";
+        bib.style.background = "rgba(17,24,39,0.92)";
+        bib.style.color = "white";
+        bib.style.fontSize = "12px";
+        bib.style.whiteSpace = "nowrap";
+        bib.style.fontWeight = "900";
+        bib.style.boxShadow = "0 3px 10px rgba(0,0,0,0.35)";
+        contenido.appendChild(bib);
+
+        const nombre = document.createElement("div");
+        nombre.textContent = corredor.nombre || "Sin nombre";
+        nombre.style.position = "absolute";
+        nombre.style.left = "50%";
+        nombre.style.top = "84px";
+        nombre.style.transform = "translateX(-50%)";
+        nombre.style.padding = "3px 8px";
+        nombre.style.borderRadius = "7px";
+        nombre.style.background = "rgba(255,255,255,0.96)";
+        nombre.style.color = "#111827";
+        nombre.style.fontSize = "12px";
+        nombre.style.whiteSpace = "nowrap";
+        nombre.style.maxWidth = "210px";
+        nombre.style.overflow = "hidden";
+        nombre.style.textOverflow = "ellipsis";
+        nombre.style.boxShadow = "0 3px 10px rgba(0,0,0,0.30)";
+        nombre.style.display = esSeguimiento ? "block" : "none";
+        contenido.appendChild(nombre);
+
+        const flecha = document.createElement("div");
+        flecha.style.position = "absolute";
+        flecha.style.left = "50%";
+        flecha.style.top = "99px";
+        flecha.style.transform = "translateX(-50%)";
+        flecha.style.width = "0";
+        flecha.style.height = "0";
+        flecha.style.borderLeft = "8px solid transparent";
+        flecha.style.borderRight = "8px solid transparent";
+        flecha.style.borderTop = "10px solid #9EBC39";
+        flecha.style.filter = "drop-shadow(0 2px 3px rgba(0,0,0,0.35))";
+        flecha.style.display = esSeguimiento ? "block" : "none";
+        contenido.appendChild(flecha);
+
+        const marker = new AdvancedMarkerElement({
+          map: mapa,
+          position: posicionMarker,
+          title: `BIB ${corredor.competidorDisplay}`,
+          zIndex: esSeguimiento
+            ? 100000
+            : 1000 + (100 - corredor.posicion),
+          collisionBehavior: "REQUIRED",
+          content: contenido,
+        });
+
+        if (esSeguimiento) {
+          contenido.style.transform = "scale(1.08)";
+        }
+
+        corredoresMarkersRef.current.set(key, {
+          marker,
+          contenido,
+          posicion,
+          bib,
+          nombre,
+          flecha,
+        });
+      }
+
+      // Si un corredor salió del conjunto visible, quitamos únicamente ese marcador.
+      for (const [key, { marker }] of corredoresMarkersRef.current) {
+        if (!presentes.has(key)) {
+          marker.map = null;
+          corredoresMarkersRef.current.delete(key);
+        }
+      }
+    };
+
+    void actualizar();
+  }, [corredores, bibBusqueda]);
+
+  useEffect(() => {
+    return () => {
+      limpiarOverlays();
+      mapaRef.current = null;
+      inicializadoRef.current = false;
+      vistaInicialAplicadaRef.current = false;
+      setRutaMapaLista(false);
+      setMapaListo(false);
+    };
+  }, []);
+
+  if (errorGoogleMaps) {
+    return (
+      <div style={styles.mapWrapper}>
+        <div style={styles.mapError}>
+          <div style={{ fontSize: 42 }}>🗺️</div>
+          <strong>No se pudo cargar Google Maps</strong>
+          <span>{errorGoogleMaps}</span>
+          <button
+            type="button"
+            onClick={onRetry}
+            style={styles.mapRetry}
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.mapWrapper}>
+      {!googleListo && (
+        <div style={styles.mapLoading}>Cargando mapa...</div>
+      )}
+      <div ref={contenedorRef} style={styles.mapaGoogle} />
+    </div>
+  );
+}
 
 // =====================================================
 // ESTILOS
@@ -2201,6 +2499,127 @@ gap: 8,
 const styles: {
   [key: string]: React.CSSProperties;
 } = {
+  // ==========================================
+  // NUEVO LAYOUT EN VIVO
+  // ==========================================
+
+  liveLayout: {
+    maxWidth: 1600,
+    margin: "0 auto",
+    padding: "6px 28px 50px",
+  },
+
+  eventSummary: {
+    width: "100%",
+    minHeight: 72,
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto auto",
+    alignItems: "center",
+    gap: 26,
+    padding: "11px 20px",
+    marginBottom: 10,
+    borderRadius: 18,
+    background: "linear-gradient(110deg, rgba(126,87,194,0.20), rgba(255,255,255,0.045))",
+    border: "1px solid rgba(255,255,255,0.09)",
+    boxShadow: "0 12px 35px rgba(0,0,0,0.18)",
+  },
+  eventSummaryMain: { minWidth: 0 },
+  eventSummaryLabel: { fontSize: 9, letterSpacing: 2, opacity: 0.45, fontWeight: 900, marginBottom: 3 },
+  eventSummaryTimer: { display: "flex", flexDirection: "column", alignItems: "flex-end", paddingLeft: 22, borderLeft: "1px solid rgba(255,255,255,0.09)" },
+  eventSummaryTimerLabel: { fontSize: 8, letterSpacing: 1.2, opacity: 0.45, fontWeight: 900, marginBottom: 2 },
+  eventSummaryTimerStrong: { fontSize: 28, fontVariantNumeric: "tabular-nums", fontWeight: 950, letterSpacing: 1 },
+  liveBadgeSummary: { display: "flex", alignItems: "center", gap: 7, color: "#9EBC39", fontSize: 12, fontWeight: 950, whiteSpace: "nowrap", paddingLeft: 22, borderLeft: "1px solid rgba(255,255,255,0.09)" },
+
+  liveContent: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) 390px",
+    gap: 18,
+    alignItems: "start",
+  },
+
+  mapColumn: { minWidth: 0 },
+
+  sidePanel: {
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+    position: "relative",
+  },
+
+  eventCard: {
+    padding: "16px 18px",
+    borderRadius: 18,
+    background: "linear-gradient(145deg, rgba(126,87,194,0.22), rgba(255,255,255,0.045))",
+    border: "1px solid rgba(255,255,255,0.10)",
+  },
+  eventCardTop: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" },
+  eventName: { fontSize: 18, fontWeight: 950, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
+  eventRoute: { fontSize: 12, opacity: 0.6, marginTop: 4 },
+  eventTimer: { fontSize: 30, fontVariantNumeric: "tabular-nums", fontWeight: 900, letterSpacing: 1, marginTop: 12 },
+  liveBadge: { display: "flex", alignItems: "center", gap: 6, color: "#9EBC39", fontSize: 11, fontWeight: 900, whiteSpace: "nowrap" },
+  liveDot: { width: 8, height: 8, borderRadius: "50%", background: "#9EBC39", boxShadow: "0 0 10px rgba(158,188,57,0.8)" },
+
+  distanceCard: { padding: "12px 14px", borderRadius: 15, background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" },
+  distanceSelect: { width: "100%", marginTop: 7, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.14)", background: "rgba(255,255,255,0.07)", color: "white", fontSize: 14, fontWeight: 800, outline: "none" },
+
+  statsGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 },
+  statBox: { padding: "10px 11px", borderRadius: 13, background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.06)", minWidth: 0 },
+  statLabel: { display: "block", fontSize: 8, letterSpacing: 1, opacity: 0.45, fontWeight: 900, marginBottom: 3 },
+
+  searchBox: { display: "flex", alignItems: "center", gap: 8, padding: "0 10px 0 13px", minHeight: 46, borderRadius: 13, background: "rgba(255,255,255,0.065)", border: "1px solid rgba(255,255,255,0.11)" },
+  searchIcon: { fontSize: 24, opacity: 0.55, lineHeight: 1 },
+  searchInput: { flex: 1, minWidth: 0, border: "none", outline: "none", background: "transparent", color: "white", fontSize: 14, fontWeight: 700 },
+  clearSearch: { width: 30, height: 30, border: "none", borderRadius: "50%", background: "rgba(255,255,255,0.10)", color: "white", fontSize: 18, fontWeight: 900, cursor: "pointer" },
+  routeWarning: { padding: "10px 12px", borderRadius: 12, background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.24)", color: "#fbbf24", fontSize: 12, fontWeight: 700 },
+
+  rankingPanel: { overflow: "hidden", borderRadius: 17, background: "rgba(255,255,255,0.035)", border: "1px solid rgba(255,255,255,0.07)" },
+  rankingTitleRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "15px 15px 10px" },
+  rankingTitle: { fontSize: 15, fontWeight: 950, letterSpacing: 0.5 },
+  rankingSubtitle: { fontSize: 10, opacity: 0.5, marginTop: 3, fontWeight: 800 },
+  top10Badge: { padding: "5px 8px", borderRadius: 8, background: "rgba(158,188,57,0.14)", color: "#9EBC39", fontSize: 9, fontWeight: 900 },
+  rankingHeader: { display: "grid", gridTemplateColumns: "34px 62px minmax(0, 1fr) 42px", gap: 7, padding: "7px 12px", fontSize: 9, letterSpacing: 1, opacity: 0.4, fontWeight: 900, borderTop: "1px solid rgba(255,255,255,0.05)", borderBottom: "1px solid rgba(255,255,255,0.05)" },
+  rankingList: { maxHeight: 430, overflowY: "auto" },
+  rankingRow: { display: "grid", gridTemplateColumns: "34px 62px minmax(0, 1fr) 42px", gap: 7, alignItems: "center", minHeight: 49, padding: "5px 12px", borderBottom: "1px solid rgba(255,255,255,0.045)", transition: "background 0.15s ease" },
+  rankingLeader: { background: "rgba(158,188,57,0.08)" },
+  rankBubble: { width: 28, height: 28, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "#9EBC39", color: "#111827", fontSize: 12, fontWeight: 950 },
+  rankingBib: { fontSize: 11, fontWeight: 900, opacity: 0.8 },
+  rankingName: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 800 },
+  rankingKm: { textAlign: "right", fontSize: 11, fontWeight: 900, fontVariantNumeric: "tabular-nums", opacity: 0.75 },
+  emptyRanking: { padding: 25, textAlign: "center", fontSize: 12, opacity: 0.5 },
+
+  competitorDialogOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 99999,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    background: "rgba(3,6,16,0.46)",
+    backdropFilter: "blur(2px)",
+    pointerEvents: "none",
+  },
+  competitorDetails: {
+    width: "min(620px, calc(100vw - 48px))",
+    maxHeight: "min(78vh, 680px)",
+    overflowY: "auto",
+    padding: "20px 22px",
+    borderRadius: 20,
+    background: "linear-gradient(145deg, rgba(15,19,34,0.99), rgba(8,11,21,0.99))",
+    border: "1px solid rgba(126,87,194,0.58)",
+    boxShadow: "0 30px 90px rgba(0,0,0,0.62), 0 0 0 1px rgba(255,255,255,0.035) inset",
+    pointerEvents: "none",
+  },
+  detailsHeader: { display: "flex", alignItems: "center", gap: 12, marginBottom: 14 },
+  detailsRank: { width: 48, height: 48, borderRadius: "50%", background: "#7E57C2", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 950, flexShrink: 0 },
+  detailsBib: { fontSize: 11, opacity: 0.58, fontWeight: 900, letterSpacing: 0.4 },
+  detailsName: { fontSize: 20, fontWeight: 950, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 },
+  detailsHoverHint: { padding: "5px 8px", borderRadius: 8, background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.42)", fontSize: 8, fontWeight: 900, letterSpacing: 1, flexShrink: 0 },
+  detailsDivider: { height: 1, background: "rgba(255,255,255,0.09)", marginBottom: 15 },
+  detailsGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "11px 22px" },
+  detailItem: { minWidth: 0, fontSize: 11, lineHeight: 1.4, display: "grid", gridTemplateColumns: "minmax(105px, 0.75fr) minmax(0, 1.25fr)", gap: 8, alignItems: "start" },
+
 
 
   // ==========================================
@@ -2413,39 +2832,66 @@ const styles: {
 
 
   // ==========================================
-  // CONTENEDOR SVG
+  // CONTENEDOR GOOGLE MAPS
   // ==========================================
 
-  svgWrapper: {
-
+  mapWrapper: {
     width: "100%",
-
+    height: "clamp(500px, 68vh, 760px)",
     borderRadius: 24,
-
     overflow: "hidden",
-
-    background:
-      "radial-gradient(circle, #182235 0%, #0b1220 70%)",
-
-    border:
-      "1px solid rgba(255,255,255,0.08)",
-
-    boxShadow:
-      "0 20px 60px rgba(0,0,0,0.4)",
-
+    background: "#dbe4ea",
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+    position: "relative",
   },
 
+  mapaGoogle: {
+    width: "100%",
+    height: "100%",
+    display: "block",
+  },
 
-  // ==========================================
-  // SVG
-  // ==========================================
+  mapLoading: {
+    position: "absolute",
+    zIndex: 20,
+    top: 16,
+    left: "50%",
+    transform: "translateX(-50%)",
+    padding: "10px 16px",
+    borderRadius: 999,
+    background: "rgba(17,24,39,0.90)",
+    color: "white",
+    fontWeight: 800,
+    fontSize: 13,
+    boxShadow: "0 6px 20px rgba(0,0,0,0.25)",
+  },
 
-  svg: {
-  width: "100%",
-  height: "clamp(320px, 42vh, 400px)",
-  display: "block",
-  minHeight: 0,
-},
+  mapError: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    padding: 30,
+    boxSizing: "border-box",
+    textAlign: "center",
+    background: "radial-gradient(circle, #182235 0%, #0b1220 70%)",
+    color: "white",
+  },
+
+  mapRetry: {
+    marginTop: 8,
+    border: "none",
+    borderRadius: 12,
+    padding: "11px 18px",
+    background: "#7E57C2",
+    color: "white",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
 
 
   // ==========================================
