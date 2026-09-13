@@ -122,6 +122,27 @@ const [resultadosPublicado, setResultadosPublicado] = useState<boolean>(
     initialValues?.inscripcionesMensaje || "Inscripciones pausadas temporalmente."
   );
 
+  // 💳 CONFIGURACIÓN DE PAGOS
+const [paymentConfig, setPaymentConfig] = useState({
+  recipient:
+    (initialValues as any)?.paymentConfig?.recipient || "dhtime",
+
+  dhFeeMode:
+    (initialValues as any)?.paymentConfig?.dhFeeMode || "external",
+
+  dhFeeType:
+    (initialValues as any)?.paymentConfig?.dhFeeType || "fixed",
+
+  dhFeeAmount:
+    Number((initialValues as any)?.paymentConfig?.dhFeeAmount) || 0,
+
+  organizerId:
+    (initialValues as any)?.paymentConfig?.organizerId || "",
+
+  connectedAccountId:
+    (initialValues as any)?.paymentConfig?.connectedAccountId || "",
+});
+
   // ✅ FIX: cuando cambias de carrera a editar, refresca TODOS los campos (incluida fecha)
   useEffect(() => {
     setTitulo(initialValues?.titulo || "");
@@ -153,6 +174,26 @@ setResultadosPublicado(initialValues?.resultados?.publicado === true);
     setInscripcionesMensaje(
       initialValues?.inscripcionesMensaje || "Inscripciones pausadas temporalmente."
     );
+
+    setPaymentConfig({
+  recipient:
+    (initialValues as any)?.paymentConfig?.recipient || "dhtime",
+
+  dhFeeMode:
+    (initialValues as any)?.paymentConfig?.dhFeeMode || "external",
+
+  dhFeeType:
+    (initialValues as any)?.paymentConfig?.dhFeeType || "fixed",
+
+  dhFeeAmount:
+    Number((initialValues as any)?.paymentConfig?.dhFeeAmount) || 0,
+
+  organizerId:
+    (initialValues as any)?.paymentConfig?.organizerId || "",
+
+  connectedAccountId:
+    (initialValues as any)?.paymentConfig?.connectedAccountId || "",
+});
 
     // si cambiaste de carrera, evita traer archivos seleccionados del form anterior
     setImagenFile(null);
@@ -316,6 +357,16 @@ const carreraFinalizada = fechaDate < today;
         ? ""
         : inscripcionesMensaje || "Inscripciones pausadas temporalmente.",
 
+        // 💳 CONFIGURACIÓN DE PAGOS
+paymentConfig: {
+  recipient: paymentConfig.recipient,
+  dhFeeMode: paymentConfig.dhFeeMode,
+  dhFeeType: paymentConfig.dhFeeType,
+  dhFeeAmount: Number(paymentConfig.dhFeeAmount) || 0,
+  organizerId: paymentConfig.organizerId || "",
+  connectedAccountId: paymentConfig.connectedAccountId || "",
+},
+
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
       ...(newBannerUrl ? { bannerUrl: newBannerUrl } : {}),
     };
@@ -342,6 +393,153 @@ const carreraFinalizada = fechaDate < today;
     <h2 className="text-3xl font-extrabold text-dh-ink">
       {initialValues ? "Editar Carrera" : "Nueva Carrera"}
     </h2>
+
+
+
+    {/* ================= CONFIGURACIÓN DE PAGOS ================= */}
+<div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
+
+  <div>
+    <p className="text-lg font-extrabold text-white">
+      💳 Configuración de pagos
+    </p>
+
+    <p className="text-sm text-white/60 mt-1">
+      Define quién recibirá las inscripciones y cómo se cobrará el servicio
+      de DHTime.
+    </p>
+  </div>
+
+  {/* DESTINO */}
+  <div>
+    <label className="block text-sm font-semibold text-white mb-2">
+      Destino de las inscripciones
+    </label>
+
+    <select
+      value={paymentConfig.recipient}
+      onChange={(e) =>
+        setPaymentConfig((prev) => ({
+          ...prev,
+          recipient: e.target.value,
+        }))
+      }
+      className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+    >
+      <option value="dhtime">
+        DHTime
+      </option>
+
+      <option value="organizer">
+        Organizador externo
+      </option>
+    </select>
+  </div>
+
+  {/* MODELO DE COBRO */}
+  <div>
+    <label className="block text-sm font-semibold text-white mb-2">
+      Cobro del servicio DHTime
+    </label>
+
+    <select
+      value={paymentConfig.dhFeeMode}
+      onChange={(e) =>
+        setPaymentConfig((prev) => ({
+          ...prev,
+          dhFeeMode: e.target.value,
+        }))
+      }
+      className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+    >
+      <option value="external">
+        Pago único externo
+      </option>
+
+      <option value="per_registration">
+        Comisión por inscripción
+      </option>
+    </select>
+  </div>
+
+  {/* TIPO DE COMISIÓN */}
+  {paymentConfig.dhFeeMode === "per_registration" && (
+    <div>
+      <label className="block text-sm font-semibold text-white mb-2">
+        Tipo de comisión
+      </label>
+
+      <select
+        value={paymentConfig.dhFeeType}
+        onChange={(e) =>
+          setPaymentConfig((prev) => ({
+            ...prev,
+            dhFeeType: e.target.value,
+          }))
+        }
+        className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+      >
+        <option value="fixed">
+          Cantidad fija por corredor
+        </option>
+
+        <option value="percentage">
+          Porcentaje por corredor
+        </option>
+      </select>
+    </div>
+  )}
+
+  {/* IMPORTE */}
+  <div>
+    <label className="block text-sm font-semibold text-white mb-2">
+      {paymentConfig.dhFeeMode === "external"
+        ? "Importe acordado con DHTime"
+        : paymentConfig.dhFeeType === "percentage"
+        ? "Porcentaje DHTime"
+        : "Comisión DHTime por inscripción"}
+    </label>
+
+    <div className="flex items-center bg-[#1f1f27] border border-white/10 rounded-xl px-4">
+      {paymentConfig.dhFeeType === "percentage" &&
+      paymentConfig.dhFeeMode === "per_registration" ? (
+        <span className="text-white/50 mr-2">%</span>
+      ) : (
+        <span className="text-white/50 mr-2">$</span>
+      )}
+
+      <input
+        type="number"
+        min="0"
+        step="0.01"
+        value={paymentConfig.dhFeeAmount}
+        onChange={(e) =>
+          setPaymentConfig((prev) => ({
+            ...prev,
+            dhFeeAmount: Number(e.target.value),
+          }))
+        }
+        className="flex-1 py-3 bg-transparent text-white outline-none"
+      />
+    </div>
+  </div>
+
+  {/* AVISO */}
+  <div className="rounded-2xl bg-dh-purple/10 border border-dh-purple/20 p-4 text-sm text-white/70">
+    {paymentConfig.dhFeeMode === "external" ? (
+      <>
+        Este importe se registrará como un pago externo a DHTime.
+        No se cobrará al corredor mediante Stripe.
+      </>
+    ) : (
+      <>
+        La comisión se descontará del importe correspondiente al
+        organizador. El costo de Stripe se calculará aparte.
+      </>
+    )}
+  </div>
+
+</div>
 
     {/* ================= CONTROL INSCRIPCIONES ================= */}
     <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
