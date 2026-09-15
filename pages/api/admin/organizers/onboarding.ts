@@ -57,10 +57,12 @@ export default async function handler(
     ) {
       return res.status(400).json({
         ok: false,
-        error:
-          "Falta organizerId",
+        error: "Falta organizerId",
       });
     }
+
+    const cleanOrganizerId =
+      organizerId.trim();
 
     // ==========================================
     // FIREBASE
@@ -72,7 +74,7 @@ export default async function handler(
     const organizerRef =
       db
         .collection("organizadores")
-        .doc(organizerId.trim());
+        .doc(cleanOrganizerId);
 
     const organizerSnap =
       await organizerRef.get();
@@ -88,12 +90,16 @@ export default async function handler(
     const organizer =
       organizerSnap.data();
 
+    // ==========================================
+    // CUENTA STRIPE CONNECT
+    // ==========================================
+
     const connectedAccountId =
       organizer?.connectedAccountId;
 
     if (
       typeof connectedAccountId !== "string" ||
-      !connectedAccountId
+      !connectedAccountId.trim()
     ) {
       return res.status(400).json({
         ok: false,
@@ -134,23 +140,44 @@ export default async function handler(
       `${protocol}://${host}`;
 
     // ==========================================
+    // URL DE REGRESO
+    // ==========================================
+    //
+    // IMPORTANTE:
+    //
+    // Antes utilizábamos:
+    //
+    // /admin/organizadores/onboarding
+    //
+    // Esa página NO existe en Next.js y por eso
+    // Stripe terminaba mostrando un 404.
+    //
+    // Ahora regresamos al panel administrativo,
+    // que sí existe.
+    //
+
+    const refreshUrl =
+      `${baseUrl}/admin?organizerId=${encodeURIComponent(
+        cleanOrganizerId
+      )}`;
+
+    const returnUrl =
+      `${baseUrl}/admin?organizerId=${encodeURIComponent(
+        cleanOrganizerId
+      )}&completed=1`;
+
+    // ==========================================
     // CREAR ACCOUNT LINK
     // ==========================================
 
     const accountLink =
       await createOrganizerOnboardingLink({
         accountId:
-          connectedAccountId,
+          connectedAccountId.trim(),
 
-        refreshUrl:
-          `${baseUrl}/admin/organizadores/onboarding?organizerId=${encodeURIComponent(
-            organizerId
-          )}`,
+        refreshUrl,
 
-        returnUrl:
-          `${baseUrl}/admin/organizadores/onboarding?organizerId=${encodeURIComponent(
-            organizerId
-          )}&completed=1`,
+        returnUrl,
       });
 
     // ==========================================
