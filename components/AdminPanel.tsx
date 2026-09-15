@@ -12,6 +12,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { app, db } from '@/lib/firebase';
 import AdminBusquedaCompetidor from '@/components/AdminBusquedaCompetidor';
+import AdminOrganizadores from "@/components/AdminOrganizadores";
 
 // Incluir la nueva vista en el tipo
 type View =
@@ -21,7 +22,8 @@ type View =
   | 'inscripcionesManuales'
   | 'eliminarInscripciones'
   | 'galeria'
-  | 'buscarCompetidor';
+  | 'buscarCompetidor'
+  | "organizadores";
   
 export default function AdminPanel() {
   const [view, setView] = useState<View>('crear');
@@ -92,7 +94,11 @@ export default function AdminPanel() {
   onToggle={toggleSidebar}
 />
 
-      <main className={`transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'} flex-1 p-6`}>
+      <main
+  className={`transition-all duration-300 ${
+    sidebarOpen ? "ml-64" : "ml-0"
+  } flex-1 p-6 pl-16`}
+>
         <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
         {view === 'crear' && (
@@ -130,6 +136,10 @@ export default function AdminPanel() {
 
         {view === 'buscarCompetidor' && (
   <AdminBusquedaCompetidor carreras={carreras} />
+)}
+
+{view === "organizadores" && (
+  <AdminOrganizadores />
 )}
 
       </main>

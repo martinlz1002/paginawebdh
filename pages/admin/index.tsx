@@ -12,6 +12,7 @@ import AdminGaleria from "@/components/AdminGaleria";
 import EliminarInscripciones, { CarreraOption } from "@/components/EliminarInscripciones";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import AdminBusquedaCompetidor from '@/components/AdminBusquedaCompetidor';
+import AdminOrganizadores from "@/components/AdminOrganizadores";
 
 type View =
   | "crear"
@@ -20,7 +21,8 @@ type View =
   | "inscripcionesManuales"
   | "eliminarInscripciones"
   | "galeria"
-  | 'buscarCompetidor';
+  | 'buscarCompetidor'
+  | "organizadores";
 
 export default function AdminPage() {
   const [view, setView] = useState<View>("crear");
@@ -128,10 +130,10 @@ export default function AdminPage() {
       />
 
       <main
-        className={`transition-all duration-300 ${
-          sidebarOpen ? "ml-64" : "ml-0"
-        } flex-1 p-6`}
-      >
+  className={`transition-all duration-300 ${
+    sidebarOpen ? "ml-64" : "ml-0"
+  } flex-1 p-6 pl-16`}
+>
         <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
         {view === "crear" && (
@@ -169,6 +171,11 @@ export default function AdminPage() {
         )}
 
         {view === "galeria" && <AdminGaleria />}
+
+
+        {view === "organizadores" && (
+  <AdminOrganizadores />
+)}
 
         {view === 'buscarCompetidor' && (
           <AdminBusquedaCompetidor carreras={carreras} />

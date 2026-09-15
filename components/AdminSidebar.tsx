@@ -5,7 +5,8 @@ import {
   ClipboardIcon,
   TrashIcon,
   UserPlusIcon,
-  MagnifyingGlassIcon
+  MagnifyingGlassIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -16,7 +17,8 @@ interface SidebarProps {
   | 'eliminarInscripciones'
   | 'inscripcionesManuales'
   | 'galeria'
-  | 'buscarCompetidor';
+  | 'buscarCompetidor'
+  | "organizadores";
   setView: (v: SidebarProps['view']) => void;
   open: boolean;
   onToggle: () => void;
@@ -173,6 +175,22 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
 >
   <MagnifyingGlassIcon className="w-5 h-5" />
   Buscar Competidor
+</button>
+
+{/* Organizadores */}
+<button
+  onClick={() => { setView("organizadores"); onToggle(); }}
+  className={`
+    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+    ${
+      view === "organizadores"
+        ? "bg-dh-purple text-dh-dark shadow-dhSm"
+        : "text-dh-muted hover:bg-dh-soft"
+    }
+  `}
+>
+  <UserGroupIcon className="w-5 h-5" />
+  Organizadores
 </button>
 
       </nav>

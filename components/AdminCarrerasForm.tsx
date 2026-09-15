@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { db, storage } from "@/lib/firebase";
-import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
+import { collection, addDoc, updateDoc, doc, getDocs } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import type { CarreraData, Categoria, DistanciaConCategorias, AgeBasis } from "@/types/carrera";
 import {
@@ -13,6 +13,18 @@ import {
   PlusCircleIcon,
   CurrencyDollarIcon,
 } from "@heroicons/react/24/outline";
+
+interface Organizer {
+  id: string;
+  nombre: string;
+  email: string;
+  connectedAccountId?: string;
+  stripeStatus?: string;
+  chargesEnabled?: boolean;
+  payoutsEnabled?: boolean;
+  detailsSubmitted?: boolean;
+  activo?: boolean;
+}
 
 export interface AdminCarrerasFormProps {
   initialValues?: CarreraData & {
@@ -69,6 +81,17 @@ function parseISODateYYYYMMDD(iso: string): Date {
   const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return new Date("2000-01-01");
   return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+
+function organizerReady(organizer: Organizer): boolean {
+  return (
+    organizer.activo !== false &&
+    organizer.detailsSubmitted === true &&
+    organizer.chargesEnabled === true &&
+    organizer.payoutsEnabled === true &&
+    typeof organizer.connectedAccountId === "string" &&
+    organizer.connectedAccountId.length > 0
+  );
 }
 
 export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
@@ -142,6 +165,104 @@ const [paymentConfig, setPaymentConfig] = useState({
   connectedAccountId:
     (initialValues as any)?.paymentConfig?.connectedAccountId || "",
 });
+
+  // 🏢 ORGANIZADORES / STRIPE CONNECT
+  const [organizadores, setOrganizadores] = useState<Organizer[]>([]);
+  const [cargandoOrganizadores, setCargandoOrganizadores] = useState(false);
+  const [errorOrganizadores, setErrorOrganizadores] = useState("");
+
+  // 🏢 Carga organizadores disponibles para vincular una carrera
+  useEffect(() => {
+    if (paymentConfig.recipient !== "organizer") return;
+
+    let cancelado = false;
+
+    const cargarOrganizadores = async () => {
+      setCargandoOrganizadores(true);
+      setErrorOrganizadores("");
+
+      try {
+        const snap = await getDocs(collection(db, "organizadores"));
+
+        if (cancelado) return;
+
+        const lista: Organizer[] = snap.docs
+          .map((item) => ({
+            id: item.id,
+            ...(item.data() as Omit<Organizer, "id">),
+          }))
+          .sort((a, b) =>
+            (a.nombre || "").localeCompare(
+              b.nombre || "",
+              "es-MX",
+              { sensitivity: "base" }
+            )
+          );
+
+        setOrganizadores(lista);
+      } catch (error: any) {
+        if (cancelado) return;
+        console.error("Error cargando organizadores:", error);
+        setErrorOrganizadores(
+          error?.message || "No fue posible cargar los organizadores."
+        );
+      } finally {
+        if (!cancelado) setCargandoOrganizadores(false);
+      }
+    };
+
+    cargarOrganizadores();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [paymentConfig.recipient]);
+
+  // 🏢 Organizador actualmente seleccionado
+  const organizadorSeleccionado =
+    organizadores.find(
+      (organizador) => organizador.id === paymentConfig.organizerId
+    ) || null;
+
+  // 🏢 Si cambias de organizador, sincroniza automáticamente la cuenta Stripe.
+  useEffect(() => {
+    if (paymentConfig.recipient !== "organizer") return;
+    if (!paymentConfig.organizerId) return;
+    if (!organizadorSeleccionado) return;
+
+    const connectedAccountId =
+      organizadorSeleccionado.connectedAccountId || "";
+
+    if (paymentConfig.connectedAccountId !== connectedAccountId) {
+      setPaymentConfig((prev) => ({
+        ...prev,
+        connectedAccountId,
+      }));
+    }
+  }, [
+    paymentConfig.recipient,
+    paymentConfig.organizerId,
+    organizadorSeleccionado?.id,
+    organizadorSeleccionado?.connectedAccountId,
+    paymentConfig.connectedAccountId,
+  ]);
+
+  // Si la carrera es DHTime, limpiamos cualquier vínculo anterior.
+  useEffect(() => {
+    if (paymentConfig.recipient !== "dhtime") return;
+
+    if (paymentConfig.organizerId || paymentConfig.connectedAccountId) {
+      setPaymentConfig((prev) => ({
+        ...prev,
+        organizerId: "",
+        connectedAccountId: "",
+      }));
+    }
+  }, [
+    paymentConfig.recipient,
+    paymentConfig.organizerId,
+    paymentConfig.connectedAccountId,
+  ]);
 
   // ✅ FIX: cuando cambias de carrera a editar, refresca TODOS los campos (incluida fecha)
   useEffect(() => {
@@ -319,6 +440,27 @@ const carreraFinalizada = fechaDate < today;
       })),
     }));
 
+    if (paymentConfig.recipient === "organizer") {
+      if (!paymentConfig.organizerId) {
+        alert("Selecciona el organizador que recibirá las inscripciones.");
+        return;
+      }
+
+      if (!paymentConfig.connectedAccountId) {
+        alert(
+          "El organizador seleccionado todavía no tiene una cuenta Stripe Connect."
+        );
+        return;
+      }
+
+      if (!organizadorSeleccionado || !organizerReady(organizadorSeleccionado)) {
+        alert(
+          "El organizador seleccionado todavía no tiene Stripe habilitado para recibir pagos."
+        );
+        return;
+      }
+    }
+
     const slug = generarSlug(titulo);
 
     const payload: any = {
@@ -397,149 +539,265 @@ paymentConfig: {
 
 
     {/* ================= CONFIGURACIÓN DE PAGOS ================= */}
-<div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
+    <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
 
-  <div>
-    <p className="text-lg font-extrabold text-white">
-      💳 Configuración de pagos
-    </p>
+      <div>
+        <p className="text-lg font-extrabold text-white">
+          💳 Configuración de pagos
+        </p>
 
-    <p className="text-sm text-white/60 mt-1">
-      Define quién recibirá las inscripciones y cómo se cobrará el servicio
-      de DHTime.
-    </p>
-  </div>
+        <p className="text-sm text-white/60 mt-1">
+          Define quién recibirá las inscripciones y cómo se cobrará el servicio
+          de DHTime.
+        </p>
+      </div>
 
-  {/* DESTINO */}
-  <div>
-    <label className="block text-sm font-semibold text-white mb-2">
-      Destino de las inscripciones
-    </label>
+      {/* DESTINO */}
+      <div>
+        <label className="block text-sm font-semibold text-white mb-2">
+          Destino de las inscripciones
+        </label>
 
-    <select
-      value={paymentConfig.recipient}
-      onChange={(e) =>
-        setPaymentConfig((prev) => ({
-          ...prev,
-          recipient: e.target.value,
-        }))
-      }
-      className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
-    >
-      <option value="dhtime">
-        DHTime
-      </option>
+        <select
+          value={paymentConfig.recipient}
+          onChange={(e) =>
+            setPaymentConfig((prev) => ({
+              ...prev,
+              recipient: e.target.value,
+              ...(e.target.value === "dhtime"
+                ? { organizerId: "", connectedAccountId: "" }
+                : {}),
+            }))
+          }
+          className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+        >
+          <option value="dhtime">DHTime</option>
+          <option value="organizer">Organizador externo</option>
+        </select>
+      </div>
 
-      <option value="organizer">
-        Organizador externo
-      </option>
-    </select>
-  </div>
+      {/* ORGANIZADOR */}
+      {paymentConfig.recipient === "organizer" && (
+        <div className="rounded-2xl bg-[#1f1f27] border border-white/10 p-5 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-white mb-2">
+              Organizador
+            </label>
 
-  {/* MODELO DE COBRO */}
-  <div>
-    <label className="block text-sm font-semibold text-white mb-2">
-      Cobro del servicio DHTime
-    </label>
+            <select
+              value={paymentConfig.organizerId}
+              onChange={(e) => {
+                const organizerId = e.target.value;
+                const organizer =
+                  organizadores.find((item) => item.id === organizerId) || null;
 
-    <select
-      value={paymentConfig.dhFeeMode}
-      onChange={(e) =>
-        setPaymentConfig((prev) => ({
-          ...prev,
-          dhFeeMode: e.target.value,
-        }))
-      }
-      className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
-    >
-      <option value="external">
-        Pago único externo
-      </option>
+                setPaymentConfig((prev) => ({
+                  ...prev,
+                  organizerId,
+                  connectedAccountId: organizer?.connectedAccountId || "",
+                }));
+              }}
+              disabled={cargandoOrganizadores}
+              className="w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white disabled:opacity-50"
+            >
+              <option value="">
+                {cargandoOrganizadores
+                  ? "Cargando organizadores..."
+                  : "Selecciona un organizador"}
+              </option>
 
-      <option value="per_registration">
-        Comisión por inscripción
-      </option>
-    </select>
-  </div>
+              {organizadores.map((organizador) => {
+                const listo = organizerReady(organizador);
 
-  {/* TIPO DE COMISIÓN */}
-  {paymentConfig.dhFeeMode === "per_registration" && (
-    <div>
-      <label className="block text-sm font-semibold text-white mb-2">
-        Tipo de comisión
-      </label>
+                return (
+                  <option
+                    key={organizador.id}
+                    value={organizador.id}
+                    disabled={!listo}
+                  >
+                    {organizador.nombre}
+                    {organizador.email ? ` · ${organizador.email}` : ""}
+                    {!listo ? " · Stripe no habilitado" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
 
-      <select
-        value={paymentConfig.dhFeeType}
-        onChange={(e) =>
-          setPaymentConfig((prev) => ({
-            ...prev,
-            dhFeeType: e.target.value,
-          }))
-        }
-        className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
-      >
-        <option value="fixed">
-          Cantidad fija por corredor
-        </option>
+          {errorOrganizadores && (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {errorOrganizadores}
+            </div>
+          )}
 
-        <option value="percentage">
-          Porcentaje por corredor
-        </option>
-      </select>
-    </div>
-  )}
+          {!cargandoOrganizadores && !errorOrganizadores && organizadores.length === 0 && (
+            <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+              No hay organizadores registrados todavía. Crea primero el organizador
+              desde el apartado <strong>Organizadores</strong>.
+            </div>
+          )}
 
-  {/* IMPORTE */}
-  <div>
-    <label className="block text-sm font-semibold text-white mb-2">
-      {paymentConfig.dhFeeMode === "external"
-        ? "Importe acordado con DHTime"
-        : paymentConfig.dhFeeType === "percentage"
-        ? "Porcentaje DHTime"
-        : "Comisión DHTime por inscripción"}
-    </label>
+          {organizadorSeleccionado && (
+            <div className="rounded-2xl border border-white/10 bg-[#141418] p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <p className="font-bold text-white">
+                    {organizadorSeleccionado.nombre}
+                  </p>
+                  <p className="text-sm text-white/50">
+                    {organizadorSeleccionado.email}
+                  </p>
+                </div>
 
-    <div className="flex items-center bg-[#1f1f27] border border-white/10 rounded-xl px-4">
-      {paymentConfig.dhFeeType === "percentage" &&
-      paymentConfig.dhFeeMode === "per_registration" ? (
-        <span className="text-white/50 mr-2">%</span>
-      ) : (
-        <span className="text-white/50 mr-2">$</span>
+                <span
+                  className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold ${
+                    organizerReady(organizadorSeleccionado)
+                      ? "bg-green-500/15 text-green-300 border border-green-500/20"
+                      : "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
+                  }`}
+                >
+                  {organizerReady(organizadorSeleccionado)
+                    ? "✓ Stripe listo"
+                    : "⚠ Stripe pendiente"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
+                <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                  <span className="block text-white/40">Cuenta Stripe</span>
+                  <span className="block text-white/80 font-mono mt-1 break-all">
+                    {organizadorSeleccionado.connectedAccountId || "Sin cuenta"}
+                  </span>
+                </div>
+
+                <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                  <span className="block text-white/40">Cobros</span>
+                  <span className="block text-white/80 mt-1">
+                    {organizadorSeleccionado.chargesEnabled ? "Habilitados" : "Pendientes"}
+                  </span>
+                </div>
+
+                <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                  <span className="block text-white/40">Retiros</span>
+                  <span className="block text-white/80 mt-1">
+                    {organizadorSeleccionado.payoutsEnabled ? "Habilitados" : "Pendientes"}
+                  </span>
+                </div>
+              </div>
+
+              {!organizerReady(organizadorSeleccionado) && (
+                <p className="text-xs text-yellow-300/80 mt-3">
+                  Completa el onboarding de Stripe de este organizador antes de
+                  asociarlo a una carrera que vaya a cobrar en línea.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
-      <input
-        type="number"
-        min="0"
-        step="0.01"
-        value={paymentConfig.dhFeeAmount}
-        onChange={(e) =>
-          setPaymentConfig((prev) => ({
-            ...prev,
-            dhFeeAmount: Number(e.target.value),
-          }))
-        }
-        className="flex-1 py-3 bg-transparent text-white outline-none"
-      />
+      {/* MODELO DE COBRO */}
+      <div>
+        <label className="block text-sm font-semibold text-white mb-2">
+          Cobro del servicio DHTime
+        </label>
+
+        <select
+          value={paymentConfig.dhFeeMode}
+          onChange={(e) =>
+            setPaymentConfig((prev) => ({ ...prev, dhFeeMode: e.target.value }))
+          }
+          className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+        >
+          <option value="external">Pago único externo</option>
+          <option value="per_registration">Comisión por inscripción</option>
+        </select>
+      </div>
+
+      {/* TIPO DE COMISIÓN */}
+      {paymentConfig.dhFeeMode === "per_registration" && (
+        <div>
+          <label className="block text-sm font-semibold text-white mb-2">
+            Tipo de comisión
+          </label>
+
+          <select
+            value={paymentConfig.dhFeeType}
+            onChange={(e) =>
+              setPaymentConfig((prev) => ({ ...prev, dhFeeType: e.target.value }))
+            }
+            className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+          >
+            <option value="fixed">Cantidad fija por corredor</option>
+            <option value="percentage">Porcentaje por corredor</option>
+          </select>
+        </div>
+      )}
+
+      {/* IMPORTE */}
+      <div>
+        <label className="block text-sm font-semibold text-white mb-2">
+          {paymentConfig.dhFeeMode === "external"
+            ? "Importe acordado con DHTime"
+            : paymentConfig.dhFeeType === "percentage"
+            ? "Porcentaje DHTime"
+            : "Comisión DHTime por inscripción"}
+        </label>
+
+        <div className="flex items-center bg-[#1f1f27] border border-white/10 rounded-xl px-4">
+          {paymentConfig.dhFeeType === "percentage" &&
+          paymentConfig.dhFeeMode === "per_registration" ? (
+            <span className="text-white/50 mr-2">%</span>
+          ) : (
+            <span className="text-white/50 mr-2">$</span>
+          )}
+
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={paymentConfig.dhFeeAmount}
+            onChange={(e) =>
+              setPaymentConfig((prev) => ({
+                ...prev,
+                dhFeeAmount: Number(e.target.value),
+              }))
+            }
+            className="flex-1 py-3 bg-transparent text-white outline-none"
+          />
+        </div>
+      </div>
+
+      {/* AVISO */}
+      <div className="rounded-2xl bg-dh-purple/10 border border-dh-purple/20 p-4 text-sm text-white/70">
+        {paymentConfig.recipient === "dhtime" ? (
+          paymentConfig.dhFeeMode === "external" ? (
+            <>
+              Las inscripciones de esta carrera serán recibidas por DHTime.
+              El importe acordado corresponde a un pago externo del servicio.
+            </>
+          ) : (
+            <>
+              DHTime recibirá las inscripciones y aplicará la comisión configurada
+              por corredor.
+            </>
+          )
+        ) : paymentConfig.dhFeeMode === "external" ? (
+          <>
+            El organizador recibirá las inscripciones mediante Stripe Connect.
+            El importe acordado con DHTime se registrará como un pago externo y
+            no se cobrará al corredor mediante esta configuración.
+          </>
+        ) : (
+          <>
+            El organizador recibirá las inscripciones mediante Stripe Connect.
+            La comisión de DHTime se aplicará por inscripción. El tratamiento de
+            IVA y de las comisiones de Stripe se calculará en el checkout.
+          </>
+        )}
+      </div>
+
     </div>
-  </div>
-
-  {/* AVISO */}
-  <div className="rounded-2xl bg-dh-purple/10 border border-dh-purple/20 p-4 text-sm text-white/70">
-    {paymentConfig.dhFeeMode === "external" ? (
-      <>
-        Este importe se registrará como un pago externo a DHTime.
-        No se cobrará al corredor mediante Stripe.
-      </>
-    ) : (
-      <>
-        La comisión se descontará del importe correspondiente al
-        organizador. El costo de Stripe se calculará aparte.
-      </>
-    )}
-  </div>
-
-</div>
 
     {/* ================= CONTROL INSCRIPCIONES ================= */}
     <div className="rounded-3xl bg-[#16161d] border border-dh-purple/20 p-8 space-y-6">
