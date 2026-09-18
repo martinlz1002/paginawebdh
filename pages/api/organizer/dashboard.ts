@@ -210,16 +210,19 @@ export default async function handler(
       }
     );
 
-    return res.status(200).json({
-      ok: true,
-      organizer: {
-        id: organizerId,
-        nombre: organizer.nombre || "",
-        email: organizer.email || "",
-      },
-      carreras,
-      stats,
-    });
+    const organizerData =
+  organizer as Record<string, any>;
+
+return res.status(200).json({
+  ok: true,
+  organizer: {
+    id: organizerId,
+    nombre: organizerData.nombre || "",
+    email: organizerData.email || "",
+  },
+  carreras,
+  stats,
+});
   } catch (error: any) {
     console.error(
       "Error cargando dashboard de organizador:",

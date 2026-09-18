@@ -32,6 +32,12 @@ export default function AdminOrganizadores() {
   const [actualizandoId, setActualizandoId] =
     useState<string | null>(null);
 
+  const [generandoLinkId, setGenerandoLinkId] =
+    useState<string | null>(null);
+
+  const [enlacesStripe, setEnlacesStripe] =
+    useState<Record<string, string>>({});
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -120,9 +126,7 @@ export default function AdminOrganizadores() {
       setLoading(true);
 
       const auth = getAuth();
-
-      const user =
-        auth.currentUser;
+      const user = auth.currentUser;
 
       if (!user) {
         throw new Error(
@@ -206,6 +210,7 @@ export default function AdminOrganizadores() {
       try {
         setError("");
         setSuccess("");
+
         setActualizandoId(
           organizerId
         );
@@ -258,8 +263,6 @@ export default function AdminOrganizadores() {
           );
         }
 
-        // Recargamos Firestore para mostrar
-        // inmediatamente la información actualizada.
         await cargarOrganizadores();
 
         setSuccess(
@@ -283,10 +286,10 @@ export default function AdminOrganizadores() {
     };
 
   // ============================================================
-  // ABRIR ONBOARDING STRIPE
+  // GENERAR ENLACE DE ONBOARDING STRIPE
   // ============================================================
 
-  const abrirOnboarding =
+  const generarEnlaceStripe =
     async (
       organizador: Organizador
     ) => {
@@ -294,6 +297,10 @@ export default function AdminOrganizadores() {
       setSuccess("");
 
       try {
+        setGenerandoLinkId(
+          organizador.id
+        );
+
         const auth =
           getAuth();
 
@@ -343,30 +350,85 @@ export default function AdminOrganizadores() {
           );
         }
 
-        /*
-         * Stripe nos devuelve un Account Link.
-         *
-         * El administrador será enviado al
-         * onboarding de Stripe.
-         */
-        window.location.href =
-          data.url;
+        if (
+          typeof data.url !== "string" ||
+          !data.url
+        ) {
+          throw new Error(
+            "Stripe no devolvió un enlace válido."
+          );
+        }
+
+        setEnlacesStripe(
+          (prev) => ({
+            ...prev,
+            [organizador.id]:
+              data.url,
+          })
+        );
+
+        setSuccess(
+          `Enlace de Stripe generado para ${organizador.nombre}.`
+        );
 
       } catch (err: any) {
         console.error(
-          "Error generando onboarding:",
+          "Error generando enlace Stripe:",
           err
         );
 
         setError(
           err?.message ||
-            "Error generando onboarding."
+            "Error generando el enlace de Stripe."
+        );
+
+      } finally {
+        setGenerandoLinkId(null);
+      }
+    };
+
+  // ============================================================
+  // COPIAR ENLACE
+  // ============================================================
+
+  const copiarEnlaceStripe =
+    async (
+      organizerId: string
+    ) => {
+      const url =
+        enlacesStripe[
+          organizerId
+        ];
+
+      if (!url) {
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(
+          url
+        );
+
+        setError("");
+
+        setSuccess(
+          "Enlace de Stripe copiado al portapapeles."
+        );
+
+      } catch (err) {
+        console.error(
+          "Error copiando enlace:",
+          err
+        );
+
+        setError(
+          "No fue posible copiar el enlace automáticamente. Puedes seleccionarlo y copiarlo manualmente."
         );
       }
     };
 
   // ============================================================
-  // OBTENER ESTADO VISUAL
+  // ESTADO VISUAL
   // ============================================================
 
   const obtenerEstado = (
@@ -379,7 +441,7 @@ export default function AdminOrganizadores() {
       return {
         texto: "Activo",
         clase:
-          "bg-green-100 text-green-700 border-green-200",
+          "bg-green-500/10 text-green-400 border-green-500/20",
       };
     }
 
@@ -393,7 +455,7 @@ export default function AdminOrganizadores() {
       return {
         texto: "Acción requerida",
         clase:
-          "bg-yellow-100 text-yellow-700 border-yellow-200",
+          "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
       };
     }
 
@@ -405,7 +467,7 @@ export default function AdminOrganizadores() {
         texto:
           "Creando Stripe...",
         clase:
-          "bg-blue-100 text-blue-700 border-blue-200",
+          "bg-blue-500/10 text-blue-400 border-blue-500/20",
       };
     }
 
@@ -416,7 +478,7 @@ export default function AdminOrganizadores() {
       return {
         texto: "Error",
         clase:
-          "bg-red-100 text-red-700 border-red-200",
+          "bg-red-500/10 text-red-400 border-red-500/20",
       };
     }
 
@@ -428,14 +490,14 @@ export default function AdminOrganizadores() {
         texto:
           "Configuración pendiente",
         clase:
-          "bg-purple-100 text-purple-700 border-purple-200",
+          "bg-dh-purple/10 text-dh-purpleLight border-dh-purple/20",
       };
     }
 
     return {
       texto: "Pendiente",
       clase:
-        "bg-gray-100 text-gray-700 border-gray-200",
+        "bg-white/5 text-white/50 border-white/10",
     };
   };
 
@@ -451,11 +513,11 @@ export default function AdminOrganizadores() {
       {/* ====================================================== */}
 
       <div>
-        <h2 className="text-3xl font-extrabold text-gray-900">
+        <h2 className="text-3xl font-extrabold text-white">
           Organizadores
         </h2>
 
-        <p className="mt-2 text-gray-600">
+        <p className="mt-2 text-white/50">
           Administra los organizadores externos y
           sus cuentas de Stripe Connect.
         </p>
@@ -466,13 +528,13 @@ export default function AdminOrganizadores() {
       {/* ====================================================== */}
 
       {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
           {error}
         </div>
       )}
 
       {success && (
-        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-300">
           {success}
         </div>
       )}
@@ -481,13 +543,13 @@ export default function AdminOrganizadores() {
       {/* CREAR ORGANIZADOR */}
       {/* ====================================================== */}
 
-      <section className="rounded-2xl border border-dh-purple/10 bg-white p-6 shadow-dh">
+      <section className="rounded-2xl border border-white/5 bg-dh-panel p-6 shadow-dh">
 
-        <h3 className="text-xl font-bold text-gray-900">
+        <h3 className="text-xl font-bold text-white">
           Nuevo organizador
         </h3>
 
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 text-sm text-white/50">
           Primero crearemos su cuenta Express de
           Stripe. Después podrás enviarle el enlace
           para completar sus datos.
@@ -503,7 +565,7 @@ export default function AdminOrganizadores() {
           {/* NOMBRE */}
 
           <div>
-            <label className="mb-2 block text-sm font-semibold text-gray-900">
+            <label className="mb-2 block text-sm font-semibold text-white/80">
               Nombre
             </label>
 
@@ -515,29 +577,31 @@ export default function AdminOrganizadores() {
                 )
               }
               placeholder="Ej. Juan Pérez"
-              className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 outline-none focus:border-dh-purple focus:ring-2 focus:ring-dh-purple/20"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 outline-none transition focus:border-dh-purple focus:ring-2 focus:ring-dh-purple/20"
               disabled={loading}
             />
           </div>
 
           {/* CORREO */}
 
-<div>
-  <label className="mb-2 block text-sm font-semibold text-gray-900">
-    Correo
-  </label>
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-white/80">
+              Correo
+            </label>
 
-  <input
-    type="email"
-    value={email}
-    onChange={(e) =>
-      setEmail(e.target.value)
-    }
-    placeholder="organizador@ejemplo.com"
-    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 outline-none focus:border-dh-purple focus:ring-2 focus:ring-dh-purple/20"
-    disabled={loading}
-  />
-</div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(
+                  e.target.value
+                )
+              }
+              placeholder="organizador@ejemplo.com"
+              className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-white/30 outline-none transition focus:border-dh-purple focus:ring-2 focus:ring-dh-purple/20"
+              disabled={loading}
+            />
+          </div>
 
           {/* BOTÓN */}
 
@@ -546,7 +610,7 @@ export default function AdminOrganizadores() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-dh-purple px-6 py-3 font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+              className="w-full rounded-xl bg-dh-purple px-6 py-3 font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.25)] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
               {loading
                 ? "Creando..."
@@ -563,16 +627,16 @@ export default function AdminOrganizadores() {
       {/* LISTA */}
       {/* ====================================================== */}
 
-      <section className="rounded-2xl border border-dh-purple/10 bg-white p-6 shadow-dh">
+      <section className="rounded-2xl border border-white/5 bg-dh-panel p-6 shadow-dh">
 
         <div className="mb-5 flex items-center justify-between">
 
           <div>
-            <h3 className="text-xl font-bold text-gray-900">
+            <h3 className="text-xl font-bold text-white">
               Organizadores registrados
             </h3>
 
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-white/40">
               {organizadores.length}{" "}
               {organizadores.length === 1
                 ? "organizador"
@@ -586,7 +650,7 @@ export default function AdminOrganizadores() {
               cargarOrganizadores
             }
             disabled={loadingList}
-            className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10 disabled:opacity-50"
           >
             {loadingList
               ? "Cargando..."
@@ -601,13 +665,13 @@ export default function AdminOrganizadores() {
 
         {loadingList ? (
 
-          <div className="py-12 text-center text-gray-500">
+          <div className="py-12 text-center text-white/40">
             Cargando organizadores...
           </div>
 
         ) : organizadores.length === 0 ? (
 
-          <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center text-gray-500">
+          <div className="rounded-xl border border-dashed border-white/10 py-12 text-center text-white/40">
             No hay organizadores registrados todavía.
           </div>
 
@@ -627,16 +691,25 @@ export default function AdminOrganizadores() {
                   actualizandoId ===
                   organizador.id;
 
+                const generandoLink =
+                  generandoLinkId ===
+                  organizador.id;
+
                 const stripeActivo =
                   organizador.chargesEnabled === true &&
                   organizador.payoutsEnabled === true;
+
+                const enlaceStripe =
+                  enlacesStripe[
+                    organizador.id
+                  ];
 
                 return (
                   <div
                     key={
                       organizador.id
                     }
-                    className="rounded-2xl border border-gray-200 p-5 transition hover:shadow-md"
+                    className="rounded-2xl border border-white/5 bg-white/[0.02] p-5 transition hover:border-white/10 hover:bg-white/[0.035]"
                   >
 
                     {/* ======================================== */}
@@ -649,7 +722,7 @@ export default function AdminOrganizadores() {
 
                         <div className="flex flex-wrap items-center gap-3">
 
-                          <h4 className="text-lg font-bold text-gray-500">
+                          <h4 className="text-lg font-bold text-white">
                             {organizador.nombre}
                           </h4>
 
@@ -661,12 +734,12 @@ export default function AdminOrganizadores() {
 
                         </div>
 
-                        <p className="mt-1 text-sm text-gray-500">
+                        <p className="mt-1 text-sm text-white/50">
                           {organizador.email}
                         </p>
 
                         {organizador.connectedAccountId && (
-                          <p className="mt-2 font-mono text-xs text-gray-400">
+                          <p className="mt-2 font-mono text-xs text-white/25">
                             {organizador.connectedAccountId}
                           </p>
                         )}
@@ -689,33 +762,35 @@ export default function AdminOrganizadores() {
                             )
                           }
                           disabled={
-                            actualizando
+                            actualizando ||
+                            generandoLink
                           }
-                          className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           {actualizando
                             ? "Consultando Stripe..."
                             : "↻ Actualizar estado"}
                         </button>
 
-                        {/* CONFIGURAR STRIPE */}
+                        {/* GENERAR ENLACE STRIPE */}
 
                         {!stripeActivo && (
                           <button
                             type="button"
                             onClick={() =>
-                              abrirOnboarding(
+                              generarEnlaceStripe(
                                 organizador
                               )
                             }
                             disabled={
-                              actualizando
+                              actualizando ||
+                              generandoLink
                             }
-                            className="rounded-xl bg-dh-purple px-5 py-2.5 text-sm font-bold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-xl bg-dh-purple px-5 py-2.5 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.3)] disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {organizador.detailsSubmitted
-                              ? "Continuar configuración"
-                              : "Configurar Stripe"}
+                            {generandoLink
+                              ? "Generando enlace..."
+                              : "Generar enlace Stripe"}
                           </button>
                         )}
 
@@ -724,19 +799,83 @@ export default function AdminOrganizadores() {
                     </div>
 
                     {/* ======================================== */}
+                    {/* ENLACE GENERADO */}
+                    {/* ======================================== */}
+
+                    {enlaceStripe && (
+                      <div className="mt-5 rounded-xl border border-dh-purple/20 bg-dh-purple/5 p-4">
+
+                        <div className="flex flex-col gap-3">
+
+                          <div>
+                            <p className="text-sm font-bold text-white">
+                              Enlace para el organizador
+                            </p>
+
+                            <p className="mt-1 text-xs text-white/50">
+                              Envíale este enlace a{" "}
+                              <strong className="text-white/80">
+                                {organizador.nombre}
+                              </strong>{" "}
+                              para que complete su configuración de Stripe.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-2 sm:flex-row">
+
+                            <input
+                              type="text"
+                              readOnly
+                              value={
+                                enlaceStripe
+                              }
+                              onFocus={(e) =>
+                                e.target.select()
+                              }
+                              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-xs text-white/70 outline-none transition focus:border-dh-purple"
+                            />
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copiarEnlaceStripe(
+                                  organizador.id
+                                )
+                              }
+                              className="rounded-xl bg-dh-purple px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.3)]"
+                            >
+                              📋 Copiar enlace
+                            </button>
+
+                          </div>
+
+                          <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2">
+
+                            <p className="text-xs text-yellow-300">
+                              ⚠️ Este enlace de Stripe es temporal y de un solo uso. Si deja de funcionar, genera un nuevo enlace.
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* ======================================== */}
                     {/* ESTADO DETALLADO */}
                     {/* ======================================== */}
 
-                    <div className="mt-4 grid gap-3 border-t border-gray-100 pt-4 sm:grid-cols-3">
+                    <div className="mt-4 grid gap-3 border-t border-white/5 pt-4 sm:grid-cols-3">
 
                       {/* DATOS */}
 
                       <div>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-white/30">
                           Datos enviados
                         </p>
 
-                        <p className="mt-1 text-sm font-semibold">
+                        <p className="mt-1 text-sm font-semibold text-white/80">
                           {organizador.detailsSubmitted
                             ? "✓ Sí"
                             : "Pendiente"}
@@ -746,11 +885,11 @@ export default function AdminOrganizadores() {
                       {/* COBROS */}
 
                       <div>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-white/30">
                           Cobros
                         </p>
 
-                        <p className="mt-1 text-sm font-semibold">
+                        <p className="mt-1 text-sm font-semibold text-white/80">
                           {organizador.chargesEnabled
                             ? "✓ Habilitados"
                             : "Pendientes"}
@@ -760,11 +899,11 @@ export default function AdminOrganizadores() {
                       {/* RETIROS */}
 
                       <div>
-                        <p className="text-xs text-gray-400">
+                        <p className="text-xs text-white/30">
                           Retiros
                         </p>
 
-                        <p className="mt-1 text-sm font-semibold">
+                        <p className="mt-1 text-sm font-semibold text-white/80">
                           {organizador.payoutsEnabled
                             ? "✓ Habilitados"
                             : "Pendientes"}
@@ -780,13 +919,13 @@ export default function AdminOrganizadores() {
                     {organizador.currentlyDue &&
                       organizador.currentlyDue.length > 0 && (
 
-                        <div className="mt-4 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3">
+                        <div className="mt-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3">
 
-                          <p className="text-sm font-bold text-yellow-800">
+                          <p className="text-sm font-bold text-yellow-300">
                             Stripe tiene información pendiente
                           </p>
 
-                          <p className="mt-1 text-xs text-yellow-700">
+                          <p className="mt-1 text-xs text-yellow-200/70">
                             Hay{" "}
                             {
                               organizador
@@ -806,13 +945,13 @@ export default function AdminOrganizadores() {
 
                     {organizador.disabledReason && (
 
-                      <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+                      <div className="mt-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3">
 
-                        <p className="text-sm font-bold text-red-800">
+                        <p className="text-sm font-bold text-red-300">
                           Stripe reporta una restricción
                         </p>
 
-                        <p className="mt-1 text-xs text-red-700">
+                        <p className="mt-1 text-xs text-red-200/70">
                           {organizador.disabledReason}
                         </p>
 
