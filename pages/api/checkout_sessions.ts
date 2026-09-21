@@ -1108,42 +1108,62 @@ await attemptRef.set({
         },
       };
 
-      // ============================================================
+     // ============================================================
 // DESTINATION CHARGE
 // ============================================================
 
-// La comisión de DHTime se descuenta de la inscripción.
-// No se suma al importe que paga el corredor.
-//
-// Si es pago de una sola exhibición,
-// comisionDHTime debe ser 0.
+// Solo hacemos Destination Charge cuando el destinatario
+// del pago es un organizador externo.
+if (paymentConfig.recipient === "organizer") {
 
-const montoOrganizador = neto - comisionDHTime;
+  // Validar que exista una cuenta conectada de Stripe.
+  if (
+    !connectedAccountId ||
+    typeof connectedAccountId !== "string" ||
+    !connectedAccountId.startsWith("acct_")
+  ) {
+    console.error(
+      "[checkout_sessions] Cuenta Stripe Connect inválida:",
+      {
+        recipient: paymentConfig.recipient,
+        organizerId: organizerId || null,
+        connectedAccountId: connectedAccountId || null,
+      }
+    );
 
-// Validar que el monto a transferir sea válido.
-if (
-  !Number.isFinite(montoOrganizador) ||
-  montoOrganizador < 0
-) {
-  return res.status(400).json({
-    error:
-      "La comisión de DHTime no puede ser mayor al precio de inscripción.",
-  });
+    return res.status(400).json({
+      error:
+        "El organizador no tiene una cuenta Stripe Connect válida vinculada. No se puede procesar el pago.",
+    });
+  }
+
+  // Calcular el importe que recibirá el organizador.
+  const montoOrganizador =
+    neto - comisionDHTime;
+
+  // Validar el importe de la transferencia.
+  if (
+    !Number.isFinite(montoOrganizador) ||
+    montoOrganizador <= 0
+  ) {
+    return res.status(400).json({
+      error:
+        "El monto a transferir al organizador debe ser mayor a cero.",
+    });
+  }
+
+  // Stripe cobra el checkout completo al corredor,
+  // y transfiere al organizador el importe correspondiente.
+  checkoutParams.payment_intent_data = {
+    transfer_data: {
+      destination: connectedAccountId,
+
+      amount: Math.round(
+        montoOrganizador * 100
+      ),
+    },
+  };
 }
-
-// Stripe cobra el checkout completo al corredor,
-// pero transfiere al organizador únicamente
-// el importe que le corresponde.
-
-checkoutParams.payment_intent_data = {
-  transfer_data: {
-    destination: connectedAccountId,
-
-    amount: Math.round(
-      montoOrganizador * 100
-    ),
-  },
-};
 
       /**
        * ========================================================
