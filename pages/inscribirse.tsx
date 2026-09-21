@@ -357,7 +357,17 @@ export default function InscribirsePage() {
       return;
     }
 
-    // ✅ crea sesión Stripe (server calcula unit_amount)
+        // ============================================
+    // Crear checkout (Stripe o Mercado Pago)
+    // ============================================
+
+    const paymentConfig = (carrera as any)?.paymentConfig;
+
+    const paymentProvider =
+      paymentConfig?.paymentProvider === "mercadopago"
+        ? "mercadopago"
+        : "stripe";
+
     const res = await fetch("/api/checkout_sessions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -370,12 +380,47 @@ export default function InscribirsePage() {
     });
 
     const data = await res.json().catch(() => ({} as any));
-    if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
 
-    const { url, sessionId } = data;
-    if (!url || !sessionId) throw new Error("Stripe no devolvió url/sessionId");
+    if (!res.ok) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
 
-    // ✅ guarda inscripción con snapshot completo
+    // ============================================
+    // Validar respuesta según proveedor
+    // ============================================
+
+    let checkoutUrl: string;
+    let sessionId: string | undefined;
+    let preferenceId: string | undefined;
+
+    if (paymentProvider === "mercadopago") {
+      // Mercado Pago
+      checkoutUrl = data.init_point || data.url;
+      preferenceId = data.preferenceId;
+
+      if (!checkoutUrl || !preferenceId) {
+        throw new Error(
+          "Mercado Pago no devolvió init_point/preferenceId. " +
+          (data?.error || "")
+        );
+      }
+    } else {
+      // Stripe
+      checkoutUrl = data.url;
+      sessionId = data.sessionId;
+
+      if (!checkoutUrl || !sessionId) {
+        throw new Error(
+          "Stripe no devolvió url/sessionId. " +
+          (data?.error || "")
+        );
+      }
+    }
+
+    // ============================================
+    // Registrar inscripción con el proveedor real
+    // ============================================
+
     await registrarInscripcion({
       carreraId: carrera.id,
       carreraTitulo: carrera.titulo,
@@ -385,8 +430,20 @@ export default function InscribirsePage() {
       distancia,
       ruta: distancia,
 
-      sessionId,
+      // Proveedor correcto
+      paymentProvider,
 
+      // Stripe: guardar sessionId
+      ...(paymentProvider === "stripe" && sessionId
+        ? { sessionId }
+        : {}),
+
+      // Mercado Pago: guardar preferenceId
+      ...(paymentProvider === "mercadopago" && preferenceId
+        ? { preferenceId }
+        : {}),
+
+      // Snapshot completo del participante
       nombre: perfil.nombre,
       paterno: perfil.apellidoPaterno,
       materno: perfil.apellidoMaterno,
@@ -404,10 +461,11 @@ export default function InscribirsePage() {
       email: perfil.email,
     });
 
-    // ✅ IMPORTANTÍSIMO:
-    // ❌ NO popup, NO _blank
-    // ✅ redirige en la MISMA pestaña (no lo bloquea el navegador)
-    window.location.href = url;
+    // ============================================
+    // Redirigir al checkout en la misma pestaña
+    // ============================================
+
+    window.location.href = checkoutUrl;
 
     // (Opcional) Si quieres que siempre pase por /pago para fallback:
     // router.push(`/pago?inscripcionId=${encodeURIComponent(INSCRIPCION_ID_AQUI)}`)
