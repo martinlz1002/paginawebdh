@@ -405,16 +405,22 @@
        * ORIGIN
        * ========================================================
        */
-      const origin =
-        req.headers.origin ||
-        process.env.NEXT_PUBLIC_BASE_URL;
+      const configuredBaseUrl = (
+  process.env.NEXT_PUBLIC_BASE_URL || ""
+)
+  .trim()
+  .replace(/\/+$/, "");
 
-      if (!origin) {
-        return res.status(500).json({
-          error:
-            "Missing origin / NEXT_PUBLIC_BASE_URL",
-        });
-      }
+const requestOrigin = req.headers.origin || "";
+
+const origin = configuredBaseUrl || requestOrigin;
+
+const isLocalOrigin =
+  /localhost|127\.0\.0\.1/i.test(origin);
+
+const useBackUrls =
+  /^https:\/\/[^/]+/i.test(origin) &&
+  !isLocalOrigin;
 
       /**
        * ========================================================
@@ -569,66 +575,189 @@
        * ========================================================
        * CHECKOUT MERCADO PAGO
        * ========================================================
-       * Esta primera integración admite cobros a la cuenta DHTime.
-       * El pago directo a organizadores requiere OAuth/Marketplace
-       * y un flujo de split validado por Mercado Pago.
+       * DHTime: usa el token global.
+       * Organizador: usa su token OAuth y marketplace_fee.
        */
       if (paymentConfig.paymentProvider === "mercadopago") {
-        if (paymentConfig.recipient === "organizer") {
-          return res.status(400).json({
-            error:
-              "Mercado Pago para organizadores requiere conectar su cuenta mediante OAuth/Marketplace. Por ahora selecciona DHTime como receptor.",
-          });
-        }
+        let accessToken = "";
+        let organizerIdMP: string | null = null;
+        let organizerRefMP: any = null;
+        let organizerMP: any = null;
 
-        const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
-        if (!accessToken) {
-          return res.status(500).json({
-            error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN.",
-          });
+        if (paymentConfig.recipient === "organizer") {
+          organizerIdMP = paymentConfig.organizerId;
+
+          if (!organizerIdMP) {
+            return res.status(400).json({
+              error: "La carrera está configurada para un organizador, pero no tiene organizerId.",
+            });
+          }
+
+          organizerRefMP = db.collection("organizadores").doc(organizerIdMP);
+          const organizerSnapMP = await organizerRefMP.get();
+
+          if (!organizerSnapMP.exists) {
+            return res.status(400).json({ error: "El organizador configurado no existe." });
+          }
+
+          organizerMP = organizerSnapMP.data() as any;
+
+          if (organizerMP.activo === false) {
+            return res.status(403).json({ error: "El organizador no está activo." });
+          }
+
+          if (organizerMP.paymentProvider !== "mercadopago") {
+            return res.status(400).json({
+              error: "El organizador seleccionado no está configurado para Mercado Pago.",
+            });
+          }
+
+          if (organizerMP.mercadoPagoStatus !== "connected") {
+            return res.status(400).json({
+              error: "El organizador todavía no ha conectado su cuenta de Mercado Pago mediante OAuth.",
+            });
+          }
+
+          const sellerUserId = String(organizerMP.mercadoPagoUserId || "").trim();
+          accessToken = String(organizerMP.mercadoPagoAccessToken || organizerMP.mpAccessToken || organizerMP.mercado_pago_access_token || "").trim();
+          const refreshToken = String(organizerMP.mercadoPagoRefreshToken || organizerMP.mpRefreshToken || organizerMP.mercado_pago_refresh_token || "").trim();
+
+          if (!sellerUserId || !accessToken) {
+            return res.status(400).json({
+              error: "La conexión de Mercado Pago del organizador está incompleta. Vuelve a conectarla desde Admin.",
+            });
+          }
+
+          // Renovar el token si tenemos fecha de expiración y está por vencer.
+          const rawExpiry = organizerMP.mercadoPagoTokenExpiresAt || organizerMP.mercadoPagoExpiresAt || organizerMP.mercado_pago_expires_at;
+          let expiryMs = 0;
+          if (rawExpiry && typeof rawExpiry.toDate === "function") {
+            expiryMs = rawExpiry.toDate().getTime();
+          } else if (rawExpiry) {
+            const parsedExpiry = new Date(rawExpiry).getTime();
+            if (Number.isFinite(parsedExpiry)) expiryMs = parsedExpiry;
+          }
+
+          if (refreshToken && expiryMs > 0 && expiryMs <= Date.now() + 5 * 60 * 1000) {
+            const clientId = process.env.MERCADOPAGO_CLIENT_ID;
+            const clientSecret = process.env.MERCADOPAGO_CLIENT_SECRET;
+
+            if (!clientId || !clientSecret) {
+              return res.status(500).json({
+                error: "Faltan MERCADOPAGO_CLIENT_ID y/o MERCADOPAGO_CLIENT_SECRET para renovar el token OAuth.",
+              });
+            }
+
+            const refreshBody = new URLSearchParams({
+              client_id: clientId,
+              client_secret: clientSecret,
+              grant_type: "refresh_token",
+              refresh_token: refreshToken,
+            });
+
+            const refreshResponse = await fetch("https://api.mercadopago.com/oauth/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: refreshBody.toString(),
+            });
+            const refreshed = await refreshResponse.json();
+
+            if (!refreshResponse.ok || !refreshed.access_token) {
+              console.error("[checkout_sessions] Error renovando OAuth de Mercado Pago:", {
+                status: refreshResponse.status,
+                message: refreshed?.message || refreshed?.error || "Error OAuth",
+              });
+              return res.status(400).json({
+                error: "No se pudo renovar la conexión de Mercado Pago del organizador. Vuelve a conectarla desde Admin.",
+              });
+            }
+
+            accessToken = String(refreshed.access_token);
+            const refreshedUpdate: any = {
+              mercadoPagoAccessToken: accessToken,
+              mercadoPagoTokenExpiresAt: admin.firestore.Timestamp.fromMillis(
+                Date.now() + Number(refreshed.expires_in || 0) * 1000
+              ),
+            };
+            if (refreshed.refresh_token) {
+              refreshedUpdate.mercadoPagoRefreshToken = String(refreshed.refresh_token);
+            }
+            if (refreshed.user_id) {
+              refreshedUpdate.mercadoPagoUserId = String(refreshed.user_id);
+            }
+            await organizerRefMP.update(refreshedUpdate);
+          }
+        } else {
+          accessToken = String(process.env.MERCADOPAGO_ACCESS_TOKEN || "").trim();
+          if (!accessToken) {
+            return res.status(500).json({
+              error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN.",
+            });
+          }
         }
 
         const total = unit_amount / 100;
-        const preferenceResponse = await fetch(
-          "https://api.mercadopago.com/checkout/preferences",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              items: [{
-                title: `Inscripción: ${categoria} (${distancia})`,
-                quantity: 1,
-                currency_id: "MXN",
-                unit_price: total,
-              }],
-              external_reference: `${carreraId}_${perfilId || "sin_perfil"}_${Date.now()}`,
-              metadata: {
-                carreraId,
-                perfilId: perfilId || "",
-                categoria: norm(categoria),
-                distancia: norm(distancia),
-                neto: String(neto),
-                comisionDHTime: String(comisionDHTime),
-                totalCobrado: total.toFixed(2),
-                paymentProvider: "mercadopago",
-              },
-              back_urls: {
-                success: `${origin}/mis-inscripciones`,
-                failure: `${origin}/inscribirse?carreraId=${encodeURIComponent(carreraId)}`,
-                pending: `${origin}/mis-inscripciones`,
-              },
-              auto_return: "approved",
-              notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || undefined,
-            }),
-          }
-        );
+        const marketplaceFee = paymentConfig.recipient === "organizer"
+          ? Math.round(comisionDHTime * 100) / 100
+          : 0;
+
+        const preferenceBody: any = {
+          items: [{
+            title: `Inscripción: ${categoria} (${distancia})`,
+            quantity: 1,
+            currency_id: "MXN",
+            unit_price: total,
+          }],
+          external_reference: `${carreraId}_${perfilId || "sin_perfil"}_${Date.now()}`,
+          metadata: {
+            carreraId,
+            perfilId: perfilId || "",
+            categoria: norm(categoria),
+            distancia: norm(distancia),
+            neto: String(neto),
+            comisionDHTime: String(comisionDHTime),
+            totalCobrado: total.toFixed(2),
+            paymentProvider: "mercadopago",
+            recipient: paymentConfig.recipient,
+            organizerId: organizerIdMP || "",
+            mercadoPagoUserId: organizerMP?.mercadoPagoUserId ? String(organizerMP.mercadoPagoUserId) : "",
+          },
+          ...(useBackUrls
+  ? {
+      back_urls: {
+        success: `${origin}/mis-inscripciones`,
+        failure: `${origin}/inscribirse?carreraId=${encodeURIComponent(
+          carreraId
+        )}`,
+        pending: `${origin}/mis-inscripciones`,
+      },
+      auto_return: "approved",
+    }
+  : {}),
+        };
+
+        // En Marketplace, Mercado Pago descuenta primero su tarifa y luego
+        // marketplace_fee del saldo restante del vendedor.
+        if (marketplaceFee > 0) {
+          preferenceBody.marketplace_fee = marketplaceFee;
+        }
+
+        const preferenceResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(preferenceBody),
+        });
 
         const preference = await preferenceResponse.json();
         if (!preferenceResponse.ok || !preference.init_point || !preference.id) {
-          console.error("[checkout_sessions] Mercado Pago error:", preference);
+          console.error("[checkout_sessions] Mercado Pago error:", {
+            status: preferenceResponse.status,
+            message: preference?.message || preference?.error || "No se pudo crear la preferencia",
+            cause: preference?.cause,
+          });
           return res.status(502).json({
             error: preference.message || "No se pudo crear el checkout de Mercado Pago.",
           });
@@ -643,8 +772,9 @@
           comisionDHTime,
           totalCobrado: total,
           recipient: paymentConfig.recipient,
-          organizerId: null,
+          organizerId: organizerIdMP,
           connectedAccountId: null,
+          marketplaceFee,
         });
       }
 

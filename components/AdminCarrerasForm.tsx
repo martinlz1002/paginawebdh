@@ -18,11 +18,18 @@ interface Organizer {
   id: string;
   nombre: string;
   email: string;
+
+  // Stripe Connect
   connectedAccountId?: string;
   stripeStatus?: string;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
   detailsSubmitted?: boolean;
+
+  // Mercado Pago OAuth
+  mercadoPagoStatus?: string;
+  mercadoPagoUserId?: string;
+
   activo?: boolean;
 }
 
@@ -83,7 +90,7 @@ function parseISODateYYYYMMDD(iso: string): Date {
   return new Date(+m[1], +m[2] - 1, +m[3]);
 }
 
-function organizerReady(organizer: Organizer): boolean {
+function organizerReadyStripe(organizer: Organizer): boolean {
   return (
     organizer.activo !== false &&
     organizer.detailsSubmitted === true &&
@@ -92,6 +99,26 @@ function organizerReady(organizer: Organizer): boolean {
     typeof organizer.connectedAccountId === "string" &&
     organizer.connectedAccountId.length > 0
   );
+}
+
+function organizerReadyMercadoPago(organizer: Organizer): boolean {
+  return (
+    organizer.activo !== false &&
+    organizer.mercadoPagoStatus === "connected" &&
+    typeof organizer.mercadoPagoUserId === "string" &&
+    organizer.mercadoPagoUserId.length > 0
+  );
+}
+
+function organizerReadyForProvider(
+  organizer: Organizer,
+  provider: string
+): boolean {
+  if (provider === "mercadopago") {
+    return organizerReadyMercadoPago(organizer);
+  }
+
+  return organizerReadyStripe(organizer);
 }
 
 export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCarrerasFormProps) {
@@ -231,28 +258,41 @@ const [paymentConfig, setPaymentConfig] = useState({
       (organizador) => organizador.id === paymentConfig.organizerId
     ) || null;
 
-  // 🏢 Si cambias de organizador, sincroniza automáticamente la cuenta Stripe.
-  useEffect(() => {
-    if (paymentConfig.recipient !== "organizer") return;
-    if (!paymentConfig.organizerId) return;
-    if (!organizadorSeleccionado) return;
+  // Sincroniza la cuenta Stripe solo cuando el proveedor es Stripe.
+useEffect(() => {
+  if (paymentConfig.recipient !== "organizer") return;
 
-    const connectedAccountId =
-      organizadorSeleccionado.connectedAccountId || "";
-
-    if (paymentConfig.connectedAccountId !== connectedAccountId) {
+  if (paymentConfig.paymentProvider !== "stripe") {
+    if (paymentConfig.connectedAccountId) {
       setPaymentConfig((prev) => ({
         ...prev,
-        connectedAccountId,
+        connectedAccountId: "",
       }));
     }
-  }, [
-    paymentConfig.recipient,
-    paymentConfig.organizerId,
-    organizadorSeleccionado?.id,
-    organizadorSeleccionado?.connectedAccountId,
-    paymentConfig.connectedAccountId,
-  ]);
+
+    return;
+  }
+
+  if (!paymentConfig.organizerId) return;
+  if (!organizadorSeleccionado) return;
+
+  const connectedAccountId =
+    organizadorSeleccionado.connectedAccountId || "";
+
+  if (paymentConfig.connectedAccountId !== connectedAccountId) {
+    setPaymentConfig((prev) => ({
+      ...prev,
+      connectedAccountId,
+    }));
+  }
+}, [
+  paymentConfig.recipient,
+  paymentConfig.paymentProvider,
+  paymentConfig.organizerId,
+  organizadorSeleccionado?.id,
+  organizadorSeleccionado?.connectedAccountId,
+  paymentConfig.connectedAccountId,
+]);
 
   // Si la carrera es DHTime, limpiamos cualquier vínculo anterior.
   useEffect(() => {
@@ -456,7 +496,12 @@ const carreraFinalizada = fechaDate < today;
     return;
   }
 
-  // Validaciones exclusivas para Stripe Connect
+  if (!organizadorSeleccionado) {
+    alert("No se encontró el organizador seleccionado.");
+    return;
+  }
+
+  // VALIDACIÓN DE STRIPE
   if (paymentConfig.paymentProvider === "stripe") {
     if (!paymentConfig.connectedAccountId) {
       alert(
@@ -465,12 +510,19 @@ const carreraFinalizada = fechaDate < today;
       return;
     }
 
-    if (
-      !organizadorSeleccionado ||
-      !organizerReady(organizadorSeleccionado)
-    ) {
+    if (!organizerReadyStripe(organizadorSeleccionado)) {
       alert(
         "El organizador seleccionado todavía no tiene Stripe habilitado para recibir pagos."
+      );
+      return;
+    }
+  }
+
+  // VALIDACIÓN DE MERCADO PAGO
+  if (paymentConfig.paymentProvider === "mercadopago") {
+    if (!organizerReadyMercadoPago(organizadorSeleccionado)) {
+      alert(
+        "El organizador seleccionado todavía no tiene Mercado Pago conectado."
       );
       return;
     }
@@ -522,8 +574,13 @@ paymentConfig: {
   dhFeeMode: paymentConfig.dhFeeMode,
   dhFeeType: paymentConfig.dhFeeType,
   dhFeeAmount: Number(paymentConfig.dhFeeAmount) || 0,
+
   organizerId: paymentConfig.organizerId || "",
-  connectedAccountId: paymentConfig.connectedAccountId || "",
+
+  connectedAccountId:
+    paymentConfig.paymentProvider === "stripe"
+      ? paymentConfig.connectedAccountId || ""
+      : "",
 },
 
       ...(newImagenUrl ? { imagenUrl: newImagenUrl } : {}),
@@ -576,18 +633,22 @@ paymentConfig: {
   </label>
 
   <select
-    value={paymentConfig.paymentProvider}
-    onChange={(e) =>
-      setPaymentConfig((prev) => ({
-        ...prev,
-        paymentProvider: e.target.value,
-      }))
-    }
-    className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
-  >
-    <option value="stripe">Stripe</option>
-    <option value="mercadopago">Mercado Pago</option>
-  </select>
+  value={paymentConfig.paymentProvider}
+  onChange={(e) => {
+    const paymentProvider = e.target.value;
+
+    setPaymentConfig((prev) => ({
+      ...prev,
+      paymentProvider,
+      organizerId: "",
+      connectedAccountId: "",
+    }));
+  }}
+  className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+>
+  <option value="stripe">Stripe</option>
+  <option value="mercadopago">Mercado Pago</option>
+</select>
 
   <p className="text-xs text-white/50 mt-2">
     Selecciona la plataforma que procesará los pagos de esta carrera.
@@ -627,43 +688,56 @@ paymentConfig: {
             </label>
 
             <select
-              value={paymentConfig.organizerId}
-              onChange={(e) => {
-                const organizerId = e.target.value;
-                const organizer =
-                  organizadores.find((item) => item.id === organizerId) || null;
+  value={paymentConfig.organizerId}
+  onChange={(e) => {
+    const organizerId = e.target.value;
 
-                setPaymentConfig((prev) => ({
-                  ...prev,
-                  organizerId,
-                  connectedAccountId: organizer?.connectedAccountId || "",
-                }));
-              }}
-              disabled={cargandoOrganizadores}
-              className="w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white disabled:opacity-50"
-            >
-              <option value="">
-                {cargandoOrganizadores
-                  ? "Cargando organizadores..."
-                  : "Selecciona un organizador"}
-              </option>
+    const organizer =
+      organizadores.find((item) => item.id === organizerId) || null;
 
-              {organizadores.map((organizador) => {
-                const listo = organizerReady(organizador);
+    setPaymentConfig((prev) => ({
+      ...prev,
+      organizerId,
 
-                return (
-                  <option
-                    key={organizador.id}
-                    value={organizador.id}
-                    disabled={!listo}
-                  >
-                    {organizador.nombre}
-                    {organizador.email ? ` · ${organizador.email}` : ""}
-                    {!listo ? " · Stripe no habilitado" : ""}
-                  </option>
-                );
-              })}
-            </select>
+      connectedAccountId:
+        prev.paymentProvider === "stripe"
+          ? organizer?.connectedAccountId || ""
+          : "",
+    }));
+  }}
+  disabled={cargandoOrganizadores}
+  className="w-full bg-[#141418] border border-white/10 rounded-xl px-4 py-3 text-white disabled:opacity-50"
+>
+  <option value="">
+    {cargandoOrganizadores
+      ? "Cargando organizadores..."
+      : "Selecciona un organizador"}
+  </option>
+
+  {organizadores.map((organizador) => {
+    const listo = organizerReadyForProvider(
+      organizador,
+      paymentConfig.paymentProvider
+    );
+
+    const proveedorNombre =
+      paymentConfig.paymentProvider === "mercadopago"
+        ? "Mercado Pago"
+        : "Stripe";
+
+    return (
+      <option
+        key={organizador.id}
+        value={organizador.id}
+        disabled={!listo}
+      >
+        {organizador.nombre}
+        {organizador.email ? ` · ${organizador.email}` : ""}
+        {!listo ? ` · ${proveedorNombre} no habilitado` : ""}
+      </option>
+    );
+  })}
+</select>
           </div>
 
           {errorOrganizadores && (
@@ -680,61 +754,126 @@ paymentConfig: {
           )}
 
           {organizadorSeleccionado && (
-            <div className="rounded-2xl border border-white/10 bg-[#141418] p-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <p className="font-bold text-white">
-                    {organizadorSeleccionado.nombre}
-                  </p>
-                  <p className="text-sm text-white/50">
-                    {organizadorSeleccionado.email}
-                  </p>
-                </div>
+  <div className="rounded-2xl border border-white/10 bg-[#141418] p-4">
+    {(() => {
+      const esMercadoPago =
+        paymentConfig.paymentProvider === "mercadopago";
 
-                <span
-                  className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold ${
-                    organizerReady(organizadorSeleccionado)
-                      ? "bg-green-500/15 text-green-300 border border-green-500/20"
-                      : "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
-                  }`}
-                >
-                  {organizerReady(organizadorSeleccionado)
-                    ? "✓ Stripe listo"
-                    : "⚠ Stripe pendiente"}
+      const listo = organizerReadyForProvider(
+        organizadorSeleccionado,
+        paymentConfig.paymentProvider
+      );
+
+      return (
+        <>
+          {/* DATOS DEL ORGANIZADOR */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="font-bold text-white">
+                {organizadorSeleccionado.nombre}
+              </p>
+
+              <p className="text-sm text-white/50">
+                {organizadorSeleccionado.email}
+              </p>
+            </div>
+
+            <span
+              className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-bold ${
+                listo
+                  ? "bg-green-500/15 text-green-300 border border-green-500/20"
+                  : "bg-yellow-500/15 text-yellow-300 border border-yellow-500/20"
+              }`}
+            >
+              {esMercadoPago
+                ? listo
+                  ? "✓ Mercado Pago conectado"
+                  : "⚠ Mercado Pago pendiente"
+                : listo
+                  ? "✓ Stripe listo"
+                  : "⚠ Stripe pendiente"}
+            </span>
+          </div>
+
+          {/* DATOS DE MERCADO PAGO */}
+          {esMercadoPago ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 text-xs">
+              <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                <span className="block text-white/40">
+                  Usuario Mercado Pago
+                </span>
+
+                <span className="block text-white/80 font-mono mt-1 break-all">
+                  {organizadorSeleccionado.mercadoPagoUserId ||
+                    "Sin vincular"}
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
-                <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
-                  <span className="block text-white/40">Cuenta Stripe</span>
-                  <span className="block text-white/80 font-mono mt-1 break-all">
-                    {organizadorSeleccionado.connectedAccountId || "Sin cuenta"}
-                  </span>
-                </div>
+              <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                <span className="block text-white/40">
+                  Estado de conexión
+                </span>
 
-                <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
-                  <span className="block text-white/40">Cobros</span>
-                  <span className="block text-white/80 mt-1">
-                    {organizadorSeleccionado.chargesEnabled ? "Habilitados" : "Pendientes"}
-                  </span>
-                </div>
+                <span className="block text-white/80 mt-1">
+                  {organizadorSeleccionado.mercadoPagoStatus === "connected"
+                    ? "Conectado"
+                    : "Pendiente"}
+                </span>
+              </div>
+            </div>
+          ) : (
+            /* DATOS DE STRIPE */
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 text-xs">
+              <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                <span className="block text-white/40">
+                  Cuenta Stripe
+                </span>
 
-                <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
-                  <span className="block text-white/40">Retiros</span>
-                  <span className="block text-white/80 mt-1">
-                    {organizadorSeleccionado.payoutsEnabled ? "Habilitados" : "Pendientes"}
-                  </span>
-                </div>
+                <span className="block text-white/80 font-mono mt-1 break-all">
+                  {organizadorSeleccionado.connectedAccountId ||
+                    "Sin cuenta"}
+                </span>
               </div>
 
-              {!organizerReady(organizadorSeleccionado) && (
-                <p className="text-xs text-yellow-300/80 mt-3">
-                  Completa el onboarding de Stripe de este organizador antes de
-                  asociarlo a una carrera que vaya a cobrar en línea.
-                </p>
-              )}
+              <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                <span className="block text-white/40">
+                  Cobros
+                </span>
+
+                <span className="block text-white/80 mt-1">
+                  {organizadorSeleccionado.chargesEnabled
+                    ? "Habilitados"
+                    : "Pendientes"}
+                </span>
+              </div>
+
+              <div className="rounded-xl bg-[#1f1f27] px-3 py-2">
+                <span className="block text-white/40">
+                  Retiros
+                </span>
+
+                <span className="block text-white/80 mt-1">
+                  {organizadorSeleccionado.payoutsEnabled
+                    ? "Habilitados"
+                    : "Pendientes"}
+                </span>
+              </div>
             </div>
           )}
+
+          {/* AVISO DE CONEXIÓN */}
+          {!listo && (
+            <p className="text-xs text-yellow-300/80 mt-3">
+              {esMercadoPago
+                ? "Este organizador debe conectar su cuenta de Mercado Pago antes de asociarlo a una carrera que vaya a cobrar en línea."
+                : "Completa el onboarding de Stripe de este organizador antes de asociarlo a una carrera que vaya a cobrar en línea."}
+            </p>
+          )}
+        </>
+      );
+    })()}
+  </div>
+)}
         </div>
       )}
 

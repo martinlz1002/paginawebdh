@@ -100,6 +100,14 @@ export default async function handler(
       "https://auth.mercadopago.com/authorization"
     );
 
+    console.log(
+  "[MP OAuth URL]",
+  authUrl.toString().replace(
+    /client_id=[^&]+/,
+    "client_id=OCULTO"
+  )
+);
+
     authUrl.searchParams.set(
       "client_id",
       clientId
