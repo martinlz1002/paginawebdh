@@ -312,15 +312,10 @@ export default async function handler(
      * La inscripción debe guardar ese mismo valor.
      */
 
-    const inscripcionesSnap =
-      await db
-        .collection("inscripciones")
-        .where(
-          "sessionId",
-          "==",
-          preferenceId
-        )
-        .get();
+    const inscripcionesSnap = await db
+  .collection("inscripciones")
+  .where("preferenceId", "==", preferenceId)
+  .get();
 
     if (inscripcionesSnap.empty) {
       /**

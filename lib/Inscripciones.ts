@@ -35,7 +35,7 @@ export interface StripeInscripcionData {
   distancia?: string;
 
   // Proveedor de pago
-  paymentProvider?: PaymentProvider;
+  paymentProvider: PaymentProvider;
 
   // Stripe
   sessionId?: string | null;
@@ -68,7 +68,13 @@ export async function registrarInscripcion(
 ) {
   const user = await getAuthenticatedUser();
 
-  const paymentProvider = data.paymentProvider || "stripe";
+  const paymentProvider = data.paymentProvider;
+
+if (!paymentProvider) {
+  throw new Error(
+    "No se especificó el proveedor de pago de la inscripción."
+  );
+}
 
   // Validar que exista la referencia correspondiente
   if (paymentProvider === "stripe" && !data.sessionId) {
