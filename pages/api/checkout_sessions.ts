@@ -1,950 +1,1060 @@
-import type {
-  NextApiRequest,
-  NextApiResponse,
-} from "next";
+  import type {
+    NextApiRequest,
+    NextApiResponse,
+  } from "next";
 
-import * as admin from "firebase-admin";
+  import * as admin from "firebase-admin";
 
-import { stripe } from "@/lib/stripe";
+  import { stripe } from "@/lib/stripe";
 
-/**
- * ============================================================
- * FIREBASE ADMIN
- * ============================================================
- *
- * Este endpoint corre en el servidor.
- *
- * IMPORTANTE:
- * No usamos el Firebase Client SDK para consultar
- * organizadores porque esa consulta estaría sujeta
- * a las reglas públicas/privadas de Firestore.
- *
- * Firebase Admin accede directamente desde el servidor.
- */
-function getAdminDb() {
-  if (!admin.apps.length) {
-    const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64;
+  /**
+   * ============================================================
+   * FIREBASE ADMIN
+   * ============================================================
+   *
+   * Este endpoint corre en el servidor.
+   *
+   * IMPORTANTE:
+   * No usamos el Firebase Client SDK para consultar
+   * organizadores porque esa consulta estaría sujeta
+   * a las reglas públicas/privadas de Firestore.
+   *
+   * Firebase Admin accede directamente desde el servidor.
+   */
+  function getAdminDb() {
+    if (!admin.apps.length) {
+      const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64;
 
-    if (!raw) {
+      if (!raw) {
+        throw new Error(
+          "Falta FIREBASE_SERVICE_ACCOUNT_KEY_B64"
+        );
+      }
+
+      const serviceAccount = JSON.parse(
+        Buffer.from(raw, "base64").toString("utf8")
+      );
+
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+      });
+    }
+
+    return admin.firestore();
+  }
+
+  /**
+   * ============================================================
+   * NORMALIZAR
+   * ============================================================
+   */
+  function norm(v: any) {
+    return String(v ?? "")
+      .trim()
+      .toUpperCase();
+  }
+
+  /**
+   * ============================================================
+   * CALCULAR TOTAL A COBRAR
+   * ============================================================
+   *
+   * El precio "neto" de la carrera es lo que debe recibir
+   * DHTime o el organizador.
+   *
+   * El corredor absorbe el costo de procesamiento de Stripe.
+   *
+   * Stripe México:
+   *
+   * Tarjeta nacional:
+   *   3.6% + $3 MXN
+   *
+   * IVA sobre la comisión:
+   *   16%
+   *
+   * Queremos:
+   *
+   * bruto
+   * - ((bruto * 3.6%) + $3) * 1.16
+   * = neto
+   *
+   * Despejando:
+   *
+   * bruto =
+   * (neto + fijo * 1.16)
+   * / (1 - porcentaje * 1.16)
+   *
+   * ============================================================
+   */
+  function calcularTotalCobrar(
+    neto: number
+  ) {
+    const IVA_SOBRE_COMISION = 0.16;
+
+    const STRIPE_PCT = 0.036;
+
+    const STRIPE_FIJO = 3;
+
+    const bruto =
+      (
+        neto +
+        STRIPE_FIJO *
+          (1 + IVA_SOBRE_COMISION)
+      ) /
+      (
+        1 -
+        STRIPE_PCT *
+          (1 + IVA_SOBRE_COMISION)
+      );
+
+    return Math.ceil(
+      bruto * 100
+    );
+  }
+
+  /**
+   * Calcula el total para Mercado Pago usando tarifas configurables
+   * en variables de entorno. Verifica estos valores con la tarifa
+   * real de la cuenta antes de habilitar cobros en producción.
+   */
+  function calcularTotalMercadoPago(neto: number) {
+    const pct = Number(process.env.MERCADOPAGO_PCT ?? "0.0349");
+    const fijo = Number(process.env.MERCADOPAGO_FIJO ?? "4");
+    const iva = 0.16;
+
+    if (!Number.isFinite(pct) || pct < 0 || pct >= 1 ||
+        !Number.isFinite(fijo) || fijo < 0) {
+      throw new Error("Configuración inválida de comisiones de Mercado Pago.");
+    }
+
+    const bruto = (neto + fijo * (1 + iva)) / (1 - pct * (1 + iva));
+    return Math.ceil(bruto * 100);
+  }
+
+  /**
+   * ============================================================
+   * OBTENER PRECIO NETO DE LA CARRERA
+   * ============================================================
+   */
+  function getNetoFromCarrera(
+    carrera: any,
+    distancia: string,
+    categoria: string
+  ) {
+    if (
+      !Array.isArray(
+        carrera.distancias
+      )
+    ) {
       throw new Error(
-        "Falta FIREBASE_SERVICE_ACCOUNT_KEY_B64"
+        "La carrera no tiene distancias configuradas"
       );
     }
 
-    const serviceAccount = JSON.parse(
-      Buffer.from(raw, "base64").toString("utf8")
-    );
+    const d =
+      carrera.distancias.find(
+        (x: any) =>
+          norm(x.distancia) ===
+          norm(distancia)
+      );
 
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
-  }
+    if (!d) {
+      throw new Error(
+        `Distancia no encontrada: "${distancia}"`
+      );
+    }
 
-  return admin.firestore();
-}
+    const c =
+      (
+        d.categorias || []
+      ).find(
+        (x: any) =>
+          norm(x.nombre) ===
+          norm(categoria)
+      );
 
-/**
- * ============================================================
- * NORMALIZAR
- * ============================================================
- */
-function norm(v: any) {
-  return String(v ?? "")
-    .trim()
-    .toUpperCase();
-}
+    if (!c) {
+      throw new Error(
+        `Categoría no encontrada: "${categoria}"`
+      );
+    }
 
-/**
- * ============================================================
- * CALCULAR TOTAL A COBRAR
- * ============================================================
- *
- * El precio "neto" de la carrera es lo que debe recibir
- * DHTime o el organizador.
- *
- * El corredor absorbe el costo de procesamiento de Stripe.
- *
- * Stripe México:
- *
- * Tarjeta nacional:
- *   3.6% + $3 MXN
- *
- * IVA sobre la comisión:
- *   16%
- *
- * Queremos:
- *
- * bruto
- * - ((bruto * 3.6%) + $3) * 1.16
- * = neto
- *
- * Despejando:
- *
- * bruto =
- * (neto + fijo * 1.16)
- * / (1 - porcentaje * 1.16)
- *
- * ============================================================
- */
-function calcularTotalCobrar(
-  neto: number
-) {
-  const IVA_SOBRE_COMISION = 0.16;
-
-  const STRIPE_PCT = 0.036;
-
-  const STRIPE_FIJO = 3;
-
-  const bruto =
-    (
-      neto +
-      STRIPE_FIJO *
-        (1 + IVA_SOBRE_COMISION)
-    ) /
-    (
-      1 -
-      STRIPE_PCT *
-        (1 + IVA_SOBRE_COMISION)
-    );
-
-  return Math.ceil(
-    bruto * 100
-  );
-}
-
-/**
- * ============================================================
- * OBTENER PRECIO NETO DE LA CARRERA
- * ============================================================
- */
-function getNetoFromCarrera(
-  carrera: any,
-  distancia: string,
-  categoria: string
-) {
-  if (
-    !Array.isArray(
-      carrera.distancias
-    )
-  ) {
-    throw new Error(
-      "La carrera no tiene distancias configuradas"
-    );
-  }
-
-  const d =
-    carrera.distancias.find(
-      (x: any) =>
-        norm(x.distancia) ===
-        norm(distancia)
-    );
-
-  if (!d) {
-    throw new Error(
-      `Distancia no encontrada: "${distancia}"`
-    );
-  }
-
-  const c =
-    (
-      d.categorias || []
-    ).find(
-      (x: any) =>
-        norm(x.nombre) ===
-        norm(categoria)
-    );
-
-  if (!c) {
-    throw new Error(
-      `Categoría no encontrada: "${categoria}"`
-    );
-  }
-
-  const neto =
-    Number(c.price);
-
-  if (
-    !Number.isFinite(neto) ||
-    neto <= 0
-  ) {
-    throw new Error(
-      "Precio inválido"
-    );
-  }
-
-  return neto;
-}
-
-/**
- * ============================================================
- * VERIFICAR SI LA CARRERA YA FINALIZÓ
- * ============================================================
- */
-function carreraYaFinalizo(
-  fecha: any
-): boolean {
-  let d: Date;
-
-  /**
-   * Firestore Timestamp
-   *
-   * No dependemos de importar Timestamp directamente.
-   * Esto funciona con objetos Timestamp provenientes
-   * de Firebase Admin.
-   */
-  if (
-    fecha &&
-    typeof fecha.toDate === "function"
-  ) {
-    d = fecha.toDate();
-
-  } else if (
-    typeof fecha === "string"
-  ) {
-    const [
-      y,
-      m,
-      day,
-    ] =
-      fecha
-        .split("-")
-        .map(Number);
+    const neto =
+      Number(c.price);
 
     if (
-      !y ||
-      !m ||
-      !day
+      !Number.isFinite(neto) ||
+      neto <= 0
     ) {
+      throw new Error(
+        "Precio inválido"
+      );
+    }
+
+    return neto;
+  }
+
+  /**
+   * ============================================================
+   * VERIFICAR SI LA CARRERA YA FINALIZÓ
+   * ============================================================
+   */
+  function carreraYaFinalizo(
+    fecha: any
+  ): boolean {
+    let d: Date;
+
+    /**
+     * Firestore Timestamp
+     *
+     * No dependemos de importar Timestamp directamente.
+     * Esto funciona con objetos Timestamp provenientes
+     * de Firebase Admin.
+     */
+    if (
+      fecha &&
+      typeof fecha.toDate === "function"
+    ) {
+      d = fecha.toDate();
+
+    } else if (
+      typeof fecha === "string"
+    ) {
+      const [
+        y,
+        m,
+        day,
+      ] =
+        fecha
+          .split("-")
+          .map(Number);
+
+      if (
+        !y ||
+        !m ||
+        !day
+      ) {
+        return false;
+      }
+
+      d = new Date(
+        y,
+        m - 1,
+        day
+      );
+
+    } else {
       return false;
     }
 
-    d = new Date(
-      y,
-      m - 1,
-      day
+    d.setHours(
+      0,
+      0,
+      0,
+      0
     );
 
-  } else {
-    return false;
+    const today =
+      new Date();
+
+    today.setHours(
+      0,
+      0,
+      0,
+      0
+    );
+
+    return d < today;
   }
 
-  d.setHours(
-    0,
-    0,
-    0,
-    0
-  );
+  /**
+   * ============================================================
+   * OBTENER CONFIGURACIÓN DE PAGOS
+   * ============================================================
+   */
+  function obtenerPaymentConfig(
+    carrera: any
+  ) {
+    const config =
+      carrera?.paymentConfig ||
+      {};
 
-  const today =
-    new Date();
+    return {
+      paymentProvider:
+        config.paymentProvider === "mercadopago"
+          ? "mercadopago"
+          : "stripe",
 
-  today.setHours(
-    0,
-    0,
-    0,
-    0
-  );
+      recipient:
+        config.recipient ===
+        "organizer"
+          ? "organizer"
+          : "dhtime",
 
-  return d < today;
-}
+      dhFeeMode:
+        config.dhFeeMode ===
+        "per_registration"
+          ? "per_registration"
+          : "external",
 
-/**
- * ============================================================
- * OBTENER CONFIGURACIÓN DE PAGOS
- * ============================================================
- */
-function obtenerPaymentConfig(
-  carrera: any
-) {
-  const config =
-    carrera?.paymentConfig ||
-    {};
+      dhFeeType:
+        config.dhFeeType ===
+        "percentage"
+          ? "percentage"
+          : "fixed",
 
-  return {
-    recipient:
-      config.recipient ===
-      "organizer"
-        ? "organizer"
-        : "dhtime",
+      dhFeeAmount:
+        Number(
+          config.dhFeeAmount
+        ) || 0,
 
-    dhFeeMode:
-      config.dhFeeMode ===
+      organizerId:
+        typeof config.organizerId ===
+        "string"
+          ? config.organizerId.trim()
+          : "",
+
+      connectedAccountId:
+        typeof config.connectedAccountId ===
+        "string"
+          ? config.connectedAccountId.trim()
+          : "",
+    };
+  }
+
+  /**
+   * ============================================================
+   * CALCULAR COMISIÓN DHTIME
+   * ============================================================
+   *
+   * external
+   *   → DHTime no cobra comisión por inscripción.
+   *
+   * per_registration
+   *   → se calcula la comisión configurada.
+   */
+  function calcularComisionDHTime(
+    neto: number,
+    paymentConfig: ReturnType<
+      typeof obtenerPaymentConfig
+    >
+  ) {
+    if (
+      paymentConfig.dhFeeMode !==
       "per_registration"
-        ? "per_registration"
-        : "external",
+    ) {
+      return 0;
+    }
 
-    dhFeeType:
-      config.dhFeeType ===
-      "percentage"
-        ? "percentage"
-        : "fixed",
-
-    dhFeeAmount:
+    const amount =
       Number(
-        config.dhFeeAmount
-      ) || 0,
+        paymentConfig.dhFeeAmount
+      ) || 0;
 
-    organizerId:
-      typeof config.organizerId ===
-      "string"
-        ? config.organizerId.trim()
-        : "",
+    if (amount <= 0) {
+      return 0;
+    }
 
-    connectedAccountId:
-      typeof config.connectedAccountId ===
-      "string"
-        ? config.connectedAccountId.trim()
-        : "",
-  };
-}
+    if (
+      paymentConfig.dhFeeType ===
+      "percentage"
+    ) {
+      return (
+        neto *
+        (amount / 100)
+      );
+    }
 
-/**
- * ============================================================
- * CALCULAR COMISIÓN DHTIME
- * ============================================================
- *
- * external
- *   → DHTime no cobra comisión por inscripción.
- *
- * per_registration
- *   → se calcula la comisión configurada.
- */
-function calcularComisionDHTime(
-  neto: number,
-  paymentConfig: ReturnType<
-    typeof obtenerPaymentConfig
-  >
-) {
-  if (
-    paymentConfig.dhFeeMode !==
-    "per_registration"
+    return amount;
+  }
+
+  /**
+   * ============================================================
+   * HANDLER
+   * ============================================================
+   */
+  export default async function handler(
+    req: NextApiRequest,
+    res: NextApiResponse
   ) {
-    return 0;
-  }
-
-  const amount =
-    Number(
-      paymentConfig.dhFeeAmount
-    ) || 0;
-
-  if (amount <= 0) {
-    return 0;
-  }
-
-  if (
-    paymentConfig.dhFeeType ===
-    "percentage"
-  ) {
-    return (
-      neto *
-      (amount / 100)
-    );
-  }
-
-  return amount;
-}
-
-/**
- * ============================================================
- * HANDLER
- * ============================================================
- */
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
-  if (
-    req.method !== "POST"
-  ) {
-    res.setHeader(
-      "Allow",
-      ["POST"]
-    );
-
-    return res
-      .status(405)
-      .end(
-        `Método ${req.method} No Permitido`
-      );
-  }
-
-  try {
-    /**
-     * ========================================================
-     * FIREBASE ADMIN DB
-     * ========================================================
-     */
-    const db = getAdminDb();
-
-    /**
-     * ========================================================
-     * ORIGIN
-     * ========================================================
-     */
-    const origin =
-      req.headers.origin ||
-      process.env.NEXT_PUBLIC_BASE_URL;
-
-    if (!origin) {
-      return res.status(500).json({
-        error:
-          "Missing origin / NEXT_PUBLIC_BASE_URL",
-      });
-    }
-
-    /**
-     * ========================================================
-     * DATOS RECIBIDOS
-     * ========================================================
-     */
-    const {
-      carreraId,
-      perfilId,
-      categoria,
-      distancia,
-    } =
-      req.body as {
-        carreraId?: string;
-        perfilId?: string | null;
-        categoria?: string;
-        distancia?: string;
-      };
-
     if (
-      !carreraId ||
-      !categoria ||
-      !distancia
+      req.method !== "POST"
     ) {
-      return res.status(400).json({
-        error:
-          "Faltan datos (carreraId, categoria, distancia)",
-      });
-    }
-
-    /**
-     * ========================================================
-     * CARRERA
-     * ========================================================
-     *
-     * Ahora también la obtenemos desde Admin.
-     *
-     * Esto hace que todo el checkout sea procesado
-     * en servidor y no dependa de reglas Firestore
-     * del cliente.
-     */
-    const carreraRef =
-      db
-        .collection("carreras")
-        .doc(carreraId);
-
-    const carreraSnap =
-      await carreraRef.get();
-
-    if (
-      !carreraSnap.exists
-    ) {
-      return res.status(404).json({
-        error:
-          "Carrera no encontrada",
-      });
-    }
-
-    const carrera =
-      carreraSnap.data() as any;
-
-    /**
-     * ========================================================
-     * PAUSA DE INSCRIPCIONES
-     * ========================================================
-     */
-    if (
-      carrera.inscripcionesAbiertas ===
-      false
-    ) {
-      return res.status(403).json({
-        error:
-          carrera.inscripcionesMensaje ||
-          "Inscripciones pausadas temporalmente.",
-      });
-    }
-
-    /**
-     * ========================================================
-     * CARRERA FINALIZADA
-     * ========================================================
-     */
-    if (
-      carreraYaFinalizo(
-        carrera.fecha
-      )
-    ) {
-      return res.status(403).json({
-        error:
-          "Esta carrera ya se llevó a cabo",
-      });
-    }
-
-    /**
-     * ========================================================
-     * PRECIO NETO
-     * ========================================================
-     */
-    const neto =
-      getNetoFromCarrera(
-        carrera,
-        distancia,
-        categoria
+      res.setHeader(
+        "Allow",
+        ["POST"]
       );
 
-    /**
-     * ========================================================
-     * CONFIGURACIÓN DE PAGOS
-     * ========================================================
-     */
-    const paymentConfig =
-      obtenerPaymentConfig(
-        carrera
-      );
+      return res
+        .status(405)
+        .end(
+          `Método ${req.method} No Permitido`
+        );
+    }
 
-    /**
-     * ========================================================
-     * COMISIÓN DHTIME
-     * ========================================================
-     */
-    const comisionDHTime =
-      calcularComisionDHTime(
-        neto,
-        paymentConfig
-      );
+    try {
+      /**
+       * ========================================================
+       * FIREBASE ADMIN DB
+       * ========================================================
+       */
+      const db = getAdminDb();
 
-    /**
-     * ========================================================
-     * TOTAL A COBRAR
-     * ========================================================
-     *
-     * El costo de Stripe se calcula sobre:
-     *
-     *     neto + comisión DHTime
-     *
-     * Cuando existe una comisión por inscripción,
-     * también la absorbe el corredor.
-     *
-     * El organizador seguirá recibiendo exactamente
-     * el precio neto.
-     */
-    const baseCobro =
-      neto +
-      comisionDHTime;
+      /**
+       * ========================================================
+       * ORIGIN
+       * ========================================================
+       */
+      const origin =
+        req.headers.origin ||
+        process.env.NEXT_PUBLIC_BASE_URL;
 
-    const unit_amount =
-      calcularTotalCobrar(
-        baseCobro
-      );
-
-    /**
-     * ========================================================
-     * CONFIGURAR DESTINO
-     * ========================================================
-     */
-    let connectedAccountId =
-      "";
-
-    let organizerId =
-      "";
-
-    /**
-     * ========================================================
-     * CARRERA DE ORGANIZADOR
-     * ========================================================
-     */
-    if (
-      paymentConfig.recipient ===
-      "organizer"
-    ) {
-      organizerId =
-        paymentConfig.organizerId;
-
-      if (!organizerId) {
-        return res.status(400).json({
+      if (!origin) {
+        return res.status(500).json({
           error:
-            "La carrera está configurada para un organizador, pero no tiene organizerId.",
+            "Missing origin / NEXT_PUBLIC_BASE_URL",
         });
       }
 
       /**
-       * ======================================================
-       * ORGANIZADOR DESDE FIREBASE ADMIN
-       * ======================================================
-       *
-       * ESTE ES EL CAMBIO PRINCIPAL.
-       *
-       * Antes:
-       *
-       * getDoc(doc(db, "organizadores", organizerId))
-       *
-       * Eso utilizaba Firebase Client SDK y chocaba
-       * con las reglas de Firestore.
-       *
-       * Ahora:
-       *
-       * db.collection("organizadores").doc(...).get()
-       *
-       * usando Firebase Admin.
+       * ========================================================
+       * DATOS RECIBIDOS
+       * ========================================================
        */
-      const organizerRef =
-        db
-          .collection("organizadores")
-          .doc(organizerId);
-
-      const organizerSnap =
-        await organizerRef.get();
+      const {
+        carreraId,
+        perfilId,
+        categoria,
+        distancia,
+      } =
+        req.body as {
+          carreraId?: string;
+          perfilId?: string | null;
+          categoria?: string;
+          distancia?: string;
+        };
 
       if (
-        !organizerSnap.exists
+        !carreraId ||
+        !categoria ||
+        !distancia
       ) {
         return res.status(400).json({
           error:
-            "El organizador configurado no existe.",
+            "Faltan datos (carreraId, categoria, distancia)",
         });
       }
 
-      const organizer =
-        organizerSnap.data() as any;
+      /**
+       * ========================================================
+       * CARRERA
+       * ========================================================
+       *
+       * Ahora también la obtenemos desde Admin.
+       *
+       * Esto hace que todo el checkout sea procesado
+       * en servidor y no dependa de reglas Firestore
+       * del cliente.
+       */
+      const carreraRef =
+        db
+          .collection("carreras")
+          .doc(carreraId);
+
+      const carreraSnap =
+        await carreraRef.get();
+
+      if (
+        !carreraSnap.exists
+      ) {
+        return res.status(404).json({
+          error:
+            "Carrera no encontrada",
+        });
+      }
+
+      const carrera =
+        carreraSnap.data() as any;
 
       /**
-       * ======================================================
-       * ORGANIZADOR ACTIVO
-       * ======================================================
+       * ========================================================
+       * PAUSA DE INSCRIPCIONES
+       * ========================================================
        */
       if (
-        organizer.activo ===
+        carrera.inscripcionesAbiertas ===
         false
       ) {
         return res.status(403).json({
           error:
-            "El organizador no está activo.",
+            carrera.inscripcionesMensaje ||
+            "Inscripciones pausadas temporalmente.",
         });
       }
 
       /**
-       * ======================================================
-       * CUENTA CONNECT
-       * ======================================================
+       * ========================================================
+       * CARRERA FINALIZADA
+       * ========================================================
        */
-      connectedAccountId =
-        String(
-          organizer.connectedAccountId ||
-          ""
-        ).trim();
-
       if (
-        !connectedAccountId
+        carreraYaFinalizo(
+          carrera.fecha
+        )
       ) {
-        return res.status(400).json({
+        return res.status(403).json({
           error:
-            "El organizador todavía no tiene una cuenta Stripe Connect.",
+            "Esta carrera ya se llevó a cabo",
         });
       }
 
       /**
-       * ======================================================
-       * VALIDACIÓN DEL ESTADO LOCAL
-       * ======================================================
+       * ========================================================
+       * PRECIO NETO
+       * ========================================================
        */
-      if (
-        organizer.detailsSubmitted !==
-        true
-      ) {
-        return res.status(400).json({
-          error:
-            "El organizador todavía no ha completado la configuración de Stripe.",
-        });
-      }
-
-      if (
-        organizer.chargesEnabled !==
-        true
-      ) {
-        return res.status(400).json({
-          error:
-            "La cuenta Stripe del organizador todavía no puede recibir pagos.",
-        });
-      }
-
-      if (
-        organizer.payoutsEnabled !==
-        true
-      ) {
-        return res.status(400).json({
-          error:
-            "La cuenta Stripe del organizador todavía no puede recibir retiros.",
-        });
-      }
-
-      /**
-       * ======================================================
-       * VALIDACIÓN REAL CONTRA STRIPE
-       * ======================================================
-       *
-       * No confiamos únicamente en los datos guardados
-       * en Firestore.
-       *
-       * Consultamos directamente la cuenta Connect.
-       */
-      const stripeAccount =
-        await stripe.accounts.retrieve(
-          connectedAccountId
+      const neto =
+        getNetoFromCarrera(
+          carrera,
+          distancia,
+          categoria
         );
 
-      if (
-        stripeAccount.id !==
-        connectedAccountId
-      ) {
-        return res.status(400).json({
-          error:
-            "La cuenta Stripe del organizador no coincide con la cuenta configurada.",
+      /**
+       * ========================================================
+       * CONFIGURACIÓN DE PAGOS
+       * ========================================================
+       */
+      const paymentConfig =
+        obtenerPaymentConfig(
+          carrera
+        );
+
+      /**
+       * ========================================================
+       * COMISIÓN DHTIME
+       * ========================================================
+       */
+      const comisionDHTime =
+        calcularComisionDHTime(
+          neto,
+          paymentConfig
+        );
+
+      /**
+       * ========================================================
+       * TOTAL A COBRAR
+       * ========================================================
+       *
+       * El costo de Stripe se calcula sobre:
+       *
+       *     neto + comisión DHTime
+       *
+       * Cuando existe una comisión por inscripción,
+       * también la absorbe el corredor.
+       *
+       * El organizador seguirá recibiendo exactamente
+       * el precio neto.
+       */
+      const baseCobro =
+        neto +
+        comisionDHTime;
+
+      const unit_amount =
+        paymentConfig.paymentProvider === "stripe"
+          ? calcularTotalCobrar(baseCobro)
+          : calcularTotalMercadoPago(baseCobro);
+
+      /**
+       * ========================================================
+       * CHECKOUT MERCADO PAGO
+       * ========================================================
+       * Esta primera integración admite cobros a la cuenta DHTime.
+       * El pago directo a organizadores requiere OAuth/Marketplace
+       * y un flujo de split validado por Mercado Pago.
+       */
+      if (paymentConfig.paymentProvider === "mercadopago") {
+        if (paymentConfig.recipient === "organizer") {
+          return res.status(400).json({
+            error:
+              "Mercado Pago para organizadores requiere conectar su cuenta mediante OAuth/Marketplace. Por ahora selecciona DHTime como receptor.",
+          });
+        }
+
+        const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+        if (!accessToken) {
+          return res.status(500).json({
+            error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN.",
+          });
+        }
+
+        const total = unit_amount / 100;
+        const preferenceResponse = await fetch(
+          "https://api.mercadopago.com/checkout/preferences",
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              items: [{
+                title: `Inscripción: ${categoria} (${distancia})`,
+                quantity: 1,
+                currency_id: "MXN",
+                unit_price: total,
+              }],
+              external_reference: `${carreraId}_${perfilId || "sin_perfil"}_${Date.now()}`,
+              metadata: {
+                carreraId,
+                perfilId: perfilId || "",
+                categoria: norm(categoria),
+                distancia: norm(distancia),
+                neto: String(neto),
+                comisionDHTime: String(comisionDHTime),
+                totalCobrado: total.toFixed(2),
+                paymentProvider: "mercadopago",
+              },
+              back_urls: {
+                success: `${origin}/mis-inscripciones`,
+                failure: `${origin}/inscribirse?carreraId=${encodeURIComponent(carreraId)}`,
+                pending: `${origin}/mis-inscripciones`,
+              },
+              auto_return: "approved",
+              notification_url: process.env.MERCADOPAGO_WEBHOOK_URL || undefined,
+            }),
+          }
+        );
+
+        const preference = await preferenceResponse.json();
+        if (!preferenceResponse.ok || !preference.init_point || !preference.id) {
+          console.error("[checkout_sessions] Mercado Pago error:", preference);
+          return res.status(502).json({
+            error: preference.message || "No se pudo crear el checkout de Mercado Pago.",
+          });
+        }
+
+        return res.status(200).json({
+          url: preference.init_point,
+          sessionId: preference.id,
+          preferenceId: preference.id,
+          paymentProvider: "mercadopago",
+          neto,
+          comisionDHTime,
+          totalCobrado: total,
+          recipient: paymentConfig.recipient,
+          organizerId: null,
+          connectedAccountId: null,
         });
       }
 
+      /**
+       * ========================================================
+       * CONFIGURAR DESTINO
+       * ========================================================
+       */
+      let connectedAccountId =
+        "";
+
+      let organizerId =
+        "";
+
+      /**
+       * ========================================================
+       * CARRERA DE ORGANIZADOR
+       * ========================================================
+       */
       if (
-        stripeAccount.details_submitted !==
-        true
+        paymentConfig.recipient ===
+        "organizer"
       ) {
-        return res.status(400).json({
-          error:
-            "La cuenta Stripe del organizador todavía no ha completado su configuración.",
-        });
+        organizerId =
+          paymentConfig.organizerId;
+
+        if (!organizerId) {
+          return res.status(400).json({
+            error:
+              "La carrera está configurada para un organizador, pero no tiene organizerId.",
+          });
+        }
+
+        /**
+         * ======================================================
+         * ORGANIZADOR DESDE FIREBASE ADMIN
+         * ======================================================
+         *
+         * ESTE ES EL CAMBIO PRINCIPAL.
+         *
+         * Antes:
+         *
+         * getDoc(doc(db, "organizadores", organizerId))
+         *
+         * Eso utilizaba Firebase Client SDK y chocaba
+         * con las reglas de Firestore.
+         *
+         * Ahora:
+         *
+         * db.collection("organizadores").doc(...).get()
+         *
+         * usando Firebase Admin.
+         */
+        const organizerRef =
+          db
+            .collection("organizadores")
+            .doc(organizerId);
+
+        const organizerSnap =
+          await organizerRef.get();
+
+        if (
+          !organizerSnap.exists
+        ) {
+          return res.status(400).json({
+            error:
+              "El organizador configurado no existe.",
+          });
+        }
+
+        const organizer =
+          organizerSnap.data() as any;
+
+        /**
+         * ======================================================
+         * ORGANIZADOR ACTIVO
+         * ======================================================
+         */
+        if (
+          organizer.activo ===
+          false
+        ) {
+          return res.status(403).json({
+            error:
+              "El organizador no está activo.",
+          });
+        }
+
+        /**
+         * ======================================================
+         * CUENTA CONNECT
+         * ======================================================
+         */
+        connectedAccountId =
+          String(
+            organizer.connectedAccountId ||
+            ""
+          ).trim();
+
+        if (
+          !connectedAccountId
+        ) {
+          return res.status(400).json({
+            error:
+              "El organizador todavía no tiene una cuenta Stripe Connect.",
+          });
+        }
+
+        /**
+         * ======================================================
+         * VALIDACIÓN DEL ESTADO LOCAL
+         * ======================================================
+         */
+        if (
+          organizer.detailsSubmitted !==
+          true
+        ) {
+          return res.status(400).json({
+            error:
+              "El organizador todavía no ha completado la configuración de Stripe.",
+          });
+        }
+
+        if (
+          organizer.chargesEnabled !==
+          true
+        ) {
+          return res.status(400).json({
+            error:
+              "La cuenta Stripe del organizador todavía no puede recibir pagos.",
+          });
+        }
+
+        if (
+          organizer.payoutsEnabled !==
+          true
+        ) {
+          return res.status(400).json({
+            error:
+              "La cuenta Stripe del organizador todavía no puede recibir retiros.",
+          });
+        }
+
+        /**
+         * ======================================================
+         * VALIDACIÓN REAL CONTRA STRIPE
+         * ======================================================
+         *
+         * No confiamos únicamente en los datos guardados
+         * en Firestore.
+         *
+         * Consultamos directamente la cuenta Connect.
+         */
+        const stripeAccount =
+          await stripe.accounts.retrieve(
+            connectedAccountId
+          );
+
+        if (
+          stripeAccount.id !==
+          connectedAccountId
+        ) {
+          return res.status(400).json({
+            error:
+              "La cuenta Stripe del organizador no coincide con la cuenta configurada.",
+          });
+        }
+
+        if (
+          stripeAccount.details_submitted !==
+          true
+        ) {
+          return res.status(400).json({
+            error:
+              "La cuenta Stripe del organizador todavía no ha completado su configuración.",
+          });
+        }
+
+        if (
+          stripeAccount.charges_enabled !==
+          true
+        ) {
+          return res.status(400).json({
+            error:
+              "Stripe todavía no permite recibir pagos en la cuenta del organizador.",
+          });
+        }
+
+        if (
+          stripeAccount.payouts_enabled !==
+          true
+        ) {
+          return res.status(400).json({
+            error:
+              "Stripe todavía no permite retiros en la cuenta del organizador.",
+          });
+        }
       }
 
-      if (
-        stripeAccount.charges_enabled !==
-        true
-      ) {
-        return res.status(400).json({
-          error:
-            "Stripe todavía no permite recibir pagos en la cuenta del organizador.",
-        });
-      }
+      /**
+       * ========================================================
+       * CREAR CHECKOUT
+       * ========================================================
+       */
+      const checkoutParams: any = {
+        payment_method_types: [
+          "card",
+          "oxxo",
+        ],
 
-      if (
-        stripeAccount.payouts_enabled !==
-        true
-      ) {
-        return res.status(400).json({
-          error:
-            "Stripe todavía no permite retiros en la cuenta del organizador.",
-        });
-      }
-    }
+        mode: "payment",
 
-    /**
-     * ========================================================
-     * CREAR CHECKOUT
-     * ========================================================
-     */
-    const checkoutParams: any = {
-      payment_method_types: [
-        "card",
-        "oxxo",
-      ],
+        line_items: [
+          {
+            price_data: {
+              currency:
+                "mxn",
 
-      mode: "payment",
+              product_data: {
+                name:
+                  `Inscripción: ${categoria} (${distancia})`,
+              },
 
-      line_items: [
-        {
-          price_data: {
-            currency:
-              "mxn",
-
-            product_data: {
-              name:
-                `Inscripción: ${categoria} (${distancia})`,
+              unit_amount,
             },
 
-            unit_amount,
+            quantity: 1,
           },
+        ],
 
-          quantity: 1,
+        success_url:
+          `${origin}/mis-inscripciones` +
+          `?session_id={CHECKOUT_SESSION_ID}`,
+
+        cancel_url:
+          `${origin}/inscribirse` +
+          `?carreraId=${encodeURIComponent(
+            carreraId
+          )}`,
+
+        metadata: {
+          carreraId,
+
+          perfilId:
+            perfilId || "",
+
+          categoria:
+            norm(categoria),
+
+          distancia:
+            norm(distancia),
+
+          neto:
+            String(neto),
+
+          comisionDHTime:
+            String(
+              comisionDHTime
+            ),
+
+          totalCobrado:
+            String(
+              (
+                unit_amount /
+                100
+              ).toFixed(2)
+            ),
+
+          recipient:
+            paymentConfig.recipient,
+
+          organizerId,
+
+          connectedAccountId,
+          paymentProvider: "stripe",
         },
-      ],
+      };
 
-      success_url:
-        `${origin}/mis-inscripciones` +
-        `?session_id={CHECKOUT_SESSION_ID}`,
+      /**
+       * ========================================================
+       * DESTINATION CHARGE
+       * ========================================================
+       *
+       * Si la carrera pertenece a un organizador:
+       *
+       * El Checkout cobra el total al corredor.
+       *
+       * Stripe transfiere EXACTAMENTE el neto al
+       * connected account del organizador.
+       *
+       * Ejemplo:
+       *
+       * Carrera:
+       *     $100
+       *
+       * Corredor:
+       *     paga el precio + procesamiento
+       *
+       * Organizador:
+       *     recibe $100.00
+       *
+       * DHTime:
+       *     conserva el importe restante para cubrir
+       *     procesamiento y, cuando corresponda,
+       *     comisión DHTime.
+       *
+       * ========================================================
+       */
+      if (
+        paymentConfig.recipient ===
+        "organizer"
+      ) {
+        /**
+         * Seguridad adicional.
+         *
+         * Nunca debemos intentar crear un Destination Charge
+         * sin una cuenta Connect válida.
+         */
+        if (
+          !connectedAccountId
+        ) {
+          return res.status(400).json({
+            error:
+              "No existe una cuenta Stripe Connect válida para esta carrera.",
+          });
+        }
 
-      cancel_url:
-        `${origin}/inscribirse` +
-        `?carreraId=${encodeURIComponent(
-          carreraId
-        )}`,
+        checkoutParams.payment_intent_data =
+          {
+            transfer_data: {
+              destination:
+                connectedAccountId,
 
-      metadata: {
-        carreraId,
+              /**
+               * El organizador recibe exactamente
+               * el precio neto de la inscripción.
+               */
+              amount:
+                Math.round(
+                  neto * 100
+                ),
+            },
+          };
+      }
 
-        perfilId:
-          perfilId || "",
+      /**
+       * ========================================================
+       * CREAR SESIÓN STRIPE
+       * ========================================================
+       */
+      const session =
+        await stripe.checkout.sessions.create(
+          checkoutParams
+        );
 
-        categoria:
-          norm(categoria),
+      /**
+       * ========================================================
+       * VALIDACIÓN
+       * ========================================================
+       */
+      if (
+        !session.url
+      ) {
+        return res.status(500).json({
+          error:
+            "Stripe no devolvió url de checkout",
+        });
+      }
 
-        distancia:
-          norm(distancia),
+      /**
+       * ========================================================
+       * RESPUESTA
+       * ========================================================
+       */
+      return res.status(200).json({
+        url:
+          session.url,
 
-        neto:
-          String(neto),
+        sessionId:
+          session.id,
 
-        comisionDHTime:
-          String(
-            comisionDHTime
-          ),
+        neto,
+
+        comisionDHTime,
 
         totalCobrado:
-          String(
-            (
-              unit_amount /
-              100
-            ).toFixed(2)
-          ),
+          unit_amount / 100,
 
         recipient:
           paymentConfig.recipient,
 
-        organizerId,
+        organizerId:
+          organizerId || null,
 
-        connectedAccountId,
-      },
-    };
+        connectedAccountId:
+          connectedAccountId || null,
 
-    /**
-     * ========================================================
-     * DESTINATION CHARGE
-     * ========================================================
-     *
-     * Si la carrera pertenece a un organizador:
-     *
-     * El Checkout cobra el total al corredor.
-     *
-     * Stripe transfiere EXACTAMENTE el neto al
-     * connected account del organizador.
-     *
-     * Ejemplo:
-     *
-     * Carrera:
-     *     $100
-     *
-     * Corredor:
-     *     paga el precio + procesamiento
-     *
-     * Organizador:
-     *     recibe $100.00
-     *
-     * DHTime:
-     *     conserva el importe restante para cubrir
-     *     procesamiento y, cuando corresponda,
-     *     comisión DHTime.
-     *
-     * ========================================================
-     */
-    if (
-      paymentConfig.recipient ===
-      "organizer"
-    ) {
-      /**
-       * Seguridad adicional.
-       *
-       * Nunca debemos intentar crear un Destination Charge
-       * sin una cuenta Connect válida.
-       */
-      if (
-        !connectedAccountId
-      ) {
-        return res.status(400).json({
-          error:
-            "No existe una cuenta Stripe Connect válida para esta carrera.",
-        });
-      }
+        paymentProvider: "stripe",
+      });
 
-      checkoutParams.payment_intent_data =
-        {
-          transfer_data: {
-            destination:
-              connectedAccountId,
-
-            /**
-             * El organizador recibe exactamente
-             * el precio neto de la inscripción.
-             */
-            amount:
-              Math.round(
-                neto * 100
-              ),
-          },
-        };
-    }
-
-    /**
-     * ========================================================
-     * CREAR SESIÓN STRIPE
-     * ========================================================
-     */
-    const session =
-      await stripe.checkout.sessions.create(
-        checkoutParams
+    } catch (err: any) {
+      console.error(
+        "[checkout_sessions] error:",
+        err
       );
 
-    /**
-     * ========================================================
-     * VALIDACIÓN
-     * ========================================================
-     */
-    if (
-      !session.url
-    ) {
       return res.status(500).json({
         error:
-          "Stripe no devolvió url de checkout",
+          err?.message ||
+          "Error interno",
       });
     }
-
-    /**
-     * ========================================================
-     * RESPUESTA
-     * ========================================================
-     */
-    return res.status(200).json({
-      url:
-        session.url,
-
-      sessionId:
-        session.id,
-
-      neto,
-
-      comisionDHTime,
-
-      totalCobrado:
-        unit_amount / 100,
-
-      recipient:
-        paymentConfig.recipient,
-
-      organizerId:
-        organizerId || null,
-
-      connectedAccountId:
-        connectedAccountId || null,
-    });
-
-  } catch (err: any) {
-    console.error(
-      "[checkout_sessions] error:",
-      err
-    );
-
-    return res.status(500).json({
-      error:
-        err?.message ||
-        "Error interno",
-    });
   }
-}

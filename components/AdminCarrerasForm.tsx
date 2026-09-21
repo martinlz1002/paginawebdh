@@ -147,6 +147,10 @@ const [resultadosPublicado, setResultadosPublicado] = useState<boolean>(
 
   // 💳 CONFIGURACIÓN DE PAGOS
 const [paymentConfig, setPaymentConfig] = useState({
+
+  paymentProvider:
+    (initialValues as any)?.paymentConfig?.paymentProvider || "stripe",
+
   recipient:
     (initialValues as any)?.paymentConfig?.recipient || "dhtime",
 
@@ -165,6 +169,9 @@ const [paymentConfig, setPaymentConfig] = useState({
   connectedAccountId:
     (initialValues as any)?.paymentConfig?.connectedAccountId || "",
 });
+
+
+
 
   // 🏢 ORGANIZADORES / STRIPE CONNECT
   const [organizadores, setOrganizadores] = useState<Organizer[]>([]);
@@ -297,6 +304,9 @@ setResultadosPublicado(initialValues?.resultados?.publicado === true);
     );
 
     setPaymentConfig({
+paymentProvider:
+  (initialValues as any)?.paymentConfig?.paymentProvider || "stripe",
+
   recipient:
     (initialValues as any)?.paymentConfig?.recipient || "dhtime",
 
@@ -501,6 +511,7 @@ const carreraFinalizada = fechaDate < today;
 
         // 💳 CONFIGURACIÓN DE PAGOS
 paymentConfig: {
+  paymentProvider: paymentConfig.paymentProvider || "stripe",
   recipient: paymentConfig.recipient,
   dhFeeMode: paymentConfig.dhFeeMode,
   dhFeeType: paymentConfig.dhFeeType,

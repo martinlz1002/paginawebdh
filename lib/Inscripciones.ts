@@ -22,26 +22,35 @@ async function getAuthenticatedUser(): Promise<User> {
   });
 }
 
-// 1) Función para registrar la inscripción desde Stripe (pago)
+// 1) Función para registrar la inscripción desde 
+
+export type PaymentProvider = "stripe" | "mercadopago";
+
 export interface StripeInscripcionData {
   carreraId: string;
-  carreraTitulo: string; // Evento
+  carreraTitulo: string;
   perfilId: string;
 
   categoria: string;
   distancia?: string;
 
-  sessionId: string;
+  // Proveedor de pago
+  paymentProvider?: PaymentProvider;
 
-  // snapshot persona
+  // Stripe
+  sessionId?: string | null;
+
+  // Mercado Pago
+  paymentId?: string | null;
+  preferenceId?: string | null;
+
+  // Snapshot persona
   nombre: string;
   paterno: string;
   materno: string;
   nombres: string;
 
   rama?: string;
-
-  // ruta opcional (si no la mandas, se usa distancia)
   ruta?: string;
 
   pais?: string;
@@ -54,55 +63,92 @@ export interface StripeInscripcionData {
   email: string;
 }
 
-export async function registrarInscripcion(data: StripeInscripcionData) {
+export async function registrarInscripcion(
+  data: StripeInscripcionData
+) {
   const user = await getAuthenticatedUser();
 
-  // ✅ IMPORTANTÍSIMO:
-  // Ya NO asignamos competitorNumber aquí.
-  // El backend (retry/webhook) lo asigna usando:
-  // - freeNumbers (huecos liberados)
-  // - nextNumber (corrida normal)
-  await addDoc(collection(db, "inscripciones"), {
-    // IDs
-    carreraId: data.carreraId,
-    carreraTitulo: data.carreraTitulo,
-    perfilId: data.perfilId,
-    perfilOwner: user.uid,
+  const paymentProvider = data.paymentProvider || "stripe";
 
-    // Deportivos
-    categoria: data.categoria,
-    distancia: data.distancia || null,
-    ruta: data.ruta || data.distancia || null,
+  // Validar que exista la referencia correspondiente
+  if (paymentProvider === "stripe" && !data.sessionId) {
+    throw new Error(
+      "Falta el ID de la sesión de Stripe."
+    );
+  }
 
-    // Pago
-    sessionId: data.sessionId,
-    paymentStatus: "pending",
+  if (
+    paymentProvider === "mercadopago" &&
+    !data.preferenceId
+  ) {
+    throw new Error(
+      "Falta el ID de preferencia de Mercado Pago."
+    );
+  }
 
-    // Número: lo asigna backend
-    competitorNumber: null,
-    ficha: null,
-    bib: null,
+  const inscripcionRef = await addDoc(
+    collection(db, "inscripciones"),
+    {
+      // IDs
+      carreraId: data.carreraId,
+      carreraTitulo: data.carreraTitulo,
+      perfilId: data.perfilId,
+      perfilOwner: user.uid,
 
-    // Snapshot nombre
-    nombre: data.nombre || null,
-    paterno: data.paterno || null,
-    materno: data.materno || null,
-    nombres: data.nombres || null,
+      // Deportivos
+      categoria: data.categoria,
+      distancia: data.distancia || null,
+      ruta: data.ruta || data.distancia || null,
 
-    // Snapshot extra
-    rama: data.rama || null,
+      // Pago
+      paymentProvider,
 
-    pais: data.pais || null,
-    estado: data.estado || null,
-    ciudad: data.ciudad || null,
-    celular: data.celular || null,
-    club: data.club || null,
+      sessionId:
+        paymentProvider === "stripe"
+          ? data.sessionId || null
+          : null,
 
-    fechaNacimiento: Timestamp.fromDate(data.fechaNacimiento),
-    email: data.email || null,
+      paymentId: data.paymentId || null,
 
-    timestamp: serverTimestamp(),
-  });
+      preferenceId:
+        paymentProvider === "mercadopago"
+          ? data.preferenceId || null
+          : null,
+
+      paymentStatus: "pending",
+
+      // El backend asignará el número al confirmar el pago
+      competitorNumber: null,
+      ficha: null,
+      bib: null,
+
+      // Snapshot nombre
+      nombre: data.nombre || null,
+      paterno: data.paterno || null,
+      materno: data.materno || null,
+      nombres: data.nombres || null,
+
+      // Snapshot extra
+      rama: data.rama || null,
+
+      pais: data.pais || null,
+      estado: data.estado || null,
+      ciudad: data.ciudad || null,
+      celular: data.celular || null,
+      club: data.club || null,
+
+      fechaNacimiento: Timestamp.fromDate(
+        data.fechaNacimiento
+      ),
+
+      email: data.email || null,
+
+      timestamp: serverTimestamp(),
+    }
+  );
+
+  // Devolvemos el ID para relacionarlo con el pago
+  return inscripcionRef.id;
 }
 
 // 2) Función para registrar la inscripción manual (sin pago)
