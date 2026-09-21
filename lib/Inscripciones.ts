@@ -121,7 +121,7 @@ if (
         // Pago
         paymentProvider,
 
-        paymentAttemptId: data.paymentAttemptId,
+        paymentAttemptId: data.paymentAttemptId ?? null,
 
         sessionId:
           paymentProvider === "stripe"
