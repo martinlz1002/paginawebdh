@@ -124,6 +124,26 @@ function calcularTotalCobrar(
 }
 
 // ============================================================
+// CALCULAR TOTAL MERCADO PAGO
+// ============================================================
+
+function calcularTotalMercadoPago(neto: number) {
+  const pct = Number(process.env.MERCADOPAGO_PCT ?? "0.0349");
+  const fijo = Number(process.env.MERCADOPAGO_FIJO ?? "4");
+  const iva = 0.16;
+
+  if (
+    !Number.isFinite(pct) || pct < 0 || pct >= 1 ||
+    !Number.isFinite(fijo) || fijo < 0
+  ) {
+    throw new Error("Configuración inválida de comisiones de Mercado Pago.");
+  }
+
+  const bruto = (neto + fijo * (1 + iva)) / (1 - pct * (1 + iva));
+  return Math.ceil(bruto * 100);
+}
+
+// ============================================================
 // OBTENER PRECIO
 // ============================================================
 
@@ -264,6 +284,11 @@ function obtenerPaymentConfig(
     {};
 
   return {
+    paymentProvider:
+      config.paymentProvider === "mercadopago"
+        ? "mercadopago"
+        : "stripe",
+
     recipient:
       config.recipient ===
       "organizer"
@@ -378,6 +403,9 @@ function getOrigin(
 type ResponseData = {
   url?: string | null;
   sessionId?: string;
+  preferenceId?: string;
+  attemptId?: string;
+  paymentProvider?: string;
   error?: string;
   stack?: string;
 };
@@ -457,6 +485,13 @@ export default async function handler(
 
           const ins =
             insSnap.data() as any;
+
+          if (
+            String(ins.paymentStatus || "").toLowerCase() === "paid" ||
+            String(ins.paymentStatus || "").toLowerCase() === "approved"
+          ) {
+            throw new Error("Esta inscripción ya aparece como pagada. No se puede generar otro checkout.");
+          }
 
           const carreraId =
             ins.carreraId;
@@ -576,8 +611,8 @@ export default async function handler(
             "";
 
           if (
-            paymentConfig.recipient ===
-            "organizer"
+            paymentConfig.recipient === "organizer" &&
+            paymentConfig.paymentProvider === "stripe"
           ) {
             organizerId =
               paymentConfig.organizerId;
@@ -687,10 +722,12 @@ export default async function handler(
 
           return {
             carreraId,
+            perfilId: String(ins.perfilId || ""),
             categoria,
             distancia,
             neto,
             comisionDHTime,
+            paymentProvider: paymentConfig.paymentProvider,
             recipient:
               paymentConfig.recipient,
             organizerId,
@@ -698,6 +735,237 @@ export default async function handler(
           };
         }
       );
+
+    // ========================================================
+    // MERCADO PAGO
+    // ========================================================
+
+    if (payload.paymentProvider === "mercadopago") {
+      const origin = getOrigin(req);
+      const baseCobro = payload.neto + payload.comisionDHTime;
+      const unitAmount = calcularTotalMercadoPago(baseCobro);
+      const total = unitAmount / 100;
+
+      let accessToken = "";
+      let organizerMP: any = null;
+      let organizerRefMP: any = null;
+      let organizerIdMP: string | null = null;
+
+      if (payload.recipient === "organizer") {
+        organizerIdMP = String(payload.organizerId || "").trim();
+        if (!organizerIdMP) {
+          return res.status(400).json({ error: "La carrera está configurada para un organizador, pero no tiene organizerId." });
+        }
+
+        organizerRefMP = firestore.collection("organizadores").doc(organizerIdMP);
+        const organizerSnapMP = await organizerRefMP.get();
+        if (!organizerSnapMP.exists) {
+          return res.status(404).json({ error: "El organizador configurado no existe." });
+        }
+
+        organizerMP = organizerSnapMP.data() as any;
+        if (organizerMP.activo === false) {
+          return res.status(403).json({ error: "El organizador no está activo." });
+        }
+        if (organizerMP.paymentProvider !== "mercadopago") {
+          return res.status(400).json({ error: "El organizador no está configurado para Mercado Pago." });
+        }
+        if (organizerMP.mercadoPagoStatus !== "connected") {
+          return res.status(400).json({ error: "El organizador todavía no ha conectado su cuenta de Mercado Pago mediante OAuth." });
+        }
+
+        const sellerUserId = String(organizerMP.mercadoPagoUserId || "").trim();
+        accessToken = String(
+          organizerMP.mercadoPagoAccessToken ||
+          organizerMP.mpAccessToken ||
+          organizerMP.mercado_pago_access_token || ""
+        ).trim();
+        const refreshToken = String(
+          organizerMP.mercadoPagoRefreshToken ||
+          organizerMP.mpRefreshToken ||
+          organizerMP.mercado_pago_refresh_token || ""
+        ).trim();
+
+        if (!sellerUserId || !accessToken) {
+          return res.status(400).json({ error: "La conexión de Mercado Pago del organizador está incompleta. Vuelve a conectarla desde Admin." });
+        }
+
+        const rawExpiry =
+          organizerMP.mercadoPagoTokenExpiresAt ||
+          organizerMP.mercadoPagoExpiresAt ||
+          organizerMP.mercado_pago_expires_at;
+        let expiryMs = 0;
+        if (rawExpiry && typeof rawExpiry.toDate === "function") expiryMs = rawExpiry.toDate().getTime();
+        else if (rawExpiry instanceof Date) expiryMs = rawExpiry.getTime();
+        else if (typeof rawExpiry === "number" || (typeof rawExpiry === "string" && /^\d+$/.test(rawExpiry))) {
+          const n = Number(rawExpiry);
+          expiryMs = n < 1_000_000_000_000 ? n * 1000 : n;
+        } else if (typeof rawExpiry === "string") {
+          const parsed = new Date(rawExpiry).getTime();
+          if (Number.isFinite(parsed)) expiryMs = parsed;
+        }
+
+        if (refreshToken && expiryMs > 0 && expiryMs <= Date.now() + 5 * 60 * 1000) {
+          const clientId = process.env.MERCADOPAGO_CLIENT_ID;
+          const clientSecret = process.env.MERCADOPAGO_CLIENT_SECRET;
+          if (!clientId || !clientSecret) {
+            return res.status(500).json({ error: "Faltan MERCADOPAGO_CLIENT_ID y/o MERCADOPAGO_CLIENT_SECRET para renovar OAuth." });
+          }
+
+          const refreshBody = new URLSearchParams({
+            client_id: clientId,
+            client_secret: clientSecret,
+            grant_type: "refresh_token",
+            refresh_token: refreshToken,
+          });
+          const refreshResponse = await fetch("https://api.mercadopago.com/oauth/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: refreshBody.toString(),
+          });
+          const refreshed = await refreshResponse.json();
+          if (!refreshResponse.ok || !refreshed.access_token) {
+            console.error("[retry_checkout] Error renovando OAuth MP:", refreshResponse.status, refreshed?.message || refreshed?.error);
+            return res.status(400).json({ error: "No se pudo renovar la conexión de Mercado Pago del organizador. Vuelve a conectarla desde Admin." });
+          }
+
+          accessToken = String(refreshed.access_token);
+          const updateOAuth: any = {
+            mercadoPagoAccessToken: accessToken,
+            mercadoPagoTokenExpiresAt: admin.firestore.Timestamp.fromMillis(
+              Date.now() + Number(refreshed.expires_in || 0) * 1000
+            ),
+          };
+          if (refreshed.refresh_token) updateOAuth.mercadoPagoRefreshToken = String(refreshed.refresh_token);
+          if (refreshed.user_id) updateOAuth.mercadoPagoUserId = String(refreshed.user_id);
+          await organizerRefMP.update(updateOAuth);
+          if (refreshed.user_id) organizerMP.mercadoPagoUserId = String(refreshed.user_id);
+        }
+      } else {
+        accessToken = String(process.env.MERCADOPAGO_ACCESS_TOKEN || "").trim();
+        if (!accessToken) {
+          return res.status(500).json({ error: "Falta configurar MERCADOPAGO_ACCESS_TOKEN." });
+        }
+      }
+
+      const expectedSellerId = payload.recipient === "organizer"
+        ? String(organizerMP?.mercadoPagoUserId || "").trim()
+        : String(process.env.MERCADOPAGO_USER_ID || "").trim();
+      if (!expectedSellerId) {
+        return res.status(500).json({ error: "No se pudo identificar la cuenta receptora de Mercado Pago." });
+      }
+
+      const attemptRef = firestore.collection("paymentAttempts").doc();
+      const marketplaceFee = payload.recipient === "organizer"
+        ? Math.round(payload.comisionDHTime * 100) / 100
+        : 0;
+
+      await attemptRef.set({
+        attemptId: attemptRef.id,
+        inscripcionId,
+        carreraId: payload.carreraId,
+        perfilId: payload.perfilId || "",
+        categoria: norm(payload.categoria),
+        distancia: norm(payload.distancia),
+        paymentProvider: "mercadopago",
+        recipient: payload.recipient,
+        organizerId: organizerIdMP,
+        mercadoPagoUserId: expectedSellerId,
+        expectedAmount: total,
+        currency: "MXN",
+        preferenceId: null,
+        paymentId: null,
+        status: "creating",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      const preferenceBody: any = {
+        items: [{
+          title: `Inscripción: ${payload.categoria} (${payload.distancia})`,
+          quantity: 1,
+          currency_id: "MXN",
+          unit_price: total,
+        }],
+        external_reference: attemptRef.id,
+        metadata: {
+          attemptId: attemptRef.id,
+          inscripcionId,
+          carreraId: payload.carreraId,
+          perfilId: payload.perfilId || "",
+          categoria: norm(payload.categoria),
+          distancia: norm(payload.distancia),
+          neto: String(payload.neto),
+          comisionDHTime: String(payload.comisionDHTime),
+          totalCobrado: total.toFixed(2),
+          paymentProvider: "mercadopago",
+          recipient: payload.recipient,
+          organizerId: organizerIdMP || "",
+          mercadoPagoUserId: expectedSellerId,
+        },
+        back_urls: {
+          success: `${origin}/mis-inscripciones`,
+          failure: `${origin}/mis-inscripciones`,
+          pending: `${origin}/mis-inscripciones`,
+        },
+        auto_return: "approved",
+      };
+      if (marketplaceFee > 0) preferenceBody.marketplace_fee = marketplaceFee;
+
+      const preferenceResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(preferenceBody),
+      });
+      const preference = await preferenceResponse.json();
+
+      if (!preferenceResponse.ok || !preference.id || !preference.init_point) {
+        await attemptRef.update({
+          status: "failed",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        console.error("[retry_checkout] Error creando preferencia MP:", {
+          status: preferenceResponse.status,
+          message: preference?.message || preference?.error,
+          cause: preference?.cause,
+        });
+        return res.status(502).json({ error: preference?.message || "No se pudo crear el checkout de Mercado Pago." });
+      }
+
+      await attemptRef.update({
+        preferenceId: String(preference.id),
+        status: "pending",
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Vincular la inscripción al nuevo intento SOLO después de crear la preferencia.
+      await firestore.runTransaction(async (tx) => {
+        const freshSnap = await tx.get(insRef);
+        if (!freshSnap.exists) throw new Error("La inscripción ya no existe.");
+        const fresh = freshSnap.data() as any;
+        if (["paid", "approved"].includes(String(fresh.paymentStatus || "").toLowerCase())) {
+          throw new Error("La inscripción ya fue pagada. No se puede reemplazar su intento de pago.");
+        }
+        tx.update(insRef, {
+          paymentProvider: "mercadopago",
+          paymentAttemptId: attemptRef.id,
+          preferenceId: String(preference.id),
+          paymentStatus: "pending",
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      });
+
+      return res.status(200).json({
+        url: preference.init_point,
+        sessionId: String(preference.id),
+        preferenceId: String(preference.id),
+        attemptId: attemptRef.id,
+        paymentProvider: "mercadopago",
+      });
+    }
 
     // ========================================================
     // STRIPE
