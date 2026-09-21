@@ -77,11 +77,16 @@
     );
   }
 
-  if (!data.paymentAttemptId) {
-    throw new Error(
-      "Falta el ID del intento de pago."
-    );
-  }
+  // Mercado Pago requiere paymentAttemptId.
+// Stripe relaciona la inscripción mediante sessionId.
+if (
+  paymentProvider === "mercadopago" &&
+  !data.paymentAttemptId
+) {
+  throw new Error(
+    "Falta el ID del intento de pago."
+  );
+}
 
     // Validar que exista la referencia correspondiente
     if (paymentProvider === "stripe" && !data.sessionId) {
