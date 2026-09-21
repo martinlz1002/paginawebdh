@@ -4,7 +4,6 @@ import type {
 } from "next";
 
 import * as admin from "firebase-admin";
-
 import crypto from "crypto";
 
 /**
@@ -51,7 +50,7 @@ function validarFirmaMercadoPago(
 
   if (!secret) {
     console.error(
-      "Falta MERCADOPAGO_WEBHOOK_SECRET"
+      "[MP Webhook] Falta MERCADOPAGO_WEBHOOK_SECRET"
     );
 
     return false;
@@ -87,6 +86,7 @@ function validarFirmaMercadoPago(
   }
 
   const ts = tsPart.substring(3);
+
   const receivedSignature =
     v1Part.substring(3);
 
@@ -112,7 +112,9 @@ function validarFirmaMercadoPago(
       "hex"
     );
 
-    if (received.length !== expected.length) {
+    if (
+      received.length !== expected.length
+    ) {
       return false;
     }
 
@@ -144,32 +146,25 @@ export default async function handler(
   }
 
   try {
+    const db = getAdminDb();
+
     /**
      * ========================================================
-     * OBTENER ID DEL PAGO
+     * 1. OBTENER DATOS DE LA NOTIFICACIÓN
      * ========================================================
      */
 
-    const paymentId =
-      String(
-        req.query["data.id"] ||
-        req.body?.data?.id ||
-        ""
-      ).trim();
+    const paymentId = String(
+      req.query["data.id"] ||
+      req.body?.data?.id ||
+      ""
+    ).trim();
 
-    const topic =
-      String(
-        req.query.type ||
-        req.body?.type ||
-        ""
-      ).trim();
-
-    /**
-     * Mercado Pago puede enviar notificaciones
-     * de distintos tipos.
-     *
-     * Solo procesamos pagos.
-     */
+    const topic = String(
+      req.query.type ||
+      req.body?.type ||
+      ""
+    ).trim();
 
     if (
       topic !== "payment" ||
@@ -183,7 +178,7 @@ export default async function handler(
 
     /**
      * ========================================================
-     * VALIDAR FIRMA
+     * 2. VALIDAR FIRMA
      * ========================================================
      */
 
@@ -205,18 +200,130 @@ export default async function handler(
 
     /**
      * ========================================================
-     * CONSULTAR PAGO REAL EN MERCADO PAGO
+     * 3. IDENTIFICAR LA CUENTA RECEPTORA
+     * ========================================================
+     *
+     * Mercado Pago incluye user_id en la notificación.
+     *
+     * Lo utilizamos para determinar qué cuenta debe
+     * consultar el pago.
+     *
+     * No confiamos en un organizerId enviado por el cliente.
+     */
+
+    const notificationUserId = String(
+      req.body?.user_id || ""
+    ).trim();
+
+    if (!notificationUserId) {
+      console.error(
+        "[MP Webhook] La notificación no contiene user_id"
+      );
+
+      return res.status(500).json({
+        error: "No se pudo identificar la cuenta receptora",
+      });
+    }
+
+    const platformUserId = String(
+      process.env.MERCADOPAGO_USER_ID || ""
+    ).trim();
+
+    const platformToken = String(
+      process.env.MERCADOPAGO_ACCESS_TOKEN || ""
+    ).trim();
+
+    let accessToken = "";
+    let organizerId: string | null = null;
+
+    /**
+     * ========================================================
+     * 4. DETERMINAR SI EL PAGO ES DE DHTIME
      * ========================================================
      */
 
-    const accessToken =
-      process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (
+      platformUserId &&
+      notificationUserId === platformUserId
+    ) {
+      if (!platformToken) {
+        throw new Error(
+          "Falta MERCADOPAGO_ACCESS_TOKEN"
+        );
+      }
 
-    if (!accessToken) {
-      throw new Error(
-        "Falta MERCADOPAGO_ACCESS_TOKEN"
-      );
+      accessToken = platformToken;
+    } else {
+      /**
+       * ======================================================
+       * 5. BUSCAR ORGANIZADOR POR SU USER ID DE MERCADO PAGO
+       * ======================================================
+       */
+
+      const organizerSnap = await db
+        .collection("organizadores")
+        .where(
+          "mercadoPagoUserId",
+          "==",
+          notificationUserId
+        )
+        .limit(2)
+        .get();
+
+      if (organizerSnap.empty) {
+        console.error(
+          "[MP Webhook] No se encontró organizador para user_id:",
+          notificationUserId
+        );
+
+        return res.status(500).json({
+          error: "No se encontró la cuenta del organizador",
+        });
+      }
+
+      if (organizerSnap.size !== 1) {
+        console.error(
+          "[MP Webhook] User ID asociado a múltiples organizadores:",
+          notificationUserId
+        );
+
+        return res.status(500).json({
+          error: "La cuenta de Mercado Pago no es única",
+        });
+      }
+
+      const organizerDoc =
+        organizerSnap.docs[0];
+
+      const organizer =
+        organizerDoc.data();
+
+      if (
+        organizer.mercadoPagoStatus !== "connected"
+      ) {
+        return res.status(500).json({
+          error: "La cuenta de Mercado Pago del organizador no está conectada",
+        });
+      }
+
+      accessToken = String(
+        organizer.mercadoPagoAccessToken || ""
+      ).trim();
+
+      organizerId = organizerDoc.id;
+
+      if (!accessToken) {
+        return res.status(500).json({
+          error: "El organizador no tiene Access Token",
+        });
+      }
     }
+
+    /**
+     * ========================================================
+     * 6. CONSULTAR EL PAGO CON EL TOKEN CORRECTO
+     * ========================================================
+     */
 
     const paymentResponse = await fetch(
       `https://api.mercadopago.com/v1/payments/${encodeURIComponent(
@@ -236,7 +343,13 @@ export default async function handler(
     if (!paymentResponse.ok) {
       console.error(
         "[MP Webhook] Error consultando pago:",
-        payment
+        {
+          status: paymentResponse.status,
+          message:
+            payment?.message ||
+            payment?.error ||
+            "Error desconocido",
+        }
       );
 
       return res.status(500).json({
@@ -246,7 +359,7 @@ export default async function handler(
 
     /**
      * ========================================================
-     * VALIDAR DATOS DEL PAGO
+     * 7. VALIDAR IDENTIDAD DEL PAGO
      * ========================================================
      */
 
@@ -254,111 +367,212 @@ export default async function handler(
       String(payment.id) !== paymentId
     ) {
       return res.status(400).json({
-        error: "ID de pago no coincide",
+        error: "El ID del pago no coincide",
       });
     }
 
-    /**
-     * No procesar pagos de otra moneda.
-     */
+    const paymentCollectorId = String(
+      payment.collector_id || ""
+    ).trim();
 
-    if (payment.currency_id !== "MXN") {
+    if (
+      paymentCollectorId !== notificationUserId
+    ) {
       console.error(
-        "[MP Webhook] Moneda no válida:",
-        payment.currency_id
+        "[MP Webhook] La cuenta receptora no coincide con el pago",
+        {
+          notificationUserId,
+          paymentCollectorId,
+        }
       );
 
       return res.status(200).json({
         received: true,
         ignored: true,
+        reason: "collector_mismatch",
       });
     }
 
     /**
      * ========================================================
-     * OBTENER PREFERENCE ID
+     * 8. OBTENER PAYMENT ATTEMPT
      * ========================================================
      */
 
-    const preferenceId =
-      String(
-        payment.preference_id || ""
-      ).trim();
+    const attemptId = String(
+      payment.external_reference || ""
+    ).trim();
 
-    if (!preferenceId) {
+    if (!attemptId) {
       console.error(
-        "[MP Webhook] El pago no tiene preference_id",
+        "[MP Webhook] Pago sin external_reference:",
         paymentId
       );
 
       return res.status(200).json({
         received: true,
         ignored: true,
+        reason: "missing_external_reference",
       });
     }
 
-    /**
-     * ========================================================
-     * FIRESTORE
-     * ========================================================
-     */
+    const attemptRef = db
+      .collection("paymentAttempts")
+      .doc(attemptId);
 
-    const db = getAdminDb();
+    const attemptSnap =
+      await attemptRef.get();
 
-    /**
-     * En el checkout actual, Mercado Pago devuelve
-     * preference.id como sessionId.
-     *
-     * La inscripción debe guardar ese mismo valor.
-     */
-
-    const inscripcionesSnap = await db
-  .collection("inscripciones")
-  .where("preferenceId", "==", preferenceId)
-  .get();
-
-    if (inscripcionesSnap.empty) {
-      /**
-       * Puede ocurrir si la notificación llega antes
-       * de que el frontend termine de guardar la
-       * inscripción.
-       *
-       * Respondemos 500 para permitir que Mercado Pago
-       * reintente la notificación.
-       */
-
-      console.warn(
-        "[MP Webhook] Inscripción aún no encontrada:",
-        preferenceId
+    if (!attemptSnap.exists) {
+      console.error(
+        "[MP Webhook] PaymentAttempt no encontrado:",
+        attemptId
       );
 
       return res.status(500).json({
-        error: "Inscripción aún no encontrada",
+        error: "PaymentAttempt no encontrado",
+      });
+    }
+
+    const attempt =
+      attemptSnap.data()!;
+
+    /**
+     * ========================================================
+     * 9. VALIDAR PROVEEDOR Y CUENTA
+     * ========================================================
+     */
+
+    if (
+      String(attempt.paymentProvider || "").toLowerCase() !==
+      "mercadopago"
+    ) {
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "wrong_provider",
+      });
+    }
+
+    const expectedSellerId = String(
+      attempt.mercadoPagoUserId || ""
+    ).trim();
+
+    if (
+      expectedSellerId !== notificationUserId
+    ) {
+      console.error(
+        "[MP Webhook] El vendedor no coincide con el intento",
+        {
+          attemptId,
+          expectedSellerId,
+          notificationUserId,
+        }
+      );
+
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "seller_mismatch",
+      });
+    }
+
+    const expectedOrganizerId = String(
+      attempt.organizerId || ""
+    ).trim();
+
+    if (
+      expectedOrganizerId !==
+      String(organizerId || "")
+    ) {
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "organizer_mismatch",
       });
     }
 
     /**
      * ========================================================
-     * ESTADO DEL PAGO
+     * 10. VALIDAR MONEDA
      * ========================================================
      */
 
-    const paymentStatus =
-      String(payment.status || "")
-        .toLowerCase();
+    const paymentCurrency = String(
+      payment.currency_id || ""
+    ).toUpperCase();
+
+    const expectedCurrency = String(
+      attempt.currency || "MXN"
+    ).toUpperCase();
+
+    if (
+      paymentCurrency !== expectedCurrency
+    ) {
+      console.error(
+        "[MP Webhook] Moneda incorrecta",
+        {
+          paymentCurrency,
+          expectedCurrency,
+          attemptId,
+        }
+      );
+
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "currency_mismatch",
+      });
+    }
 
     /**
-     * Solo payment.status === "approved"
-     * confirma una inscripción pagada.
-     *
-     * Los demás estados no deben asignar número
-     * ni marcar la inscripción como pagada.
+     * ========================================================
+     * 11. VALIDAR PREFERENCE ID
+     * ========================================================
      */
+
+    const preferenceId = String(
+      payment.preference_id || ""
+    ).trim();
+
+    if (
+      !preferenceId ||
+      String(attempt.preferenceId || "") !== preferenceId
+    ) {
+      console.error(
+        "[MP Webhook] Preference ID no coincide",
+        {
+          attemptId,
+          preferenceId,
+          attemptPreferenceId: attempt.preferenceId,
+        }
+      );
+
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "preference_mismatch",
+      });
+    }
+
+    /**
+     * ========================================================
+     * 12. VALIDAR ESTADO DEL PAGO
+     * ========================================================
+     */
+
+    const paymentStatus = String(
+      payment.status || ""
+    ).toLowerCase();
 
     if (paymentStatus !== "approved") {
       console.log(
-        "[MP Webhook] Pago aún no aprobado:",
-        paymentStatus
+        "[MP Webhook] Pago aún no aprobado",
+        {
+          paymentId,
+          attemptId,
+          paymentStatus,
+        }
       );
 
       return res.status(200).json({
@@ -369,89 +583,227 @@ export default async function handler(
 
     /**
      * ========================================================
-     * VALIDAR MONTO
+     * 13. VALIDAR MONTO
      * ========================================================
      */
 
-    const transactionAmount =
-      Number(payment.transaction_amount);
+    const transactionAmount = Number(
+      payment.transaction_amount
+    );
+
+    const expectedAmount = Number(
+      attempt.expectedAmount
+    );
 
     if (
       !Number.isFinite(transactionAmount) ||
-      transactionAmount <= 0
+      !Number.isFinite(expectedAmount) ||
+      transactionAmount <= 0 ||
+      expectedAmount <= 0
     ) {
       return res.status(200).json({
         received: true,
         ignored: true,
+        reason: "invalid_amount",
+      });
+    }
+
+    if (
+      Math.round(transactionAmount * 100) !==
+      Math.round(expectedAmount * 100)
+    ) {
+      console.error(
+        "[MP Webhook] Monto no coincide",
+        {
+          transactionAmount,
+          expectedAmount,
+          attemptId,
+        }
+      );
+
+      return res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: "amount_mismatch",
       });
     }
 
     /**
      * ========================================================
-     * ACTUALIZAR INSCRIPCIÓN
+     * 14. BUSCAR INSCRIPCIÓN POR PAYMENT ATTEMPT ID
      * ========================================================
      */
 
-    const batch = db.batch();
+    const inscripcionesSnap = await db
+      .collection("inscripciones")
+      .where(
+        "paymentAttemptId",
+        "==",
+        attemptId
+      )
+      .limit(2)
+      .get();
 
-    inscripcionesSnap.docs.forEach(
-      (inscripcionDoc) => {
-        const data = inscripcionDoc.data();
+    if (inscripcionesSnap.empty) {
+      console.warn(
+        "[MP Webhook] Inscripción aún no encontrada:",
+        attemptId
+      );
 
-        /**
-         * Evitar procesar inscripciones que
-         * ya fueron marcadas como pagadas.
-         */
+      return res.status(500).json({
+        error: "Inscripción aún no encontrada",
+      });
+    }
 
-        if (
-          data.paymentStatus === "paid"
-        ) {
-          return;
-        }
+    if (inscripcionesSnap.size !== 1) {
+      console.error(
+        "[MP Webhook] El intento está asociado a múltiples inscripciones",
+        attemptId
+      );
 
-        batch.update(
-          inscripcionDoc.ref,
-          {
-            paymentStatus: "paid",
+      return res.status(500).json({
+        error: "El intento está asociado a múltiples inscripciones",
+      });
+    }
 
-            paymentProvider: "mercadopago",
+    const inscripcionDoc =
+      inscripcionesSnap.docs[0];
 
-            paymentId: String(payment.id),
+    /**
+     * ========================================================
+     * 15. ACTUALIZACIÓN TRANSACCIONAL
+     * ========================================================
+     */
 
-            preferenceId,
+    await db.runTransaction(async (transaction) => {
+      const freshAttemptSnap =
+        await transaction.get(attemptRef);
 
-            paymentMethod:
-              payment.payment_method_id || null,
+      const freshInscripcionSnap =
+        await transaction.get(inscripcionDoc.ref);
 
-            paymentType:
-              payment.payment_type_id || null,
-
-            paymentApprovedAt:
-              admin.firestore.FieldValue.serverTimestamp(),
-
-            paymentAmount:
-              transactionAmount,
-
-            paymentCurrency:
-              payment.currency_id,
-
-            updatedAt:
-              admin.firestore.FieldValue.serverTimestamp(),
-          }
+      if (
+        !freshAttemptSnap.exists ||
+        !freshInscripcionSnap.exists
+      ) {
+        throw new Error(
+          "El intento o la inscripción ya no existen"
         );
       }
-    );
 
-    await batch.commit();
+      const freshAttempt =
+        freshAttemptSnap.data()!;
+
+      const freshInscripcion =
+        freshInscripcionSnap.data()!;
+
+      /**
+       * Revalidar la relación entre intento e inscripción.
+       */
+
+      if (
+        String(freshAttempt.paymentProvider || "").toLowerCase() !==
+        "mercadopago" ||
+        String(freshAttempt.attemptId || "") !== attemptId ||
+        String(freshInscripcion.paymentAttemptId || "") !== attemptId
+      ) {
+        throw new Error(
+          "El intento y la inscripción no coinciden"
+        );
+      }
+
+      /**
+       * Evitar procesar de nuevo el mismo pago.
+       */
+
+      if (
+        freshInscripcion.paymentStatus === "paid" &&
+        String(freshInscripcion.paymentId || "") === paymentId
+      ) {
+        return;
+      }
+
+      /**
+       * No sobrescribir una inscripción pagada
+       * con un pago diferente.
+       */
+
+      if (
+        freshInscripcion.paymentStatus === "paid"
+      ) {
+        throw new Error(
+          "La inscripción ya fue pagada con otro pago"
+        );
+      }
+
+      const now =
+        admin.firestore.FieldValue.serverTimestamp();
+
+      /**
+       * Actualizar intento.
+       */
+
+      transaction.update(attemptRef, {
+        status: "approved",
+        paymentStatus: "approved",
+
+        paymentId,
+        preferenceId,
+
+        paymentAmount: transactionAmount,
+        paymentCurrency,
+
+        approvedAt: now,
+        updatedAt: now,
+      });
+
+      /**
+       * Actualizar inscripción.
+       */
+
+      transaction.update(inscripcionDoc.ref, {
+        paymentStatus: "paid",
+        paymentProvider: "mercadopago",
+
+        paymentAttemptId: attemptId,
+
+        paymentId,
+        preferenceId,
+
+        paymentMethod:
+          payment.payment_method_id || null,
+
+        paymentType:
+          payment.payment_type_id || null,
+
+        paymentApprovedAt: now,
+
+        paymentAmount: transactionAmount,
+        paymentCurrency,
+
+        updatedAt: now,
+      });
+    });
+
+    /**
+     * ========================================================
+     * 16. RESPUESTA FINAL
+     * ========================================================
+     */
 
     console.log(
-      "[MP Webhook] Inscripción actualizada:",
-      preferenceId
+      "[MP Webhook] Pago aprobado y registrado",
+      {
+        paymentId,
+        attemptId,
+        organizerId,
+      }
     );
 
     return res.status(200).json({
       received: true,
       paymentStatus: "approved",
+      attemptId,
     });
 
   } catch (error: any) {

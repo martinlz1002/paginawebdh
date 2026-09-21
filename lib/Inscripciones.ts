@@ -43,6 +43,7 @@ export interface StripeInscripcionData {
   // Mercado Pago
   paymentId?: string | null;
   preferenceId?: string | null;
+  paymentAttemptId?: string | null;
 
   // Snapshot persona
   nombre: string;
@@ -73,6 +74,12 @@ export async function registrarInscripcion(
 if (!paymentProvider) {
   throw new Error(
     "No se especificó el proveedor de pago de la inscripción."
+  );
+}
+
+if (!data.paymentAttemptId) {
+  throw new Error(
+    "Falta el ID del intento de pago."
   );
 }
 
@@ -108,6 +115,8 @@ if (!paymentProvider) {
 
       // Pago
       paymentProvider,
+
+      paymentAttemptId: data.paymentAttemptId,
 
       sessionId:
         paymentProvider === "stripe"

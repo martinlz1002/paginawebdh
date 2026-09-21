@@ -390,13 +390,21 @@ export default function InscribirsePage() {
     // ============================================
 
     let checkoutUrl: string;
-    let sessionId: string | undefined;
-    let preferenceId: string | undefined;
+let sessionId: string | undefined;
+let preferenceId: string | undefined;
+let attemptId: string | undefined;
 
     if (paymentProvider === "mercadopago") {
       // Mercado Pago
       checkoutUrl = data.init_point || data.url;
-      preferenceId = data.preferenceId;
+preferenceId = data.preferenceId;
+attemptId = data.attemptId;
+
+if (!attemptId) {
+  throw new Error(
+    "Mercado Pago no devolvió el ID del intento de pago."
+  );
+}
 
       if (!checkoutUrl || !preferenceId) {
         throw new Error(
@@ -432,6 +440,8 @@ export default function InscribirsePage() {
 
       // Proveedor correcto
       paymentProvider,
+
+      paymentAttemptId: attemptId,
 
       // Stripe: guardar sessionId
       ...(paymentProvider === "stripe" && sessionId

@@ -629,14 +629,51 @@ const useBackUrls =
           }
 
           // Renovar el token si tenemos fecha de expiración y está por vencer.
-          const rawExpiry = organizerMP.mercadoPagoTokenExpiresAt || organizerMP.mercadoPagoExpiresAt || organizerMP.mercado_pago_expires_at;
-          let expiryMs = 0;
-          if (rawExpiry && typeof rawExpiry.toDate === "function") {
-            expiryMs = rawExpiry.toDate().getTime();
-          } else if (rawExpiry) {
-            const parsedExpiry = new Date(rawExpiry).getTime();
-            if (Number.isFinite(parsedExpiry)) expiryMs = parsedExpiry;
-          }
+          const rawExpiry =
+  organizerMP.mercadoPagoTokenExpiresAt ||
+  organizerMP.mercadoPagoExpiresAt ||
+  organizerMP.mercado_pago_expires_at;
+
+let expiryMs = 0;
+
+// Caso 1: Timestamp de Firestore
+if (
+  rawExpiry &&
+  typeof rawExpiry.toDate === "function"
+) {
+  expiryMs = rawExpiry.toDate().getTime();
+}
+
+// Caso 2: Fecha como objeto Date
+else if (rawExpiry instanceof Date) {
+  expiryMs = rawExpiry.getTime();
+}
+
+// Caso 3: Unix timestamp numérico
+else if (
+  typeof rawExpiry === "number" ||
+  (
+    typeof rawExpiry === "string" &&
+    /^\d+$/.test(rawExpiry)
+  )
+) {
+  const numericExpiry = Number(rawExpiry);
+
+  // Detectar segundos o milisegundos
+  expiryMs =
+    numericExpiry < 1_000_000_000_000
+      ? numericExpiry * 1000
+      : numericExpiry;
+}
+
+// Caso 4: Fecha como string ISO
+else if (typeof rawExpiry === "string") {
+  const parsedExpiry = new Date(rawExpiry).getTime();
+
+  if (Number.isFinite(parsedExpiry)) {
+    expiryMs = parsedExpiry;
+  }
+}
 
           if (refreshToken && expiryMs > 0 && expiryMs <= Date.now() + 5 * 60 * 1000) {
             const clientId = process.env.MERCADOPAGO_CLIENT_ID;
@@ -701,6 +738,56 @@ const useBackUrls =
           ? Math.round(comisionDHTime * 100) / 100
           : 0;
 
+          // ============================================================
+// CREAR INTENTO DE PAGO ANTES DE GENERAR LA PREFERENCIA
+// ============================================================
+
+const attemptRef = db
+  .collection("paymentAttempts")
+  .doc();
+
+const expectedSellerId =
+  paymentConfig.recipient === "organizer"
+    ? String(organizerMP?.mercadoPagoUserId || "").trim()
+    : String(process.env.MERCADOPAGO_USER_ID || "").trim();
+
+if (!expectedSellerId) {
+  return res.status(500).json({
+    error:
+      "No se pudo identificar la cuenta receptora de Mercado Pago.",
+  });
+}
+
+await attemptRef.set({
+  attemptId: attemptRef.id,
+
+  carreraId,
+  perfilId: perfilId || "",
+
+  categoria: norm(categoria),
+  distancia: norm(distancia),
+
+  paymentProvider: "mercadopago",
+  recipient: paymentConfig.recipient,
+
+  organizerId: organizerIdMP || null,
+  mercadoPagoUserId: expectedSellerId,
+
+  expectedAmount: total,
+  currency: "MXN",
+
+  preferenceId: null,
+  paymentId: null,
+
+  status: "creating",
+
+  createdAt:
+    admin.firestore.FieldValue.serverTimestamp(),
+
+  updatedAt:
+    admin.firestore.FieldValue.serverTimestamp(),
+});
+
         const preferenceBody: any = {
           items: [{
             title: `Inscripción: ${categoria} (${distancia})`,
@@ -708,8 +795,9 @@ const useBackUrls =
             currency_id: "MXN",
             unit_price: total,
           }],
-          external_reference: `${carreraId}_${perfilId || "sin_perfil"}_${Date.now()}`,
+          external_reference: attemptRef.id,
           metadata: {
+            attemptId: attemptRef.id,
             carreraId,
             perfilId: perfilId || "",
             categoria: norm(categoria),
@@ -757,13 +845,27 @@ const useBackUrls =
             status: preferenceResponse.status,
             message: preference?.message || preference?.error || "No se pudo crear la preferencia",
             cause: preference?.cause,
+
+            
           });
+          await attemptRef.update({
+  status: "failed",
+  updatedAt:
+    admin.firestore.FieldValue.serverTimestamp(),
+});
           return res.status(502).json({
             error: preference.message || "No se pudo crear el checkout de Mercado Pago.",
           });
         }
 
+        await attemptRef.update({
+  preferenceId: String(preference.id),
+  status: "pending",
+  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+});
+
         return res.status(200).json({
+          attemptId: attemptRef.id,
           url: preference.init_point,
           sessionId: preference.id,
           preferenceId: preference.id,
