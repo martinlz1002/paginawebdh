@@ -3,45 +3,9 @@
     NextApiResponse,
   } from "next";
 
-  import * as admin from "firebase-admin";
+ import { admin, adminDb } from "../../lib/firebaseAdmin";
 
   import { stripe } from "@/lib/stripe";
-
-  /**
-   * ============================================================
-   * FIREBASE ADMIN
-   * ============================================================
-   *
-   * Este endpoint corre en el servidor.
-   *
-   * IMPORTANTE:
-   * No usamos el Firebase Client SDK para consultar
-   * organizadores porque esa consulta estaría sujeta
-   * a las reglas públicas/privadas de Firestore.
-   *
-   * Firebase Admin accede directamente desde el servidor.
-   */
-  function getAdminDb() {
-    if (!admin.apps.length) {
-      const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY_B64;
-
-      if (!raw) {
-        throw new Error(
-          "Falta FIREBASE_SERVICE_ACCOUNT_KEY_B64"
-        );
-      }
-
-      const serviceAccount = JSON.parse(
-        Buffer.from(raw, "base64").toString("utf8")
-      );
-
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    }
-
-    return admin.firestore();
-  }
 
   /**
    * ============================================================
@@ -398,7 +362,7 @@
        * FIREBASE ADMIN DB
        * ========================================================
        */
-      const db = getAdminDb();
+      const db = adminDb;
 
       /**
        * ========================================================
@@ -547,29 +511,18 @@ const useBackUrls =
           paymentConfig
         );
 
-      /**
-       * ========================================================
-       * TOTAL A COBRAR
-       * ========================================================
-       *
-       * El costo de Stripe se calcula sobre:
-       *
-       *     neto + comisión DHTime
-       *
-       * Cuando existe una comisión por inscripción,
-       * también la absorbe el corredor.
-       *
-       * El organizador seguirá recibiendo exactamente
-       * el precio neto.
-       */
-      const baseCobro =
-        neto +
-        comisionDHTime;
+      // El corredor paga el precio de inscripción
+// más las comisiones del procesador.
+//
+// La comisión DHTime NO se suma al precio.
+// Se descuenta de la parte del organizador.
 
-      const unit_amount =
-        paymentConfig.paymentProvider === "stripe"
-          ? calcularTotalCobrar(baseCobro)
-          : calcularTotalMercadoPago(baseCobro);
+const baseCobro = neto;
+
+const unit_amount =
+  paymentConfig.paymentProvider === "stripe"
+    ? calcularTotalCobrar(baseCobro)
+    : calcularTotalMercadoPago(baseCobro);
 
       /**
        * ========================================================
@@ -1155,72 +1108,42 @@ await attemptRef.set({
         },
       };
 
-      /**
-       * ========================================================
-       * DESTINATION CHARGE
-       * ========================================================
-       *
-       * Si la carrera pertenece a un organizador:
-       *
-       * El Checkout cobra el total al corredor.
-       *
-       * Stripe transfiere EXACTAMENTE el neto al
-       * connected account del organizador.
-       *
-       * Ejemplo:
-       *
-       * Carrera:
-       *     $100
-       *
-       * Corredor:
-       *     paga el precio + procesamiento
-       *
-       * Organizador:
-       *     recibe $100.00
-       *
-       * DHTime:
-       *     conserva el importe restante para cubrir
-       *     procesamiento y, cuando corresponda,
-       *     comisión DHTime.
-       *
-       * ========================================================
-       */
-      if (
-        paymentConfig.recipient ===
-        "organizer"
-      ) {
-        /**
-         * Seguridad adicional.
-         *
-         * Nunca debemos intentar crear un Destination Charge
-         * sin una cuenta Connect válida.
-         */
-        if (
-          !connectedAccountId
-        ) {
-          return res.status(400).json({
-            error:
-              "No existe una cuenta Stripe Connect válida para esta carrera.",
-          });
-        }
+      // ============================================================
+// DESTINATION CHARGE
+// ============================================================
 
-        checkoutParams.payment_intent_data =
-          {
-            transfer_data: {
-              destination:
-                connectedAccountId,
+// La comisión de DHTime se descuenta de la inscripción.
+// No se suma al importe que paga el corredor.
+//
+// Si es pago de una sola exhibición,
+// comisionDHTime debe ser 0.
 
-              /**
-               * El organizador recibe exactamente
-               * el precio neto de la inscripción.
-               */
-              amount:
-                Math.round(
-                  neto * 100
-                ),
-            },
-          };
-      }
+const montoOrganizador = neto - comisionDHTime;
+
+// Validar que el monto a transferir sea válido.
+if (
+  !Number.isFinite(montoOrganizador) ||
+  montoOrganizador < 0
+) {
+  return res.status(400).json({
+    error:
+      "La comisión de DHTime no puede ser mayor al precio de inscripción.",
+  });
+}
+
+// Stripe cobra el checkout completo al corredor,
+// pero transfiere al organizador únicamente
+// el importe que le corresponde.
+
+checkoutParams.payment_intent_data = {
+  transfer_data: {
+    destination: connectedAccountId,
+
+    amount: Math.round(
+      montoOrganizador * 100
+    ),
+  },
+};
 
       /**
        * ========================================================

@@ -9,7 +9,6 @@ const {
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
 } = process.env;
 
-// Inicializar Firebase Admin una sola vez
 if (!admin.apps.length) {
   if (
     !FIREBASE_PROJECT_ID ||
@@ -17,21 +16,24 @@ if (!admin.apps.length) {
     !FIREBASE_PRIVATE_KEY
   ) {
     throw new Error(
-      "Faltan credenciales de Firebase Admin. Verifica FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL y FIREBASE_PRIVATE_KEY."
+      "Faltan credenciales de Firebase Admin. Verifica las variables de entorno."
     );
   }
+
+  const privateKey = FIREBASE_PRIVATE_KEY
+    .replace(/\\n/g, "\n")
+    .trim();
 
   admin.initializeApp({
     credential: admin.credential.cert({
       projectId: FIREBASE_PROJECT_ID,
       clientEmail: FIREBASE_CLIENT_EMAIL,
-      privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+      privateKey,
     }),
     storageBucket: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   });
 }
 
-// Instancia compartida de Firestore
 const adminDb = admin.firestore();
 
 export { admin, adminDb };
