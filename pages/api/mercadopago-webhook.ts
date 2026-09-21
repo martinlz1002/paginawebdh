@@ -855,55 +855,35 @@ if (!validPreferenceId) {
  */
 
 await db.runTransaction(async (transaction) => {
+  const freshAttemptSnap = await transaction.get(attemptRef);
+  const freshInscripcionSnap = await transaction.get(
+    inscripcionDoc.ref
+  );
 
-  const freshAttemptSnap =
-    await transaction.get(attemptRef);
-
-  const freshInscripcionSnap =
-    await transaction.get(inscripcionDoc.ref);
-
-  if (
-    !freshAttemptSnap.exists ||
-    !freshInscripcionSnap.exists
-  ) {
+  if (!freshAttemptSnap.exists || !freshInscripcionSnap.exists) {
     throw new Error(
       "El intento o la inscripción ya no existen"
     );
   }
 
-  const freshAttempt =
-    freshAttemptSnap.data()!;
+  const freshAttempt = freshAttemptSnap.data()!;
+  const freshInscripcion = freshInscripcionSnap.data()!;
 
-  const freshInscripcion =
-    freshInscripcionSnap.data()!;
-
-  /**
-   * 1. VALIDAR RELACIÓN ENTRE INTENTO E INSCRIPCIÓN
-   *
-   * No validar freshAttempt.attemptId.
-   * El ID del intento es el ID del documento.
-   */
-
+  // 1. VALIDAR QUE EL INTENTO CORRESPONDA A MERCADO PAGO
   if (
-    String(
-      freshAttempt.paymentProvider || ""
-    ).toLowerCase() !== "mercadopago" ||
-
-    String(
-      freshInscripcion.paymentAttemptId || ""
-    ) !== attemptId
+    String(freshAttempt.paymentProvider || "").toLowerCase() !==
+      "mercadopago" ||
+    String(freshInscripcion.paymentAttemptId || "") !== attemptId
   ) {
     throw new Error(
       "El intento y la inscripción no coinciden"
     );
   }
 
-  /**
-   * 2. VALIDAR QUE NO SEA OTRO PAGO
-   */
-
+  // 2. NO PERMITIR QUE OTRO PAGO SOBRESCRIBA ESTA INSCRIPCIÓN
   if (
-    freshInscripcion.paymentStatus === "paid" &&
+    String(freshInscripcion.paymentStatus || "").toLowerCase() ===
+      "paid" &&
     String(freshInscripcion.paymentId || "") !== paymentId
   ) {
     throw new Error(
@@ -911,16 +891,15 @@ await db.runTransaction(async (transaction) => {
     );
   }
 
-  /**
-   * 3. REVISAR SI YA TIENE NÚMERO
-   */
-
-  const existingNumber = Number(
+  // 3. REVISAR SI YA TIENE NÚMERO
+  const rawNumber =
     freshInscripcion.competitorNumber ??
     freshInscripcion.ficha ??
     freshInscripcion.bib ??
-    null
-  );
+    null;
+
+  const existingNumber =
+    rawNumber === null ? 0 : Number(rawNumber);
 
   let assignedNumber: number;
 
@@ -928,75 +907,83 @@ await db.runTransaction(async (transaction) => {
     Number.isFinite(existingNumber) &&
     existingNumber > 0
   ) {
-
-    // Conservar el número que ya tiene.
+    // Si ya tiene número, conservarlo.
     assignedNumber = existingNumber;
 
+    console.log(
+      "[MP Webhook] Conservando número existente",
+      {
+        attemptId,
+        paymentId,
+        assignedNumber,
+      }
+    );
   } else {
+    // 4. ASIGNAR NÚMERO NUEVO
+    const carreraId = String(
+      freshInscripcion.carreraId || ""
+    ).trim();
 
-    /**
-     * 4. ASIGNAR NÚMERO NUEVO
-     */
-
-    if (!freshInscripcion.carreraId) {
+    if (!carreraId) {
       throw new Error(
         "La inscripción no tiene carreraId"
       );
     }
 
+    console.log(
+      "[MP Webhook] Iniciando asignación de número",
+      {
+        attemptId,
+        paymentId,
+        carreraId,
+      }
+    );
+
     assignedNumber = await allocateNumberTx(
       transaction,
       db,
-      String(freshInscripcion.carreraId)
+      carreraId
+    );
+
+    console.log(
+      "[MP Webhook] Número calculado",
+      {
+        attemptId,
+        paymentId,
+        carreraId,
+        assignedNumber,
+      }
     );
   }
 
   const now =
     admin.firestore.FieldValue.serverTimestamp();
 
-  /**
-   * 5. ACTUALIZAR PAYMENT ATTEMPT
-   */
-
+  // 5. ACTUALIZAR EL PAYMENT ATTEMPT
   transaction.update(attemptRef, {
-
     status: "approved",
     paymentStatus: "approved",
-
     paymentId,
     preferenceId: validPreferenceId,
-
     paymentAmount: transactionAmount,
     paymentCurrency,
-
     approvedAt: now,
     updatedAt: now,
   });
 
-  /**
-   * 6. ACTUALIZAR INSCRIPCIÓN
-   *
-   * Aquí se registra el pago y el número.
-   */
-
+  // 6. ACTUALIZAR INSCRIPCIÓN Y ASIGNAR NÚMERO
   transaction.update(inscripcionDoc.ref, {
-
     paymentStatus: "paid",
     paymentProvider: "mercadopago",
-
     paymentAttemptId: attemptId,
 
     paymentId,
     preferenceId: validPreferenceId,
 
-    paymentMethod:
-      payment.payment_method_id || null,
-
-    paymentType:
-      payment.payment_type_id || null,
+    paymentMethod: payment.payment_method_id || null,
+    paymentType: payment.payment_type_id || null,
 
     paymentApprovedAt: now,
-
     paymentAmount: transactionAmount,
     paymentCurrency,
 
@@ -1009,11 +996,12 @@ await db.runTransaction(async (transaction) => {
   });
 
   console.log(
-    "[MP Webhook] Pago aprobado y número asignado",
+    "[MP Webhook] Transacción lista para guardar",
     {
-      paymentId,
       attemptId,
-      competitorNumber: assignedNumber,
+      paymentId,
+      inscriptionId: inscripcionDoc.id,
+      assignedNumber,
     }
   );
 });
