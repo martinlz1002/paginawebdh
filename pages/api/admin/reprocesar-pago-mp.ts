@@ -468,13 +468,11 @@ export default async function handler(
        */
 
       if (
-        String(freshAttempt.attemptId || "") !==
-          attemptId ||
-        String(freshInscripcion.paymentAttemptId || "") !==
-          attemptId ||
-        String(freshAttempt.paymentProvider || "")
-          .toLowerCase() !== "mercadopago"
-      ) {
+  String(freshInscripcion.paymentAttemptId || "") !==
+    attemptId ||
+  String(freshAttempt.paymentProvider || "")
+    .toLowerCase() !== "mercadopago"
+) {
         throw new Error(
           "El intento y la inscripción no coinciden"
         );

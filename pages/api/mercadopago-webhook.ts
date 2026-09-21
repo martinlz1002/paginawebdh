@@ -37,6 +37,159 @@ function getAdminDb() {
 
 /**
  * ============================================================
+ * ASIGNAR NÚMERO DE COMPETIDOR
+ * ============================================================
+ */
+
+async function allocateNumberTx(
+  tx: FirebaseFirestore.Transaction,
+  db: FirebaseFirestore.Firestore,
+  carreraId: string
+): Promise<number> {
+
+  const carreraRef = db
+    .collection("carreras")
+    .doc(carreraId);
+
+  const carreraSnap = await tx.get(carreraRef);
+
+  if (!carreraSnap.exists) {
+    throw new Error(
+      `Carrera no existe: ${carreraId}`
+    );
+  }
+
+  const maxCupo = Number(
+    carreraSnap.get("maxCompetitors") || 0
+  );
+
+  /**
+   * 1. OBTENER NÚMEROS YA UTILIZADOS
+   */
+
+  const usedSnap = await tx.get(
+    db.collection("inscripciones")
+      .where("carreraId", "==", carreraId)
+  );
+
+  const used = new Set<number>();
+
+  usedSnap.docs.forEach((doc) => {
+
+    const data = doc.data();
+
+    const status = String(
+      data.paymentStatus || ""
+    ).toLowerCase();
+
+    if (
+      status !== "paid" &&
+      status !== "manual"
+    ) {
+      return;
+    }
+
+    const rawNumber =
+      data.competitorNumber ??
+      data.ficha ??
+      data.bib ??
+      null;
+
+    const number = Number(rawNumber);
+
+    if (
+      Number.isFinite(number) &&
+      number > 0
+    ) {
+      used.add(number);
+    }
+  });
+
+  /**
+   * 2. OBTENER RANGOS MANUALES RESERVADOS
+   */
+
+  const tempSnap = await tx.get(
+    db.collection("tempusuarios")
+      .where("carreraId", "==", carreraId)
+  );
+
+  const reserved = new Set<number>();
+  const now = Date.now();
+
+  tempSnap.docs.forEach((doc) => {
+
+    const data = doc.data();
+    const range = data.range;
+
+    if (!range) {
+      return;
+    }
+
+    const expiresAt = data.expiresAt;
+
+    if (expiresAt) {
+
+      let expiresMs = 0;
+
+      if (
+        typeof expiresAt === "object" &&
+        typeof expiresAt.toDate === "function"
+      ) {
+        expiresMs = expiresAt.toDate().getTime();
+      } else {
+        expiresMs = new Date(expiresAt).getTime();
+      }
+
+      if (
+        Number.isFinite(expiresMs) &&
+        expiresMs <= now
+      ) {
+        return;
+      }
+    }
+
+    const start = Number(range.start);
+    const end = Number(range.end);
+
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end)
+    ) {
+      return;
+    }
+
+    for (let n = start; n <= end; n++) {
+      if (n > 0) {
+        reserved.add(n);
+      }
+    }
+  });
+
+  /**
+   * 3. BUSCAR EL PRIMER NÚMERO DISPONIBLE
+   */
+
+  const limit =
+    maxCupo > 0 ? maxCupo : 100000;
+
+  for (let n = 1; n <= limit; n++) {
+
+    if (
+      !used.has(n) &&
+      !reserved.has(n)
+    ) {
+      return n;
+    }
+  }
+
+  throw new Error(
+    `Ya no hay números disponibles para la carrera ${carreraId}`
+  );
+}
+
+/**
+ * ============================================================
  * VALIDAR FIRMA MERCADO PAGO
  * ============================================================
  */
@@ -696,120 +849,174 @@ if (!validPreferenceId) {
       inscripcionesSnap.docs[0];
 
     /**
-     * ========================================================
-     * 15. ACTUALIZACIÓN TRANSACCIONAL
-     * ========================================================
+ * ============================================================
+ * 15. ACTUALIZACIÓN TRANSACCIONAL + ASIGNACIÓN DE NÚMERO
+ * ============================================================
+ */
+
+await db.runTransaction(async (transaction) => {
+
+  const freshAttemptSnap =
+    await transaction.get(attemptRef);
+
+  const freshInscripcionSnap =
+    await transaction.get(inscripcionDoc.ref);
+
+  if (
+    !freshAttemptSnap.exists ||
+    !freshInscripcionSnap.exists
+  ) {
+    throw new Error(
+      "El intento o la inscripción ya no existen"
+    );
+  }
+
+  const freshAttempt =
+    freshAttemptSnap.data()!;
+
+  const freshInscripcion =
+    freshInscripcionSnap.data()!;
+
+  /**
+   * 1. VALIDAR RELACIÓN ENTRE INTENTO E INSCRIPCIÓN
+   *
+   * No validar freshAttempt.attemptId.
+   * El ID del intento es el ID del documento.
+   */
+
+  if (
+    String(
+      freshAttempt.paymentProvider || ""
+    ).toLowerCase() !== "mercadopago" ||
+
+    String(
+      freshInscripcion.paymentAttemptId || ""
+    ) !== attemptId
+  ) {
+    throw new Error(
+      "El intento y la inscripción no coinciden"
+    );
+  }
+
+  /**
+   * 2. VALIDAR QUE NO SEA OTRO PAGO
+   */
+
+  if (
+    freshInscripcion.paymentStatus === "paid" &&
+    String(freshInscripcion.paymentId || "") !== paymentId
+  ) {
+    throw new Error(
+      "La inscripción ya fue pagada con otro pago"
+    );
+  }
+
+  /**
+   * 3. REVISAR SI YA TIENE NÚMERO
+   */
+
+  const existingNumber = Number(
+    freshInscripcion.competitorNumber ??
+    freshInscripcion.ficha ??
+    freshInscripcion.bib ??
+    null
+  );
+
+  let assignedNumber: number;
+
+  if (
+    Number.isFinite(existingNumber) &&
+    existingNumber > 0
+  ) {
+
+    // Conservar el número que ya tiene.
+    assignedNumber = existingNumber;
+
+  } else {
+
+    /**
+     * 4. ASIGNAR NÚMERO NUEVO
      */
 
-    await db.runTransaction(async (transaction) => {
-      const freshAttemptSnap =
-        await transaction.get(attemptRef);
+    if (!freshInscripcion.carreraId) {
+      throw new Error(
+        "La inscripción no tiene carreraId"
+      );
+    }
 
-      const freshInscripcionSnap =
-        await transaction.get(inscripcionDoc.ref);
+    assignedNumber = await allocateNumberTx(
+      transaction,
+      db,
+      String(freshInscripcion.carreraId)
+    );
+  }
 
-      if (
-        !freshAttemptSnap.exists ||
-        !freshInscripcionSnap.exists
-      ) {
-        throw new Error(
-          "El intento o la inscripción ya no existen"
-        );
-      }
+  const now =
+    admin.firestore.FieldValue.serverTimestamp();
 
-      const freshAttempt =
-        freshAttemptSnap.data()!;
+  /**
+   * 5. ACTUALIZAR PAYMENT ATTEMPT
+   */
 
-      const freshInscripcion =
-        freshInscripcionSnap.data()!;
+  transaction.update(attemptRef, {
 
-      /**
-       * Revalidar la relación entre intento e inscripción.
-       */
+    status: "approved",
+    paymentStatus: "approved",
 
-      if (
-        String(freshAttempt.paymentProvider || "").toLowerCase() !==
-        "mercadopago" ||
-        String(freshAttempt.attemptId || "") !== attemptId ||
-        String(freshInscripcion.paymentAttemptId || "") !== attemptId
-      ) {
-        throw new Error(
-          "El intento y la inscripción no coinciden"
-        );
-      }
+    paymentId,
+    preferenceId: validPreferenceId,
 
-      /**
-       * Evitar procesar de nuevo el mismo pago.
-       */
+    paymentAmount: transactionAmount,
+    paymentCurrency,
 
-      if (
-        freshInscripcion.paymentStatus === "paid" &&
-        String(freshInscripcion.paymentId || "") === paymentId
-      ) {
-        return;
-      }
+    approvedAt: now,
+    updatedAt: now,
+  });
 
-      /**
-       * No sobrescribir una inscripción pagada
-       * con un pago diferente.
-       */
+  /**
+   * 6. ACTUALIZAR INSCRIPCIÓN
+   *
+   * Aquí se registra el pago y el número.
+   */
 
-      if (
-        freshInscripcion.paymentStatus === "paid"
-      ) {
-        throw new Error(
-          "La inscripción ya fue pagada con otro pago"
-        );
-      }
+  transaction.update(inscripcionDoc.ref, {
 
-      const now =
-        admin.firestore.FieldValue.serverTimestamp();
+    paymentStatus: "paid",
+    paymentProvider: "mercadopago",
 
-      /**
-       * Actualizar intento.
-       */
+    paymentAttemptId: attemptId,
 
-      transaction.update(attemptRef, {
-        status: "approved",
-        paymentStatus: "approved",
+    paymentId,
+    preferenceId: validPreferenceId,
 
-        paymentId,
-        preferenceId: validPreferenceId,
+    paymentMethod:
+      payment.payment_method_id || null,
 
-        paymentAmount: transactionAmount,
-        paymentCurrency,
+    paymentType:
+      payment.payment_type_id || null,
 
-        approvedAt: now,
-        updatedAt: now,
-      });
+    paymentApprovedAt: now,
 
-      /**
-       * Actualizar inscripción.
-       */
+    paymentAmount: transactionAmount,
+    paymentCurrency,
 
-      transaction.update(inscripcionDoc.ref, {
-        paymentStatus: "paid",
-        paymentProvider: "mercadopago",
+    // NÚMERO DEL COMPETIDOR
+    competitorNumber: assignedNumber,
+    ficha: assignedNumber,
+    bib: assignedNumber,
 
-        paymentAttemptId: attemptId,
+    updatedAt: now,
+  });
 
-        paymentId,
-        preferenceId: validPreferenceId,
-
-        paymentMethod:
-          payment.payment_method_id || null,
-
-        paymentType:
-          payment.payment_type_id || null,
-
-        paymentApprovedAt: now,
-
-        paymentAmount: transactionAmount,
-        paymentCurrency,
-
-        updatedAt: now,
-      });
-    });
+  console.log(
+    "[MP Webhook] Pago aprobado y número asignado",
+    {
+      paymentId,
+      attemptId,
+      competitorNumber: assignedNumber,
+    }
+  );
+});
 
     /**
      * ========================================================
