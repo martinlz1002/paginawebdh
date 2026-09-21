@@ -526,34 +526,60 @@ export default async function handler(
     }
 
     /**
-     * ========================================================
-     * 11. VALIDAR PREFERENCE ID
-     * ========================================================
-     */
+ * ========================================================
+ * 11. VALIDAR PREFERENCE ID
+ * ========================================================
+ */
 
-    const preferenceId = String(
-      payment.preference_id || ""
-    ).trim();
+const paymentPreferenceId = String(
+  payment.preference_id || ""
+).trim();
 
-    if (
-      !preferenceId ||
-      String(attempt.preferenceId || "") !== preferenceId
-    ) {
-      console.error(
-        "[MP Webhook] Preference ID no coincide",
-        {
-          attemptId,
-          preferenceId,
-          attemptPreferenceId: attempt.preferenceId,
-        }
-      );
+const attemptPreferenceId = String(
+  attempt.preferenceId || ""
+).trim();
 
-      return res.status(200).json({
-        received: true,
-        ignored: true,
-        reason: "preference_mismatch",
-      });
+// Si Mercado Pago sí devuelve preference_id,
+// debe coincidir con el intento de pago.
+if (
+  paymentPreferenceId &&
+  attemptPreferenceId !== paymentPreferenceId
+) {
+  console.error(
+    "[MP Webhook] Preference ID no coincide",
+    {
+      attemptId,
+      paymentPreferenceId,
+      attemptPreferenceId,
     }
+  );
+
+  return res.status(200).json({
+    received: true,
+    ignored: true,
+    reason: "preference_mismatch",
+  });
+}
+
+// Si el pago no incluye preference_id,
+// conservamos el ID guardado en el intento.
+// La validación de external_reference, vendedor,
+// moneda y monto sigue siendo obligatoria.
+const validPreferenceId =
+  paymentPreferenceId || attemptPreferenceId;
+
+if (!validPreferenceId) {
+  console.error(
+    "[MP Webhook] No hay preference ID verificable",
+    { attemptId, paymentId }
+  );
+
+  return res.status(200).json({
+    received: true,
+    ignored: true,
+    reason: "missing_preference_id",
+  });
+}
 
     /**
      * ========================================================
@@ -748,7 +774,7 @@ export default async function handler(
         paymentStatus: "approved",
 
         paymentId,
-        preferenceId,
+        preferenceId: validPreferenceId,
 
         paymentAmount: transactionAmount,
         paymentCurrency,
@@ -768,7 +794,7 @@ export default async function handler(
         paymentAttemptId: attemptId,
 
         paymentId,
-        preferenceId,
+        preferenceId: validPreferenceId,
 
         paymentMethod:
           payment.payment_method_id || null,
