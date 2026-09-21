@@ -451,25 +451,31 @@ const carreraFinalizada = fechaDate < today;
     }));
 
     if (paymentConfig.recipient === "organizer") {
-      if (!paymentConfig.organizerId) {
-        alert("Selecciona el organizador que recibirá las inscripciones.");
-        return;
-      }
+  if (!paymentConfig.organizerId) {
+    alert("Selecciona el organizador que recibirá las inscripciones.");
+    return;
+  }
 
-      if (!paymentConfig.connectedAccountId) {
-        alert(
-          "El organizador seleccionado todavía no tiene una cuenta Stripe Connect."
-        );
-        return;
-      }
-
-      if (!organizadorSeleccionado || !organizerReady(organizadorSeleccionado)) {
-        alert(
-          "El organizador seleccionado todavía no tiene Stripe habilitado para recibir pagos."
-        );
-        return;
-      }
+  // Validaciones exclusivas para Stripe Connect
+  if (paymentConfig.paymentProvider === "stripe") {
+    if (!paymentConfig.connectedAccountId) {
+      alert(
+        "El organizador seleccionado todavía no tiene una cuenta Stripe Connect."
+      );
+      return;
     }
+
+    if (
+      !organizadorSeleccionado ||
+      !organizerReady(organizadorSeleccionado)
+    ) {
+      alert(
+        "El organizador seleccionado todavía no tiene Stripe habilitado para recibir pagos."
+      );
+      return;
+    }
+  }
+}
 
     const slug = generarSlug(titulo);
 
@@ -562,6 +568,31 @@ paymentConfig: {
           de DHTime.
         </p>
       </div>
+
+      {/* PROVEEDOR DE PAGOS */}
+<div>
+  <label className="block text-sm font-semibold text-white mb-2">
+    Proveedor de pagos
+  </label>
+
+  <select
+    value={paymentConfig.paymentProvider}
+    onChange={(e) =>
+      setPaymentConfig((prev) => ({
+        ...prev,
+        paymentProvider: e.target.value,
+      }))
+    }
+    className="w-full bg-[#1f1f27] border border-white/10 rounded-xl px-4 py-3 text-white"
+  >
+    <option value="stripe">Stripe</option>
+    <option value="mercadopago">Mercado Pago</option>
+  </select>
+
+  <p className="text-xs text-white/50 mt-2">
+    Selecciona la plataforma que procesará los pagos de esta carrera.
+  </p>
+</div>
 
       {/* DESTINO */}
       <div>
@@ -795,15 +826,17 @@ paymentConfig: {
           )
         ) : paymentConfig.dhFeeMode === "external" ? (
           <>
-            El organizador recibirá las inscripciones mediante Stripe Connect.
-            El importe acordado con DHTime se registrará como un pago externo y
-            no se cobrará al corredor mediante esta configuración.
+            El organizador recibirá las inscripciones mediante{" "}
+{paymentConfig.paymentProvider === "stripe"
+  ? "Stripe Connect"
+  : "Mercado Pago"}.
           </>
         ) : (
           <>
-            El organizador recibirá las inscripciones mediante Stripe Connect.
-            La comisión de DHTime se aplicará por inscripción. El tratamiento de
-            IVA y de las comisiones de Stripe se calculará en el checkout.
+            El organizador recibirá las inscripciones mediante{" "}
+{paymentConfig.paymentProvider === "stripe"
+  ? "Stripe Connect"
+  : "Mercado Pago"}.
           </>
         )}
       </div>

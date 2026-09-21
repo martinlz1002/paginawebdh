@@ -8,11 +8,14 @@ import * as admin from "firebase-admin";
 import { createOrganizerAccount } from "../../../../lib/stripeConnect";
 import { requireAdmin } from "../../../../lib/adminAuth";
 
+type PaymentProvider = "stripe" | "mercadopago";
+
 type ResponseData =
   | {
       ok: true;
       organizerId: string;
-      connectedAccountId: string;
+      paymentProvider: PaymentProvider;
+      connectedAccountId?: string;
     }
   | {
       ok: false;
@@ -48,6 +51,7 @@ export default async function handler(
     const {
       nombre,
       email,
+      paymentProvider: providerRecibido,
     } = req.body || {};
 
     if (
@@ -72,8 +76,30 @@ export default async function handler(
       });
     }
 
-    const nombreLimpio =
-      nombre.trim();
+    // ==========================================
+    // PROVEEDOR DE PAGOS
+    // ==========================================
+
+    // Compatibilidad con solicitudes anteriores:
+    // si no mandan proveedor, se usa Stripe.
+
+    const paymentProvider: PaymentProvider =
+      providerRecibido === undefined
+        ? "stripe"
+        : providerRecibido;
+
+    if (
+      paymentProvider !== "stripe" &&
+      paymentProvider !== "mercadopago"
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error:
+          "El proveedor debe ser Stripe o Mercado Pago",
+      });
+    }
+
+    const nombreLimpio = nombre.trim();
 
     const emailLimpio =
       email.trim().toLowerCase();
@@ -82,23 +108,17 @@ export default async function handler(
     // FIREBASE ADMIN
     // ==========================================
 
-    const db =
-      admin.firestore();
+    const db = admin.firestore();
 
     // ==========================================
     // EVITAR ORGANIZADORES DUPLICADOS
     // ==========================================
 
-    const existentes =
-      await db
-        .collection("organizadores")
-        .where(
-          "email",
-          "==",
-          emailLimpio
-        )
-        .limit(1)
-        .get();
+    const existentes = await db
+      .collection("organizadores")
+      .where("email", "==", emailLimpio)
+      .limit(1)
+      .get();
 
     if (!existentes.empty) {
       return res.status(409).json({
@@ -111,28 +131,16 @@ export default async function handler(
     // ==========================================
     // CREAR REGISTRO PRELIMINAR
     // ==========================================
-    //
-    // Primero dejamos constancia en Firestore.
-    // Así, si Stripe falla, no perdemos el intento.
-    //
-    // ==========================================
 
-    const organizerRef =
-      db
-        .collection("organizadores")
-        .doc();
+    const organizerRef = db
+      .collection("organizadores")
+      .doc();
 
-    await organizerRef.set({
+    const datosBase = {
       nombre: nombreLimpio,
       email: emailLimpio,
 
-      connectedAccountId: "",
-
-      stripeStatus: "creating",
-
-      chargesEnabled: false,
-      payoutsEnabled: false,
-      detailsSubmitted: false,
+      paymentProvider,
 
       activo: true,
 
@@ -143,6 +151,60 @@ export default async function handler(
       updatedAt:
         admin.firestore.FieldValue
           .serverTimestamp(),
+    };
+
+    // ==========================================
+    // MERCADO PAGO
+    // ==========================================
+
+    if (paymentProvider === "mercadopago") {
+      // No creamos una cuenta Stripe.
+      // El registro queda identificado para Mercado Pago.
+      //
+      // La vinculación OAuth de Mercado Pago
+      // se implementará por separado.
+
+      await organizerRef.set({
+        ...datosBase,
+
+        connectedAccountId: "",
+
+        stripeStatus: "not_applicable",
+
+        chargesEnabled: false,
+        payoutsEnabled: false,
+        detailsSubmitted: false,
+
+        mercadoPagoStatus: "pending",
+        mercadoPagoUserId: "",
+      });
+
+      return res.status(200).json({
+        ok: true,
+
+        organizerId: organizerRef.id,
+
+        paymentProvider: "mercadopago",
+      });
+    }
+
+    // ==========================================
+    // STRIPE
+    // ==========================================
+
+    // Conservamos el comportamiento actual
+    // para organizadores que utilizan Stripe.
+
+    await organizerRef.set({
+      ...datosBase,
+
+      connectedAccountId: "",
+
+      stripeStatus: "creating",
+
+      chargesEnabled: false,
+      payoutsEnabled: false,
+      detailsSubmitted: false,
     });
 
     // ==========================================
@@ -152,12 +214,11 @@ export default async function handler(
     let account;
 
     try {
-      account =
-        await createOrganizerAccount({
-          email: emailLimpio,
-          country: "MX",
-          businessType: "individual",
-        });
+      account = await createOrganizerAccount({
+        email: emailLimpio,
+        country: "MX",
+        businessType: "individual",
+      });
     } catch (stripeError: any) {
       // ========================================
       // STRIPE FALLÓ
@@ -179,12 +240,11 @@ export default async function handler(
     }
 
     // ==========================================
-    // ACTUALIZAR ORGANIZADOR
+    // ACTUALIZAR ORGANIZADOR CON STRIPE
     // ==========================================
 
     await organizerRef.update({
-      connectedAccountId:
-        account.id,
+      connectedAccountId: account.id,
 
       stripeStatus: "created",
 
@@ -203,17 +263,17 @@ export default async function handler(
     });
 
     // ==========================================
-    // RESPUESTA
+    // RESPUESTA STRIPE
     // ==========================================
 
     return res.status(200).json({
       ok: true,
 
-      organizerId:
-        organizerRef.id,
+      organizerId: organizerRef.id,
 
-      connectedAccountId:
-        account.id,
+      paymentProvider: "stripe",
+
+      connectedAccountId: account.id,
     });
 
   } catch (error: any) {

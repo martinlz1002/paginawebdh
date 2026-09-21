@@ -16,6 +16,9 @@ interface Organizador {
   currentlyDue?: string[];
   eventuallyDue?: string[];
   disabledReason?: string | null;
+  paymentProvider?: "stripe" | "mercadopago";
+mercadoPagoStatus?: string;
+mercadoPagoUserId?: string;
 }
 
 export default function AdminOrganizadores() {
@@ -24,6 +27,10 @@ export default function AdminOrganizadores() {
 
   const [nombre, setNombre] = useState("");
   const [email, setEmail] = useState("");
+
+  const [paymentProvider, setPaymentProvider] = useState<
+  "stripe" | "mercadopago"
+>("stripe");
 
   const [loading, setLoading] = useState(false);
   const [loadingList, setLoadingList] =
@@ -152,12 +159,10 @@ export default function AdminOrganizadores() {
             },
 
             body: JSON.stringify({
-              nombre:
-                nombreLimpio,
-
-              email:
-                emailLimpio,
-            }),
+  nombre: nombreLimpio,
+  email: emailLimpio,
+  paymentProvider,
+}),
           }
         );
 
@@ -387,6 +392,76 @@ export default function AdminOrganizadores() {
       }
     };
 
+
+
+
+    // ============================================================
+// GENERAR ENLACE OAUTH MERCADO PAGO
+// ============================================================
+
+const generarEnlaceMercadoPago = async (
+  organizador: Organizador
+) => {
+  setError("");
+  setSuccess("");
+
+  try {
+    setGenerandoLinkId(organizador.id);
+
+    const user = getAuth().currentUser;
+
+    if (!user) {
+      throw new Error(
+        "Tu sesión de administrador no está disponible."
+      );
+    }
+
+    const token = await user.getIdToken(true);
+
+    const response = await fetch(
+      "/api/admin/organizers/mercadopago/start",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+
+        body: JSON.stringify({
+          organizerId: organizador.id,
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.ok || !data.url) {
+      throw new Error(
+        data?.error ||
+          "No fue posible generar el enlace de Mercado Pago."
+      );
+    }
+
+    // Redirigir al administrador a Mercado Pago.
+    window.location.href = data.url;
+
+  } catch (err: any) {
+    console.error(
+      "Error iniciando Mercado Pago OAuth:",
+      err
+    );
+
+    setError(
+      err?.message ||
+        "Error generando el enlace de Mercado Pago."
+    );
+
+  } finally {
+    setGenerandoLinkId(null);
+  }
+};
+
   // ============================================================
   // COPIAR ENLACE
   // ============================================================
@@ -550,17 +625,15 @@ export default function AdminOrganizadores() {
         </h3>
 
         <p className="mt-1 text-sm text-white/50">
-          Primero crearemos su cuenta Express de
-          Stripe. Después podrás enviarle el enlace
-          para completar sus datos.
-        </p>
+  {paymentProvider === "stripe"
+    ? "El organizador utilizará Stripe. Se creará su cuenta Express y después podrás enviarle el enlace para completar sus datos."
+    : "El organizador utilizará Mercado Pago. Primero se registrará y después podrá vincular su cuenta de Mercado Pago."}
+</p>
 
         <form
-          onSubmit={
-            crearOrganizador
-          }
-          className="mt-6 grid gap-4 md:grid-cols-[1fr_1fr_auto]"
-        >
+  onSubmit={crearOrganizador}
+  className="mt-6 grid gap-4 md:grid-cols-2"
+>
 
           {/* NOMBRE */}
 
@@ -603,14 +676,48 @@ export default function AdminOrganizadores() {
             />
           </div>
 
+
+{/* PROVEEDOR DE PAGOS */}
+
+<div>
+  <label className="mb-2 block text-sm font-semibold text-white/80">
+    Proveedor de pagos
+  </label>
+
+  <select
+    value={paymentProvider}
+    onChange={(e) =>
+      setPaymentProvider(
+        e.target.value as "stripe" | "mercadopago"
+      )
+    }
+    disabled={loading}
+    className="w-full rounded-xl border border-white/10 bg-[#1f1f27] px-4 py-3 text-white outline-none transition focus:border-dh-purple focus:ring-2 focus:ring-dh-purple/20"
+  >
+    <option value="stripe">
+      Stripe
+    </option>
+
+    <option value="mercadopago">
+      Mercado Pago
+    </option>
+  </select>
+
+  <p className="mt-2 text-xs text-white/40">
+    Selecciona la plataforma con la que se vinculará este organizador.
+  </p>
+</div>
+
+
+
           {/* BOTÓN */}
 
-          <div className="flex items-end">
+          <div className="flex items-end md:justify-end">
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full rounded-xl bg-dh-purple px-6 py-3 font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.25)] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
+              className="w-full md:col-span-2 rounded-xl bg-dh-purple px-6 py-3 font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.25)] disabled:cursor-not-allowed disabled:opacity-50 md:w-auto"
             >
               {loading
                 ? "Creando..."
@@ -682,10 +789,21 @@ export default function AdminOrganizadores() {
             {organizadores.map(
               (organizador) => {
 
-                const estado =
-                  obtenerEstado(
-                    organizador
-                  );
+                const esMercadoPago =
+  organizador.paymentProvider === "mercadopago";
+
+const estado = esMercadoPago
+  ? {
+      texto:
+        organizador.mercadoPagoStatus === "connected"
+          ? "Mercado Pago conectado"
+          : "Mercado Pago pendiente",
+      clase:
+        organizador.mercadoPagoStatus === "connected"
+          ? "bg-green-500/10 text-green-400 border-green-500/20"
+          : "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+    }
+  : obtenerEstado(organizador);
 
                 const actualizando =
                   actualizandoId ===
@@ -713,154 +831,168 @@ export default function AdminOrganizadores() {
                   >
 
                     {/* ======================================== */}
-                    {/* CABECERA */}
-                    {/* ======================================== */}
+{/* CABECERA */}
+{/* ======================================== */}
 
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
-                      <div>
+  {/* DATOS DEL ORGANIZADOR */}
 
-                        <div className="flex flex-wrap items-center gap-3">
+  <div>
+    <div className="flex flex-wrap items-center gap-3">
 
-                          <h4 className="text-lg font-bold text-white">
-                            {organizador.nombre}
-                          </h4>
+      <h4 className="text-lg font-bold text-white">
+        {organizador.nombre}
+      </h4>
 
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-bold ${estado.clase}`}
-                          >
-                            {estado.texto}
-                          </span>
+      <span
+        className={`rounded-full border px-3 py-1 text-xs font-bold ${estado.clase}`}
+      >
+        {estado.texto}
+      </span>
 
-                        </div>
+    </div>
 
-                        <p className="mt-1 text-sm text-white/50">
-                          {organizador.email}
-                        </p>
+    <p className="mt-1 text-sm text-white/50">
+      {organizador.email}
+    </p>
 
-                        {organizador.connectedAccountId && (
-                          <p className="mt-2 font-mono text-xs text-white/25">
-                            {organizador.connectedAccountId}
-                          </p>
-                        )}
+    <p className="mt-2 text-xs text-white/50">
+      Proveedor:{" "}
+      <span className="font-semibold text-white/80">
+        {esMercadoPago ? "Mercado Pago" : "Stripe"}
+      </span>
+    </p>
 
-                      </div>
+    {!esMercadoPago && organizador.connectedAccountId && (
+      <p className="mt-2 font-mono text-xs text-white/25">
+        {organizador.connectedAccountId}
+      </p>
+    )}
 
-                      {/* ====================================== */}
-                      {/* BOTONES */}
-                      {/* ====================================== */}
+  </div>
 
-                      <div className="flex flex-wrap gap-2">
 
-                        {/* ACTUALIZAR ESTADO */}
 
-                        <button
-                          type="button"
-                          onClick={() =>
-                            actualizarEstadoStripe(
-                              organizador.id
-                            )
-                          }
-                          disabled={
-                            actualizando ||
-                            generandoLink
-                          }
-                          className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {actualizando
-                            ? "Consultando Stripe..."
-                            : "↻ Actualizar estado"}
-                        </button>
+  {esMercadoPago && (
+  <button
+    type="button"
+    onClick={() =>
+      generarEnlaceMercadoPago(organizador)
+    }
+    disabled={generandoLink}
+    className="rounded-xl bg-[#009EE3] px-5 py-2.5 text-sm font-bold text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+  >
+    {generandoLink
+      ? "Generando enlace..."
+      : organizador.mercadoPagoStatus === "connected"
+      ? "Volver a vincular Mercado Pago"
+      : "Vincular cuenta de Mercado Pago"}
+  </button>
+)}
 
-                        {/* GENERAR ENLACE STRIPE */}
+  {/* ======================================== */}
+  {/* BOTONES STRIPE */}
+  {/* ======================================== */}
 
-                        {!stripeActivo && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              generarEnlaceStripe(
-                                organizador
-                              )
-                            }
-                            disabled={
-                              actualizando ||
-                              generandoLink
-                            }
-                            className="rounded-xl bg-dh-purple px-5 py-2.5 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.3)] disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {generandoLink
-                              ? "Generando enlace..."
-                              : "Generar enlace Stripe"}
-                          </button>
-                        )}
+  {!esMercadoPago && (
+    <div className="flex flex-wrap gap-2">
 
-                      </div>
+      {/* ACTUALIZAR ESTADO */}
 
-                    </div>
+      <button
+        type="button"
+        onClick={() =>
+          actualizarEstadoStripe(organizador.id)
+        }
+        disabled={actualizando || generandoLink}
+        className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {actualizando
+          ? "Consultando Stripe..."
+          : "↻ Actualizar estado"}
+      </button>
 
-                    {/* ======================================== */}
-                    {/* ENLACE GENERADO */}
-                    {/* ======================================== */}
+      {/* GENERAR ENLACE STRIPE */}
 
-                    {enlaceStripe && (
-                      <div className="mt-5 rounded-xl border border-dh-purple/20 bg-dh-purple/5 p-4">
+      {!stripeActivo && (
+        <button
+          type="button"
+          onClick={() =>
+            generarEnlaceStripe(organizador)
+          }
+          disabled={actualizando || generandoLink}
+          className="rounded-xl bg-dh-purple px-5 py-2.5 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.3)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {generandoLink
+            ? "Generando enlace..."
+            : "Generar enlace Stripe"}
+        </button>
+      )}
 
-                        <div className="flex flex-col gap-3">
+    </div>
+  )}
 
-                          <div>
-                            <p className="text-sm font-bold text-white">
-                              Enlace para el organizador
-                            </p>
+</div>
 
-                            <p className="mt-1 text-xs text-white/50">
-                              Envíale este enlace a{" "}
-                              <strong className="text-white/80">
-                                {organizador.nombre}
-                              </strong>{" "}
-                              para que complete su configuración de Stripe.
-                            </p>
-                          </div>
+{/* ======================================== */}
+{/* ENLACE GENERADO STRIPE */}
+{/* ======================================== */}
 
-                          <div className="flex flex-col gap-2 sm:flex-row">
+{!esMercadoPago && enlaceStripe && (
+  <div className="mt-5 rounded-xl border border-dh-purple/20 bg-dh-purple/5 p-4">
 
-                            <input
-                              type="text"
-                              readOnly
-                              value={
-                                enlaceStripe
-                              }
-                              onFocus={(e) =>
-                                e.target.select()
-                              }
-                              className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-xs text-white/70 outline-none transition focus:border-dh-purple"
-                            />
+    <div className="flex flex-col gap-3">
 
-                            <button
-                              type="button"
-                              onClick={() =>
-                                copiarEnlaceStripe(
-                                  organizador.id
-                                )
-                              }
-                              className="rounded-xl bg-dh-purple px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.3)]"
-                            >
-                              📋 Copiar enlace
-                            </button>
+      <div>
+        <p className="text-sm font-bold text-white">
+          Enlace para el organizador
+        </p>
 
-                          </div>
+        <p className="mt-1 text-xs text-white/50">
+          Envíale este enlace a{" "}
+          <strong className="text-white/80">
+            {organizador.nombre}
+          </strong>{" "}
+          para que complete su configuración de Stripe.
+        </p>
+      </div>
 
-                          <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
 
-                            <p className="text-xs text-yellow-300">
-                              ⚠️ Este enlace de Stripe es temporal y de un solo uso. Si deja de funcionar, genera un nuevo enlace.
-                            </p>
+        <input
+          type="text"
+          readOnly
+          value={enlaceStripe}
+          onFocus={(e) => e.target.select()}
+          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-xs text-white/70 outline-none transition focus:border-dh-purple"
+        />
 
-                          </div>
+        <button
+          type="button"
+          onClick={() =>
+            copiarEnlaceStripe(organizador.id)
+          }
+          className="rounded-xl bg-dh-purple px-5 py-3 text-sm font-bold text-white transition hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(126,87,194,0.3)]"
+        >
+          📋 Copiar enlace
+        </button>
 
-                        </div>
+      </div>
 
-                      </div>
-                    )}
+      <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/10 px-3 py-2">
+        <p className="text-xs text-yellow-300">
+          ⚠️ Este enlace de Stripe es temporal y de un solo uso. Si deja de funcionar, genera un nuevo enlace.
+        </p>
+      </div>
+
+    </div>
+
+  </div>
+)}
+
+{!esMercadoPago && (
+  <>
 
                     {/* ======================================== */}
                     {/* ESTADO DETALLADO */}
@@ -958,6 +1090,9 @@ export default function AdminOrganizadores() {
                       </div>
 
                     )}
+
+                    </>
+)}
 
                   </div>
                 );
