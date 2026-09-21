@@ -604,16 +604,25 @@ export default async function handler(
           // ORGANIZADOR
           // ==================================================
 
-          let organizerId =
-            "";
+          let organizerId = "";
+let connectedAccountId = "";
 
-          let connectedAccountId =
-            "";
+// Obtener el organizador sin importar el proveedor de pago
+if (paymentConfig.recipient === "organizer") {
+  organizerId = String(paymentConfig.organizerId || "").trim();
 
-          if (
-            paymentConfig.recipient === "organizer" &&
-            paymentConfig.paymentProvider === "stripe"
-          ) {
+  if (!organizerId) {
+    throw new Error(
+      "La carrera está configurada para un organizador, pero no tiene organizerId."
+    );
+  }
+}
+
+// Las validaciones de Stripe Connect solo aplican a Stripe
+if (
+  paymentConfig.recipient === "organizer" &&
+  paymentConfig.paymentProvider === "stripe"
+) {
             organizerId =
               paymentConfig.organizerId;
 

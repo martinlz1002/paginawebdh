@@ -52,7 +52,7 @@ export default function Pago() {
       }
 
       try {
-        setMsg("Redirigiendo a Stripe…");
+        setMsg("Preparando tu pago…");
 
         /* =======================
            🔁 REINTENTO DE PAGO
