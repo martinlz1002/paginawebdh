@@ -331,40 +331,11 @@ function obtenerPaymentConfig(
 // ============================================================
 
 function calcularComisionDHTime(
-  neto: number,
-  paymentConfig: ReturnType<
-    typeof obtenerPaymentConfig
-  >
+  _neto: number,
+  _paymentConfig: ReturnType<typeof obtenerPaymentConfig>
 ) {
-  if (
-    paymentConfig.dhFeeMode !==
-    "per_registration"
-  ) {
-    return 0;
-  }
-
-  const amount =
-    Number(
-      paymentConfig.dhFeeAmount
-    ) || 0;
-
-  if (
-    amount <= 0
-  ) {
-    return 0;
-  }
-
-  if (
-    paymentConfig.dhFeeType ===
-    "percentage"
-  ) {
-    return (
-      neto *
-      (amount / 100)
-    );
-  }
-
-  return amount;
+  // Comisión fija DHTime por inscripción
+  return 20;
 }
 
 // ============================================================
