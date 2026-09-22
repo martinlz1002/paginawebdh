@@ -298,38 +298,12 @@
    *   → se calcula la comisión configurada.
    */
   function calcularComisionDHTime(
-    neto: number,
-    paymentConfig: ReturnType<
-      typeof obtenerPaymentConfig
-    >
+    _neto: number,
+    _paymentConfig: ReturnType<typeof obtenerPaymentConfig>
   ) {
-    if (
-      paymentConfig.dhFeeMode !==
-      "per_registration"
-    ) {
-      return 0;
-    }
-
-    const amount =
-      Number(
-        paymentConfig.dhFeeAmount
-      ) || 0;
-
-    if (amount <= 0) {
-      return 0;
-    }
-
-    if (
-      paymentConfig.dhFeeType ===
-      "percentage"
-    ) {
-      return (
-        neto *
-        (amount / 100)
-      );
-    }
-
-    return amount;
+    // Modelo DHTime: $20 MXN fijos por inscripción, sin depender
+    // de la configuración histórica guardada en cada carrera.
+    return 20;
   }
 
   /**
@@ -511,13 +485,11 @@ const useBackUrls =
           paymentConfig
         );
 
-      // El corredor paga el precio de inscripción
-// más las comisiones del procesador.
-//
-// La comisión DHTime NO se suma al precio.
-// Se descuenta de la parte del organizador.
+      // El corredor paga el precio de inscripción + $20 MXN para DHTime,
+// más el costo estimado de procesamiento. El organizador debe recibir
+// íntegro el precio publicado.
 
-const baseCobro = neto;
+const baseCobro = neto + comisionDHTime;
 
 const unit_amount =
   paymentConfig.paymentProvider === "stripe"
@@ -1137,9 +1109,8 @@ if (paymentConfig.recipient === "organizer") {
     });
   }
 
-  // Calcular el importe que recibirá el organizador.
-  const montoOrganizador =
-    neto - comisionDHTime;
+  // El organizador recibe íntegro el precio publicado.
+  const montoOrganizador = neto;
 
   // Validar el importe de la transferencia.
   if (
@@ -1152,8 +1123,8 @@ if (paymentConfig.recipient === "organizer") {
     });
   }
 
-  // Stripe cobra el checkout completo al corredor,
-  // y transfiere al organizador el importe correspondiente.
+  // Stripe cobra al corredor inscripción + comisión DHTime +
+  // procesamiento estimado, y transfiere íntegro el precio al organizador.
   checkoutParams.payment_intent_data = {
     transfer_data: {
       destination: connectedAccountId,

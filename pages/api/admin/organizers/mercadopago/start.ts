@@ -81,20 +81,23 @@ export default async function handler(
     }
 
     // Estado aleatorio para proteger el flujo OAuth.
-    const state =
-      randomBytes(32).toString("hex");
+const state = randomBytes(32).toString("hex");
 
-    // Guardamos el estado asociado al organizador.
-    await db
-      .collection("mercadoPagoOAuthStates")
-      .doc(state)
-      .set({
-        organizerId,
+const createdAt = Date.now();
 
-        createdAt: Date.now(),
+// El enlace tendrá una vigencia de 24 horas.
+const expiresAt = createdAt + 24 * 60 * 60 * 1000;
 
-        used: false,
-      });
+// Guardamos el estado asociado al organizador.
+await db
+  .collection("mercadoPagoOAuthStates")
+  .doc(state)
+  .set({
+    organizerId,
+    createdAt,
+    expiresAt,
+    used: false,
+  });
 
     const authUrl = new URL(
       "https://auth.mercadopago.com/authorization"

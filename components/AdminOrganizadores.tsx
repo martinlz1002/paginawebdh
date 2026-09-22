@@ -45,6 +45,9 @@ export default function AdminOrganizadores() {
   const [enlacesStripe, setEnlacesStripe] =
     useState<Record<string, string>>({});
 
+  const [enlacesMercadoPago, setEnlacesMercadoPago] =
+    useState<Record<string, string>>({});
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -443,8 +446,13 @@ const generarEnlaceMercadoPago = async (
       );
     }
 
-    // Redirigir al administrador a Mercado Pago.
-    window.location.href = data.url;
+    // Guardar el enlace para compartirlo con el organizador.
+    setEnlacesMercadoPago((prev) => ({
+      ...prev,
+      [organizador.id]: data.url,
+    }));
+
+    setSuccess(`Enlace de Mercado Pago generado para ${organizador.nombre}. Ya puedes copiarlo y enviárselo.`);
 
   } catch (err: any) {
     console.error(
@@ -461,6 +469,19 @@ const generarEnlaceMercadoPago = async (
     setGenerandoLinkId(null);
   }
 };
+
+  const copiarEnlaceMercadoPago = async (organizerId: string) => {
+    const url = enlacesMercadoPago[organizerId];
+    if (!url) return;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setError("");
+      setSuccess("Enlace de Mercado Pago copiado al portapapeles.");
+    } catch (err) {
+      setError("No fue posible copiar el enlace automáticamente. Puedes seleccionarlo y copiarlo manualmente.");
+    }
+  };
 
   // ============================================================
   // COPIAR ENLACE
@@ -890,6 +911,30 @@ const estado = esMercadoPago
       : "Vincular cuenta de Mercado Pago"}
   </button>
 )}
+
+  {esMercadoPago && enlacesMercadoPago[organizador.id] && (
+    <div className="mt-5 rounded-xl border border-[#009EE3]/20 bg-[#009EE3]/5 p-4">
+      <p className="text-sm font-bold text-white">Enlace para vincular Mercado Pago</p>
+      <p className="mt-1 text-xs text-white/50">
+        Envíale este enlace a {organizador.nombre}. El organizador debe abrirlo e iniciar sesión en su propia cuenta de Mercado Pago para autorizar la conexión.
+      </p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+        <input
+          type="text"
+          readOnly
+          value={enlacesMercadoPago[organizador.id]}
+          onFocus={(e) => e.target.select()}
+          className="min-w-0 flex-1 rounded-xl border border-white/10 bg-black/20 px-4 py-3 font-mono text-xs text-white/70 outline-none"
+        />
+        <button
+          type="button"
+          onClick={() => copiarEnlaceMercadoPago(organizador.id)}
+          className="rounded-xl bg-[#009EE3] px-5 py-3 text-sm font-bold text-white"
+        >📋 Copiar enlace</button>
+      </div>
+      <p className="mt-2 text-xs text-yellow-300">No completes la autorización con tu propia cuenta si el enlace es para un organizador externo.</p>
+    </div>
+  )}
 
   {/* ======================================== */}
   {/* BOTONES STRIPE */}

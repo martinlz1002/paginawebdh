@@ -5,7 +5,7 @@ import type {
 
 import * as admin from "firebase-admin";
 
-function regresarAdmin(
+function regresarResultado(
   res: NextApiResponse,
   resultado: string
 ) {
@@ -15,7 +15,7 @@ function regresarAdmin(
 
   return res.redirect(
     302,
-    `${baseUrl}/admin?mercadopago=${encodeURIComponent(
+    `${baseUrl}/mercadopago/vinculado?estado=${encodeURIComponent(
       resultado
     )}`
   );
@@ -39,7 +39,7 @@ export default async function handler(
     } = req.query;
 
     if (error) {
-      return regresarAdmin(
+      return regresarResultado(
         res,
         "authorization_denied"
       );
@@ -49,7 +49,7 @@ export default async function handler(
       typeof code !== "string" ||
       typeof state !== "string"
     ) {
-      return regresarAdmin(
+      return regresarResultado(
         res,
         "invalid_callback"
       );
@@ -99,18 +99,23 @@ export default async function handler(
           );
         }
 
-        const age =
-          Date.now() - data.createdAt;
+        const now = Date.now();
 
-        // El enlace de autorización expira en 15 minutos.
-        if (
-          age < 0 ||
-          age > 15 * 60 * 1000
-        ) {
-          throw new Error(
-            "El enlace OAuth expiró. Genera uno nuevo."
-          );
-        }
+// Compatibilidad con estados antiguos que no tienen expiresAt.
+const expiresAt =
+  typeof data.expiresAt === "number"
+    ? data.expiresAt
+    : data.createdAt + 15 * 60 * 1000;
+
+if (
+  typeof data.createdAt !== "number" ||
+  now < data.createdAt ||
+  now > expiresAt
+) {
+  throw new Error(
+    "El enlace OAuth expiró. Solicita uno nuevo a DHTime."
+  );
+}
 
         tx.update(stateRef, {
           used: true,
@@ -224,7 +229,7 @@ export default async function handler(
           .serverTimestamp(),
     });
 
-    return regresarAdmin(
+    return regresarResultado(
       res,
       "connected"
     );
@@ -235,7 +240,7 @@ export default async function handler(
       error
     );
 
-    return regresarAdmin(
+    return regresarResultado(
       res,
       "error"
     );
