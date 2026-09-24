@@ -109,6 +109,7 @@ export default function InscribirsePage() {
   const auth = getAuth(app);
 
   const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [carrera, setCarrera] = useState<CarreraFull | null>(null);
 
   const [perfiles, setPerfiles] = useState<Perfil[]>([]);
@@ -152,7 +153,10 @@ export default function InscribirsePage() {
 
   // Auth listener
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setAuthReady(true);
+    });
     return () => unsub();
   }, [auth]);
 
@@ -549,7 +553,98 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
           </div>
         </div>
 
-        {/* STEPS */}
+        {!authReady ? (
+          <div className="rounded-2xl border border-dh-purple/10 bg-white/5 p-8 text-center">
+            <p className="font-semibold text-dh-ink">Verificando tu sesión…</p>
+          </div>
+        ) : !user ? (
+          /* VISITANTE SIN SESIÓN */
+          <div className="grid lg:grid-cols-3 gap-8 items-start">
+            <div className="lg:col-span-2 space-y-6">
+              <div className="rounded-2xl border border-dh-purple/15 bg-dh-purple/5 p-6 sm:p-8">
+                <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full bg-dh-purple/10 text-dh-purple">
+                  <UserIcon className="h-6 w-6" />
+                </div>
+                <h2 className="text-2xl font-extrabold text-dh-ink">
+                  ¡Prepárate para la carrera!
+                </h2>
+                <p className="mt-3 max-w-2xl text-dh-muted">
+                  Para inscribirte en <strong>{carrera.titulo}</strong>, primero necesitas una cuenta DHTime.
+                  Crea tu cuenta gratis y después podrás seleccionar tu perfil, distancia y categoría para completar tu inscripción.
+                </p>
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <Link
+                    href={`/signup?redirect=${encodeURIComponent(router.asPath)}`}
+                    className="inline-flex items-center justify-center rounded-xl bg-dh-purple px-6 py-3 font-extrabold text-white shadow-sm transition hover:opacity-90"
+                  >
+                    Crear cuenta y continuar
+                  </Link>
+                  <Link
+                    href={`/login?redirect=${encodeURIComponent(router.asPath)}`}
+                    className="inline-flex items-center justify-center rounded-xl border border-dh-purple/20 px-6 py-3 font-bold text-dh-ink transition hover:bg-dh-purple/5"
+                  >
+                    Ya tengo cuenta · Iniciar sesión
+                  </Link>
+                </div>
+                <p className="mt-3 text-xs text-dh-muted">
+                  ¿Ya tienes cuenta? Inicia sesión para continuar con tu inscripción.
+                </p>
+              </div>
+
+              <div className="card p-6">
+                <h3 className="text-lg font-extrabold text-dh-ink">Información de la carrera</h3>
+                <div className="mt-4 grid sm:grid-cols-2 gap-3 text-sm text-dh-muted">
+                  <div className="flex items-start gap-2">
+                    <CalendarIcon className="mt-0.5 h-5 w-5 shrink-0 text-dh-purple" />
+                    <span><strong className="text-dh-ink">Fecha:</strong> {fechaEvento}</span>
+                  </div>
+                  {carrera.lugar && (
+                    <div className="flex items-start gap-2">
+                      <MapPinIcon className="mt-0.5 h-5 w-5 shrink-0 text-dh-purple" />
+                      <span><strong className="text-dh-ink">Lugar:</strong> {carrera.lugar}</span>
+                    </div>
+                  )}
+                  {carrera.horaSalida && (
+                    <div className="flex items-start gap-2">
+                      <TicketIcon className="mt-0.5 h-5 w-5 shrink-0 text-dh-purple" />
+                      <span><strong className="text-dh-ink">Salida:</strong> {carrera.horaSalida}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <aside className="card p-6 space-y-4">
+              <h3 className="font-extrabold text-dh-ink">Distancias y categorías</h3>
+              {distancias.length ? (
+                <div className="space-y-4">
+                  {distancias.map((d: any, index: number) => (
+                    <div key={`${d.distancia}-${index}`} className="border-b border-dh-purple/10 pb-3 last:border-0 last:pb-0">
+                      <p className="font-bold text-dh-ink">{d.distancia}</p>
+                      {Array.isArray(d.categorias) && d.categorias.length > 0 ? (
+                        <ul className="mt-2 space-y-1.5 text-sm text-dh-muted">
+                          {d.categorias.map((cat: any, catIndex: number) => (
+                            <li key={`${cat.nombre}-${catIndex}`} className="flex justify-between gap-3">
+                              <span>{cat.nombre}</span>
+                              <span className="shrink-0 font-semibold text-dh-purple">${cat.price ?? "Por definir"}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="mt-1 text-sm text-dh-muted">Categorías por confirmar</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-dh-muted">Próximamente se publicarán las distancias.</p>
+              )}
+              <div className="rounded-xl bg-dh-soft p-3 text-xs text-dh-muted">
+                Los precios mostrados corresponden a la categoría. El total final se confirma durante el proceso de pago.
+              </div>
+            </aside>
+          </div>
+        ) : (
         <div className="grid lg:grid-cols-3 gap-10">
 
           {/* LEFT */}
@@ -707,6 +802,7 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
             )}
           </div>
         </div>
+        )}
       </div>
     </div>
   </div>
