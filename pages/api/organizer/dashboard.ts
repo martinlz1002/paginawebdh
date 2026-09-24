@@ -26,6 +26,7 @@ type Inscripcion = {
   pais?: string | null;
   club?: string | null;
   paymentStatus?: string | null;
+  monto: number;
   timestamp?: string | null;
 };
 
@@ -42,6 +43,11 @@ type Carrera = {
   pendientes: number;
   manuales: number;
   inscripciones: Inscripcion[];
+    cancelados: number;
+  ingresosPagados: number;
+  ingresosPendientes: number;
+  ingresosManuales: number;
+  importeCancelado: number;
 };
 
 type ResponseData =
@@ -58,6 +64,11 @@ type ResponseData =
         inscritos: number;
         pagados: number;
         pendientes: number;
+          cancelados: number;
+  ingresosPagados: number;
+  ingresosPendientes: number;
+  ingresosManuales: number;
+  importeCancelado: number;
       };
     }
   | {
@@ -86,6 +97,45 @@ function serializeTimestamp(value: any): string | null {
 function clean(value: any): string | null {
   if (value === undefined || value === null) return null;
   return String(value);
+}
+
+function obtenerMontoInscripcion(
+  carrera: any,
+  inscripcion: any
+): number {
+  const distancias = Array.isArray(carrera.distancias)
+    ? carrera.distancias
+    : [];
+
+  const distanciaBuscada = String(
+    inscripcion.distancia || inscripcion.ruta || ""
+  ).trim().toLowerCase();
+
+  const categoriaBuscada = String(
+    inscripcion.categoria || ""
+  ).trim().toLowerCase();
+
+  const distancia = distancias.find(
+    (d: any) =>
+      String(d.distancia || "").trim().toLowerCase() ===
+      distanciaBuscada
+  );
+
+  if (!distancia) return 0;
+
+  const categoria = (distancia.categorias || []).find(
+    (cat: any) =>
+      String(cat.nombre || "").trim().toLowerCase() ===
+      categoriaBuscada
+  );
+
+  if (!categoria) return 0;
+
+  const precio = Number(categoria.price);
+
+  return Number.isFinite(precio) && precio > 0
+    ? precio
+    : 0;
 }
 
 export default async function handler(
@@ -154,21 +204,47 @@ export default async function handler(
             pais: clean(i.pais),
             club: clean(i.club),
             paymentStatus: clean(i.paymentStatus),
+            monto: obtenerMontoInscripcion(c, i),
             timestamp: serializeTimestamp(i.timestamp),
           };
         });
 
-      const pagados = inscripciones.filter(
-        (i) => i.paymentStatus === "paid"
-      ).length;
+      const esPagado = (i: Inscripcion) =>
+  ["paid", "approved"].includes(
+    String(i.paymentStatus || "").toLowerCase()
+  );
 
-      const pendientes = inscripciones.filter(
-        (i) => i.paymentStatus === "pending"
-      ).length;
+const esPendiente = (i: Inscripcion) =>
+  String(i.paymentStatus || "").toLowerCase() === "pending";
 
-      const manuales = inscripciones.filter(
-        (i) => i.paymentStatus === "manual"
-      ).length;
+const esManual = (i: Inscripcion) =>
+  String(i.paymentStatus || "").toLowerCase() === "manual";
+
+const esCancelado = (i: Inscripcion) =>
+  ["cancelled", "canceled", "cancelado", "cancelada"].includes(
+    String(i.paymentStatus || "").toLowerCase()
+  );
+
+const pagados = inscripciones.filter(esPagado).length;
+const pendientes = inscripciones.filter(esPendiente).length;
+const manuales = inscripciones.filter(esManual).length;
+const cancelados = inscripciones.filter(esCancelado).length;
+
+const ingresosPagados = inscripciones
+  .filter(esPagado)
+  .reduce((total, i) => total + i.monto, 0);
+
+const ingresosPendientes = inscripciones
+  .filter(esPendiente)
+  .reduce((total, i) => total + i.monto, 0);
+
+const ingresosManuales = inscripciones
+  .filter(esManual)
+  .reduce((total, i) => total + i.monto, 0);
+
+const importeCancelado = inscripciones
+  .filter(esCancelado)
+  .reduce((total, i) => total + i.monto, 0);
 
       carreras.push({
         id: carreraDoc.id,
@@ -184,6 +260,11 @@ export default async function handler(
         pendientes,
         manuales,
         inscripciones,
+        cancelados,
+ingresosPagados,
+ingresosPendientes,
+ingresosManuales,
+importeCancelado,
       });
     }
 
@@ -195,20 +276,32 @@ export default async function handler(
     );
 
     const stats = carreras.reduce(
-      (acc, carrera) => {
-        acc.carreras += 1;
-        acc.inscritos += carrera.totalInscritos;
-        acc.pagados += carrera.pagados;
-        acc.pendientes += carrera.pendientes;
-        return acc;
-      },
-      {
-        carreras: 0,
-        inscritos: 0,
-        pagados: 0,
-        pendientes: 0,
-      }
-    );
+  (acc, carrera) => {
+    acc.carreras += 1;
+    acc.inscritos += carrera.totalInscritos;
+    acc.pagados += carrera.pagados;
+    acc.pendientes += carrera.pendientes;
+    acc.cancelados += carrera.cancelados;
+
+    acc.ingresosPagados += carrera.ingresosPagados;
+    acc.ingresosPendientes += carrera.ingresosPendientes;
+    acc.ingresosManuales += carrera.ingresosManuales;
+    acc.importeCancelado += carrera.importeCancelado;
+
+    return acc;
+  },
+  {
+    carreras: 0,
+    inscritos: 0,
+    pagados: 0,
+    pendientes: 0,
+    cancelados: 0,
+    ingresosPagados: 0,
+    ingresosPendientes: 0,
+    ingresosManuales: 0,
+    importeCancelado: 0,
+  }
+);
 
     const organizerData =
   organizer as Record<string, any>;

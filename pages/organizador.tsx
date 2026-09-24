@@ -35,6 +35,7 @@ type Inscripcion = {
   pais?: string | null;
   club?: string | null;
   paymentStatus?: string | null;
+  monto: number;
   timestamp?: string | null;
 };
 
@@ -50,6 +51,11 @@ type Carrera = {
   pagados: number;
   pendientes: number;
   manuales: number;
+  cancelados: number;
+  ingresosPagados: number;
+  ingresosPendientes: number;
+  ingresosManuales: number;
+  importeCancelado: number;
   inscripciones: Inscripcion[];
 };
 
@@ -65,6 +71,11 @@ type DashboardData = {
     inscritos: number;
     pagados: number;
     pendientes: number;
+    cancelados: number;
+    ingresosPagados: number;
+    ingresosPendientes: number;
+    ingresosManuales: number;
+    importeCancelado: number;
   };
 };
 
@@ -93,6 +104,20 @@ function fechaBonita(value?: string | null) {
     : date.toLocaleDateString("es-MX");
 }
 
+function moneda(value?: number | null) {
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "MXN",
+    minimumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+function esCancelado(value?: string | null) {
+  return ["cancelled", "canceled", "cancelado", "cancelada"].includes(
+    String(value || "").toLowerCase()
+  );
+}
+
 function fechaRegistro(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -115,6 +140,13 @@ function estadoLabel(value?: string | null) {
       return "Fallido";
     case "unpaid":
       return "No pagado";
+    case "cancelled":
+    case "canceled":
+    case "cancelado":
+    case "cancelada":
+      return "Cancelado";
+    case "approved":
+      return "Pagado";
     default:
       return value || "Desconocido";
   }
@@ -131,7 +163,13 @@ function estadoClass(value?: string | null) {
     case "expired":
     case "failed":
     case "unpaid":
+    case "cancelled":
+    case "canceled":
+    case "cancelado":
+    case "cancelada":
       return "bg-red-500/15 text-red-300 border-red-500/20";
+    case "approved":
+      return "bg-green-500/15 text-green-300 border-green-500/20";
     default:
       return "bg-white/5 text-white/60 border-white/10";
   }
@@ -240,7 +278,9 @@ export default function OrganizadorPage() {
       (i) => {
         if (
           status !== "all" &&
-          (i.paymentStatus || "") !== status
+          (status === "cancelled"
+            ? !esCancelado(i.paymentStatus)
+            : (i.paymentStatus || "") !== status)
         ) {
           return false;
         }
@@ -286,6 +326,7 @@ export default function OrganizadorPage() {
       i.categoria ?? "",
       i.email ?? "",
       i.celular ?? "",
+      moneda(i.monto),
       i.club ?? "",
       i.ciudad ?? "",
       i.estado ?? "",
@@ -301,6 +342,7 @@ export default function OrganizadorPage() {
       "Categoría",
       "Email",
       "Celular",
+      "Importe (MXN)",
       "Club",
       "Ciudad",
       "Estado",
@@ -414,6 +456,26 @@ export default function OrganizadorPage() {
                   value={data.stats.pendientes}
                   icon={<ClockIcon className="w-6 h-6" />}
                 />
+                <StatCard
+                  label="Ingresos pagados"
+                  value={moneda(data.stats.ingresosPagados)}
+                  icon={<CheckCircleIcon className="w-6 h-6" />}
+                />
+                <StatCard
+                  label="Dinero pendiente"
+                  value={moneda(data.stats.ingresosPendientes)}
+                  icon={<ClockIcon className="w-6 h-6" />}
+                />
+                <StatCard
+                  label="Importe cancelado"
+                  value={moneda(data.stats.importeCancelado)}
+                  icon={<XCircleIcon className="w-6 h-6" />}
+                />
+                <StatCard
+                  label="Pagos manuales"
+                  value={moneda(data.stats.ingresosManuales)}
+                  icon={<UsersIcon className="w-6 h-6" />}
+                />
               </div>
 
               <section className="rounded-3xl border border-white/10 bg-[#16161d] overflow-hidden">
@@ -483,12 +545,16 @@ export default function OrganizadorPage() {
                               <Badge
                                 label={`${carrera.pagados} pagados`}
                               />
-                              {carrera.pendientes >
-                                0 && (
+                              {carrera.pendientes > 0 && (
                                 <Badge
                                   label={`${carrera.pendientes} pendientes`}
                                   warning
                                 />
+                              )}
+                              <Badge label={`Pagado: ${moneda(carrera.ingresosPagados)}`} />
+                              <Badge label={`Pendiente: ${moneda(carrera.ingresosPendientes)}`} warning />
+                              {carrera.cancelados > 0 && (
+                                <Badge label={`Cancelado: ${moneda(carrera.importeCancelado)}`} />
                               )}
                             </div>
                           </div>
@@ -511,6 +577,13 @@ export default function OrganizadorPage() {
                           {carreraSeleccionada.totalInscritos}{" "}
                           inscripciones
                         </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 w-full">
+                        <MiniFinanceCard label="Ingresos pagados" value={moneda(carreraSeleccionada.ingresosPagados)} />
+                        <MiniFinanceCard label="Dinero pendiente" value={moneda(carreraSeleccionada.ingresosPendientes)} />
+                        <MiniFinanceCard label="Pagos manuales" value={moneda(carreraSeleccionada.ingresosManuales)} />
+                        <MiniFinanceCard label="Importe cancelado" value={moneda(carreraSeleccionada.importeCancelado)} />
                       </div>
 
                       <div className="flex flex-col sm:flex-row gap-3">
@@ -540,6 +613,9 @@ export default function OrganizadorPage() {
                           </option>
                           <option value="failed">
                             Fallidos
+                          </option>
+                          <option value="cancelled">
+                            Cancelados
                           </option>
                         </select>
 
@@ -596,6 +672,9 @@ export default function OrganizadorPage() {
                               Celular
                             </th>
                             <th className="p-4 text-left">
+                              Importe
+                            </th>
+                            <th className="p-4 text-left">
                               Club
                             </th>
                             <th className="p-4 text-left">
@@ -644,6 +723,10 @@ export default function OrganizadorPage() {
                                 {i.celular || "—"}
                               </td>
 
+                              <td className="p-4 font-bold whitespace-nowrap">
+                                {moneda(i.monto)}
+                              </td>
+
                               <td className="p-4">
                                 {i.club || "—"}
                               </td>
@@ -687,7 +770,7 @@ function StatCard({
   icon,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   icon: React.ReactNode;
 }) {
   return (
@@ -703,6 +786,21 @@ function StatCard({
       <div className="text-3xl font-black mt-3">
         {value}
       </div>
+    </div>
+  );
+}
+
+function MiniFinanceCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#141418] p-4">
+      <p className="text-xs text-white/45">{label}</p>
+      <p className="mt-2 text-lg sm:text-xl font-black break-words">{value}</p>
     </div>
   );
 }
