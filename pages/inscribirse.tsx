@@ -119,6 +119,9 @@ export default function InscribirsePage() {
   const [categoriasPermitidas, setCategoriasPermitidas] = useState<Categoria[]>([]);
   const [categoria, setCategoria] = useState("");
 
+  const [tallaPlayera, setTallaPlayera] = useState("");
+  const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
+
   const [edadPerfil, setEdadPerfil] = useState(0);
   const [mensaje, setMensaje] = useState("");
   const [procesando, setProcesando] = useState(false);
@@ -310,6 +313,20 @@ export default function InscribirsePage() {
     return setMensaje("Completa todos los campos.");
   }
 
+    if (!tallaPlayera) {
+    return setMensaje("Selecciona una talla de playera.");
+  }
+
+  if (!telefonoEmergencia) {
+    return setMensaje("Ingresa un número de emergencia.");
+  }
+
+  if (telefonoEmergencia.length !== 10) {
+    return setMensaje(
+      "El número de emergencia debe tener 10 dígitos."
+    );
+  }
+
   const perfil = perfiles.find((p) => p.id === perfilId);
   if (!perfil) return setMensaje("Perfil inválido.");
 
@@ -470,6 +487,9 @@ if (!attemptId) {
       ciudad: perfil.ciudad,
       celular: perfil.celular,
       club: perfil.club,
+
+       tallaPlayera,
+       telefonoEmergencia,
 
       fechaNacimiento: perfil.birthDate,
       email: perfil.email,
@@ -645,163 +665,293 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
             </aside>
           </div>
         ) : (
-        <div className="grid lg:grid-cols-3 gap-10">
+        <div className="space-y-10">
 
-          {/* LEFT */}
-          <div className="lg:col-span-2 space-y-8">
+  {/* PERFIL */}
+  <div className="space-y-3">
+    <h2 className="text-xl font-bold text-dh-ink">
+      1. Selecciona Perfil
+    </h2>
 
-            {/* PERFIL */}
-            <div className="space-y-3">
-              <h2 className="text-xl font-bold text-dh-ink">
-                1. Selecciona Perfil
-              </h2>
-
-              <div className="grid sm:grid-cols-2 gap-4">
-                {perfiles.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setPerfilId(p.id)}
-                    className={`p-5 rounded-2xl border transition text-left ${
-                      perfilId === p.id
-                        ? "border-dh-purple bg-dh-purple/5"
-                        : "border-dh-border hover:border-dh-purple/40"
-                    }`}
-                  >
-                    <div className="font-bold">
-                      {p.nombre} {p.apellidoPaterno}
-                    </div>
-                    <div className="text-sm text-dh-muted">
-                      {p.email}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* DISTANCIA */}
-            {perfilId && (
-              <div className="space-y-3">
-                <h2 className="text-xl font-bold text-dh-ink">
-                  2. Selecciona Distancia
-                </h2>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  {distancias.map((d: any) => (
-                    <button
-                      key={d.distancia}
-                      onClick={() => setDistancia(d.distancia)}
-                      className={`p-6 rounded-2xl border transition ${
-                        distancia === d.distancia
-                          ? "border-dh-purple bg-dh-purple/5"
-                          : "border-dh-border hover:border-dh-purple/40"
-                      }`}
-                    >
-                      <div className="text-lg font-bold">
-                        {d.distancia}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* CATEGORIA */}
-            {distancia && (
-              <div className="space-y-3">
-                <h2 className="text-xl font-bold text-dh-ink">
-                  3. Selecciona Categoría
-                </h2>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  {categoriasPermitidas.map((cat) => (
-                    <button
-                      key={cat.nombre}
-                      onClick={() => setCategoria(cat.nombre)}
-                      className={`p-6 rounded-2xl border transition text-left ${
-                        categoria === cat.nombre
-                          ? "border-dh-purple bg-dh-purple/5"
-                          : "border-dh-border hover:border-dh-purple/40"
-                      }`}
-                    >
-                      <div className="font-bold">{cat.nombre}</div>
-                      <div className="text-sm text-dh-muted">
-                        {cat.minAge}-{cat.maxAge} años
-                      </div>
-                      <div className="text-xl font-extrabold mt-2 text-dh-purple">
-                        ${cat.price}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
+    <div className="grid sm:grid-cols-2 gap-4">
+      {perfiles.map((p) => (
+        <button
+          key={p.id}
+          onClick={() => setPerfilId(p.id)}
+          className={`p-5 rounded-2xl border transition text-left ${
+            perfilId === p.id
+              ? "border-dh-purple bg-dh-purple/5"
+              : "border-dh-border hover:border-dh-purple/40"
+          }`}
+        >
+          <div className="font-bold">
+            {p.nombre} {p.apellidoPaterno}
           </div>
 
-          {/* RIGHT RESUMEN */}
-          <div className="space-y-6">
+          <div className="text-sm text-dh-muted">
+            {p.email}
+          </div>
+        </button>
+      ))}
+    </div>
+  </div>
 
-            <div className="card p-6 space-y-4">
-              <h3 className="font-extrabold text-dh-ink">
-                Resumen
-              </h3>
 
-              <div className="text-sm space-y-2 text-dh-muted">
-                <div>
-                  <span className="font-semibold text-dh-ink">Perfil:</span>{" "}
-                  {perfilSeleccionado
-                    ? `${perfilSeleccionado.nombre} ${perfilSeleccionado.apellidoPaterno}`
-                    : "—"}
-                </div>
+  {/* DISTANCIA */}
+  {perfilId && (
+    <div className="space-y-3">
+      <h2 className="text-xl font-bold text-dh-ink">
+        2. Selecciona Distancia
+      </h2>
 
-                <div>
-                  <span className="font-semibold text-dh-ink">Distancia:</span>{" "}
-                  {distancia || "—"}
-                </div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        {distancias.map((d: any) => (
+          <button
+            key={d.distancia}
+            onClick={() => setDistancia(d.distancia)}
+            className={`p-6 rounded-2xl border transition ${
+              distancia === d.distancia
+                ? "border-dh-purple bg-dh-purple/5"
+                : "border-dh-border hover:border-dh-purple/40"
+            }`}
+          >
+            <div className="text-lg font-bold">
+              {d.distancia}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
 
-                <div>
-                  <span className="font-semibold text-dh-ink">Categoría:</span>{" "}
-                  {categoria || "—"}
-                </div>
 
-                {categoria && (
-                  <div className="pt-2 text-lg font-extrabold text-dh-purple">
-                    $
-                    {categoriasPermitidas.find(
-                      (c) => c.nombre === categoria
-                    )?.price ?? 0}
-                  </div>
-                )}
-              </div>
+  {/* CATEGORIA */}
+  {distancia && (
+    <div className="space-y-3">
+      <h2 className="text-xl font-bold text-dh-ink">
+        3. Selecciona Categoría
+      </h2>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        {categoriasPermitidas.map((cat) => (
+          <button
+            key={cat.nombre}
+            onClick={() => setCategoria(cat.nombre)}
+            className={`p-6 rounded-2xl border transition text-left ${
+              categoria === cat.nombre
+                ? "border-dh-purple bg-dh-purple/5"
+                : "border-dh-border hover:border-dh-purple/40"
+            }`}
+          >
+            <div className="font-bold">
+              {cat.nombre}
             </div>
 
-            <button
-              onClick={handlePagar}
-              disabled={
-                carreraFinalizada ||
-                !abiertas ||
-                !perfilId ||
-                !distancia ||
-                !categoria ||
-                procesando ||
-                (ramaPendiente && !ramaManual)
-              }
-              className={`w-full py-4 rounded-2xl font-extrabold transition ${
-                perfilId && distancia && categoria
-                  ? "bg-dh-purple text-dh-dark hover:opacity-95"
-                  : "bg-gray-300 text-gray-600 cursor-not-allowed"
-              }`}
-            >
-              {procesando ? "Procesando..." : "Inscribirme y Pagar"}
-            </button>
+            <div className="text-sm text-dh-muted">
+              {cat.minAge}-{cat.maxAge} años
+            </div>
 
-            {mensaje && (
-              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                {mensaje}
-              </div>
-            )}
+            <div className="text-xl font-extrabold mt-2 text-dh-purple">
+              ${cat.price}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )}
+
+
+  {/* DATOS ADICIONALES */}
+  {categoria && (
+    <div className="space-y-5">
+      <h2 className="text-xl font-bold text-dh-ink">
+        4. Datos adicionales
+      </h2>
+
+      <div className="grid md:grid-cols-2 gap-6">
+
+        {/* TALLA */}
+        <div className="rounded-2xl border border-dh-purple/15 bg-dh-purple/5 p-5">
+          <label className={labelBase}>
+            Talla de playera
+          </label>
+
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {["XS", "S", "M", "L", "XL", "XXL"].map((talla) => (
+              <button
+                key={talla}
+                type="button"
+                onClick={() => setTallaPlayera(talla)}
+                className={`rounded-xl border px-3 py-3 font-bold transition ${
+                  tallaPlayera === talla
+                    ? "border-dh-purple bg-dh-purple text-white shadow-md"
+    : "border-dh-purple/20 bg-white text-gray-900 hover:border-dh-purple hover:bg-dh-purple/5"
+                }`}
+              >
+                {talla}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 rounded-xl bg-white/70 p-3 text-xs text-gray-600">
+            <strong>Importante:</strong> esta talla se solicita
+            únicamente con fines estadísticos para calcular la cantidad
+            de playeras necesarias. La talla seleccionada{" "}
+            <strong>no garantiza</strong> que se entregue esa talla
+            durante el evento.
           </div>
         </div>
+
+
+        {/* TELÉFONO DE EMERGENCIA */}
+        <div className="rounded-2xl border border-dh-purple/15 bg-dh-purple/5 p-5">
+          <label className={labelBase}>
+            Número de emergencia
+          </label>
+
+          <input
+            type="tel"
+            inputMode="numeric"
+            maxLength={10}
+            value={telefonoEmergencia}
+            onChange={(e) =>
+              setTelefonoEmergencia(
+                e.target.value.replace(/\D/g, "").slice(0, 10)
+              )
+            }
+            placeholder="Ej. 6681234567"
+            className="w-full rounded-xl border border-dh-purple/20 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
+          />
+
+          <p className="mt-3 text-xs text-dh-muted">
+            Número telefónico de una persona a la que podamos contactar
+            en caso de emergencia durante el evento.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  )}
+
+          {/* RESUMEN */}
+<div className="grid lg:grid-cols-2 gap-6 items-stretch">
+
+  <div className="card p-6">
+    <h3 className="text-xl font-extrabold text-dh-ink mb-5">
+      Resumen de inscripción
+    </h3>
+
+    <div className="grid sm:grid-cols-2 gap-4 text-sm">
+
+      <div>
+        <span className="font-semibold text-dh-ink">
+          Perfil
+        </span>
+        <p className="text-dh-muted mt-1">
+          {perfilSeleccionado
+            ? `${perfilSeleccionado.nombre} ${perfilSeleccionado.apellidoPaterno}`
+            : "—"}
+        </p>
+      </div>
+
+      <div>
+        <span className="font-semibold text-dh-ink">
+          Distancia
+        </span>
+        <p className="text-dh-muted mt-1">
+          {distancia || "—"}
+        </p>
+      </div>
+
+      <div>
+        <span className="font-semibold text-dh-ink">
+          Categoría
+        </span>
+        <p className="text-dh-muted mt-1">
+          {categoria || "—"}
+        </p>
+      </div>
+
+      <div>
+        <span className="font-semibold text-dh-ink">
+          Talla de playera
+        </span>
+        <p className="text-dh-muted mt-1">
+          {tallaPlayera || "—"}
+        </p>
+      </div>
+
+      <div className="sm:col-span-2">
+        <span className="font-semibold text-dh-ink">
+          Número de emergencia
+        </span>
+        <p className="text-dh-muted mt-1">
+          {telefonoEmergencia || "—"}
+        </p>
+      </div>
+
+    </div>
+  </div>
+
+  {/* TOTAL Y BOTÓN */}
+  <div className="card p-6 flex flex-col justify-between">
+
+    <div>
+      <p className="text-sm text-dh-muted">
+        Precio de inscripción
+      </p>
+
+      <p className="mt-1 text-4xl font-extrabold text-dh-purple">
+        $
+        {categoriasPermitidas.find(
+          (c) => c.nombre === categoria
+        )?.price ?? 0}
+      </p>
+
+      <p className="mt-2 text-xs text-dh-muted">
+        El total final se confirma durante el proceso de pago.
+      </p>
+    </div>
+
+    <button
+      onClick={handlePagar}
+      disabled={
+        carreraFinalizada ||
+        !abiertas ||
+        !perfilId ||
+        !distancia ||
+        !categoria ||
+        !tallaPlayera ||
+        telefonoEmergencia.length !== 10 ||
+        procesando ||
+        (ramaPendiente && !ramaManual)
+      }
+      className={`mt-6 w-full py-4 rounded-2xl font-extrabold transition ${
+        perfilId &&
+        distancia &&
+        categoria &&
+        tallaPlayera &&
+        telefonoEmergencia.length === 10
+          ? "bg-dh-purple text-white hover:opacity-95"
+          : "bg-gray-300 text-gray-600 cursor-not-allowed"
+      }`}
+    >
+      {procesando
+        ? "Procesando..."
+        : "Inscribirme y Pagar"}
+    </button>
+
+    {mensaje && (
+      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        {mensaje}
+      </div>
+    )}
+
+  </div>
+
+  </div>
+
+  </div>
         )}
       </div>
     </div>

@@ -60,6 +60,9 @@
     celular?: string;
     club?: string;
 
+    tallaPlayera?: string;
+    telefonoEmergencia?: string;
+
     fechaNacimiento: Date;
     email: string;
   }
@@ -157,6 +160,9 @@ if (
         celular: data.celular || null,
         club: data.club || null,
 
+        tallaPlayera: data.tallaPlayera || null,
+        telefonoEmergencia: data.telefonoEmergencia || null,
+
         fechaNacimiento: Timestamp.fromDate(
           data.fechaNacimiento
         ),
@@ -194,6 +200,9 @@ if (
     celular: string;
     club?: string;
 
+    tallaPlayera?: string;
+    telefonoEmergencia?: string;
+
     fechaNacimiento: Date;
     email: string;
   }
@@ -228,6 +237,9 @@ if (
       ciudad: data.ciudad || null,
       celular: data.celular || null,
       club: data.club || null,
+
+      tallaPlayera: data.tallaPlayera || null,
+      telefonoEmergencia: data.telefonoEmergencia || null,
 
       fechaNacimiento: Timestamp.fromDate(data.fechaNacimiento),
       email: data.email || null,
