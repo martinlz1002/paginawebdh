@@ -90,6 +90,9 @@ export default function ManualPage() {
   const [available, setAvailable] = useState<number[]>([]);
   const [numero, setNumero] = useState(0);
 
+  const [tallaPlayera, setTallaPlayera] = useState("");
+const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
+
   const [competidor, setCompetidor] = useState({
     nombre: "",
     apellidoPaterno: "",
@@ -318,10 +321,18 @@ export default function ManualPage() {
       return;
     }
 
-    if (!birthDate || !distancia || !categoria || numero === 0) {
-      setError("Por favor, completa todos los campos obligatorios.");
-      return;
-    }
+    if (
+  !birthDate ||
+  !distancia ||
+  !categoria ||
+  numero === 0 ||
+  !tallaPlayera ||
+  !telefonoEmergencia
+)
+ {
+  setError("Por favor, completa todos los campos obligatorios.");
+  return;
+}
 
     const campos = [
       "nombre",
@@ -374,6 +385,9 @@ export default function ManualPage() {
 
         categoria,
 
+        tallaPlayera,
+  telefonoEmergencia,
+
         email: competidor.email,
         celular: competidor.celular,
         ciudad: competidor.ciudad,
@@ -392,6 +406,10 @@ export default function ManualPage() {
       setBirthDate("");
       setEdad(0);
       setDispCats([]);
+
+      setTallaPlayera("");
+setTelefonoEmergencia("");
+
       setCompetidor({
         nombre: "",
         apellidoPaterno: "",
@@ -734,6 +752,71 @@ export default function ManualPage() {
               </select>
             </div>
           </div>
+
+          {/* Datos adicionales */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+  {/* Talla de playera */}
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      Talla de playera
+    </label>
+
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      {["XS", "S", "M", "L", "XL", "XXL"].map((talla) => (
+        <button
+          key={talla}
+          type="button"
+          onClick={() => setTallaPlayera(talla)}
+          className={`rounded-xl border px-3 py-2.5 font-bold transition ${
+            tallaPlayera === talla
+              ? "border-dh-purple bg-dh-purple text-white shadow-md"
+              : "border-dh-purple/20 bg-white text-gray-900 hover:border-dh-purple hover:bg-dh-purple/5"
+          }`}
+        >
+          {talla}
+        </button>
+      ))}
+    </div>
+
+    <p className="text-xs text-gray-500 mt-2">
+      Esta talla se solicita únicamente con fines estadísticos.
+      No garantiza la entrega de esa talla durante el evento.
+    </p>
+  </div>
+
+
+  {/* Teléfono de emergencia */}
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      Número de emergencia
+    </label>
+
+    <div className="relative">
+      <PhoneIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+
+      <input
+        type="tel"
+        inputMode="numeric"
+        maxLength={10}
+        className={inputBase}
+        placeholder="Ej. 6681234567"
+        value={telefonoEmergencia}
+        onChange={(e) =>
+          setTelefonoEmergencia(
+            e.target.value.replace(/\D/g, "").slice(0, 10)
+          )
+        }
+      />
+    </div>
+
+    <p className="text-xs text-gray-500 mt-2">
+      Número telefónico de una persona a la que podamos contactar
+      en caso de emergencia durante el evento.
+    </p>
+  </div>
+
+</div>
 
           {/* Datos del competidor */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
