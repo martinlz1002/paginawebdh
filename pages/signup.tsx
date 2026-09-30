@@ -237,7 +237,7 @@ export default function RegistroUsuarioPage() {
               value={formData.rama}
               onChange={handleChange}
               required
-              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+              className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
             >
               <option value="">Selecciona Rama</option>
               <option value="Femenil">Femenil</option>
@@ -251,7 +251,7 @@ export default function RegistroUsuarioPage() {
                 value={formData.pais}
                 onChange={handleChange}
                 required
-                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
               >
                 <option value="">País</option>
                 {paises.map((c) => (
@@ -267,7 +267,7 @@ export default function RegistroUsuarioPage() {
                 onChange={handleChange}
                 required
                 disabled={!formData.pais}
-                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
               >
                 <option value="">Estado</option>
                 {estados.map((s) => (
@@ -283,7 +283,7 @@ export default function RegistroUsuarioPage() {
                 onChange={handleChange}
                 required
                 disabled={!formData.estado}
-                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
               >
                 <option value="">Ciudad</option>
                 {ciudades.map((c) => (
