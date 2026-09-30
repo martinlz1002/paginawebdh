@@ -63,10 +63,10 @@ interface UserData {
 ========================================================= */
 
 const inputClass =
-  "w-full bg-white text-gray-900 border border-dh-border rounded-xl px-4 py-3 outline-none transition focus:ring-2 focus:ring-dh-purple/30 focus:border-dh-purple";
+  "w-full bg-[#1f1f24] text-white border border-white/10 rounded-xl px-4 py-3 outline-none transition placeholder:text-gray-400 focus:ring-2 focus:ring-dh-purple/30 focus:border-dh-purple";
 
 const labelClass =
-  "block text-sm font-semibold text-dh-ink mb-2";
+  "block text-sm font-semibold text-gray-200 mb-2";
 
 
 /* =========================================================
@@ -1391,9 +1391,9 @@ export default function PerfilPage() {
   ) {
 
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-[#111116]">
 
-        <p className="text-gray-700 font-medium">
+        <p className="text-gray-200 font-medium">
           Cargando perfil…
         </p>
 
@@ -1429,7 +1429,7 @@ export default function PerfilPage() {
 
     <AuthGuard>
 
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-[#111116]">
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
 
@@ -1446,7 +1446,7 @@ export default function PerfilPage() {
                 CUENTA DH TIME
               </p>
 
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-dh-ink">
+              <h1 className="text-3xl sm:text-4xl font-extrabold text-white">
 
                 Mi{" "}
 
@@ -1456,7 +1456,7 @@ export default function PerfilPage() {
 
               </h1>
 
-              <p className="mt-2 text-dh-muted">
+              <p className="mt-2 text-gray-400">
                 Administra tus datos personales y los perfiles de tus acompañantes.
               </p>
 
@@ -1465,7 +1465,7 @@ export default function PerfilPage() {
 
             <button
               onClick={logout}
-              className="self-start sm:self-auto px-4 py-2 rounded-xl border border-red-200 bg-white text-red-600 font-semibold hover:bg-red-50 transition"
+              className="self-start sm:self-auto px-4 py-2 rounded-xl border border-red-500/30 bg-[#1f1f24] text-red-400 font-semibold hover:bg-red-50 transition"
             >
               Cerrar sesión
             </button>
@@ -1477,7 +1477,7 @@ export default function PerfilPage() {
               SELECTOR
           ================================================= */}
 
-          <div className="card p-5 sm:p-6">
+          <div className="rounded-3xl bg-[#1f1f24] border border-white/10 shadow-xl p-5 sm:p-6">
 
             <div className="flex flex-col lg:flex-row lg:items-end gap-4">
 
@@ -1578,7 +1578,7 @@ export default function PerfilPage() {
               PERFIL
           ================================================= */}
 
-          <div className="relative overflow-hidden rounded-3xl bg-white border border-dh-border shadow-sm">
+          <div className="relative overflow-hidden rounded-3xl bg-[#1f1f24] border border-white/10 shadow-xl">
 
             <div className="h-2 bg-gradient-to-r from-dh-purple via-purple-500 to-dh-purpleLight" />
 
@@ -1607,7 +1607,7 @@ export default function PerfilPage() {
 
                 <div className="flex-1">
 
-                  <p className="text-sm font-semibold text-dh-muted">
+                  <p className="text-sm font-semibold text-gray-400">
 
                     {selectedProfile?.id ===
                     userData.id
@@ -1617,7 +1617,7 @@ export default function PerfilPage() {
                   </p>
 
 
-                  <h2 className="text-2xl sm:text-3xl font-extrabold text-dh-ink">
+                  <h2 className="text-2xl sm:text-3xl font-extrabold text-white">
 
                     {getFullName(
                       selectedProfile
@@ -1632,7 +1632,7 @@ export default function PerfilPage() {
                       className={`px-3 py-1 rounded-full text-xs font-bold ${
                         ramaLabel ===
                         "Pendiente"
-                          ? "bg-red-100 text-red-600"
+                          ? "bg-red-100 text-red-400"
                           : "bg-dh-purple/10 text-dh-purple"
                       }`}
                     >
@@ -1642,7 +1642,7 @@ export default function PerfilPage() {
 
                     {selectedProfile?.tallaPlayera && (
 
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-700">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-white/5 text-gray-200">
 
                         Playera{" "}
                         {
@@ -1657,7 +1657,7 @@ export default function PerfilPage() {
                     {selectedProfile?.id ===
                       userData.id && (
 
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-500/10 text-green-400">
 
                         Cuenta principal
 
@@ -1677,7 +1677,7 @@ export default function PerfilPage() {
                       selectedProfile
                     )
                   }
-                  className="px-4 py-2 rounded-xl border border-dh-border text-dh-purple font-semibold hover:bg-dh-purple/5 transition"
+                  className="px-4 py-2 rounded-xl border border-white/10 text-dh-purple font-semibold hover:bg-dh-purple/5 transition"
                 >
                   Editar
                 </button>
@@ -1692,13 +1692,13 @@ export default function PerfilPage() {
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Nombre completo
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {getFullName(
                       selectedProfile
                     )}
@@ -1707,13 +1707,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Correo electrónico
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink break-all">
+                  <p className="mt-1 font-semibold text-white break-all">
                     {
                       selectedProfile?.email ||
                       "-"
@@ -1723,13 +1723,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Celular
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {
                       selectedProfile?.celular ||
                       "-"
@@ -1739,13 +1739,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Teléfono de emergencia
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {
                       selectedProfile?.telefonoEmergencia ||
                       "-"
@@ -1755,13 +1755,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Fecha de nacimiento
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {
                       selectedProfile?.fechaNacimiento ||
                       "-"
@@ -1771,13 +1771,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Edad
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
 
                     {
                       selectedProfile?.edad != null
@@ -1790,26 +1790,26 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Rama
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {ramaLabel}
                   </p>
 
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Talla de playera
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {
                       selectedProfile?.tallaPlayera ||
                       "-"
@@ -1819,13 +1819,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Club
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
                     {
                       selectedProfile?.club ||
                       "-"
@@ -1835,13 +1835,13 @@ export default function PerfilPage() {
                 </div>
 
 
-                <div className="rounded-2xl bg-gray-50 border border-dh-border p-4 sm:col-span-2 lg:col-span-1">
+                <div className="rounded-2xl bg-[#18181d] border border-white/10 p-4 sm:col-span-2 lg:col-span-1">
 
-                  <p className="text-xs uppercase tracking-wide text-dh-muted">
+                  <p className="text-xs uppercase tracking-wide text-gray-400">
                     Ubicación
                   </p>
 
-                  <p className="mt-1 font-semibold text-dh-ink">
+                  <p className="mt-1 font-semibold text-white">
 
                     {
                       selectedProfile?.ciudad ||
@@ -1866,15 +1866,15 @@ export default function PerfilPage() {
               {ramaLabel ===
                 "Pendiente" && (
 
-                <div className="mt-6 rounded-2xl bg-red-50 border border-red-200 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="mt-6 rounded-2xl bg-red-500/10 border border-red-500/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
 
                   <div>
 
-                    <p className="font-bold text-red-700">
+                    <p className="font-bold text-red-400">
                       Falta completar la rama
                     </p>
 
-                    <p className="text-sm text-red-600">
+                    <p className="text-sm text-red-400">
                       Selecciona Femenil o Varonil para completar el perfil.
                     </p>
 
@@ -1916,7 +1916,7 @@ export default function PerfilPage() {
                 FORMULARIO
             ================================================= */}
 
-            <div className="lg:col-span-2 card p-6 sm:p-8">
+            <div className="lg:col-span-2 rounded-3xl bg-[#1f1f24] border border-white/10 shadow-xl p-6 sm:p-8">
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
 
@@ -1931,7 +1931,7 @@ export default function PerfilPage() {
                   </p>
 
 
-                  <h2 className="text-2xl font-extrabold text-dh-ink">
+                  <h2 className="text-2xl font-extrabold text-white">
 
                     {editingProfile
                       ? "Modificar datos"
@@ -1940,7 +1940,7 @@ export default function PerfilPage() {
                   </h2>
 
 
-                  <p className="text-sm text-dh-muted mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     Mantén actualizada la información utilizada para tus inscripciones.
                   </p>
 
@@ -1963,7 +1963,7 @@ export default function PerfilPage() {
 
                       resetForm();
                     }}
-                    className="px-4 py-2 rounded-xl border border-dh-border text-gray-600 font-semibold hover:bg-gray-50 transition"
+                    className="px-4 py-2 rounded-xl border border-white/10 text-gray-400 font-semibold hover:bg-[#111116] transition"
                   >
                     Cancelar
                   </button>
@@ -1980,7 +1980,7 @@ export default function PerfilPage() {
                   onClick={
                     startAddProfile
                   }
-                  className="w-full rounded-2xl border-2 border-dashed border-dh-border bg-gray-50 hover:bg-dh-purple/5 hover:border-dh-purple/30 p-8 text-center transition"
+                  className="w-full rounded-2xl border-2 border-dashed border-white/10 bg-[#18181d] hover:bg-dh-purple/5 hover:border-dh-purple/30 p-8 text-center transition"
                 >
 
                   <div className="w-14 h-14 mx-auto rounded-2xl bg-dh-purple/10 flex items-center justify-center text-2xl">
@@ -1988,12 +1988,12 @@ export default function PerfilPage() {
                   </div>
 
 
-                  <p className="mt-4 font-bold text-dh-ink">
+                  <p className="mt-4 font-bold text-white">
                     Agregar un perfil
                   </p>
 
 
-                  <p className="mt-1 text-sm text-dh-muted">
+                  <p className="mt-1 text-sm text-gray-400">
                     Útil para registrar familiares o acompañantes.
                   </p>
 
@@ -2024,11 +2024,11 @@ export default function PerfilPage() {
 
                       <div>
 
-                        <h3 className="font-bold text-dh-ink">
+                        <h3 className="font-bold text-white">
                           Información personal
                         </h3>
 
-                        <p className="text-xs text-dh-muted">
+                        <p className="text-xs text-gray-400">
                           Datos básicos del participante.
                         </p>
 
@@ -2176,7 +2176,7 @@ export default function PerfilPage() {
                           } ${
                             editingProfile?.id ===
                             user?.uid
-                              ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+                              ? "bg-white/5 text-gray-400 cursor-not-allowed"
                               : ""
                           }`}
                           disabled={
@@ -2189,7 +2189,7 @@ export default function PerfilPage() {
                         {editingProfile?.id ===
                           user?.uid && (
 
-                          <p className="text-xs text-dh-muted mt-2">
+                          <p className="text-xs text-gray-400 mt-2">
                             El correo de la cuenta se administra desde Firebase Authentication.
                           </p>
 
@@ -2206,7 +2206,7 @@ export default function PerfilPage() {
                       DATOS DEPORTIVOS
                   ================================================= */}
 
-                  <section className="border-t border-dh-border pt-7">
+                  <section className="border-t border-white/10 pt-7">
 
                     <div className="flex items-center gap-3 mb-4">
 
@@ -2217,11 +2217,11 @@ export default function PerfilPage() {
 
                       <div>
 
-                        <h3 className="font-bold text-dh-ink">
+                        <h3 className="font-bold text-white">
                           Datos deportivos
                         </h3>
 
-                        <p className="text-xs text-dh-muted">
+                        <p className="text-xs text-gray-400">
                           Información utilizada durante las carreras.
                         </p>
 
@@ -2369,7 +2369,7 @@ export default function PerfilPage() {
                           Edad
                         </label>
 
-                        <div className="w-full bg-gray-100 text-gray-700 border border-dh-border rounded-xl px-4 py-3">
+                        <div className="w-full bg-white/5 text-gray-200 border border-white/10 rounded-xl px-4 py-3">
 
                           {formData.fechaNacimiento &&
                           calcAge(
@@ -2423,7 +2423,7 @@ export default function PerfilPage() {
                       UBICACIÓN
                   ================================================= */}
 
-                  <section className="border-t border-dh-border pt-7">
+                  <section className="border-t border-white/10 pt-7">
 
                     <div className="flex items-center gap-3 mb-4">
 
@@ -2434,11 +2434,11 @@ export default function PerfilPage() {
 
                       <div>
 
-                        <h3 className="font-bold text-dh-ink">
+                        <h3 className="font-bold text-white">
                           Ubicación
                         </h3>
 
-                        <p className="text-xs text-dh-muted">
+                        <p className="text-xs text-gray-400">
                           Selecciona la ubicación desde el catálogo.
                         </p>
 
@@ -2626,22 +2626,22 @@ export default function PerfilPage() {
                       EMERGENCIA
                   ================================================= */}
 
-                  <section className="border-t border-dh-border pt-7">
+                  <section className="border-t border-white/10 pt-7">
 
                     <div className="flex items-center gap-3 mb-4">
 
-                      <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center">
                         🚨
                       </div>
 
 
                       <div>
 
-                        <h3 className="font-bold text-dh-ink">
+                        <h3 className="font-bold text-white">
                           Contacto de emergencia
                         </h3>
 
-                        <p className="text-xs text-dh-muted">
+                        <p className="text-xs text-gray-400">
                           Número para contacto en caso de emergencia durante un evento.
                         </p>
 
@@ -2694,7 +2694,7 @@ export default function PerfilPage() {
                       BOTONES
                   ================================================= */}
 
-                  <div className="border-t border-dh-border pt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                  <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
 
                     <button
                       type="button"
@@ -2711,7 +2711,7 @@ export default function PerfilPage() {
                         resetForm();
 
                       }}
-                      className="px-5 py-3 rounded-xl border border-dh-border text-gray-700 font-semibold hover:bg-gray-50 transition"
+                      className="px-5 py-3 rounded-xl border border-white/10 text-gray-200 font-semibold hover:bg-[#111116] transition"
                     >
                       Cancelar
                     </button>
@@ -2746,7 +2746,7 @@ export default function PerfilPage() {
                 PERFILES GUARDADOS
             ================================================= */}
 
-            <div className="card p-6 sm:p-8 lg:sticky lg:top-6">
+            <div className="rounded-3xl bg-[#1f1f24] border border-white/10 shadow-xl p-6 sm:p-8 lg:sticky lg:top-6">
 
               <div className="flex items-center justify-between gap-3 mb-6">
 
@@ -2756,14 +2756,14 @@ export default function PerfilPage() {
                     PARTICIPANTES
                   </p>
 
-                  <h2 className="text-2xl font-extrabold text-dh-ink">
+                  <h2 className="text-2xl font-extrabold text-white">
                     Mis perfiles
                   </h2>
 
                 </div>
 
 
-                <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-sm font-bold">
+                <span className="px-3 py-1 rounded-full bg-white/5 text-gray-200 text-sm font-bold">
                   {
                     profiles.length
                   }
@@ -2774,17 +2774,17 @@ export default function PerfilPage() {
 
               {profiles.length === 0 ? (
 
-                <div className="rounded-2xl bg-gray-50 border border-dashed border-dh-border p-6 text-center">
+                <div className="rounded-2xl bg-[#111116] border border-dashed border-white/10 p-6 text-center">
 
                   <div className="text-3xl mb-3">
                     👥
                   </div>
 
-                  <p className="font-semibold text-dh-ink">
+                  <p className="font-semibold text-white">
                     Aún no tienes perfiles adicionales.
                   </p>
 
-                  <p className="text-sm text-dh-muted mt-1">
+                  <p className="text-sm text-gray-400 mt-1">
                     Puedes crear perfiles para familiares o acompañantes.
                   </p>
 
@@ -2826,7 +2826,7 @@ export default function PerfilPage() {
                           className={`rounded-2xl border p-4 transition ${
                             isSelected
                               ? "border-dh-purple bg-dh-purple/5"
-                              : "border-dh-border bg-white hover:bg-gray-50"
+                              : "border-white/10 bg-[#1f1f24] hover:bg-white/5"
                           }`}
                         >
 
@@ -2852,7 +2852,7 @@ export default function PerfilPage() {
 
                             <div className="flex-1 min-w-0">
 
-                              <p className="font-bold text-dh-ink truncate">
+                              <p className="font-bold text-white truncate">
 
                                 {getFullName(
                                   p
@@ -2867,7 +2867,7 @@ export default function PerfilPage() {
                                   className={`text-xs font-semibold px-2 py-1 rounded-full ${
                                     r ===
                                     "Pendiente"
-                                      ? "bg-red-100 text-red-600"
+                                      ? "bg-red-100 text-red-400"
                                       : "bg-dh-purple/10 text-dh-purple"
                                   }`}
                                 >
@@ -2877,7 +2877,7 @@ export default function PerfilPage() {
 
                                 {p.tallaPlayera && (
 
-                                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-gray-100 text-gray-700">
+                                  <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white/5 text-gray-200">
 
                                     {p.tallaPlayera}
 
@@ -2892,7 +2892,7 @@ export default function PerfilPage() {
                           </div>
 
 
-                          <div className="flex gap-4 mt-4 pt-3 border-t border-dh-border">
+                          <div className="flex gap-4 mt-4 pt-3 border-t border-white/10">
 
                             <button
                               onClick={() =>
@@ -2900,7 +2900,7 @@ export default function PerfilPage() {
                                   p
                                 )
                               }
-                              className="text-sm font-semibold text-gray-600 hover:text-dh-purple transition"
+                              className="text-sm font-semibold text-gray-400 hover:text-dh-purple transition"
                             >
                               Ver
                             </button>
@@ -2927,7 +2927,7 @@ export default function PerfilPage() {
                               disabled={
                                 deleting
                               }
-                              className="text-sm font-semibold text-red-600 hover:underline disabled:opacity-50"
+                              className="text-sm font-semibold text-red-400 hover:underline disabled:opacity-50"
                             >
                               Eliminar
                             </button>
