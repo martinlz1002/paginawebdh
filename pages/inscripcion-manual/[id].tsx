@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useRef, useState } from "react";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import type { CarreraData } from "@/types/carrera";
+import * as XLSX from "xlsx";
 import {
   LockClosedIcon,
   UserIcon,
@@ -133,6 +134,65 @@ const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
   } finally {
     setLoadingList(false);
   }
+};
+
+const exportExcelManual = () => {
+  if (!Array.isArray(inscripciones) || !inscripciones.length) {
+    return;
+  }
+
+  const rows = inscripciones.map((i: any) => ({
+    Ficha: i.ficha ?? i.competitorNumber ?? "",
+    Bib: i.bib ?? i.competitorNumber ?? "",
+
+    Nombre: i.nombre ?? "",
+    Paterno: i.paterno ?? "",
+    Materno: i.materno ?? "",
+    Nombres: i.nombres ?? "",
+
+    Rama: i.rama ?? "",
+    Ruta: i.ruta ?? "",
+    Categoría: i.categoria ?? "",
+
+    TallaPlayera: i.tallaPlayera ?? "",
+    TelefonoEmergencia: i.telefonoEmergencia ?? "",
+
+    País: i.pais ?? "",
+    Estado: i.estado ?? "",
+    Ciudad: i.ciudad ?? "",
+    Celular: i.celular ?? "",
+    Club: i.club ?? "",
+
+    FechaNacimiento: i.fechaNacimiento
+      ? (() => {
+          const d =
+            typeof i.fechaNacimiento?.toDate === "function"
+              ? i.fechaNacimiento.toDate()
+              : new Date(i.fechaNacimiento);
+
+          return Number.isFinite(d.getTime())
+            ? d.toLocaleDateString("es-MX")
+            : "";
+        })()
+      : "",
+
+    Email: i.email ?? "",
+    PaymentStatus: i.paymentStatus ?? "",
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    ws,
+    "Inscripciones"
+  );
+
+  XLSX.writeFile(
+    wb,
+    `inscripciones_manuales_${linkUser?.carreraId ?? "evento"}.xlsx`
+  );
 };
 
   const [loginLoading, setLoginLoading] = useState(false);
@@ -541,16 +601,32 @@ setTelefonoEmergencia("");
     <div className="min-h-screen bg-dh-soft py-10 px-4">
       <div className="max-w-5xl mx-auto">
 
-        <h2 className="text-2xl font-bold text-dh-purple mb-6">
-          Inscripciones
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
 
-        <button
-          onClick={() => setStep("form")}
-          className="mb-4 text-sm text-dh-purple underline"
-        >
-          ← Volver a registrar
-        </button>
+  <h2 className="text-2xl font-bold text-dh-purple">
+    Inscripciones
+  </h2>
+
+  <div className="flex flex-wrap gap-3">
+
+    <button
+      onClick={() => setStep("form")}
+      className="text-sm text-dh-purple underline"
+    >
+      ← Volver a registrar
+    </button>
+
+    <button
+      onClick={exportExcelManual}
+      disabled={!inscripciones.length}
+      className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-4 py-2.5 text-white font-semibold hover:opacity-95 transition disabled:opacity-50"
+    >
+      📊 Exportar Excel
+    </button>
+
+  </div>
+
+</div>
 
         {loadingList ? (
           <p>Cargando...</p>
@@ -563,6 +639,8 @@ setTelefonoEmergencia("");
                   <th className="p-3">Nombre</th>
                   <th className="p-3">Ruta</th>
                   <th className="p-3">Categoría</th>
+                  <th className="p-3">Talla</th>
+    <th className="p-3">Emergencia</th>
                   <th className="p-3">Pago</th>
                 </tr>
               </thead>
@@ -570,7 +648,7 @@ setTelefonoEmergencia("");
               <tbody>
   {(Array.isArray(inscripciones) ? inscripciones : []).length === 0 ? (
     <tr>
-      <td colSpan={5} className="text-center py-6 text-white/50">
+      <td colSpan={7} className="text-center py-6 text-white/50">
         No hay inscripciones aún 👀
       </td>
     </tr>
@@ -581,6 +659,13 @@ setTelefonoEmergencia("");
         <td className="p-3 text-white/90">{i.nombres || "-"}</td>
         <td className="p-3 text-white/90">{i.ruta || "-"}</td>
         <td className="p-3 text-white/90">{i.categoria || "-"}</td>
+        <td className="p-3 text-white/90">
+  {i.tallaPlayera || "-"}
+</td>
+
+<td className="p-3 text-white/90">
+  {i.telefonoEmergencia || "-"}
+</td>
         <td className="p-3 text-white/90">
           {i.paymentStatus === "paid" && (
             <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">

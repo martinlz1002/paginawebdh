@@ -55,6 +55,9 @@ interface InscripcionItem {
   ruta?: string;
   rama?: string;
 
+  tallaPlayera?: string;
+telefonoEmergencia?: string;
+
   timestamp: Date;
   sessionId?: string | null;
   paymentStatus?: string;
@@ -179,6 +182,9 @@ export default function AdminInscripcionesView() {
     ruta: "",
     categoria: "",
 
+    tallaPlayera: "",
+telefonoEmergencia: "",
+
     email: "",
     celular: "",
     pais: "",
@@ -280,6 +286,10 @@ export default function AdminInscripcionesView() {
             categoria: raw.categoria || "",
             ruta,
             rama: raw.rama ?? "",
+
+            tallaPlayera: raw.tallaPlayera ?? "",
+  telefonoEmergencia: raw.telefonoEmergencia ?? "",
+
             timestamp: ts,
             sessionId: raw.sessionId ?? null,
             paymentStatus,
@@ -368,6 +378,8 @@ export default function AdminInscripcionesView() {
             nombres ?? "",
             i.perfil.email ?? "",
             i.perfil.celular ?? "",
+            i.tallaPlayera ?? "",
+i.telefonoEmergencia ?? "",
             i.perfil.club ?? "",
             i.ruta ?? i.perfil.ruta ?? "",
             i.categoria ?? "",
@@ -425,6 +437,9 @@ export default function AdminInscripcionesView() {
     rama: it.rama || it.perfil.rama || "",
     ruta: it.ruta || it.perfil.ruta || "",
     categoria: it.categoria || "",
+
+    tallaPlayera: it.tallaPlayera || "",
+telefonoEmergencia: it.telefonoEmergencia || "",
 
     email: it.perfil.email || "",
     celular: it.perfil.celular || "",
@@ -515,6 +530,9 @@ export default function AdminInscripcionesView() {
 
         categoria: form.categoria.trim(),
 
+        tallaPlayera: form.tallaPlayera.trim() || null,
+telefonoEmergencia: form.telefonoEmergencia.trim() || null,
+
         email: form.email.trim(),
         celular: form.celular.trim(),
         pais: form.pais.trim(),
@@ -538,6 +556,9 @@ export default function AdminInscripcionesView() {
             categoria: form.categoria.trim(),
             ruta: form.ruta.trim(),
             rama: form.rama.trim(),
+
+            tallaPlayera: form.tallaPlayera.trim(),
+telefonoEmergencia: form.telefonoEmergencia.trim(),
 
             paymentStatus: form.paymentStatus,
 
@@ -594,6 +615,10 @@ export default function AdminInscripcionesView() {
       Rama: i.rama ?? i.perfil.rama ?? "",
       Ruta: i.ruta ?? i.perfil.ruta ?? "",
       Categoría: i.categoria ?? "",
+
+      TallaPlayera: i.tallaPlayera ?? "",
+TelefonoEmergencia: i.telefonoEmergencia ?? "",
+
       País: i.perfil.pais ?? "",
       Estado: i.perfil.estado ?? "",
       Ciudad: i.perfil.ciudad ?? "",
@@ -757,6 +782,8 @@ export default function AdminInscripcionesView() {
                     <th className="p-4 text-left">Rama</th>
                     <th className="p-4 text-left">Ruta</th>
                     <th className="p-4 text-left">Categoría</th>
+                    <th className="p-4 text-left">Talla</th>
+<th className="p-4 text-left">Emergencia</th>
                     <th className="p-4 text-left">Edad</th>
                     <th className="p-4 text-left">Celular</th>
                     <th className="p-4 text-left">Pago</th>
@@ -788,6 +815,13 @@ export default function AdminInscripcionesView() {
                       <td className="p-4">{i.rama ?? "-"}</td>
                       <td className="p-4">{i.ruta ?? "-"}</td>
                       <td className="p-4">{i.categoria}</td>
+                      <td className="p-4">
+  {i.tallaPlayera || "—"}
+</td>
+
+<td className="p-4">
+  {i.telefonoEmergencia || "—"}
+</td>
                       <td className="p-4">{i.perfil.edad ?? "-"}</td>
                       <td className="p-4">{i.perfil.celular ?? "-"}</td>
 
@@ -882,11 +916,76 @@ export default function AdminInscripcionesView() {
         )}
 
         {activeTab === "carrera" && (
-          <div className="grid grid-cols-2 gap-4">
-            <input value={form.ruta} onChange={(e)=>setForm({...form,ruta:e.target.value})} placeholder="Ruta" className="input" />
-            <input value={form.categoria} onChange={(e)=>setForm({...form,categoria:e.target.value})} placeholder="Categoría" className="input" />
-          </div>
-        )}
+  <div className="grid grid-cols-2 gap-4">
+
+    <input
+      value={form.ruta}
+      onChange={(e) =>
+        setForm({ ...form, ruta: e.target.value })
+      }
+      placeholder="Ruta"
+      className="input"
+    />
+
+    <input
+      value={form.categoria}
+      onChange={(e) =>
+        setForm({ ...form, categoria: e.target.value })
+      }
+      placeholder="Categoría"
+      className="input"
+    />
+
+    <div>
+      <label className="text-xs text-white/50 mb-1 block">
+        Talla de playera
+      </label>
+
+      <select
+        value={form.tallaPlayera}
+        onChange={(e) =>
+          setForm({
+            ...form,
+            tallaPlayera: e.target.value,
+          })
+        }
+        className="w-full input"
+      >
+        <option value="">Sin especificar</option>
+        <option value="XS">XS</option>
+        <option value="S">S</option>
+        <option value="M">M</option>
+        <option value="L">L</option>
+        <option value="XL">XL</option>
+        <option value="XXL">XXL</option>
+      </select>
+    </div>
+
+    <div>
+      <label className="text-xs text-white/50 mb-1 block">
+        Teléfono de emergencia
+      </label>
+
+      <input
+        type="tel"
+        inputMode="numeric"
+        maxLength={10}
+        value={form.telefonoEmergencia}
+        onChange={(e) =>
+          setForm({
+            ...form,
+            telefonoEmergencia: e.target.value
+              .replace(/\D/g, "")
+              .slice(0, 10),
+          })
+        }
+        placeholder="6681234567"
+        className="w-full input"
+      />
+    </div>
+
+  </div>
+)}
 
         {activeTab === "pago" && (
           <div>
