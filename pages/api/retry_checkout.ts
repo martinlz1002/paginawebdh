@@ -883,6 +883,17 @@ if (
           organizerId: organizerIdMP || "",
           mercadoPagoUserId: expectedSellerId,
         },
+
+        payment_methods: {
+  excluded_payment_types: [
+    {
+      id: "ticket",
+    },
+    {
+      id: "bank_transfer",
+    },
+  ],
+},
         back_urls: {
           success: `${origin}/mis-inscripciones`,
           failure: `${origin}/mis-inscripciones`,
