@@ -371,15 +371,40 @@ if (!paymentId) {
   );
 
   if (matchingPayments.length === 0) {
-    return res.status(404).json({
-      error:
-        "No se encontró un pago de Mercado Pago que coincida con el PaymentAttempt",
+  console.log(
+    "[MP Reprocess] No hubo coincidencia exacta.",
+    {
       attemptId,
       externalReference,
       expectedAmount,
       resultsFound: results.length,
-    });
-  }
+      results,
+    }
+  );
+
+  return res.status(404).json({
+    error:
+      "No se encontró coincidencia exacta por external_reference y monto",
+    attemptId,
+    externalReference,
+    expectedAmount,
+    resultsFound: results.length,
+    payments: results.map((payment: any) => ({
+      id: payment?.id,
+      status: payment?.status,
+      status_detail: payment?.status_detail,
+      transaction_amount: payment?.transaction_amount,
+      date_created: payment?.date_created,
+      date_approved: payment?.date_approved,
+      external_reference: payment?.external_reference,
+      description: payment?.description,
+      payment_type_id: payment?.payment_type_id,
+      payment_method_id: payment?.payment_method_id,
+      collector_id: payment?.collector_id,
+      payer_email: payment?.payer?.email || null,
+    })),
+  });
+}
 
   // Si hay varios, preferir uno aprobado.
   const approvedPayment =
