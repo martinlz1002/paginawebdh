@@ -309,11 +309,12 @@ let paymentId = paymentIdFromRequest;
 // Si no recibimos paymentId, buscarlo por external_reference
 if (!paymentId) {
   const searchUrl =
-    "https://api.mercadopago.com/v1/payments/search?" +
-    new URLSearchParams({
-      external_reference: externalReference,
-      limit: "20",
-    }).toString();
+  "https://api.mercadopago.com/v1/payments/search?" +
+  new URLSearchParams({
+    limit: "50",
+    sort: "date_created",
+    criteria: "desc",
+  }).toString();
 
   const searchResponse = await fetch(searchUrl, {
     method: "GET",
