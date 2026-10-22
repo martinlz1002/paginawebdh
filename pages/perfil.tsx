@@ -1442,10 +1442,6 @@ export default function PerfilPage() {
 
             <div>
 
-              <p className="text-sm font-semibold text-dh-purple mb-1">
-                CUENTA DH TIME
-              </p>
-
               <h1 className="text-3xl sm:text-4xl font-extrabold text-white">
 
                 Mi{" "}

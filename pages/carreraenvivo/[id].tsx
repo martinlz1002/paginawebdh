@@ -378,7 +378,9 @@ useEffect(() => {
     
     const unsubscribe = onValue(registrosRef, (snapshot) => {
       const data = snapshot.val() || {};
-      const agrupados: Record<string, Record<string, CheckpointReal>> = {};
+      // IMPORTANTE: no agrupar por nombre del punto. En circuitos, META y
+      // otros checkpoints pueden registrarse varias veces, una por vuelta.
+      const agrupados: Record<string, CheckpointReal[]> = {};
 
       for (const registro of Object.values(data) as any[]) {
         const competidor = normalizarCompetidor(registro?.competidor);
@@ -386,16 +388,13 @@ useEffect(() => {
         const tiempoMs = Number(registro?.tiempoMs ?? 0);
         if (!competidor || !punto || !Number.isFinite(tiempoMs) || tiempoMs < 0) continue;
 
-        agrupados[competidor] ??= {};
-        const anterior = agrupados[competidor][punto];
-        if (!anterior || tiempoMs >= anterior.tiempoMs) {
-          agrupados[competidor][punto] = { punto, tiempoMs };
-        }
+        agrupados[competidor] ??= [];
+        agrupados[competidor].push({ punto, tiempoMs });
       }
 
       const resultado: Record<string, CheckpointReal[]> = {};
-      for (const [competidor, porPunto] of Object.entries(agrupados)) {
-        resultado[competidor] = Object.values(porPunto).sort((a, b) => a.tiempoMs - b.tiempoMs);
+      for (const [competidor, checkpoints] of Object.entries(agrupados)) {
+        resultado[competidor] = checkpoints.sort((a, b) => a.tiempoMs - b.tiempoMs);
       }
       setRegistrosPorCompetidor(resultado);
     }, (err) => {
@@ -796,30 +795,13 @@ const tramosRecorrido = useMemo(() => {
   const puntosMapa = ruta.puntosMapa || {};
 
   const orden = ruta.orden
-    ? Object.values(ruta.orden)
+    ? Object.values(ruta.orden).map((punto) => String(punto ?? "").trim().toUpperCase())
     : [];
 
-
-  // ==========================================
-  // BUSCAR POSICIÓN DE UN CHECKPOINT
-  // ==========================================
-
-  const indiceCheckpoint = (nombre?: string) => {
-
-    if (!nombre) {
-      return 999999;
-    }
-
-    const indice = orden.findIndex(
-      (x) =>
-        x.trim().toUpperCase() ===
-        nombre.trim().toUpperCase()
-    );
-
-    return indice === -1
-      ? 999999
-      : indice;
-  };
+  // Cada aparición de META/checkpoint representa una posición distinta
+  // dentro del circuito. No usamos findIndex para ordenar tramos porque
+  // devolvería siempre la primera aparición de un punto repetido.
+  const normalizarNombre = (nombre?: string) => String(nombre ?? "").trim().toUpperCase();
 
 
   // ==========================================
@@ -861,26 +843,32 @@ const tramosRecorrido = useMemo(() => {
   // OBTENER TRAMOS
   // ==========================================
 
-  const tramos = Object.entries(
-    ruta.recorrido.tramos
-  );
+  const tramosDisponibles = Object.entries(ruta.recorrido.tramos);
+  const tramos: Array<[string, Tramo]> = [];
+  const usados = new Set<string>();
 
-
-  // ==========================================
-  // ORDENAR TRAMOS
-  // ==========================================
-
-  tramos.sort((a, b) => {
-
-    const tramoA = a[1];
-    const tramoB = b[1];
-
-    return (
-      indiceCheckpoint(tramoA.desde) -
-      indiceCheckpoint(tramoB.desde)
+  // Ordenar consumiendo una transición por cada par consecutivo de orden.
+  // Así META -> punto 1 puede aparecer en cada vuelta sin colapsarse.
+  for (let i = 0; i < orden.length - 1; i++) {
+    const desde = orden[i];
+    const hasta = orden[i + 1];
+    const indice = tramosDisponibles.findIndex(([id, tramo]) =>
+      !usados.has(id) &&
+      normalizarNombre(tramo.desde) === desde &&
+      normalizarNombre(tramo.hasta) === hasta
     );
+    if (indice >= 0) {
+      const encontrado = tramosDisponibles[indice];
+      tramos.push(encontrado);
+      usados.add(encontrado[0]);
+    }
+  }
 
-  });
+  // Compatibilidad con rutas antiguas cuya lista orden no coincide
+  // exactamente con los tramos guardados: no descartamos los sobrantes.
+  for (const tramo of tramosDisponibles) {
+    if (!usados.has(tramo[0])) tramos.push(tramo);
+  }
 
 
   // ==========================================
@@ -1378,34 +1366,43 @@ const posicionSobreTramoGoogle = (tramo: TramoGoogle, progreso: number) => {
 // TRAMO QUE EMPIEZA EN CADA CHECKPOINT
 // ==========================================
 
-const indiceTramoPorDesde = useMemo(() => {
-  const resultado: Record<string, number> = {};
-  tramosMetricos.forEach((tramo, index) => {
-    const desde = normalizarPunto(tramo.desde);
-    if (desde) resultado[desde] = index;
-  });
-  return resultado;
-}, [tramosMetricos]);
+const ordenRuta = useMemo(
+  () => (ruta?.orden ? Object.values(ruta.orden).map((punto) => normalizarPunto(punto)) : []),
+  [ruta]
+);
 
-// ==========================================
-// DISTANCIA ENTRE CHECKPOINTS
-// ==========================================
-// Distancias acumuladas: consulta O(1).
-// ==========================================
+// Asigna cada registro a la siguiente aparición válida del punto dentro
+// del orden de la ruta. Esto distingue META de la vuelta 1, 2, 3, etc.
+const indicesRutaDeCheckpoints = (checkpoints: CheckpointReal[], hastaIndice: number) => {
+  const indices: number[] = [];
+  let cursor = -1;
+  for (let i = 0; i <= hastaIndice && i < checkpoints.length; i++) {
+    const nombre = normalizarPunto(checkpoints[i].punto);
+    let encontrado = -1;
+    for (let j = cursor + 1; j < ordenRuta.length; j++) {
+      if (ordenRuta[j] === nombre) {
+        encontrado = j;
+        break;
+      }
+    }
+    // En rutas antiguas que no incluyan el punto inicial en orden,
+    // intentamos encontrar la primera aparición desde el principio.
+    if (encontrado < 0 && cursor < 0) {
+      encontrado = ordenRuta.findIndex((punto) => punto === nombre);
+    }
+    indices.push(encontrado);
+    if (encontrado >= 0) cursor = encontrado;
+  }
+  return indices;
+};
 
-const distanciaEntrePuntos = (desdeNombre: string, hastaNombre: string) => {
-  const desde = normalizarPunto(desdeNombre);
-  const hasta = normalizarPunto(hastaNombre);
-  const indiceInicio = desde === "META" ? 0 : indiceTramoPorDesde[desde];
-  const indiceFin = indiceTramoPorDesde[hasta];
-
-  if (indiceInicio === undefined || indiceFin === undefined || indiceFin <= indiceInicio) return 0;
-
-  const inicio = tramosMetricos[indiceInicio];
-  const fin = tramosMetricos[indiceFin - 1];
-  if (!inicio || !fin) return 0;
-
-  return fin.distanciaAcumuladaFinKm - inicio.distanciaAcumuladaInicioKm;
+const distanciaEntreIndicesRuta = (indiceDesde: number, indiceHasta: number) => {
+  if (indiceDesde < 0 || indiceHasta <= indiceDesde) return 0;
+  let distancia = 0;
+  for (let i = indiceDesde; i < indiceHasta && i < tramosMetricos.length; i++) {
+    distancia += tramosMetricos[i]?.distanciaKm ?? 0;
+  }
+  return distancia;
 };
 
 // ==========================================
@@ -1435,32 +1432,56 @@ const calcularEstadoCorredor = (
   let tiempoAncla = 0;
   let segmentoInicio = 0;
   let ritmoMsPorKm = RITMO_INICIAL_MS_POR_KM;
+  const indicesCheckpointRuta = indicesRutaDeCheckpoints(checkpoints, ultimoIndice);
+  const indiceRutaAncla = ultimoIndice >= 0 ? (indicesCheckpointRuta[ultimoIndice] ?? -1) : 0;
+
+  // Si el último registro válido corresponde a la última aparición de META
+  // en la secuencia configurada, la carrera terminó. Fijamos el marcador
+  // allí y no volvemos a proyectarlo hacia el primer punto.
+  const indiceMetaFinal = ordenRuta.lastIndexOf("META");
+  if (
+    ultimoIndice >= 0 &&
+    normalizarPunto(checkpoints[ultimoIndice].punto) === "META" &&
+    indiceMetaFinal >= 0 &&
+    indiceRutaAncla === indiceMetaFinal
+  ) {
+    const meta = puntosMapa.find((punto) => normalizarPunto(punto.nombre) === "META");
+    if (!meta) return null;
+    const distanciaTotal = tramosMetricos.reduce((total, tramo) => total + tramo.distanciaKm, 0);
+    return {
+      x: meta.longitud,
+      y: meta.latitud,
+      progreso: 1,
+      distanciaRecorridaKm: distanciaTotal,
+      puntoActual: "META",
+      siguientePunto: "META",
+      ritmoMsPorKm: RITMO_INICIAL_MS_POR_KM,
+    };
+  }
 
   if (ultimoIndice >= 0) {
     const ultimo = checkpoints[ultimoIndice];
     puntoAncla = normalizarPunto(ultimo.punto);
     tiempoAncla = ultimo.tiempoMs;
 
-    if (puntoAncla === "META") {
-      segmentoInicio = 0;
+    // El índice de la aparición del checkpoint determina el siguiente tramo.
+    // No se busca por nombre porque el mismo punto puede repetirse en el circuito.
+    if (indiceRutaAncla >= 0) {
+      segmentoInicio = Math.min(indiceRutaAncla, Math.max(0, tramosMetricos.length - 1));
     } else {
-      const indice = indiceTramoPorDesde[puntoAncla];
-      if (indice === undefined) return null;
-      segmentoInicio = indice;
+      const indiceAlternativo = tramosMetricos.findIndex(
+        (tramo) => normalizarPunto(tramo.desde) === puntoAncla
+      );
+      if (indiceAlternativo >= 0) segmentoInicio = indiceAlternativo;
     }
 
-    if (ultimoIndice === 0) {
-      const distanciaReal = distanciaEntrePuntos("META", ultimo.punto);
-      if (distanciaReal > 0 && ultimo.tiempoMs > 0) {
-        ritmoMsPorKm = ultimo.tiempoMs / distanciaReal;
-      }
-    } else {
-      const anterior = checkpoints[ultimoIndice - 1];
-      const distanciaReal = distanciaEntrePuntos(anterior.punto, ultimo.punto);
-      const tiempoReal = ultimo.tiempoMs - anterior.tiempoMs;
-      if (distanciaReal > 0 && tiempoReal > 0) {
-        ritmoMsPorKm = tiempoReal / distanciaReal;
-      }
+    const indiceRutaAnterior = ultimoIndice > 0 ? (indicesCheckpointRuta[ultimoIndice - 1] ?? -1) : 0;
+    const distanciaReal = distanciaEntreIndicesRuta(indiceRutaAnterior, indiceRutaAncla);
+    const tiempoReal = ultimoIndice > 0
+      ? ultimo.tiempoMs - checkpoints[ultimoIndice - 1].tiempoMs
+      : ultimo.tiempoMs;
+    if (distanciaReal > 0 && tiempoReal > 0) {
+      ritmoMsPorKm = tiempoReal / distanciaReal;
     }
   }
 

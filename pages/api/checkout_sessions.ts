@@ -735,6 +735,17 @@ await attemptRef.set({
             organizerId: organizerIdMP || "",
             mercadoPagoUserId: organizerMP?.mercadoPagoUserId ? String(organizerMP.mercadoPagoUserId) : "",
           },
+
+          payment_methods: {
+  excluded_payment_types: [
+    {
+      id: "ticket",
+    },
+    {
+      id: "bank_transfer",
+    },
+  ],
+},
           ...(useBackUrls
   ? {
       back_urls: {
