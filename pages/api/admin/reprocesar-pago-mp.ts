@@ -172,20 +172,19 @@ export default async function handler(
      * ========================================================
      */
 
-    const paymentId = String(
-      req.body?.paymentId || ""
-    ).trim();
+    const paymentIdFromRequest = String(
+  req.body?.paymentId || ""
+).trim();
 
-    const attemptId = String(
-      req.body?.attemptId || ""
-    ).trim();
+const attemptId = String(
+  req.body?.attemptId || ""
+).trim();
 
-    if (!paymentId || !attemptId) {
-      return res.status(400).json({
-        error:
-          "Debes enviar paymentId y attemptId",
-      });
-    }
+if (!attemptId) {
+  return res.status(400).json({
+    error: "Debes enviar attemptId",
+  });
+}
 
     const db = getAdminDb();
 
@@ -208,6 +207,17 @@ export default async function handler(
     }
 
     const attempt = attemptSnap.data()!;
+
+    const externalReference = String(
+  attempt.attemptId || attemptId
+).trim();
+
+if (!externalReference) {
+  return res.status(409).json({
+    error:
+      "El PaymentAttempt no tiene una referencia externa válida",
+  });
+}
 
     /**
      * ========================================================
@@ -288,43 +298,155 @@ export default async function handler(
       });
     }
 
-    /**
-     * ========================================================
-     * 6. CONSULTAR EL PAGO REAL EN MERCADO PAGO
-     * ========================================================
-     */
+   /**
+ * ============================================================
+ * 6. CONSULTAR EL PAGO REAL EN MERCADO PAGO
+ * ============================================================
+ */
 
-    const paymentResponse = await fetch(
-      `https://api.mercadopago.com/v1/payments/${encodeURIComponent(
-        paymentId
-      )}`,
+let paymentId = paymentIdFromRequest;
+
+// Si no recibimos paymentId, buscarlo por external_reference
+if (!paymentId) {
+  const searchUrl =
+    "https://api.mercadopago.com/v1/payments/search?" +
+    new URLSearchParams({
+      external_reference: externalReference,
+      limit: "20",
+    }).toString();
+
+  const searchResponse = await fetch(searchUrl, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const searchData = await searchResponse.json();
+
+  if (!searchResponse.ok) {
+    console.error(
+      "[MP Reprocess] Error buscando pago por external_reference",
       {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+        status: searchResponse.status,
+        data: searchData,
       }
     );
 
-    const payment = await paymentResponse.json();
+    return res.status(502).json({
+      error:
+        "Mercado Pago no permitió buscar los pagos",
+    });
+  }
 
-    if (!paymentResponse.ok) {
-      console.error(
-        "[MP Reprocess] Error consultando pago",
-        {
-          status: paymentResponse.status,
-          message:
-            payment?.message ||
-            payment?.error ||
-            "Error desconocido",
-        }
+  const results = Array.isArray(searchData?.results)
+    ? searchData.results
+    : [];
+
+  // Buscar primero un pago que coincida exactamente
+  // con el external_reference y el monto esperado.
+  const expectedAmount = Number(
+    attempt.expectedAmount
+  );
+
+  const matchingPayments = results.filter(
+    (payment: any) => {
+      const paymentExternalReference = String(
+        payment?.external_reference || ""
+      ).trim();
+
+      const amount = Number(
+        payment?.transaction_amount
       );
 
-      return res.status(502).json({
-        error:
-          "Mercado Pago no permitió consultar el pago",
-      });
+      return (
+        paymentExternalReference === externalReference &&
+        Number.isFinite(amount) &&
+        Number.isFinite(expectedAmount) &&
+        Math.round(amount * 100) ===
+          Math.round(expectedAmount * 100)
+      );
     }
+  );
+
+  if (matchingPayments.length === 0) {
+    return res.status(404).json({
+      error:
+        "No se encontró un pago de Mercado Pago que coincida con el PaymentAttempt",
+      attemptId,
+      externalReference,
+      expectedAmount,
+      resultsFound: results.length,
+    });
+  }
+
+  // Si hay varios, preferir uno aprobado.
+  const approvedPayment =
+    matchingPayments.find(
+      (payment: any) =>
+        String(payment?.status || "").toLowerCase() ===
+        "approved"
+    );
+
+  const selectedPayment =
+    approvedPayment || matchingPayments[0];
+
+  paymentId = String(
+    selectedPayment.id || ""
+  ).trim();
+
+  if (!paymentId) {
+    return res.status(404).json({
+      error:
+        "Mercado Pago devolvió un pago pero no contiene un paymentId válido",
+    });
+  }
+
+  console.log(
+    "[MP Reprocess] Pago encontrado por external_reference",
+    {
+      attemptId,
+      externalReference,
+      paymentId,
+      status: selectedPayment.status,
+      amount: selectedPayment.transaction_amount,
+    }
+  );
+}
+
+// Ahora consultar el pago completo por su paymentId
+const paymentResponse = await fetch(
+  `https://api.mercadopago.com/v1/payments/${encodeURIComponent(
+    paymentId
+  )}`,
+  {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  }
+);
+
+const payment = await paymentResponse.json();
+
+if (!paymentResponse.ok) {
+  console.error(
+    "[MP Reprocess] Error consultando pago",
+    {
+      status: paymentResponse.status,
+      message:
+        payment?.message ||
+        payment?.error ||
+        "Error desconocido",
+    }
+  );
+
+  return res.status(502).json({
+    error:
+      "Mercado Pago no permitió consultar el pago",
+  });
+}
 
     /**
      * ========================================================

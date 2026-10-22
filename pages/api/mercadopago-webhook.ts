@@ -280,6 +280,49 @@ function validarFirmaMercadoPago(
   }
 }
 
+
+
+async function buscarPagoPorExternalReference(
+  accessToken: string,
+  externalReference: string
+) {
+  const url =
+    "https://api.mercadopago.com/v1/payments/search?" +
+    new URLSearchParams({
+      external_reference: externalReference,
+      sort: "date_created",
+      criteria: "desc",
+      limit: "10",
+    }).toString();
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    console.error(
+      "[MP Reconcile] Error buscando pago:",
+      {
+        status: response.status,
+        data,
+      }
+    );
+
+    throw new Error(
+      "No se pudo buscar el pago en Mercado Pago."
+    );
+  }
+
+  return data?.results || [];
+}
+
+
 /**
  * ============================================================
  * HANDLER
