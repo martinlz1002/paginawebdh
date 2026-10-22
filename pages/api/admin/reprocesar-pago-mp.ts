@@ -492,24 +492,36 @@ if (!paymentResponse.ok) {
      */
 
     const paymentExternalReference = String(
-      payment.external_reference || ""
-    ).trim();
+  payment.external_reference || ""
+).trim();
 
-    if (paymentExternalReference !== attemptId) {
-      console.error(
-        "[MP Reprocess] external_reference no coincide",
-        {
-          paymentId,
-          attemptId,
-          paymentExternalReference,
-        }
-      );
+const suppliedPaymentId = Boolean(paymentIdFromRequest);
 
-      return res.status(409).json({
-        error:
-          "El pago no corresponde al paymentAttempt indicado",
-      });
+// Cuando Mercado Pago nos entrega el pago mediante búsqueda,
+// exigimos que external_reference coincida con el PaymentAttempt.
+//
+// Cuando el administrador proporciona directamente el paymentId,
+// permitimos continuar aunque Mercado Pago tenga otra
+// external_reference, pero las demás validaciones siguen siendo
+// obligatorias.
+if (
+  !suppliedPaymentId &&
+  paymentExternalReference !== attemptId
+) {
+  console.error(
+    "[MP Reprocess] external_reference no coincide",
+    {
+      paymentId,
+      attemptId,
+      paymentExternalReference,
     }
+  );
+
+  return res.status(409).json({
+    error:
+      "El pago no corresponde al paymentAttempt indicado",
+  });
+}
 
     /**
      * ========================================================
