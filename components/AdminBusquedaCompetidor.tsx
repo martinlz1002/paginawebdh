@@ -375,145 +375,114 @@ export default function AdminBusquedaCompetidor({
               );
 
             /*
-             * ================================
-             * NOMBRE
-             * ================================
-             */
+ * ==========================================
+ * ÍNDICE DE BÚSQUEDA
+ * ==========================================
+ */
 
-            const nombreCompleto =
-              String(
-                competidor.Participant ||
-                ''
-              )
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(
-                  /[\u0300-\u036f]/g,
-                  ''
-                )
-                .trim();
+const normalizar = (valor: any) => {
+  return String(valor ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+};
 
-            /*
-             * ================================
-             * DATOS DE BÚSQUEDA
-             * ================================
-             */
+const generarPrefijos = (valor: any) => {
+  const texto = normalizar(valor);
 
-            const bib =
-              String(
-                competidor.Bib || ''
-              )
-                .toLowerCase()
-                .trim();
+  if (!texto) return [];
 
-            const celular =
-              String(
-                competidor.Celular || ''
-              )
-                .toLowerCase()
-                .trim();
+  const prefijos: string[] = [];
 
-            const ficha =
-              String(
-                competidor.Ficha || ''
-              )
-                .toLowerCase()
-                .trim();
+  // Prefijos del campo completo
+  for (let i = 1; i <= texto.length; i++) {
+    prefijos.push(texto.substring(0, i));
+  }
 
-            const equipo =
-              String(
-                competidor.EquipoName || ''
-              )
-                .toLowerCase()
-                .normalize('NFD')
-                .replace(
-                  /[\u0300-\u036f]/g,
-                  ''
-                )
-                .trim();
+  // Prefijos de cada palabra
+  const palabras = texto
+    .split(/\s+/)
+    .filter(Boolean);
 
-            const ruta =
-              String(
-                competidor.RouteName || ''
-              )
-                .toLowerCase()
-                .trim();
+  for (const palabra of palabras) {
+    for (let i = 1; i <= palabra.length; i++) {
+      prefijos.push(
+        palabra.substring(0, i)
+      );
+    }
+  }
 
-            const categoria =
-              String(
-                competidor.CategoryName || ''
-              )
-                .toLowerCase()
-                .trim();
+  return prefijos;
+};
 
-            const estado =
-              String(
-                competidor.Estado || ''
-              )
-                .toLowerCase()
-                .trim();
+/*
+ * ==========================================
+ * CAMPOS BUSCABLES
+ * ==========================================
+ */
 
-            const ciudad =
-              String(
-                competidor.Ciudad || ''
-              )
-                .toLowerCase()
-                .trim();
+const camposBusqueda = [
+  competidor.Participant,
+  competidor.Bib,
+  competidor.Celular,
+  competidor.Ficha,
+  competidor.EquipoName,
+  competidor.RouteName,
+  competidor.CategoryName,
+  competidor.Estado,
+  competidor.Ciudad,
+  competidor.Municipio,
+  competidor.Country,
+  competidor.Rama,
+  competidor.Email
+];
 
-            /*
-             * ================================
-             * TÉRMINOS DE BÚSQUEDA
-             * ================================
-             */
+/*
+ * ==========================================
+ * GENERAR ÍNDICE
+ * ==========================================
+ */
 
-            const palabrasNombre =
-              nombreCompleto
-                .split(/\s+/)
-                .filter(Boolean);
+const searchTerms = Array.from(
+  new Set(
+    camposBusqueda.flatMap(
+      (campo) =>
+        generarPrefijos(campo)
+    )
+  )
+);
 
-            const searchTerms = [
+/*
+ * ==========================================
+ * TEXTO COMPLETO DEL PARTICIPANTE
+ * ==========================================
+ */
 
-              ...palabrasNombre,
+const nombreCompleto =
+  normalizar(
+    competidor.Participant
+  );
 
-              nombreCompleto,
+/*
+ * ==========================================
+ * GUARDAR COMPETIDOR
+ * ==========================================
+ */
 
-              bib,
+batch.set(
+  compRef,
+  {
+    ...competidor,
 
-              celular,
+    participant_search:
+      nombreCompleto,
 
-              ficha,
-
-              equipo,
-
-              ruta,
-
-              categoria,
-
-              estado,
-
-              ciudad
-
-            ].filter(Boolean);
-
-            /*
-             * ================================
-             * GUARDAR
-             * ================================
-             */
-
-            batch.set(
-              compRef,
-              {
-                ...competidor,
-
-                participant_search:
-                  nombreCompleto,
-
-                search_terms:
-                  searchTerms
-
-              }
-            );
+    search_terms:
+      searchTerms
+  }
+);
 
           }
         );
