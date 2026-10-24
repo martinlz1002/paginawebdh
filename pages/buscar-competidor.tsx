@@ -29,6 +29,23 @@ import {
 
 import { db } from "@/lib/firebase";
 
+
+interface Competidor {
+  id: string;
+  Participant?: string;
+  Bib?: string | number;
+  RouteName?: string;
+  CategoryName?: string;
+  Ciudad?: string;
+  Estado?: string;
+  Rama?: string;
+  EquipoName?: string;
+  Celular?: string;
+  Email?: string;
+  Country?: string;
+  [key: string]: any;
+}
+
 export default function BuscarCompetidor() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -197,38 +214,69 @@ export default function BuscarCompetidor() {
    * BUSCAR COMPETIDORES
    * ==========================================
    *
-   * La publicación guarda:
+   * Permite búsquedas como:
    *
-   * search_terms: [
-   *   nombre,
-   *   bib,
-   *   equipo,
-   *   ciudad,
-   *   estado,
-   *   ruta,
-   *   categoría,
-   *   ...
-   * ]
+   * "jose"
+   * "pillado"
+   * "jose pillado"
+   * "pillado jose"
+   * "jose angel"
+   * "jose angel pillado"
    *
-   * Aquí buscamos coincidencias exactas
-   * dentro de ese arreglo.
-   *
-   * Para nombre completo, además hacemos
-   * búsqueda por participant_search.
+   * Las palabras pueden aparecer en cualquier
+   * posición dentro de los datos del competidor.
    */
 
   useEffect(() => {
+
     const buscar = async () => {
+
       const texto = normalizeText(
         debouncedSearch
       );
 
       if (texto.length < 2) {
+
         setResults([]);
+
         return;
+
+      }
+
+      /*
+       * Separar la búsqueda en palabras.
+       *
+       * "jose pillado"
+       *
+       * se convierte en:
+       *
+       * ["jose", "pillado"]
+       */
+
+      const palabras = Array.from(
+        new Set(
+          texto
+            .split(/\s+/)
+            .map((palabra) =>
+              palabra.trim()
+            )
+            .filter(
+              (palabra) =>
+                palabra.length >= 2
+            )
+        )
+      );
+
+      if (palabras.length === 0) {
+
+        setResults([]);
+
+        return;
+
       }
 
       try {
+
         setLoading(true);
 
         const competidoresRef =
@@ -241,107 +289,157 @@ export default function BuscarCompetidor() {
 
         /*
          * ======================================
-         * BÚSQUEDA 1
+         * BUSCAR CADA PALABRA
          * ======================================
          *
-         * Busca el texto dentro de search_terms.
+         * Ejemplo:
+         *
+         * "jose pillado"
+         *
+         * hace:
+         *
+         * búsqueda de "jose"
+         * búsqueda de "pillado"
+         *
          */
 
-        const q = query(
-          competidoresRef,
-          where(
-            "search_terms",
-            "array-contains",
-            texto
-          ),
-          limit(20)
-        );
+        const resultadosPorPalabra =
+          await Promise.all(
 
-        const snapshot =
-          await getDocs(q);
+            palabras.map(
+              async (palabra) => {
 
-        const encontrados =
-          snapshot.docs.map(
-            (document) => ({
-              id: document.id,
-              ...document.data(),
-            })
+                const q = query(
+                  competidoresRef,
+                  where(
+                    "search_terms",
+                    "array-contains",
+                    palabra
+                  ),
+                  limit(50)
+                );
+
+                const snapshot =
+                  await getDocs(q);
+
+                return snapshot.docs.map(
+  (document): Competidor => ({
+    id: document.id,
+    ...document.data(),
+  })
+);
+
+              }
+            )
+
           );
 
         /*
          * ======================================
-         * BÚSQUEDA 2
+         * INTERSECCIÓN
          * ======================================
          *
-         * También intentamos buscar por
-         * participant_search cuando el texto
-         * coincide con el inicio del nombre.
+         * El competidor debe aparecer en
+         * TODAS las búsquedas.
          *
-         * Esto permite:
+         * "jose pillado"
          *
-         * "juan"
+         * significa:
          *
-         * encontrar:
-         *
-         * "juan perez"
+         * jose === true
+         * &&
+         * pillado === true
          */
 
-        const nombreQuery = query(
-          competidoresRef,
-          where(
-            "participant_search",
-            ">=",
-            texto
-          ),
-          where(
-            "participant_search",
-            "<=",
-            texto + "\uf8ff"
-          ),
-          limit(20)
+        const resultadosIniciales: Competidor[] =
+  resultadosPorPalabra[0] || [];
+
+const resultadosFinales: Competidor[] =
+  resultadosIniciales.filter(
+    (competidor: Competidor) => {
+
+      return resultadosPorPalabra
+        .slice(1)
+        .every(
+          (resultados: Competidor[]) =>
+            resultados.some(
+              (otro: Competidor) =>
+                otro.id === competidor.id
+            )
         );
 
-        const nombreSnapshot =
-          await getDocs(nombreQuery);
-
-        const encontradosNombre =
-          nombreSnapshot.docs.map(
-            (document) => ({
-              id: document.id,
-              ...document.data(),
-            })
-          );
+    }
+  );
 
         /*
          * ======================================
-         * UNIR RESULTADOS
+         * ORDENAR RESULTADOS
          * ======================================
+         *
+         * Primero mostramos coincidencias
+         * cuyo nombre empieza con lo buscado.
+         *
+         * Después las demás coincidencias.
          */
 
-        const mapa =
-          new Map<string, any>();
+        const resultadosOrdenados =
+          [...resultadosFinales].sort(
+            (a, b) => {
 
-        [
-          ...encontrados,
-          ...encontradosNombre,
-        ].forEach(
-          (competidor) => {
+              const nombreA =
+                normalizeText(
+                  a.Participant
+                );
 
-            mapa.set(
-              competidor.id,
-              competidor
-            );
+              const nombreB =
+                normalizeText(
+                  b.Participant
+                );
 
-          }
-        );
+              const empiezaA =
+                nombreA.startsWith(
+                  texto
+                );
+
+              const empiezaB =
+                nombreB.startsWith(
+                  texto
+                );
+
+              if (
+                empiezaA &&
+                !empiezaB
+              ) {
+
+                return -1;
+
+              }
+
+              if (
+                !empiezaA &&
+                empiezaB
+              ) {
+
+                return 1;
+
+              }
+
+              return nombreA.localeCompare(
+                nombreB
+              );
+
+            }
+          );
 
         setResults(
-          Array.from(
-            mapa.values()
-          ).slice(0, 20)
+          resultadosOrdenados.slice(
+            0,
+            20
+          )
         );
 
       } catch (error) {
+
         console.error(
           "Error buscando competidor:",
           error
@@ -350,8 +448,11 @@ export default function BuscarCompetidor() {
         setResults([]);
 
       } finally {
+
         setLoading(false);
+
       }
+
     };
 
     buscar();
