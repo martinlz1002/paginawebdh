@@ -13,7 +13,9 @@ import {
   HashtagIcon,
   TrophyIcon,
   ChevronRightIcon,
+  DocumentArrowDownIcon,
 } from "@heroicons/react/24/outline";
+import generarPDF from "@/lib/pdfConfirmacion";
 
 interface APIUser {
   id: string;
@@ -491,6 +493,29 @@ setTelefonoEmergencia("");
     }
   };
 
+
+  const descargarConfirmacionManual = async (i: any) => {
+  try {
+    await generarPDF({
+      id: String(i.id ?? i.ficha ?? i.competitorNumber ?? ""),
+      titulo: race?.titulo || i.carreraTitulo || "Evento",
+      distancia: i.ruta || i.distancia || "",
+      categoria: i.categoria || "",
+      perfilNombre: i.nombre || "",
+      perfilApPaterno: i.paterno || i.apellidoPaterno || "",
+      perfilApMaterno: i.materno || i.apellidoMaterno || "",
+      competitorNumber:
+        i.competitorNumber ?? i.ficha ?? i.bib ?? undefined,
+      kitFecha: (race as any)?.kitFecha || i.kitFecha || "",
+      kitLugar: (race as any)?.kitLugar || i.kitLugar || "",
+      kitHorario: (race as any)?.kitHorario || i.kitHorario || "",
+    });
+  } catch (error) {
+    console.error("Error generando confirmación:", error);
+    setError("No se pudo generar la confirmación de inscripción.");
+  }
+};
+
   // UI (lo demás igual)
   if (step === "checking")
     return (
@@ -642,6 +667,7 @@ setTelefonoEmergencia("");
                   <th className="p-3">Talla</th>
     <th className="p-3">Emergencia</th>
                   <th className="p-3">Pago</th>
+                  <th className="p-3">Confirmación</th>
                 </tr>
               </thead>
 
@@ -679,6 +705,18 @@ setTelefonoEmergencia("");
           )}
           {!i.paymentStatus && "-"}
         </td>
+
+        <td className="p-3">
+  <button
+    type="button"
+    onClick={() => descargarConfirmacionManual(i)}
+    className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-3 py-2 text-xs font-extrabold text-white hover:opacity-90 transition whitespace-nowrap"
+    title="Descargar confirmación de inscripción"
+  >
+    <DocumentArrowDownIcon className="h-4 w-4" />
+    Descargar PDF
+  </button>
+</td>
       </tr>
     ))
   )}
