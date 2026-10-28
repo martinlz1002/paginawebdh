@@ -997,7 +997,7 @@ setTelefonoEmergencia("");
           </div>
 
           <button
-            className="w-full rounded-xl bg-dh-green text-dh-dark py-3 font-extrabold hover:opacity-95 transition"
+            className="w-full rounded-xl bg-dh-purple text-white py-3 font-extrabold hover:opacity-95 transition shadow-md"
             onClick={handleSubmit}
           >
             Registrar Competidor
