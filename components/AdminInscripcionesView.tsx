@@ -942,23 +942,25 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
       </label>
 
       <select
-        value={form.tallaPlayera}
-        onChange={(e) =>
-          setForm({
-            ...form,
-            tallaPlayera: e.target.value,
-          })
-        }
-        className="w-full input"
-      >
-        <option value="">Sin especificar</option>
-        <option value="XS">XS</option>
-        <option value="S">S</option>
-        <option value="M">M</option>
-        <option value="L">L</option>
-        <option value="XL">XL</option>
-        <option value="XXL">XXL</option>
-      </select>
+  value={form.tallaPlayera}
+  onChange={(e) =>
+    setForm({
+      ...form,
+      tallaPlayera: e.target.value,
+    })
+  }
+  className="w-full input bg-[#1e1e27] text-white border border-white/15"
+>
+  <option value="" className="bg-[#1e1e27] text-white">
+    Sin especificar
+  </option>
+  <option value="XS" className="bg-[#1e1e27] text-white">XS</option>
+  <option value="S" className="bg-[#1e1e27] text-white">S</option>
+  <option value="M" className="bg-[#1e1e27] text-white">M</option>
+  <option value="L" className="bg-[#1e1e27] text-white">L</option>
+  <option value="XL" className="bg-[#1e1e27] text-white">XL</option>
+  <option value="XXL" className="bg-[#1e1e27] text-white">XXL</option>
+</select>
     </div>
 
     <div>
@@ -991,16 +993,28 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
           <div>
             <label className="text-xs text-white/50 mb-1 block">Estado de pago</label>
             <select
-              value={form.paymentStatus}
-              onChange={(e)=>setForm({...form,paymentStatus:e.target.value})}
-              className="w-full input"
-            >
-              <option value="paid">Pagado</option>
-              <option value="pending">Pendiente</option>
-              <option value="manual">Manual</option>
-              <option value="expired">Expirado</option>
-              <option value="failed">Fallido</option>
-            </select>
+  value={form.paymentStatus}
+  onChange={(e) =>
+    setForm({ ...form, paymentStatus: e.target.value })
+  }
+  className="w-full input bg-[#1e1e27] text-white border border-white/15"
+>
+  <option value="paid" className="bg-[#1e1e27] text-white">
+    Pagado
+  </option>
+  <option value="pending" className="bg-[#1e1e27] text-white">
+    Pendiente
+  </option>
+  <option value="manual" className="bg-[#1e1e27] text-white">
+    Manual
+  </option>
+  <option value="expired" className="bg-[#1e1e27] text-white">
+    Expirado
+  </option>
+  <option value="failed" className="bg-[#1e1e27] text-white">
+    Fallido
+  </option>
+</select>
           </div>
         )}
 

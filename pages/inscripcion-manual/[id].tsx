@@ -14,6 +14,8 @@ import {
   TrophyIcon,
   ChevronRightIcon,
   DocumentArrowDownIcon,
+  PencilSquareIcon,
+XMarkIcon,
 } from "@heroicons/react/24/outline";
 import generarPDF from "@/lib/pdfConfirmacion";
 
@@ -75,6 +77,13 @@ export default function ManualPage() {
 
   const [inscripciones, setInscripciones] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+
+  const [editando, setEditando] = useState<any | null>(null);
+const [editForm, setEditForm] = useState<Record<string, string>>({});
+const [editTab, setEditTab] = useState<"datos" | "carrera" | "pago">("datos");
+const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+const [mensajeLista, setMensajeLista] = useState("");
 
   const [linkUser, setLinkUser] = useState<APIUser | null>(null);
   const [race, setRace] = useState<(CarreraData & { id: string }) | null>(null);
@@ -516,6 +525,155 @@ setTelefonoEmergencia("");
   }
 };
 
+
+
+const abrirEditor = (i: any) => {
+  setEditando(i);
+  setEditTab("datos");
+  setErrorEdicion(null);
+
+  const fecha = i.fechaNacimiento;
+let fechaTexto = "";
+
+if (typeof fecha === "string") {
+  fechaTexto = fecha.slice(0, 10);
+} else if (fecha && typeof fecha === "object") {
+  if (typeof fecha._seconds === "number") {
+    fechaTexto = new Date(fecha._seconds * 1000)
+      .toISOString()
+      .slice(0, 10);
+  } else if (typeof fecha.seconds === "number") {
+    fechaTexto = new Date(fecha.seconds * 1000)
+      .toISOString()
+      .slice(0, 10);
+  }
+}
+
+  const campos = [
+    "nombre", "paterno", "materno", "rama",
+    "email", "celular", "ciudad", "estado",
+    "pais", "club", "ruta", "categoria",
+    "tallaPlayera", "telefonoEmergencia",
+    "paymentStatus",
+  ];
+
+  const form: Record<string, string> = {};
+
+  for (const campo of campos) {
+    form[campo] = String(i[campo] ?? "");
+  }
+
+  form.fechaNacimiento = fechaTexto;
+  setEditForm(form);
+};
+
+const cambiarCampo = (campo: string, valor: string) => {
+  setEditForm((prev) => ({
+    ...prev,
+    [campo]: valor,
+    ...(campo === "ruta" ? { categoria: "" } : {}),
+  }));
+};
+
+const guardarEdicion = async () => {
+  if (!editando || !linkUser || !id) return;
+
+  setErrorEdicion(null);
+
+  if (Date.now() >= linkUser.expiresAtMs) {
+    setStep("expired");
+    return;
+  }
+
+  if (
+    !editForm.nombre?.trim() ||
+    !editForm.paterno?.trim() ||
+    !editForm.materno?.trim() ||
+    !editForm.ruta ||
+    !editForm.categoria
+  ) {
+    setErrorEdicion("Completa los campos obligatorios.");
+    return;
+  }
+
+  const camposEditables = [
+    "nombre", "paterno", "materno", "rama",
+    "email", "celular", "ciudad", "estado",
+    "pais", "club", "ruta", "categoria",
+    "tallaPlayera", "telefonoEmergencia",
+    "fechaNacimiento",
+  ];
+
+  const cambios: Record<string, string> = {};
+
+  for (const campo of camposEditables) {
+    const nuevo = editForm[campo] ?? "";
+
+    if (
+      campo === "fechaNacimiento" &&
+      !nuevo &&
+      !editando.fechaNacimiento
+    ) continue;
+
+    if (
+      campo === "fechaNacimiento" &&
+      !nuevo &&
+      editando.fechaNacimiento
+    ) {
+      setErrorEdicion("La fecha de nacimiento no puede quedar vacía.");
+      return;
+    }
+
+    cambios[campo] = nuevo.trim();
+  }
+
+  setGuardandoEdicion(true);
+
+  try {
+    const res = await fetch("/api/actualizar-inscripcion-manual", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: editando.id,
+        tempId: linkUser.id,
+        cambios,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "No se pudo guardar.");
+    }
+
+    setInscripciones((prev) =>
+      prev.map((i) =>
+        i.id === editando.id
+          ? {
+              ...i,
+              ...cambios,
+              nombres: [
+                cambios.nombre,
+                cambios.paterno,
+                cambios.materno,
+              ].filter(Boolean).join(" "),
+            }
+          : i
+      )
+    );
+
+    setEditando(null);
+    setMensajeLista("Inscripción actualizada correctamente.");
+  } catch (e: any) {
+    setErrorEdicion(e.message || "Error al actualizar.");
+  } finally {
+    setGuardandoEdicion(false);
+  }
+};
+
+
   // UI (lo demás igual)
   if (step === "checking")
     return (
@@ -668,13 +826,14 @@ setTelefonoEmergencia("");
     <th className="p-3">Emergencia</th>
                   <th className="p-3">Pago</th>
                   <th className="p-3">Confirmación</th>
+                  <th className="p-3">Acciones</th>
                 </tr>
               </thead>
 
               <tbody>
   {(Array.isArray(inscripciones) ? inscripciones : []).length === 0 ? (
     <tr>
-      <td colSpan={7} className="text-center py-6 text-white/50">
+      <td colSpan={9} className="text-center py-6 text-white/50">
         No hay inscripciones aún 👀
       </td>
     </tr>
@@ -717,11 +876,246 @@ setTelefonoEmergencia("");
     Descargar PDF
   </button>
 </td>
+
+<td className="p-3">
+  <button
+    type="button"
+    onClick={() => abrirEditor(i)}
+    className="inline-flex items-center justify-center gap-2 rounded-xl border border-dh-purple bg-dh-purple/20 px-4 py-2 text-xs font-bold text-purple-200 hover:bg-dh-purple hover:text-white transition"
+  >
+    <PencilSquareIcon className="h-4 w-4" />
+    Editar
+  </button>
+</td>
+
       </tr>
     ))
   )}
 </tbody>
             </table>
+
+
+            
+{mensajeLista && (
+  <div className="my-4 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-700">
+    {mensajeLista}
+  </div>
+)}
+
+{editando && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+    <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#16161d] p-6 text-white shadow-2xl">
+
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-extrabold text-dh-purple">
+          Editar inscripción #{editando.competitorNumber}
+        </h2>
+        <button
+          type="button"
+          disabled={guardandoEdicion}
+          onClick={() => setEditando(null)}
+          className="text-white/60 hover:text-white"
+        >
+          <XMarkIcon className="h-6 w-6" />
+        </button>
+      </div>
+
+      <div className="flex gap-6 border-b border-white/10 mb-6">
+        {(["datos", "carrera", "pago"] as const).map((tab) => (
+          <button
+            type="button"
+            key={tab}
+            onClick={() => {
+              setEditTab(tab);
+              setErrorEdicion(null);
+            }}
+            className={`pb-3 px-2 capitalize font-semibold transition ${
+              editTab === tab
+                ? "border-b-2 border-dh-purple text-white"
+                : "text-white/40 hover:text-white"
+            }`}
+          >
+            {tab === "datos" ? "Datos" : tab === "carrera" ? "Carrera" : "Pago"}
+          </button>
+        ))}
+      </div>
+
+      {errorEdicion && (
+        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          {errorEdicion}
+        </div>
+      )}
+
+      {editTab === "datos" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            ["nombre", "Nombre"],
+            ["paterno", "Apellido paterno"],
+            ["materno", "Apellido materno"],
+            ["email", "Correo electrónico"],
+            ["celular", "Celular"],
+            ["ciudad", "Ciudad"],
+            ["estado", "Estado"],
+            ["pais", "País"],
+            ["club", "Club"],
+          ].map(([campo, etiqueta]) => (
+            <label key={campo} className="block">
+              <span className="block text-xs text-white/60 mb-2">
+                {etiqueta}
+              </span>
+              <input
+                type={campo === "email" ? "email" : "text"}
+                value={editForm[campo] ?? ""}
+                onChange={(e) => cambiarCampo(campo, e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white outline-none focus:border-dh-purple"
+              />
+            </label>
+          ))}
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">
+              Fecha de nacimiento
+            </span>
+            <input
+              type="date"
+              value={editForm.fechaNacimiento ?? ""}
+              onChange={(e) => cambiarCampo("fechaNacimiento", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            />
+          </label>
+        </div>
+      )}
+
+      {editTab === "carrera" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Distancia</span>
+            <select
+              value={editForm.ruta ?? ""}
+              onChange={(e) => cambiarCampo("ruta", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Seleccionar</option>
+              {distancias.map((d) => (
+                <option
+                  key={d.distancia}
+                  value={d.distancia}
+                  className="bg-[#202029] text-white"
+                >
+                  {d.distancia}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Categoría</span>
+            <select
+              value={editForm.categoria ?? ""}
+              onChange={(e) => cambiarCampo("categoria", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Seleccionar</option>
+              {distancias
+                .find((d) => d.distancia === editForm.ruta)
+                ?.categorias.map((c) => (
+                  <option
+                    key={c.nombre}
+                    value={c.nombre}
+                    className="bg-[#202029] text-white"
+                  >
+                    {c.nombre}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Rama</span>
+            <select
+              value={editForm.rama ?? ""}
+              onChange={(e) => cambiarCampo("rama", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Seleccionar</option>
+              <option value="Femenil" className="bg-[#202029] text-white">Femenil</option>
+              <option value="Varonil" className="bg-[#202029] text-white">Varonil</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Talla de playera</span>
+            <select
+              value={editForm.tallaPlayera ?? ""}
+              onChange={(e) => cambiarCampo("tallaPlayera", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Sin especificar</option>
+              {["XS", "S", "M", "L", "XL", "XXL"].map((t) => (
+                <option key={t} value={t} className="bg-[#202029] text-white">{t}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block sm:col-span-2">
+            <span className="block text-xs text-white/60 mb-2">
+              Teléfono de emergencia
+            </span>
+            <input
+              type="tel"
+              maxLength={10}
+              value={editForm.telefonoEmergencia ?? ""}
+              onChange={(e) =>
+                cambiarCampo(
+                  "telefonoEmergencia",
+                  e.target.value.replace(/\D/g, "").slice(0, 10)
+                )
+              }
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            />
+          </label>
+        </div>
+      )}
+
+      {editTab === "pago" && (
+        <div className="space-y-3">
+          <label className="block text-xs text-white/60">
+            Estado de pago
+          </label>
+          <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-yellow-300 font-semibold">
+            {editForm.paymentStatus === "manual"
+              ? "Manual"
+              : editForm.paymentStatus || "Sin especificar"}
+          </div>
+          <p className="text-xs text-white/50">
+            El estado de pago no se modifica desde un acceso temporal.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-8 flex justify-end gap-3 border-t border-white/10 pt-5">
+        <button
+          type="button"
+          disabled={guardandoEdicion}
+          onClick={() => setEditando(null)}
+          className="rounded-xl border border-white/20 px-5 py-2.5 font-semibold text-white hover:bg-white/10"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          disabled={guardandoEdicion}
+          onClick={guardarEdicion}
+          className="rounded-xl bg-dh-purple px-6 py-2.5 font-extrabold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {guardandoEdicion ? "Guardando..." : "Guardar cambios"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
           </div>
         )}
       </div>
