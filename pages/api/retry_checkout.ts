@@ -860,7 +860,21 @@ if (
         updatedAt: FieldValue.serverTimestamp(),
       });
 
+
+const notificationUrl = String(
+  process.env.MERCADOPAGO_WEBHOOK_URL || ""
+).trim();
+
+if (!notificationUrl) {
+  throw new Error(
+    "Falta configurar MERCADOPAGO_WEBHOOK_URL"
+  );
+}
+
+
+
       const preferenceBody: any = {
+        notification_url: notificationUrl,
         items: [{
           title: `Inscripción: ${payload.categoria} (${payload.distancia})`,
           quantity: 1,
@@ -888,9 +902,6 @@ if (
   excluded_payment_types: [
     {
       id: "ticket",
-    },
-    {
-      id: "bank_transfer",
     },
   ],
 },
