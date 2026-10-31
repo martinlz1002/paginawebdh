@@ -157,3 +157,53 @@
     transparent 70%
   );
 }
+
+/* =========================
+   RESPONSIVE GLOBAL DHTime
+========================= */
+
+html,
+body,
+#__next {
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+/* Evitar que los campos desborden */
+input,
+select,
+textarea,
+button {
+  max-width: 100%;
+}
+
+/* Imágenes y contenido multimedia */
+img,
+video,
+iframe {
+  max-width: 100%;
+}
+
+/* Permitir que los elementos flex y grid se contraigan */
+main,
+main > *,
+main .card {
+  min-width: 0;
+}
+
+/* Tablas: scroll dentro de su contenedor */
+.overflow-x-auto {
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Evitar que textos largos rompan el diseño */
+.break-responsive {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}

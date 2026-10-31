@@ -650,10 +650,10 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
   );
 
   return (
-  <div className="min-h-screen bg-[#0c0c0f] text-white py-12 px-6">
+  <div className="w-full min-w-0 max-w-full bg-[#0c0c0f] text-white py-5 px-3 sm:py-8 sm:px-6">
     <div className="max-w-7xl mx-auto">
 
-      <div className="bg-[#16161d] border border-white/5 rounded-3xl p-8 space-y-8">
+      <div className="w-full min-w-0 bg-[#16161d] border border-white/5 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8">
 
         {/* HEADER */}
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">

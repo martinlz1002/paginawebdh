@@ -71,7 +71,7 @@ export default function AdminPanel() {
   };
 
   return (
-    <div className="relative flex pt-16">
+    <div className="relative flex w-full min-w-0 max-w-full pt-16">
       <button
         onClick={toggleSidebar}
         className="fixed top-20 left-4 z-50 p-2 bg-purple-600 text-dh-ink rounded-full shadow-lg hover:bg-purple-700 transition"
@@ -95,9 +95,15 @@ export default function AdminPanel() {
 />
 
       <main
-  className={`transition-all duration-300 ${
-    sidebarOpen ? "ml-64" : "ml-0"
-  } flex-1 p-6 pl-16`}
+  className={`
+    min-w-0 w-full max-w-full flex-1
+    transition-all duration-300
+    ${sidebarOpen ? "lg:ml-72" : "lg:ml-0"}
+    px-3 py-5
+    sm:px-6 sm:py-6
+    lg:px-8 lg:py-8
+    pl-14 sm:pl-16
+  `}
 >
         <h1 className="text-2xl font-bold mb-6">Panel de Administración</h1>
 
