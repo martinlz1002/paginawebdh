@@ -724,7 +724,6 @@ if (!notificationUrl) {
   );
 }
 
-
         const preferenceBody: any = {
           notification_url: notificationUrl,
           items: [{
