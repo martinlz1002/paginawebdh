@@ -942,10 +942,19 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
     </button>
 
     {mensaje && (
-      <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-        {mensaje}
-      </div>
+  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-700">
+    <p>{mensaje}</p>
+
+    {mensaje === "Ya estás inscrito en esta carrera con ese perfil." && (
+      <Link
+        href="/mis-inscripciones"
+        className="mt-2 inline-flex items-center gap-1 font-bold text-dh-purple underline underline-offset-2 hover:text-dh-purpleDark"
+      >
+        Ver mis inscripciones y completar mi pago →
+      </Link>
     )}
+  </div>
+)}
 
   </div>
 

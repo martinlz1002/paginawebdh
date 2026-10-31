@@ -528,6 +528,7 @@ setTelefonoEmergencia("");
 
 
 const abrirEditor = (i: any) => {
+  setMensajeLista("");
   setEditando(i);
   setEditTab("datos");
   setErrorEdicion(null);
