@@ -24,9 +24,16 @@ function getAdminDb() {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
+
+    console.log(
+  "[MP FIREBASE PROJECT]",
+  admin.app().options.projectId
+);
   }
 
   return admin.firestore();
+
+  
 }
 
 /**
@@ -199,6 +206,13 @@ if (!attemptId) {
       .doc(attemptId);
 
     const attemptSnap = await attemptRef.get();
+
+    console.log("[MP DIAGNOSTICO FIREBASE]", {
+  projectId: admin.app().options.projectId,
+  database: db.databaseId,
+  attemptId,
+  exists: attemptSnap.exists,
+});
 
     if (!attemptSnap.exists) {
       return res.status(404).json({
