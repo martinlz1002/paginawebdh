@@ -5,10 +5,9 @@ import { useRouter } from "next/router";
 
 import {
   getAuth,
-  onAuthStateChanged,
   signOut,
-  User,
 } from "firebase/auth";
+import { useAuth } from "@/context/authContext";
 
 import {
   doc,
@@ -37,8 +36,9 @@ export default function Header() {
   const router = useRouter();
   const auth = getAuth(app);
 
-  const [user, setUser] =
-    useState<User | null>(null);
+  const { user, authVersion } = useAuth();
+
+const emailVerified = !!user?.emailVerified;
 
   const [nombre, setNombre] =
     useState("");
@@ -47,9 +47,6 @@ export default function Header() {
     useState(false);
 
   const [esOrganizador, setEsOrganizador] =
-    useState(false);
-
-  const [emailVerified, setEmailVerified] =
     useState(false);
 
   const [menuOpen, setMenuOpen] =
@@ -91,101 +88,105 @@ export default function Header() {
   });
 
   /* ============================= */
-  /* AUTH STATE */
-  /* ============================= */
+/* AUTH STATE GLOBAL */
+/* ============================= */
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(
-      auth,
-      async (u) => {
-        if (u) {
-          setUser(u);
-          setEmailVerified(
-            u.emailVerified
-          );
+useEffect(() => {
+  let activo = true;
 
-          /* ========================= */
-          /* USUARIO / ADMIN */
-          /* ========================= */
+  const cargarDatosUsuario = async () => {
+    if (!user) {
+      setNombre("");
+      setEsAdmin(false);
+      setEsOrganizador(false);
+      return;
+    }
 
-          try {
-            const snap = await getDoc(
-              doc(db, "usuarios", u.uid)
-            );
+    // Reiniciar datos antes de cargar el perfil
+    setNombre("");
+    setEsAdmin(false);
+    setEsOrganizador(false);
 
-            const data = snap.data();
+    /* ========================= */
+    /* USUARIO / ADMIN */
+    /* ========================= */
 
-            setNombre(
-              data?.nombre || ""
-            );
+    try {
+      const snap = await getDoc(
+        doc(db, "usuarios", user.uid)
+      );
 
-            setEsAdmin(
-              data?.admin === true
-            );
-          } catch (error) {
-            console.error(
-              "Error cargando usuario:",
-              error
-            );
+      if (!activo) return;
 
-            setNombre("");
-            setEsAdmin(false);
+      const data = snap.data();
+
+      setNombre(data?.nombre || "");
+      setEsAdmin(data?.admin === true);
+
+    } catch (error) {
+      console.error(
+        "Error cargando usuario:",
+        error
+      );
+
+      if (activo) {
+        setNombre("");
+        setEsAdmin(false);
+      }
+    }
+
+    /* ========================= */
+    /* ORGANIZADOR */
+    /* ========================= */
+
+    try {
+      if (user.email && user.emailVerified) {
+        const token = await user.getIdToken();
+
+        const response = await fetch(
+          "/api/organizer/status",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
           }
+        );
 
-          /* ========================= */
-          /* ORGANIZADOR */
-          /* ========================= */
+        const data = await response.json();
 
-          try {
-            if (
-              u.email &&
-              u.emailVerified
-            ) {
-              const token =
-                await u.getIdToken();
+        if (!activo) return;
 
-              const response =
-                await fetch(
-                  "/api/organizer/status",
-                  {
-                    method: "GET",
-                    headers: {
-                      Authorization:
-                        `Bearer ${token}`,
-                    },
-                  }
-                );
+        setEsOrganizador(
+          data?.ok === true &&
+          data?.esOrganizador === true
+        );
 
-              const data =
-                await response.json();
-
-              setEsOrganizador(
-                data?.ok === true &&
-                data?.esOrganizador === true
-              );
-            } else {
-              setEsOrganizador(false);
-            }
-          } catch (error) {
-            console.error(
-              "Error verificando organizador:",
-              error
-            );
-
-            setEsOrganizador(false);
-          }
-        } else {
-          setUser(null);
-          setEmailVerified(false);
-          setEsAdmin(false);
+      } else {
+        if (activo) {
           setEsOrganizador(false);
-          setNombre("");
         }
       }
-    );
 
-    return unsub;
-  }, [auth]);
+    } catch (error) {
+      console.error(
+        "Error verificando organizador:",
+        error
+      );
+
+      if (activo) {
+        setEsOrganizador(false);
+      }
+    }
+  };
+
+  cargarDatosUsuario();
+
+  return () => {
+    activo = false;
+  };
+
+}, [user, authVersion]);
 
   /* ============================= */
   /* CARRERAS POR VUELTAS */

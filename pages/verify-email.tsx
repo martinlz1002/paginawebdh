@@ -8,6 +8,7 @@ import {
 import { useRouter } from "next/router";
 import { registrarUsuario } from "@/lib/usuarios";
 import { app } from "@/lib/firebase";
+import { useAuth } from "@/context/authContext";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
@@ -17,6 +18,8 @@ export default function VerifyEmailPage() {
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [reenviando, setReenviando] = useState(false);
+
+  const { refreshUser } = useAuth();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -84,13 +87,16 @@ export default function VerifyEmailPage() {
       }
 
       // Guardar perfil en Firestore
-      await registrarUsuario(uData);
+await registrarUsuario(uData);
 
-      // Ya no necesitamos los datos temporales
-      localStorage.removeItem("pendingUser");
+// Eliminar los datos temporales
+localStorage.removeItem("pendingUser");
 
-      // Ir al perfil
-      router.push("/perfil");
+// Actualizar el estado global de autenticación
+await refreshUser();
+
+// Ir al perfil
+await router.push("/perfil");
     } catch (error: any) {
       console.error("Error verificando correo:", error);
 
