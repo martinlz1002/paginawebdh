@@ -335,7 +335,7 @@ function calcularComisionDHTime(
   _paymentConfig: ReturnType<typeof obtenerPaymentConfig>
 ) {
   // Comisión fija DHTime por inscripción
-  return 20;
+  return 15;
 }
 
 // ============================================================

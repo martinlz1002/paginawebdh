@@ -301,9 +301,9 @@
     _neto: number,
     _paymentConfig: ReturnType<typeof obtenerPaymentConfig>
   ) {
-    // Modelo DHTime: $20 MXN fijos por inscripción, sin depender
+    // Modelo DHTime: $15 MXN fijos por inscripción, sin depender
     // de la configuración histórica guardada en cada carrera.
-    return 20;
+    return 15;
   }
 
   /**
@@ -485,7 +485,7 @@ const useBackUrls =
           paymentConfig
         );
 
-      // El corredor paga el precio de inscripción + $20 MXN para DHTime,
+      // El corredor paga el precio de inscripción + $15 MXN para DHTime,
 // más el costo estimado de procesamiento. El organizador debe recibir
 // íntegro el precio publicado.
 
