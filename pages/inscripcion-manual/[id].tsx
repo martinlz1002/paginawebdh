@@ -47,6 +47,53 @@ function fullName(nombre: string, paterno: string, materno: string) {
     .trim();
 }
 
+const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
+
+function obtenerFechaRegistro(value: any): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date) return value;
+
+  if (typeof value?.toDate === "function") {
+    return value.toDate();
+  }
+
+  if (typeof value?._seconds === "number") {
+    return new Date(value._seconds * 1000);
+  }
+
+  if (typeof value?.seconds === "number") {
+    return new Date(value.seconds * 1000);
+  }
+
+  if (typeof value === "number") {
+    return new Date(
+      value < 1e12 ? value * 1000 : value
+    );
+  }
+
+  const fecha = new Date(value);
+
+  return Number.isFinite(fecha.getTime()) ? fecha : null;
+}
+
+function pendienteVencidoManual(
+  inscripcion: any,
+  ahora: number
+): boolean {
+  const status = String(
+    inscripcion.paymentStatus ?? inscripcion.payment_status ?? ""
+  ).toLowerCase();
+
+  if (status !== "pending") return false;
+
+  const fecha = obtenerFechaRegistro(inscripcion.timestamp);
+
+  if (!fecha) return false;
+
+  return ahora - fecha.getTime() >= VEINTICUATRO_HORAS;
+}
+
 // ✅ parse seguro para "YYYY-MM-DD" (evita desfase por timezone)
 function parseISODateYYYYMMDD(iso: any): Date {
   if (!iso || typeof iso !== "string") return new Date("2000-01-01T00:00:00");
@@ -104,6 +151,20 @@ const [mensajeLista, setMensajeLista] = useState("");
 
   const [tallaPlayera, setTallaPlayera] = useState("");
 const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
+
+const [ahora, setAhora] = useState(Date.now());
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    setAhora(Date.now());
+  }, 60 * 1000);
+
+  return () => clearInterval(interval);
+}, []);
+
+const inscripcionesVisibles = (
+  Array.isArray(inscripciones) ? inscripciones : []
+).filter((i) => !pendienteVencidoManual(i, ahora));
 
   const [competidor, setCompetidor] = useState({
     nombre: "",
@@ -832,14 +893,16 @@ const guardarEdicion = async () => {
               </thead>
 
               <tbody>
-  {(Array.isArray(inscripciones) ? inscripciones : []).length === 0 ? (
+  {inscripcionesVisibles.length === 0 ? (
     <tr>
       <td colSpan={9} className="text-center py-6 text-white/50">
-        No hay inscripciones aún 👀
-      </td>
+  {inscripciones.length > 0
+    ? "No hay inscripciones visibles. Los pendientes antiguos se conservan en el registro."
+    : "No hay inscripciones aún 👀"}
+</td>
     </tr>
   ) : (
-    (Array.isArray(inscripciones) ? inscripciones : []).map((i, idx) => (
+    inscripcionesVisibles.map((i, idx) => (
       <tr key={i.id} className="border-t hover:bg-white/5 transition">
         <td className="p-3 text-white/90">{i.competitorNumber || "-"}</td>
         <td className="p-3 text-white/90">{i.nombres || "-"}</td>
