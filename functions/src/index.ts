@@ -301,6 +301,88 @@ async function validarPinEntrega(pin: string) {
   return { ranges: config.ranges as Array<{ id: string; nombre: string; desde: number; hasta: number }> };
 }
 
+
+/**
+ * =========================================================
+ * 4B) RECONSTRUIR PROYECCIÓN PÚBLICA DEL BUSCADOR
+ * Permite reparar una publicación existente sin volver a cargar el Excel.
+ * =========================================================
+ */
+export const sincronizarPublicCompetidores = functions
+  .runWith({ memory: "512MB", timeoutSeconds: 540 })
+  .https.onCall(async (_data: any, context: any) => {
+    await assertAdmin(context);
+
+    const activeRef = db.collection("busquedaCompetidor").doc("active");
+    const activeSnap = await activeRef.get();
+    if (!activeSnap.exists) {
+      throw new functions.https.HttpsError("failed-precondition", "Primero publica la lista de competidores.");
+    }
+
+    const fields = Array.isArray(activeSnap.get("fields")) ? activeSnap.get("fields") as string[] : [];
+    const competitorsSnap = await activeRef.collection("competidores").get();
+    if (competitorsSnap.empty) {
+      throw new functions.https.HttpsError("failed-precondition", "La lista activa no contiene competidores.");
+    }
+
+    const publicRef = activeRef.collection("publicCompetidores");
+    const existingPublicSnap = await publicRef.get();
+    const existingById = new Map(existingPublicSnap.docs.map((d) => [d.id, d.data()]));
+    const normalize = (value: any) => String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().replace(/\s+/g, " ");
+    const prefixes = (value: any): string[] => {
+      const text = normalize(value);
+      if (!text) return [];
+      const result = new Set<string>();
+      for (let i = 1; i <= text.length; i++) result.add(text.slice(0, i));
+      for (const word of text.split(/\s+/).filter(Boolean)) {
+        for (let i = 1; i <= word.length; i++) result.add(word.slice(0, i));
+      }
+      return Array.from(result);
+    };
+
+    let batch = db.batch();
+    let writes = 0;
+    let count = 0;
+    for (const competitorDoc of competitorsSnap.docs) {
+      const competitor = competitorDoc.data() as any;
+      const searchValues = [
+        competitor.Participant, competitor.Bib, competitor.Celular, competitor.Ficha,
+        competitor.EquipoName, competitor.RouteName, competitor.CategoryName,
+        competitor.Estado, competitor.Ciudad, competitor.Municipio,
+        competitor.Country, competitor.Rama, competitor.Email,
+      ];
+      const searchTerms = Array.isArray(competitor.search_terms) && competitor.search_terms.length
+        ? competitor.search_terms
+        : Array.from(new Set(searchValues.flatMap(prefixes)));
+      const previous = existingById.get(competitorDoc.id) || {};
+      const record: Record<string, any> = {
+        Bib: competitor.Bib ?? "",
+        Participant: competitor.Participant ?? "",
+        RouteName: competitor.RouteName ?? "",
+        CategoryName: competitor.CategoryName ?? "",
+        participant_search: competitor.participant_search || normalize(competitor.Participant),
+        search_terms: searchTerms,
+        estadoEntrega: previous.estadoEntrega || competitor.estadoEntrega || "pendiente",
+        mesaId: previous.mesaId ?? competitor.mesaId ?? null,
+        mesaNombre: previous.mesaNombre ?? competitor.mesaNombre ?? null,
+      };
+      for (const field of fields) {
+        const value = competitor[field];
+        if (value !== undefined && value !== null) record[field] = value;
+      }
+      batch.set(publicRef.doc(competitorDoc.id), record, { merge: true });
+      writes++;
+      count++;
+      if (writes >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        writes = 0;
+      }
+    }
+    if (writes > 0) await batch.commit();
+    return { ok: true, sincronizados: count };
+  });
+
 /**
  * =========================================================
  * 5) MARCAR COMPETIDOR ENCONTRADO Y ASIGNAR MESA
