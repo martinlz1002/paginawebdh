@@ -13,6 +13,8 @@ import EliminarInscripciones, { CarreraOption } from "@/components/EliminarInscr
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import AdminBusquedaCompetidor from '@/components/AdminBusquedaCompetidor';
 import AdminOrganizadores from "@/components/AdminOrganizadores";
+import AdminMesasEntrega from "@/components/AdminMesasEntrega";
+import AdminEntregas from "@/components/AdminEntregas";
 
 type View =
   | "crear"
@@ -22,6 +24,8 @@ type View =
   | "eliminarInscripciones"
   | "galeria"
   | 'buscarCompetidor'
+  | "mesasEntrega"
+  | "controlEntregas"
   | "organizadores";
 
 export default function AdminPage() {
@@ -58,7 +62,7 @@ export default function AdminPage() {
   }, []);
 
   // ✅ Renovar token al montar para agarrar claim admin
-  useEffect(() => {
+    useEffect(() => {
     const auth = getAuth(app);
     auth.currentUser?.getIdToken(true).catch(console.error);
   }, []);
@@ -180,7 +184,10 @@ export default function AdminPage() {
         {view === 'buscarCompetidor' && (
           <AdminBusquedaCompetidor carreras={carreras} />
         )}
-      </main>
+
+        {view === 'mesasEntrega' && <AdminMesasEntrega />}
+        {view === 'controlEntregas' && <AdminEntregas />}
+        </main>
     </div>
   );
 }

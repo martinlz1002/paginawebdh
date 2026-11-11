@@ -13,6 +13,8 @@ import { getAuth } from 'firebase/auth';
 import { app, db } from '@/lib/firebase';
 import AdminBusquedaCompetidor from '@/components/AdminBusquedaCompetidor';
 import AdminOrganizadores from "@/components/AdminOrganizadores";
+import AdminMesasEntrega from "@/components/AdminMesasEntrega";
+import AdminEntregas from "@/components/AdminEntregas";
 
 // Incluir la nueva vista en el tipo
 type View =
@@ -23,7 +25,9 @@ type View =
   | 'eliminarInscripciones'
   | 'galeria'
   | 'buscarCompetidor'
-  | "organizadores";
+  | 'mesasEntrega'
+  | 'controlEntregas'
+  | 'organizadores';
   
 export default function AdminPanel() {
   const [view, setView] = useState<View>('crear');
@@ -147,6 +151,10 @@ export default function AdminPanel() {
 {view === "organizadores" && (
   <AdminOrganizadores />
 )}
+
+{view === "mesasEntrega" && <AdminMesasEntrega />}
+
+{view === "controlEntregas" && <AdminEntregas />}
 
       </main>
     </div>
