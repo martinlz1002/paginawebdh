@@ -236,54 +236,144 @@ function validarRangos(ranges: any[]) {
   return normalized;
 }
 
+
 export const configurarMesasEntrega = functions
-  .runWith({ memory: "256MB", timeoutSeconds: 30 })
+  .runWith({ memory: "256MB", timeoutSeconds: 60 })
   .https.onCall(async (data: any, context: any) => {
-    await assertAdmin(context);
-    const ranges = validarRangos(data.ranges);
-    const pin = String(data.pin || "");
-    if (!/^\d{4,8}$/.test(pin)) {
-      throw new functions.https.HttpsError("invalid-argument", "El PIN debe contener entre 4 y 8 dígitos.");
+    try {
+      await assertAdmin(context);
+
+      const ranges = validarRangos(data?.ranges);
+      const pin = String(data?.pin || "");
+
+      if (!/^\d{4,8}$/.test(pin)) {
+        throw new functions.https.HttpsError(
+          "invalid-argument",
+          "El PIN debe contener entre 4 y 8 dígitos."
+        );
+      }
+
+      const activeRef = db.collection("busquedaCompetidor").doc("active");
+      const activeEventSnap = await activeRef.get();
+
+      if (!activeEventSnap.exists) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Primero publica la lista de competidores."
+        );
+      }
+
+      const configRef = db.collection("configuracionEntrega").doc("active");
+      const configSnap = await configRef.get();
+
+      const storedRanges = configSnap.exists
+        ? configSnap.get("ranges")
+        : [];
+
+      const existingRanges = Array.isArray(storedRanges)
+        ? storedRanges
+        : [];
+
+      const deliveriesSnap = await activeRef
+        .collection("entregas")
+        .limit(1)
+        .get();
+
+      const normalize = (items: any[]) =>
+        items.map((r: any) => ({
+          id: String(r.id || ""),
+          nombre: String(r.nombre || ""),
+          desde: Number(r.desde),
+          hasta: Number(r.hasta)
+        }));
+
+      const rangesChanged =
+        JSON.stringify(normalize(existingRanges).sort((a, b) => a.desde - b.desde)) !==
+        JSON.stringify(normalize(ranges).sort((a, b) => a.desde - b.desde));
+
+      if (!deliveriesSnap.empty && rangesChanged) {
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          "Ya hay entregas iniciadas. No puedes cambiar los rangos durante el evento."
+        );
+      }
+
+      const competitors = await activeRef
+        .collection("competidores")
+        .get();
+
+      const numbers = competitors.docs.map((d) => ({
+        id: d.id,
+        bib: Number(String(d.get("Bib") ?? "").trim())
+      }));
+
+      const unassigned = numbers.filter((item) =>
+        !Number.isSafeInteger(item.bib) ||
+        item.bib < 1 ||
+        !ranges.some(
+          (range) => item.bib >= range.desde && item.bib <= range.hasta
+        )
+      );
+
+      if (unassigned.length > 0) {
+        const examples = unassigned
+          .slice(0, 5)
+          .map((item) =>
+            Number.isFinite(item.bib) ? item.bib : "sin número"
+          )
+          .join(", ");
+
+        throw new functions.https.HttpsError(
+          "failed-precondition",
+          `${unassigned.length} competidores no tienen un número válido o están fuera de los rangos. Ejemplos: ${examples}.`
+        );
+      }
+
+      const rangesWithCounts = ranges.map((range) => ({
+        ...range,
+        totalCompetidores: numbers.filter(
+          (item) =>
+            item.bib >= range.desde && item.bib <= range.hasta
+        ).length
+      }));
+
+      const salt = randomBytes(16).toString("hex");
+      const pinHash = scryptSync(pin, salt, 64).toString("hex");
+
+      await configRef.set(
+        {
+          ranges: rangesWithCounts,
+          pinSalt: salt,
+          pinHash,
+          updatedAt: FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      console.log("configurarMesasEntrega: configuración guardada correctamente", {
+        mesas: rangesWithCounts.length,
+        competidores: numbers.length
+      });
+
+      return {
+        ok: true,
+        ranges: rangesWithCounts
+      };
+
+    } catch (error: any) {
+      console.error("ERROR configurarMesasEntrega:", error);
+
+      if (error instanceof functions.https.HttpsError) {
+        throw error;
+      }
+
+      throw new functions.https.HttpsError(
+        "internal",
+        error?.message || "Error inesperado al guardar la configuración."
+      );
     }
-    const activeRef = db.collection("busquedaCompetidor").doc("active");
-    const activeEventSnap = await activeRef.get();
-    if (!activeEventSnap.exists) {
-      throw new functions.https.HttpsError("failed-precondition", "Primero publica la lista de competidores.");
-    }
-    const configRef = db.collection("configuracionEntrega").doc("active");
-    const configSnap = await configRef.get();
-    const existingRanges = configSnap.get("ranges") || [];
-    const deliveriesSnap = await activeRef.collection("entregas").limit(1).get();
-    const rangesChanged = JSON.stringify(existingRanges.map((r: any) => ({ id: r.id, nombre: r.nombre, desde: r.desde, hasta: r.hasta }))) !== JSON.stringify(ranges.map((r) => ({ id: r.id, nombre: r.nombre, desde: r.desde, hasta: r.hasta })));
-    if (!deliveriesSnap.empty && rangesChanged) {
-      throw new functions.https.HttpsError("failed-precondition", "Ya hay entregas iniciadas. No puedes cambiar los rangos durante el evento; puedes actualizar el PIN sin modificar las mesas.");
-    }
-    const competitors = await activeRef.collection("competidores").get();
-    const numbers = competitors.docs.map((d) => ({
-      id: d.id,
-      bib: Number(String(d.get("Bib") ?? "").trim()),
-    }));
-    const unassigned = numbers.filter((item) =>
-      !Number.isSafeInteger(item.bib) || item.bib < 1 || !ranges.some((range) => item.bib >= range.desde && item.bib <= range.hasta)
-    );
-    if (unassigned.length > 0) {
-      const examples = unassigned.slice(0, 5).map((item) => Number.isFinite(item.bib) ? item.bib : "sin número").join(", ");
-      throw new functions.https.HttpsError("failed-precondition", `${unassigned.length} competidores no tienen un número válido o están fuera de los rangos. Ejemplos: ${examples}. Ajusta los rangos antes de guardar.`);
-    }
-    const rangesWithCounts = ranges.map((range) => ({
-      ...range,
-      totalCompetidores: numbers.filter((item) => item.bib >= range.desde && item.bib <= range.hasta).length,
-    }));
-    const salt = randomBytes(16).toString("hex");
-    const pinHash = scryptSync(pin, salt, 64).toString("hex");
-    await configRef.set({
-      ranges: rangesWithCounts,
-      pinSalt: salt,
-      pinHash,
-      updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    return { ok: true, ranges: rangesWithCounts };
   });
+
 
 async function validarPinEntrega(pin: string) {
   const active = await db.collection("busquedaCompetidor").doc("active").get();
