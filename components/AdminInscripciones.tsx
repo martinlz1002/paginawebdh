@@ -15,49 +15,6 @@ function toDateStr(v: any) {
   return Number.isFinite(d.getTime()) ? d.toLocaleString("es-MX") : "";
 }
 
-const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
-
-function getFechaInscripcion(value: any): Date | null {
-  if (!value) return null;
-
-  if (value instanceof Date) return value;
-
-  if (value instanceof Timestamp) return value.toDate();
-
-  if (typeof value?.toDate === "function") {
-    return value.toDate();
-  }
-
-  if (typeof value?._seconds === "number") {
-    return new Date(value._seconds * 1000);
-  }
-
-  if (typeof value?.seconds === "number") {
-    return new Date(value.seconds * 1000);
-  }
-
-  const date = new Date(value);
-
-  return Number.isFinite(date.getTime()) ? date : null;
-}
-
-function pendienteVencido(
-  inscripcion: any,
-  ahora: number
-): boolean {
-  const status = String(
-    inscripcion.paymentStatus ?? inscripcion.payment_status ?? ""
-  ).toLowerCase();
-
-  if (status !== "pending") return false;
-
-  const fecha = getFechaInscripcion(inscripcion.timestamp);
-
-  if (!fecha) return false;
-
-  return ahora - fecha.getTime() >= VEINTICUATRO_HORAS;
-}
-
 function fullName(nombre?: string, paterno?: string, materno?: string) {
   return `${(nombre || "").trim()} ${(paterno || "").trim()} ${(materno || "").trim()}`
     .replace(/\s+/g, " ")
@@ -80,15 +37,6 @@ export default function AdminInscripciones() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "paid" | "pending" | "manual" | "expired" | "unpaid" | "failed"
   >("all");
-  const [ahora, setAhora] = useState(Date.now());
-
-useEffect(() => {
-  const interval = setInterval(() => {
-    setAhora(Date.now());
-  }, 60 * 1000);
-
-  return () => clearInterval(interval);
-}, []);
 
   useEffect(() => {
     (async () => {
@@ -116,13 +64,12 @@ useEffect(() => {
     const mapped = insc.map((i) => {
       const nombres =
         (i.nombres && String(i.nombres).trim()) ||
-        fullName(i.nombre, i.paterno, i.materno ) ||
+        fullName(i.nombre, i.paterno, i.materno) ||
         "";
 
       const distancia = (i.ruta || i.distancia || "").toString();
 
       const status = (i.paymentStatus || "desconocido").toString();
-      
 
       return {
         id: i.id,
@@ -136,22 +83,14 @@ useEffect(() => {
         club: i.club || "",
         paymentStatus: status,
         sessionId: i.sessionId || "",
-        timestamp: i.timestamp,
         createdAt: toDateStr(i.timestamp),
       };
     });
 
     const filtered =
-  statusFilter === "pending"
-    ? mapped.filter(
-        (r) => r.paymentStatus.toLowerCase() === "pending"
-      )
-    : statusFilter === "all"
-    ? mapped.filter((r) => !pendienteVencido(r, ahora))
-    : mapped.filter(
-        (r) =>
-          (r.paymentStatus || "").toLowerCase() === statusFilter
-      );
+      statusFilter === "all"
+        ? mapped
+        : mapped.filter((r) => (r.paymentStatus || "").toLowerCase() === statusFilter);
 
     // orden pro: # asc, vacíos al final
     filtered.sort((a, b) => {
@@ -161,7 +100,7 @@ useEffect(() => {
     });
 
     return filtered;
-  }, [insc, statusFilter, ahora]);
+  }, [insc, statusFilter]);
 
   const exportCsv = () => {
     const csv = Papa.unparse(rows, { quotes: false });

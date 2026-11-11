@@ -84,8 +84,6 @@ function safeDateFromAny(v: any): Date | null {
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
-const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
-
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -163,16 +161,6 @@ export default function AdminInscripcionesView() {
   // ✅ Ordenador
   const [sortKey, setSortKey] = useState<SortKey>("competitorNumber");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
-
-  const [ahora, setAhora] = useState(Date.now());
-
-useEffect(() => {
-  const interval = setInterval(() => {
-    setAhora(Date.now());
-  }, 60 * 1000);
-
-  return () => clearInterval(interval);
-}, []);
 
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -373,69 +361,52 @@ telefonoEmergencia: "",
   };
 
   // ✅ Lista final: filtro búsqueda + orden
-  
-const visible = useMemo(() => {
-  const q = search.trim().toLowerCase();
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
 
-  // Ocultar pendientes antiguos únicamente cuando NO
-  // está seleccionado el filtro "Pendiente".
-  const base = statusFilter === "pending"
-    ? inscripciones
-    : inscripciones.filter((i) => {
-        const status = String(i.paymentStatus ?? "").toLowerCase();
+    const filtered = !q
+      ? inscripciones
+      : inscripciones.filter((i) => {
+          const nombres =
+            i.perfil.nombres ||
+            fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno);
 
-        if (status !== "pending") return true;
+          const blob = [
+            i.competitorNumber,
+            i.ficha ?? "",
+            i.bib ?? "",
+            nombres ?? "",
+            i.perfil.email ?? "",
+            i.perfil.celular ?? "",
+            i.tallaPlayera ?? "",
+i.telefonoEmergencia ?? "",
+            i.perfil.club ?? "",
+            i.ruta ?? i.perfil.ruta ?? "",
+            i.categoria ?? "",
+            i.rama ?? i.perfil.rama ?? "",
+            i.paymentStatus ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
 
-        return ahora - i.timestamp.getTime() < VEINTICUATRO_HORAS;
-      });
+          return blob.includes(q);
+        });
 
-  const filtered = !q
-    ? base
-    : base.filter((i) => {
-        const nombres =
-          i.perfil.nombres ||
-          fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno);
+    const sorted = [...filtered].sort((a, b) => {
+      const av = sortValue(a, sortKey);
+      const bv = sortValue(b, sortKey);
 
-        const blob = [
-          i.competitorNumber,
-          i.ficha ?? "",
-          i.bib ?? "",
-          nombres ?? "",
-          i.perfil.email ?? "",
-          i.perfil.celular ?? "",
-          i.tallaPlayera ?? "",
-          i.telefonoEmergencia ?? "",
-          i.perfil.club ?? "",
-          i.ruta ?? i.perfil.ruta ?? "",
-          i.categoria ?? "",
-          i.rama ?? i.perfil.rama ?? "",
-          i.paymentStatus ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
+      // number vs string
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const as = String(av);
+      const bs = String(bv);
+      return sortDir === "asc" ? as.localeCompare(bs, "es") : bs.localeCompare(as, "es");
+    });
 
-        return blob.includes(q);
-      });
-
-  const sorted = [...filtered].sort((a, b) => {
-    const av = sortValue(a, sortKey);
-    const bv = sortValue(b, sortKey);
-
-    if (typeof av === "number" && typeof bv === "number") {
-      return sortDir === "asc" ? av - bv : bv - av;
-    }
-
-    const as = String(av);
-    const bs = String(bv);
-
-    return sortDir === "asc"
-      ? as.localeCompare(bs, "es")
-      : bs.localeCompare(as, "es");
-  });
-
-  return sorted;
-}, [inscripciones, search, sortKey, sortDir, statusFilter, ahora]);
-
+    return sorted;
+  }, [inscripciones, search, sortKey, sortDir]);
 
   const openEdit = (it: InscripcionItem) => {
   setEditError(null);

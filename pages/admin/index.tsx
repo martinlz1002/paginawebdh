@@ -62,7 +62,7 @@ export default function AdminPage() {
   }, []);
 
   // ✅ Renovar token al montar para agarrar claim admin
-    useEffect(() => {
+  useEffect(() => {
     const auth = getAuth(app);
     auth.currentUser?.getIdToken(true).catch(console.error);
   }, []);
@@ -187,7 +187,7 @@ export default function AdminPage() {
 
         {view === 'mesasEntrega' && <AdminMesasEntrega />}
         {view === 'controlEntregas' && <AdminEntregas />}
-        </main>
+      </main>
     </div>
   );
 }

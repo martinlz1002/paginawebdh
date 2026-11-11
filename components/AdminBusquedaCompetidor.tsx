@@ -6,12 +6,12 @@ import {
   doc,
   getDocs,
   setDoc,
+  deleteDoc,
   writeBatch,
   serverTimestamp
 } from 'firebase/firestore';
 
-import { app, db } from '@/lib/firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { db } from '@/lib/firebase';
 
 import {
   ref,
@@ -66,8 +66,6 @@ export default function AdminBusquedaCompetidor({
   const [bannerFile, setBannerFile] = useState<File | null>(null);
 
   const [publishedUrl, setPublishedUrl] = useState('');
-  const [syncingPublic, setSyncingPublic] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
 
   /*
    * ==========================================
@@ -261,35 +259,76 @@ export default function AdminBusquedaCompetidor({
        * la anterior.
        */
 
-      const competidoresRef = collection(activeRef, 'competidores');
-      const publicCompetidoresRef = collection(activeRef, 'publicCompetidores');
+      const competidoresRef = collection(
+        activeRef,
+        'competidores'
+      );
+
+      const previousSnapshot =
+        await getDocs(
+          competidoresRef
+        );
+
       const entregasRef = collection(activeRef, 'entregas');
-
-      const [previousSnapshot, previousPublicSnapshot, previousDeliveriesSnapshot] = await Promise.all([
-        getDocs(competidoresRef),
-        getDocs(publicCompetidoresRef),
-        getDocs(entregasRef),
-      ]);
-
-      // Evita borrar accidentalmente el avance de una entrega que ya comenzó.
-      if (previousDeliveriesSnapshot.size > 0) {
+      const publicCompetidoresRef = collection(activeRef, 'publicCompetidores');
+      const previousDeliveries = await getDocs(entregasRef);
+      const previousPublicCompetitors = await getDocs(publicCompetidoresRef);
+      if (previousDeliveries.size > 0) {
         const confirmed = window.confirm(
-          `Ya existen ${previousDeliveriesSnapshot.size} registros de entrega. Si publicas otra lista, se reiniciará el seguimiento de entregas anterior. ¿Deseas continuar?`
+          `Esta publicación reemplazará ${previousSnapshot.size} competidores y eliminará el avance de entrega de ${previousDeliveries.size} registros.\n\n¿Estás seguro de publicar una nueva lista? Esta acción reinicia el proceso de entrega.`
         );
         if (!confirmed) return;
       }
 
-      // Limpiar las tres subcolecciones en lotes seguros antes de publicar la nueva lista.
-      const oldDocs = [
-        ...previousSnapshot.docs,
-        ...previousPublicSnapshot.docs,
-        ...previousDeliveriesSnapshot.docs,
-      ];
+      const cleanupChunkSize = 400;
+      for (let i = 0; i < previousDeliveries.docs.length; i += cleanupChunkSize) {
+        const batch = writeBatch(db);
+        previousDeliveries.docs.slice(i, i + cleanupChunkSize).forEach((deliveryDoc) => batch.delete(deliveryDoc.ref));
+        await batch.commit();
+      }
+      for (let i = 0; i < previousPublicCompetitors.docs.length; i += cleanupChunkSize) {
+        const batch = writeBatch(db);
+        previousPublicCompetitors.docs.slice(i, i + cleanupChunkSize).forEach((publicDoc) => batch.delete(publicDoc.ref));
+        await batch.commit();
+      }
+      await deleteDoc(doc(db, 'configuracionEntrega', 'active'));
+
+      /*
+       * Firestore permite máximo 500
+       * operaciones por batch.
+       *
+       * Usamos 400 para mantener margen.
+       */
+
       const deleteChunkSize = 400;
-      for (let i = 0; i < oldDocs.length; i += deleteChunkSize) {
-        const deleteBatch = writeBatch(db);
-        oldDocs.slice(i, i + deleteChunkSize).forEach((oldDoc) => deleteBatch.delete(oldDoc.ref));
+
+      for (
+        let i = 0;
+        i < previousSnapshot.docs.length;
+        i += deleteChunkSize
+      ) {
+
+        const chunk =
+          previousSnapshot.docs.slice(
+            i,
+            i + deleteChunkSize
+          );
+
+        const deleteBatch =
+          writeBatch(db);
+
+        chunk.forEach(
+          (competidorDoc) => {
+
+            deleteBatch.delete(
+              competidorDoc.ref
+            );
+
+          }
+        );
+
         await deleteBatch.commit();
+
       }
 
       /*
@@ -335,7 +374,7 @@ export default function AdminBusquedaCompetidor({
        * ======================================
        */
 
-      const chunkSize = 200; // 2 escrituras por competidor: original + proyección pública (máx. 400 operaciones).
+      const chunkSize = 200;
 
       for (
         let i = 0;
@@ -355,8 +394,10 @@ export default function AdminBusquedaCompetidor({
         chunk.forEach(
           (competidor) => {
 
-            const compRef = doc(competidoresRef);
-            const publicCompRef = doc(publicCompetidoresRef, compRef.id);
+            const compRef =
+              doc(
+                competidoresRef
+              );
 
             /*
  * ==========================================
@@ -455,38 +496,36 @@ const nombreCompleto =
  * ==========================================
  */
 
-const competitorRecord = {
-  ...competidor,
-  participant_search: nombreCompleto,
-  search_terms: searchTerms,
-  estadoEntrega: 'pendiente',
-  mesaId: null,
-  mesaNombre: null,
-};
+batch.set(
+  compRef,
+  {
+    ...competidor,
+    estadoEntrega: 'pendiente',
+    mesaId: null,
+    mesaNombre: null,
+    encontradoAt: null,
+    entregadoAt: null,
+    participant_search: nombreCompleto,
+    search_terms: searchTerms
+  }
+);
 
-// Registro privado/original para administración y validaciones del backend.
-batch.set(compRef, competitorRecord);
-
-// Proyección pública: solo datos elegidos para mostrar, campos básicos e índice.
-// Los términos permiten buscar por teléfono/correo sin publicar esos valores.
-const publicRecord: Record<string, any> = {
-  Bib: competidor.Bib ?? '',
+const publicRef = doc(publicCompetidoresRef, compRef.id);
+const publicData: Record<string, any> = {
   Participant: competidor.Participant ?? '',
+  Bib: competidor.Bib ?? '',
   RouteName: competidor.RouteName ?? '',
   CategoryName: competidor.CategoryName ?? '',
   participant_search: nombreCompleto,
   search_terms: searchTerms,
   estadoEntrega: 'pendiente',
   mesaId: null,
-  mesaNombre: null,
+  mesaNombre: null
 };
-
 selectedFields.forEach((field) => {
-  const value = competidor[field];
-  if (value !== undefined && value !== null) publicRecord[field] = value;
+  if (competidor[field] !== undefined) publicData[field] = competidor[field];
 });
-
-batch.set(publicCompRef, publicRecord);
+batch.set(publicRef, publicData);
 
           }
         );
@@ -546,22 +585,6 @@ batch.set(publicCompRef, publicRecord);
 
     }
 
-  };
-
-  const reconstruirBuscadorPublico = async () => {
-    setSyncingPublic(true);
-    setSyncMessage('');
-    try {
-      const functions = getFunctions(app, 'us-central1');
-      const sync = httpsCallable(functions, 'sincronizarPublicCompetidores');
-      const response: any = await sync({});
-      setSyncMessage(`Buscador reconstruido correctamente: ${response.data.sincronizados} competidores sincronizados.`);
-    } catch (error: any) {
-      console.error('Error reconstruyendo buscador público:', error);
-      setSyncMessage(error?.message || 'No se pudo reconstruir el buscador público.');
-    } finally {
-      setSyncingPublic(false);
-    }
   };
 
   /*
@@ -758,13 +781,6 @@ batch.set(publicCompRef, publicRecord);
           para búsqueda pública.
 
         </p>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={reconstruirBuscadorPublico} disabled={syncingPublic} className="rounded-xl border border-dh-purple px-4 py-2 text-sm font-bold text-dh-purple disabled:opacity-50">
-            {syncingPublic ? 'Reconstruyendo...' : 'Reconstruir buscador público'}
-          </button>
-          {syncMessage && <span className="text-sm text-dh-muted">{syncMessage}</span>}
-        </div>
 
       </div>
 

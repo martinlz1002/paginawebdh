@@ -72,8 +72,7 @@ service cloud.firestore {
     // Proyección pública con únicamente los campos seleccionados para el buscador.
     match /busquedaCompetidor/active/publicCompetidores/{competidorId} {
       allow read: if true;
-      // El publicador del panel escribe esta proyección con la sesión del administrador.
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if false;
     }
 
     // Registros de entrega: contienen únicamente los datos mínimos que necesita cada mesa.

@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { registrarInscripcionManual } from "@/lib/Inscripciones";
 import type { CarreraData } from "@/types/carrera";
 import * as XLSX from "xlsx";
@@ -45,53 +45,6 @@ function fullName(nombre: string, paterno: string, materno: string) {
   return `${(nombre || "").trim()} ${(paterno || "").trim()} ${(materno || "").trim()}`
     .replace(/\s+/g, " ")
     .trim();
-}
-
-const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
-
-function obtenerFechaRegistro(value: any): Date | null {
-  if (!value) return null;
-
-  if (value instanceof Date) return value;
-
-  if (typeof value?.toDate === "function") {
-    return value.toDate();
-  }
-
-  if (typeof value?._seconds === "number") {
-    return new Date(value._seconds * 1000);
-  }
-
-  if (typeof value?.seconds === "number") {
-    return new Date(value.seconds * 1000);
-  }
-
-  if (typeof value === "number") {
-    return new Date(
-      value < 1e12 ? value * 1000 : value
-    );
-  }
-
-  const fecha = new Date(value);
-
-  return Number.isFinite(fecha.getTime()) ? fecha : null;
-}
-
-function pendienteVencidoManual(
-  inscripcion: any,
-  ahora: number
-): boolean {
-  const status = String(
-    inscripcion.paymentStatus ?? inscripcion.payment_status ?? ""
-  ).toLowerCase();
-
-  if (status !== "pending") return false;
-
-  const fecha = obtenerFechaRegistro(inscripcion.timestamp);
-
-  if (!fecha) return false;
-
-  return ahora - fecha.getTime() >= VEINTICUATRO_HORAS;
 }
 
 // ✅ parse seguro para "YYYY-MM-DD" (evita desfase por timezone)
@@ -149,144 +102,8 @@ const [mensajeLista, setMensajeLista] = useState("");
   const [available, setAvailable] = useState<number[]>([]);
   const [numero, setNumero] = useState(0);
 
-const [busquedaLista, setBusquedaLista] = useState("");
-const [filtroPagoManual, setFiltroPagoManual] = useState("todos");
-const [filtroRutaManual, setFiltroRutaManual] = useState("todas");
-const [filtroCategoriaManual, setFiltroCategoriaManual] = useState("todas");
-const [filtroRamaManual, setFiltroRamaManual] = useState("todas");
-
-const [ordenManual, setOrdenManual] = useState("numero-asc");
-
-
   const [tallaPlayera, setTallaPlayera] = useState("");
 const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
-
-const [ahora, setAhora] = useState(Date.now());
-
-useEffect(() => {
-  const interval = setInterval(() => {
-    setAhora(Date.now());
-  }, 60 * 1000);
-
-  return () => clearInterval(interval);
-}, []);
-
-const inscripcionesVisibles = (
-  Array.isArray(inscripciones) ? inscripciones : []
-).filter((i) => !pendienteVencidoManual(i, ahora));
-
-const rutasDisponibles = [
-  ...new Set(
-    inscripcionesVisibles
-      .map((i) => String(i.ruta ?? "").trim())
-      .filter(Boolean)
-  ),
-].sort((a, b) => a.localeCompare(b, "es"));
-
-const categoriasDisponibles = [
-  ...new Set(
-    inscripcionesVisibles
-      .map((i) => String(i.categoria ?? "").trim())
-      .filter(Boolean)
-  ),
-].sort((a, b) => a.localeCompare(b, "es"));
-
-const ramasDisponibles = [
-  ...new Set(
-    inscripcionesVisibles
-      .map((i) => String(i.rama ?? "").trim())
-      .filter(Boolean)
-  ),
-].sort((a, b) => a.localeCompare(b, "es"));
-
-const inscripcionesLista = useMemo(() => {
-  const q = busquedaLista.trim().toLowerCase();
-
-  const filtradas = inscripcionesVisibles.filter((i) => {
-    const nombre = String(i.nombres ?? [
-      i.nombre,
-      i.paterno,
-      i.materno,
-    ].filter(Boolean).join(" ")).toLowerCase();
-
-    const numero = String(
-      i.competitorNumber ?? i.ficha ?? i.bib ?? ""
-    );
-
-    const coincideBusqueda =
-      !q ||
-      nombre.includes(q) ||
-      numero.toLowerCase().includes(q);
-
-    const coincidePago =
-      filtroPagoManual === "todos" ||
-      String(i.paymentStatus ?? "").toLowerCase() === filtroPagoManual;
-
-    const coincideRuta =
-      filtroRutaManual === "todas" ||
-      String(i.ruta ?? "") === filtroRutaManual;
-
-    const coincideCategoria =
-      filtroCategoriaManual === "todas" ||
-      String(i.categoria ?? "") === filtroCategoriaManual;
-
-    const coincideRama =
-      filtroRamaManual === "todas" ||
-      String(i.rama ?? "") === filtroRamaManual;
-
-    return (
-      coincideBusqueda &&
-      coincidePago &&
-      coincideRuta &&
-      coincideCategoria &&
-      coincideRama
-    );
-  });
-
-  return [...filtradas].sort((a, b) => {
-    const numeroA = Number(a.competitorNumber ?? a.ficha ?? a.bib ?? 0);
-    const numeroB = Number(b.competitorNumber ?? b.ficha ?? b.bib ?? 0);
-
-    const nombreA = String(a.nombres ?? a.nombre ?? "").toLowerCase();
-    const nombreB = String(b.nombres ?? b.nombre ?? "").toLowerCase();
-
-    const fechaA = obtenerFechaRegistro(a.timestamp)?.getTime() ?? 0;
-    const fechaB = obtenerFechaRegistro(b.timestamp)?.getTime() ?? 0;
-
-    const rutaA = String(a.ruta ?? "").toLowerCase();
-    const rutaB = String(b.ruta ?? "").toLowerCase();
-
-    const categoriaA = String(a.categoria ?? "").toLowerCase();
-    const categoriaB = String(b.categoria ?? "").toLowerCase();
-
-    switch (ordenManual) {
-      case "numero-desc":
-        return numeroB - numeroA;
-      case "nombre-asc":
-        return nombreA.localeCompare(nombreB, "es");
-      case "nombre-desc":
-        return nombreB.localeCompare(nombreA, "es");
-      case "ruta-asc":
-        return rutaA.localeCompare(rutaB, "es");
-      case "categoria-asc":
-        return categoriaA.localeCompare(categoriaB, "es");
-      case "fecha-desc":
-        return fechaB - fechaA;
-      case "fecha-asc":
-        return fechaA - fechaB;
-      default:
-        return numeroA - numeroB;
-    }
-  });
-}, [
-  inscripcionesVisibles,
-  busquedaLista,
-  filtroPagoManual,
-  filtroRutaManual,
-  filtroCategoriaManual,
-  filtroRamaManual,
-  ordenManual,
-]);
 
   const [competidor, setCompetidor] = useState({
     nombre: "",
@@ -995,109 +812,6 @@ const guardarEdicion = async () => {
 
 </div>
 
-
-<div className="mb-6 rounded-2xl border border-white/10 bg-[#16161d] p-4 space-y-4">
-
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-    <input
-      type="text"
-      value={busquedaLista}
-      onChange={(e) => setBusquedaLista(e.target.value)}
-      placeholder="Buscar por número o nombre..."
-      className="w-full rounded-xl bg-[#0c0c0f] border border-white/10 px-4 py-3 text-white placeholder-white/40"
-    />
-
-    <select
-      value={ordenManual}
-      onChange={(e) => setOrdenManual(e.target.value)}
-      className="w-full rounded-xl bg-[#0c0c0f] border border-white/10 px-4 py-3 text-white"
-    >
-      <option value="numero-asc">Número: menor a mayor</option>
-      <option value="numero-desc">Número: mayor a menor</option>
-      <option value="nombre-asc">Nombre: A-Z</option>
-      <option value="nombre-desc">Nombre: Z-A</option>
-      <option value="ruta-asc">Ruta: A-Z</option>
-      <option value="categoria-asc">Categoría: A-Z</option>
-      <option value="fecha-desc">Registro: más reciente</option>
-      <option value="fecha-asc">Registro: más antiguo</option>
-    </select>
-  </div>
-
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-    <select
-      value={filtroPagoManual}
-      onChange={(e) => setFiltroPagoManual(e.target.value)}
-      className="w-full rounded-xl bg-[#0c0c0f] border border-white/10 px-3 py-3 text-white"
-    >
-      <option value="todos">Todos los pagos</option>
-      <option value="paid">Pagados</option>
-      <option value="manual">Manual</option>
-      <option value="pending">Pendientes vigentes</option>
-      <option value="unpaid">No pagados</option>
-      <option value="failed">Fallidos</option>
-      <option value="expired">Expirados</option>
-    </select>
-
-    <select
-      value={filtroRutaManual}
-      onChange={(e) => setFiltroRutaManual(e.target.value)}
-      className="w-full rounded-xl bg-[#0c0c0f] border border-white/10 px-3 py-3 text-white"
-    >
-      <option value="todas">Todas las rutas</option>
-      {rutasDisponibles.map((ruta) => (
-        <option key={ruta} value={ruta}>{ruta}</option>
-      ))}
-    </select>
-
-    <select
-      value={filtroCategoriaManual}
-      onChange={(e) => setFiltroCategoriaManual(e.target.value)}
-      className="w-full rounded-xl bg-[#0c0c0f] border border-white/10 px-3 py-3 text-white"
-    >
-      <option value="todas">Todas las categorías</option>
-      {categoriasDisponibles.map((categoria) => (
-        <option key={categoria} value={categoria}>{categoria}</option>
-      ))}
-    </select>
-
-    <select
-      value={filtroRamaManual}
-      onChange={(e) => setFiltroRamaManual(e.target.value)}
-      className="w-full rounded-xl bg-[#0c0c0f] border border-white/10 px-3 py-3 text-white"
-    >
-      <option value="todas">Todas las ramas</option>
-      {ramasDisponibles.map((rama) => (
-        <option key={rama} value={rama}>{rama}</option>
-      ))}
-    </select>
-  </div>
-
-  <div className="flex flex-wrap items-center justify-between gap-3">
-    <p className="text-sm text-white/50">
-      Mostrando <strong className="text-white">{inscripcionesLista.length}</strong>
-      {" "}de{" "}
-      <strong className="text-white">{inscripcionesVisibles.length}</strong>
-      {" "}inscripciones visibles
-    </p>
-
-    <button
-      type="button"
-      onClick={() => {
-        setBusquedaLista("");
-        setFiltroPagoManual("todos");
-        setFiltroRutaManual("todas");
-        setFiltroCategoriaManual("todas");
-        setFiltroRamaManual("todas");
-        setOrdenManual("numero-asc");
-      }}
-      className="text-sm text-purple-300 hover:text-white underline"
-    >
-      Limpiar filtros
-    </button>
-  </div>
-</div>
-
-
         {loadingList ? (
           <p>Cargando...</p>
         ) : (
@@ -1118,18 +832,14 @@ const guardarEdicion = async () => {
               </thead>
 
               <tbody>
-  {inscripcionesLista.length === 0 ? (
+  {(Array.isArray(inscripciones) ? inscripciones : []).length === 0 ? (
     <tr>
       <td colSpan={9} className="text-center py-6 text-white/50">
-  {inscripcionesVisibles.length === 0
-    ? inscripciones.length > 0
-      ? "No hay inscripciones visibles. Los pendientes antiguos se conservan en el registro."
-      : "No hay inscripciones aún 👀"
-    : "No se encontraron inscritos con los filtros seleccionados."}
-</td>
+        No hay inscripciones aún 👀
+      </td>
     </tr>
   ) : (
-    inscripcionesLista.map((i, idx) => ( 
+    (Array.isArray(inscripciones) ? inscripciones : []).map((i, idx) => (
       <tr key={i.id} className="border-t hover:bg-white/5 transition">
         <td className="p-3 text-white/90">{i.competitorNumber || "-"}</td>
         <td className="p-3 text-white/90">{i.nombres || "-"}</td>
@@ -1153,11 +863,6 @@ const guardarEdicion = async () => {
               Manual
             </span>
           )}
-          {i.paymentStatus === "pending" && (
-  <span className="px-3 py-1 text-xs rounded-full bg-orange-500/20 text-orange-400">
-    Pendiente
-  </span>
-)}
           {!i.paymentStatus && "-"}
         </td>
 
