@@ -62,6 +62,25 @@ service cloud.firestore {
     match /testimonios/{testimonioId} {
       allow read, write: if request.auth != null;
     }
-    
+
+    // Configuración pública del buscador: no contiene PIN ni hashes de acceso.
+    match /busquedaCompetidor/active {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Proyección pública con únicamente los campos seleccionados para el buscador.
+    match /busquedaCompetidor/active/publicCompetidores/{competidorId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    // Registros de entrega: contienen únicamente los datos mínimos que necesita cada mesa.
+    // Las escrituras se realizan exclusivamente mediante Cloud Functions con PIN validado.
+    match /busquedaCompetidor/active/entregas/{entregaId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
   }
+
 }

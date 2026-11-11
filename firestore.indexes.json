@@ -4,8 +4,28 @@
       "collectionGroup": "inscripciones",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "perfilOwner", "order": "ASCENDING" },
-        { "fieldPath": "__name__",     "order": "ASCENDING" }
+        {
+          "fieldPath": "perfilOwner",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "entregas",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "mesaId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "estado",
+          "order": "ASCENDING"
+        }
       ]
     }
   ],

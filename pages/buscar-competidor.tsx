@@ -9,6 +9,7 @@ import {
   query,
   where,
 } from "firebase/firestore";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
 import * as XLSX from "xlsx";
 
@@ -27,7 +28,7 @@ import {
   Flag,
 } from "lucide-react";
 
-import { db } from "@/lib/firebase";
+import { app, db } from "@/lib/firebase";
 
 
 interface Competidor {
@@ -60,8 +61,26 @@ export default function BuscarCompetidor() {
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
   const [tituloEvento, setTituloEvento] = useState("");
+  const [stationPin, setStationPin] = useState("");
+  const [processingIds, setProcessingIds] = useState<string[]>([]);
+  const [deliveryMessage, setDeliveryMessage] = useState("");
+  const functions = getFunctions(app, "us-central1");
+  const markFound = httpsCallable(functions, "marcarCompetidorEncontrado");
 
   const [eventExists, setEventExists] = useState(true);
+
+  const marcarEncontrado = async (competidor: any) => {
+    if (!stationPin) { setDeliveryMessage("Ingresa el PIN de recepción para marcar competidores."); return; }
+    setProcessingIds((prev) => [...prev, competidor.id]);
+    setDeliveryMessage("");
+    try {
+      const response: any = await markFound({ competitorId: competidor.id, pin: stationPin });
+      setResults((prev) => prev.map((item) => item.id === competidor.id ? { ...item, estadoEntrega: "en_proceso", mesaId: response.data.mesaId, mesaNombre: response.data.mesaNombre } : item));
+      setDeliveryMessage(`Competidor #${response.data.bib} enviado a ${response.data.mesaNombre}.`);
+    } catch (error: any) {
+      setDeliveryMessage(error?.message || "No se pudo marcar como encontrado.");
+    } finally { setProcessingIds((prev) => prev.filter((id) => id !== competidor.id)); }
+  };
 
   /*
    * ==========================================
@@ -264,7 +283,7 @@ useEffect(() => {
         db,
         'busquedaCompetidor',
         'active',
-        'competidores'
+        'publicCompetidores'
       );
 
       /*
@@ -944,6 +963,14 @@ useEffect(() => {
         {/* BUSCADOR */}
         {/* ================================= */}
 
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <label className="text-sm text-white/60">PIN de recepción
+            <input type="password" inputMode="numeric" maxLength={8} value={stationPin} onChange={(e) => setStationPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="PIN de 4 a 8 dígitos" className="mt-1 block w-full sm:w-56 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-white tracking-[0.3em] outline-none focus:border-dh-purple" />
+          </label>
+          <p className="text-xs text-white/40">Al marcar encontrado, se asignará automáticamente la mesa según su número.</p>
+        </div>
+        {deliveryMessage && <div className="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">{deliveryMessage}</div>}
+
         <div className="
           relative
           mb-8
@@ -1437,6 +1464,18 @@ useEffect(() => {
                       </div>
 
                     )}
+
+                    <div className="mt-5 border-t border-white/10 pt-4">
+                      {competidor.estadoEntrega === "entregado" ? (
+                        <div className="rounded-xl bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-300">✓ Kit entregado</div>
+                      ) : competidor.estadoEntrega === "en_proceso" ? (
+                        <div className="rounded-xl bg-blue-500/10 px-4 py-3 text-sm font-bold text-blue-300">En proceso · {competidor.mesaNombre || "Mesa asignada"}</div>
+                      ) : (
+                        <button type="button" onClick={() => marcarEncontrado(competidor)} disabled={processingIds.includes(competidor.id)} className="w-full rounded-xl bg-dh-purple px-4 py-3 font-extrabold text-dh-dark transition hover:brightness-110 disabled:opacity-50">
+                          {processingIds.includes(competidor.id) ? "Asignando mesa..." : "✓ Marcar como encontrado"}
+                        </button>
+                      )}
+                    </div>
 
                   </div>
 

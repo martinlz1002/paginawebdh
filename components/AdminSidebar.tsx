@@ -18,6 +18,8 @@ interface SidebarProps {
   | 'inscripcionesManuales'
   | 'galeria'
   | 'buscarCompetidor'
+  | "mesasEntrega"
+  | "controlEntregas"
   | "organizadores";
   setView: (v: SidebarProps['view']) => void;
   open: boolean;
@@ -176,6 +178,10 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
   <MagnifyingGlassIcon className="w-5 h-5" />
   Buscar Competidor
 </button>
+
+{/* Mesas de entrega */}
+<button onClick={() => { setView("mesasEntrega"); onToggle(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${view === "mesasEntrega" ? "bg-dh-purple text-dh-dark shadow-dhSm" : "text-dh-muted hover:bg-dh-soft"}`}>📦 Configurar mesas</button>
+<button onClick={() => { setView("controlEntregas"); onToggle(); }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition ${view === "controlEntregas" ? "bg-dh-purple text-dh-dark shadow-dhSm" : "text-dh-muted hover:bg-dh-soft"}`}>📊 Control de entregas</button>
 
 {/* Organizadores */}
 <button

@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -203,4 +204,199 @@ export const liberarNumerosDeTempUsuariosExpirados = functions
       await batch.commit();
     }
     return null;
+  });
+
+/**
+ * =========================================================
+ * 4) CONFIGURAR MESAS DE ENTREGA (solo administrador)
+ * =========================================================
+ */
+function validarRangos(ranges: any[]) {
+  if (!Array.isArray(ranges) || ranges.length < 1 || ranges.length > 30) {
+    throw new functions.https.HttpsError("invalid-argument", "Configura entre 1 y 30 mesas.");
+  }
+  const normalized = ranges.map((r, index) => {
+    const id = String(r.id || `mesa-${index + 1}`).trim();
+    const nombre = String(r.nombre || `Mesa ${index + 1}`).trim();
+    const desde = Number(r.desde);
+    const hasta = Number(r.hasta);
+    if (!id || !nombre || !Number.isSafeInteger(desde) || !Number.isSafeInteger(hasta) || desde < 1 || hasta < desde) {
+      throw new functions.https.HttpsError("invalid-argument", `Rango inválido en ${nombre || `Mesa ${index + 1}`}.`);
+    }
+    return { id, nombre, desde, hasta };
+  }).sort((a, b) => a.desde - b.desde);
+  const ids = new Set<string>();
+  for (let i = 0; i < normalized.length; i++) {
+    if (ids.has(normalized[i].id)) throw new functions.https.HttpsError("invalid-argument", "Los identificadores de mesa deben ser únicos.");
+    ids.add(normalized[i].id);
+    if (i > 0 && normalized[i].desde <= normalized[i - 1].hasta) {
+      throw new functions.https.HttpsError("invalid-argument", "Los rangos de las mesas se enciman.");
+    }
+  }
+  return normalized;
+}
+
+export const configurarMesasEntrega = functions
+  .runWith({ memory: "256MB", timeoutSeconds: 30 })
+  .https.onCall(async (data: any, context: any) => {
+    await assertAdmin(context);
+    const ranges = validarRangos(data.ranges);
+    const pin = String(data.pin || "");
+    if (!/^\d{4,8}$/.test(pin)) {
+      throw new functions.https.HttpsError("invalid-argument", "El PIN debe contener entre 4 y 8 dígitos.");
+    }
+    const activeRef = db.collection("busquedaCompetidor").doc("active");
+    const activeEventSnap = await activeRef.get();
+    if (!activeEventSnap.exists) {
+      throw new functions.https.HttpsError("failed-precondition", "Primero publica la lista de competidores.");
+    }
+    const configRef = db.collection("configuracionEntrega").doc("active");
+    const configSnap = await configRef.get();
+    const existingRanges = configSnap.get("ranges") || [];
+    const deliveriesSnap = await activeRef.collection("entregas").limit(1).get();
+    const rangesChanged = JSON.stringify(existingRanges.map((r: any) => ({ id: r.id, nombre: r.nombre, desde: r.desde, hasta: r.hasta }))) !== JSON.stringify(ranges.map((r) => ({ id: r.id, nombre: r.nombre, desde: r.desde, hasta: r.hasta })));
+    if (!deliveriesSnap.empty && rangesChanged) {
+      throw new functions.https.HttpsError("failed-precondition", "Ya hay entregas iniciadas. No puedes cambiar los rangos durante el evento; puedes actualizar el PIN sin modificar las mesas.");
+    }
+    const competitors = await activeRef.collection("competidores").get();
+    const numbers = competitors.docs.map((d) => ({
+      id: d.id,
+      bib: Number(String(d.get("Bib") ?? "").trim()),
+    }));
+    const unassigned = numbers.filter((item) =>
+      !Number.isSafeInteger(item.bib) || item.bib < 1 || !ranges.some((range) => item.bib >= range.desde && item.bib <= range.hasta)
+    );
+    if (unassigned.length > 0) {
+      const examples = unassigned.slice(0, 5).map((item) => Number.isFinite(item.bib) ? item.bib : "sin número").join(", ");
+      throw new functions.https.HttpsError("failed-precondition", `${unassigned.length} competidores no tienen un número válido o están fuera de los rangos. Ejemplos: ${examples}. Ajusta los rangos antes de guardar.`);
+    }
+    const rangesWithCounts = ranges.map((range) => ({
+      ...range,
+      totalCompetidores: numbers.filter((item) => item.bib >= range.desde && item.bib <= range.hasta).length,
+    }));
+    const salt = randomBytes(16).toString("hex");
+    const pinHash = scryptSync(pin, salt, 64).toString("hex");
+    await configRef.set({
+      ranges: rangesWithCounts,
+      pinSalt: salt,
+      pinHash,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { ok: true, ranges: rangesWithCounts };
+  });
+
+async function validarPinEntrega(pin: string) {
+  const active = await db.collection("busquedaCompetidor").doc("active").get();
+  if (!active.exists) throw new functions.https.HttpsError("not-found", "No hay una búsqueda de competidores activa.");
+  const configSnap = await db.collection("configuracionEntrega").doc("active").get();
+  const config = configSnap.exists ? configSnap.data() : null;
+  if (!config?.pinSalt || !config?.pinHash || !Array.isArray(config.ranges)) {
+    throw new functions.https.HttpsError("failed-precondition", "Primero configura las mesas y el PIN desde administración.");
+  }
+  const candidate = scryptSync(pin, config.pinSalt, 64);
+  const expected = Buffer.from(config.pinHash, "hex");
+  if (candidate.length !== expected.length || !timingSafeEqual(candidate, expected)) {
+    throw new functions.https.HttpsError("permission-denied", "PIN incorrecto.");
+  }
+  return { ranges: config.ranges as Array<{ id: string; nombre: string; desde: number; hasta: number }> };
+}
+
+/**
+ * =========================================================
+ * 5) MARCAR COMPETIDOR ENCONTRADO Y ASIGNAR MESA
+ * =========================================================
+ */
+export const marcarCompetidorEncontrado = functions
+  .runWith({ memory: "256MB", timeoutSeconds: 30 })
+  .https.onCall(async (data: any) => {
+    const competitorId = String(data.competitorId || "").trim();
+    const pin = String(data.pin || "");
+    if (!competitorId || !pin) throw new functions.https.HttpsError("invalid-argument", "Faltan datos del competidor o PIN.");
+    const { ranges } = await validarPinEntrega(pin);
+    const activeRef = db.collection("busquedaCompetidor").doc("active");
+    const competitorRef = activeRef.collection("competidores").doc(competitorId);
+    const publicRef = activeRef.collection("publicCompetidores").doc(competitorId);
+    const deliveryRef = activeRef.collection("entregas").doc(competitorId);
+    return db.runTransaction(async (tx) => {
+      const activeSnap = await tx.get(activeRef);
+      const competitorSnap = await tx.get(competitorRef);
+      const publicSnap = await tx.get(publicRef);
+      if (!competitorSnap.exists || !publicSnap.exists) throw new functions.https.HttpsError("not-found", "No se encontró el competidor publicado.");
+      const competitor = competitorSnap.data() as any;
+      const bib = Number(String(competitor.Bib ?? "").trim());
+      if (!Number.isSafeInteger(bib) || bib < 1) throw new functions.https.HttpsError("failed-precondition", "El competidor no tiene un número válido (Bib).");
+      const mesa = ranges.find((r) => bib >= Number(r.desde) && bib <= Number(r.hasta));
+      if (!mesa) throw new functions.https.HttpsError("failed-precondition", `El número ${bib} no pertenece a ningún rango de mesa configurado.`);
+      if (competitor.estadoEntrega === "en_proceso" || competitor.estadoEntrega === "entregado") {
+        throw new functions.https.HttpsError("already-exists", competitor.estadoEntrega === "entregado" ? "Este kit ya fue entregado." : `Este competidor ya está asignado a ${competitor.mesaNombre || mesa.nombre}.`);
+      }
+      const configuredFields = activeSnap.get("fields");
+      const fields = Array.isArray(configuredFields) ? configuredFields as string[] : [];
+      const safeDetails: Record<string, any> = {};
+      for (const field of fields) {
+        if (/email|correo|celular|telefono|teléfono|phone|direccion|dirección/i.test(field)) continue;
+        const value = competitor[field];
+        if (value !== undefined && value !== null && String(value).trim() !== "") safeDetails[field] = value;
+      }
+      const now = FieldValue.serverTimestamp();
+      tx.update(competitorRef, {
+        estadoEntrega: "en_proceso",
+        mesaId: mesa.id,
+        mesaNombre: mesa.nombre,
+        encontradoAt: now,
+      });
+      tx.update(publicRef, {
+        estadoEntrega: "en_proceso",
+        mesaId: mesa.id,
+        mesaNombre: mesa.nombre,
+      });
+      tx.set(deliveryRef, {
+        competitorId,
+        estado: "en_proceso",
+        mesaId: mesa.id,
+        mesaNombre: mesa.nombre,
+        bib,
+        participant: String(competitor.Participant || "Sin nombre"),
+        routeName: String(competitor.RouteName || ""),
+        categoryName: String(competitor.CategoryName || ""),
+        talla: Object.entries(competitor).find(([key]) => /talla|playera|camiseta/i.test(key))?.[1] ?? "",
+        details: safeDetails,
+        encontradoAt: now,
+        entregadoAt: null,
+      });
+      return { ok: true, mesaId: mesa.id, mesaNombre: mesa.nombre, bib };
+    });
+  });
+
+/**
+ * =========================================================
+ * 6) MARCAR KIT ENTREGADO
+ * =========================================================
+ */
+export const marcarKitEntregado = functions
+  .runWith({ memory: "256MB", timeoutSeconds: 30 })
+  .https.onCall(async (data: any) => {
+    const competitorId = String(data.competitorId || "").trim();
+    const mesaId = String(data.mesaId || "").trim();
+    const pin = String(data.pin || "");
+    if (!competitorId || !mesaId || !pin) throw new functions.https.HttpsError("invalid-argument", "Faltan datos para completar la entrega.");
+    await validarPinEntrega(pin);
+    const activeRef = db.collection("busquedaCompetidor").doc("active");
+    const competitorRef = activeRef.collection("competidores").doc(competitorId);
+    const publicRef = activeRef.collection("publicCompetidores").doc(competitorId);
+    const deliveryRef = activeRef.collection("entregas").doc(competitorId);
+    return db.runTransaction(async (tx) => {
+      const deliverySnap = await tx.get(deliveryRef);
+      const competitorSnap = await tx.get(competitorRef);
+      const publicSnap = await tx.get(publicRef);
+      if (!deliverySnap.exists || !competitorSnap.exists || !publicSnap.exists) throw new functions.https.HttpsError("not-found", "No se encontró el registro de entrega.");
+      const delivery = deliverySnap.data() as any;
+      if (delivery.mesaId !== mesaId) throw new functions.https.HttpsError("permission-denied", "Este competidor pertenece a otra mesa.");
+      if (delivery.estado !== "en_proceso") throw new functions.https.HttpsError("failed-precondition", "El kit ya no está pendiente de entrega.");
+      const now = FieldValue.serverTimestamp();
+      tx.update(deliveryRef, { estado: "entregado", entregadoAt: now });
+      tx.update(competitorRef, { estadoEntrega: "entregado", entregadoAt: now });
+      tx.update(publicRef, { estadoEntrega: "entregado" });
+      return { ok: true };
+    });
   });
