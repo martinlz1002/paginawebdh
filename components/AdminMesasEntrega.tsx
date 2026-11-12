@@ -15,6 +15,18 @@ export default function AdminMesasEntrega() {
   const [origin, setOrigin] = useState("");
   const functions = getFunctions(app, "us-central1");
   const saveConfig = httpsCallable(functions, "configurarMesasEntrega");
+  const diagnostico = httpsCallable(functions, "diagnosticoCallable");
+
+  const probarFirebase = async () => {
+  try {
+    const resultado = await diagnostico();
+    console.log("RESULTADO DIAGNÓSTICO:", resultado.data);
+    alert(JSON.stringify(resultado.data, null, 2));
+  } catch (error) {
+    console.error("ERROR DIAGNÓSTICO:", error);
+    alert("Error: " + (error as any).message);
+  }
+};
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -84,6 +96,9 @@ export default function AdminMesasEntrega() {
             <button onClick={() => removeRange(index)} disabled={ranges.length === 1} className="rounded-lg border border-red-300 px-3 py-2 text-sm text-red-600 disabled:opacity-30">Eliminar</button>
           </div>
         ))}
+        <button onClick={probarFirebase}>
+  Probar conexión Firebase
+</button>
         <p className="text-xs text-dh-muted">Los rangos no pueden encimarse. Los competidores cuyo número no esté dentro de algún rango no podrán marcarse como encontrados.</p>
         {configured && origin && <div className="space-y-2 border-t border-dh-border pt-4"><h4 className="text-sm font-bold">Enlaces para las mesas</h4>{ranges.map((r) => <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-dh-soft p-3"><span className="text-sm font-semibold">{r.nombre}</span><a className="break-all text-xs text-dh-purple underline" href={`${origin}/entrega-kits?mesa=${encodeURIComponent(r.id)}`} target="_blank" rel="noreferrer">{origin}/entrega-kits?mesa={r.id}</a></div>)}</div>}
       </div>
@@ -95,6 +110,8 @@ export default function AdminMesasEntrega() {
       </div>
       {message && <div className="rounded-xl bg-dh-soft p-3 text-sm">{message}</div>}
       <button onClick={save} disabled={saving || !pin || ranges.length === 0} className="rounded-xl bg-dh-purple px-6 py-3 font-bold text-dh-dark disabled:opacity-50">{saving ? "Guardando..." : "Guardar configuración"}</button>
+    
+    
     </section>
   );
 }
