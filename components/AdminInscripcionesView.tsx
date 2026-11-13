@@ -84,6 +84,15 @@ function safeDateFromAny(v: any): Date | null {
   return Number.isFinite(d.getTime()) ? d : null;
 }
 
+const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
+
+function esPendienteVencido(inscripcion: InscripcionItem, ahora: number): boolean {
+  if (String(inscripcion.paymentStatus ?? "").toLowerCase() !== "pending") return false;
+  const fecha = safeDateFromAny(inscripcion.timestamp);
+  if (!fecha) return false;
+  return ahora - fecha.getTime() >= VEINTICUATRO_HORAS;
+}
+
 function computeAge(birthDate: Date, basisDate: Date): number {
   let age = basisDate.getFullYear() - birthDate.getFullYear();
   const m = basisDate.getMonth() - birthDate.getMonth();
@@ -150,6 +159,13 @@ export default function AdminInscripcionesView() {
   const [selectedCarrera, setSelectedCarrera] = useState("");
   const [inscripciones, setInscripciones] = useState<InscripcionItem[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [ahora, setAhora] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setAhora(Date.now()), 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const [statusFilter, setStatusFilter] = useState<
     "all" | "paid" | "pending" | "manual" | "expired" | "unpaid" | "failed"
@@ -364,9 +380,16 @@ telefonoEmergencia: "",
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
 
+    // En "Todos" ocultamos pendientes con más de 24 horas.
+    // El filtro explícito "Pendiente" conserva el acceso a esas inscripciones.
+    const inscripcionesBase =
+      statusFilter === "pending"
+        ? inscripciones
+        : inscripciones.filter((i) => !esPendienteVencido(i, ahora));
+
     const filtered = !q
-      ? inscripciones
-      : inscripciones.filter((i) => {
+      ? inscripcionesBase
+      : inscripcionesBase.filter((i) => {
           const nombres =
             i.perfil.nombres ||
             fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno);
@@ -406,7 +429,7 @@ i.telefonoEmergencia ?? "",
     });
 
     return sorted;
-  }, [inscripciones, search, sortKey, sortDir]);
+  }, [inscripciones, search, sortKey, sortDir, statusFilter, ahora]);
 
   const openEdit = (it: InscripcionItem) => {
   setEditError(null);

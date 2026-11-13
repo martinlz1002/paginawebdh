@@ -1,24 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function isAdmin() {
-      return request.auth != null
-        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.admin == true;
-    }
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // 1) Carreras: lectura pública, sólo admin escribe.
+    function isAdmin() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.admin == true;
+    }
+
+    // 1) Carreras: lectura pública; escritura sólo para administradores.
     match /carreras/{carreraId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // 2) Usuarios y subperfiles.
+    // 2) Usuarios y perfiles.
     match /usuarios/{userId} {
       allow read, write: if isSignedIn() && request.auth.uid == userId;
+
       match /perfiles/{perfilId} {
         allow read, write: if isSignedIn() && request.auth.uid == userId;
       }
@@ -30,7 +32,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // 4) Inscripciones.
+    // 4) Inscripciones. Se conserva el flujo actual.
     match /inscripciones/{inscId} {
       allow create: if (
         isSignedIn()
@@ -46,24 +48,51 @@ service cloud.firestore {
         && resource.data.perfilOwner == request.auth.uid;
     }
 
-    // 5) Testimonios.
+    // 5) Testimonios: se conserva el acceso autenticado existente.
     match /testimonios/{testimonioId} {
-      allow read: if true;
-      allow write: if isSignedIn();
+      allow read, write: if isSignedIn();
     }
 
-    // 6) Configuración de búsqueda activa.
-    match /busquedaCompetidor/active {
+    // 6) Cronometraje por vueltas. Se conservan los permisos actuales.
+    match /eventos_vueltas/{eventoId} {
+      allow read, write: if true;
+
+      match /equipos/{equipoId} {
+        allow read, write: if true;
+      }
+
+      match /laps/{lapId} {
+        allow read, write: if true;
+      }
+
+      match /fotos_evento/{fotoId} {
+        allow read, write: if true;
+      }
+
+      match /comerciales/{comercialId} {
+        allow read, write: if true;
+      }
+    }
+
+    // 7) Documento de búsqueda activa y otros documentos de esta colección.
+    match /busquedaCompetidor/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Proyección pública usada por el buscador de recepción.
+    // Colección privada original: sólo administradores pueden modificarla.
+    match /busquedaCompetidor/{docId}/competidores/{competidorId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Proyección pública utilizada por el buscador y por las estaciones.
     match /busquedaCompetidor/active/publicCompetidores/{competidorId} {
       allow read: if true;
+      allow create, delete: if isAdmin();
 
-      // Recepción sólo puede pasar pendiente -> en_proceso.
-      // La estación sólo puede pasar en_proceso -> entregado.
+      // Recepción: pendiente -> en_proceso.
+      // Estación: en_proceso -> entregado.
       allow update: if isSignedIn()
         && request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(["estadoEntrega", "mesaId", "mesaNombre"])
@@ -82,11 +111,9 @@ service cloud.firestore {
             && request.resource.data.mesaNombre == resource.data.mesaNombre
           )
         );
-
-      allow create, delete: if isAdmin();
     }
 
-    // Registros mínimos que consumen las estaciones.
+    // Movimientos mínimos de entrega consumidos por recepción, mesas y panel admin.
     match /busquedaCompetidor/active/entregas/{entregaId} {
       allow read: if isSignedIn();
 
@@ -103,6 +130,7 @@ service cloud.firestore {
         && request.resource.data.bib is int
         && request.resource.data.bib > 0
         && request.resource.data.participant is string
+        && request.resource.data.encontradoAt is timestamp
         && request.resource.data.entregadoAt == null;
 
       allow update: if isSignedIn()
@@ -115,15 +143,15 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Configuración de entrega: lectura para estaciones autenticadas
-    // (la sesión anónima se crea automáticamente al abrir el enlace).
-    // El PIN es un control operativo, no un secreto de seguridad.
+    // Configuración de entrega: lectura sólo para estaciones autenticadas.
+    // Incluye autenticación anónima. El PIN es un control operativo de interfaz,
+    // no una autorización de seguridad validada por el servidor.
     match /configuracionEntrega/{configId} {
       allow read: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
-    // 7) Regla global de administrador para el resto del sistema.
+    // 8) Regla global: los administradores conservan acceso total al resto del sistema.
     match /{document=**} {
       allow read, write: if isAdmin();
     }

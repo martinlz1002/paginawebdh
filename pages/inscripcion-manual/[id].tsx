@@ -47,6 +47,27 @@ function fullName(nombre: string, paterno: string, materno: string) {
     .trim();
 }
 
+const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
+
+function obtenerFechaRegistro(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (typeof value?._seconds === "number") return new Date(value._seconds * 1000);
+  if (typeof value?.seconds === "number") return new Date(value.seconds * 1000);
+  if (typeof value === "number") return new Date(value < 1e12 ? value * 1000 : value);
+  const fecha = new Date(value);
+  return Number.isFinite(fecha.getTime()) ? fecha : null;
+}
+
+function pendienteVencidoManual(inscripcion: any, ahora: number): boolean {
+  const status = String(inscripcion.paymentStatus ?? inscripcion.payment_status ?? "").toLowerCase();
+  if (status !== "pending") return false;
+  const fecha = obtenerFechaRegistro(inscripcion.timestamp);
+  if (!fecha) return false;
+  return ahora - fecha.getTime() >= VEINTICUATRO_HORAS;
+}
+
 // ✅ parse seguro para "YYYY-MM-DD" (evita desfase por timezone)
 function parseISODateYYYYMMDD(iso: any): Date {
   if (!iso || typeof iso !== "string") return new Date("2000-01-01T00:00:00");
@@ -77,6 +98,17 @@ export default function ManualPage() {
 
   const [inscripciones, setInscripciones] = useState<any[]>([]);
   const [loadingList, setLoadingList] = useState(false);
+
+  const [ahora, setAhora] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setAhora(Date.now()), 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  // En esta vista las pendientes vencidas se ocultan siempre.
+  const inscripcionesVisibles = (Array.isArray(inscripciones) ? inscripciones : [])
+    .filter((i) => !pendienteVencidoManual(i, ahora));
 
   const [editando, setEditando] = useState<any | null>(null);
 const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -148,11 +180,11 @@ const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
 };
 
 const exportExcelManual = () => {
-  if (!Array.isArray(inscripciones) || !inscripciones.length) {
+  if (!inscripcionesVisibles.length) {
     return;
   }
 
-  const rows = inscripciones.map((i: any) => ({
+  const rows = inscripcionesVisibles.map((i: any) => ({
     Ficha: i.ficha ?? i.competitorNumber ?? "",
     Bib: i.bib ?? i.competitorNumber ?? "",
 
@@ -802,7 +834,7 @@ const guardarEdicion = async () => {
 
     <button
       onClick={exportExcelManual}
-      disabled={!inscripciones.length}
+      disabled={!inscripcionesVisibles.length}
       className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-4 py-2.5 text-white font-semibold hover:opacity-95 transition disabled:opacity-50"
     >
       📊 Exportar Excel
@@ -832,14 +864,14 @@ const guardarEdicion = async () => {
               </thead>
 
               <tbody>
-  {(Array.isArray(inscripciones) ? inscripciones : []).length === 0 ? (
+  {inscripcionesVisibles.length === 0 ? (
     <tr>
       <td colSpan={9} className="text-center py-6 text-white/50">
         No hay inscripciones aún 👀
       </td>
     </tr>
   ) : (
-    (Array.isArray(inscripciones) ? inscripciones : []).map((i, idx) => (
+    inscripcionesVisibles.map((i, idx) => (
       <tr key={i.id} className="border-t hover:bg-white/5 transition">
         <td className="p-3 text-white/90">{i.competitorNumber || "-"}</td>
         <td className="p-3 text-white/90">{i.nombres || "-"}</td>
