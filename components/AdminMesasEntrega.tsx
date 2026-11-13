@@ -15,7 +15,7 @@ export default function AdminMesasEntrega() {
   const [origin, setOrigin] = useState("");
   const functions = getFunctions(app, "us-central1");
   const saveConfig = httpsCallable(functions, "configurarMesasEntrega");
-  const diagnostico = httpsCallable(functions, "diagnosticoCallable");
+  const diagnostico = httpsCallable(functions, "diagnosticoMesasEntrega");
 
   const probarFirebase = async () => {
   try {
