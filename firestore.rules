@@ -151,6 +151,56 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
+        // 8) Sesiones independientes de entrega de kits.
+    match /entregasKitsControl/{controlId} {
+      // Las estaciones autenticadas pueden consultar cuál es la sesión activa.
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /entregasKits/{sessionId} {
+      // Las estaciones necesitan leer la configuración y el PIN cifrado.
+      allow read: if isSignedIn();
+      // Crear, configurar, finalizar y eliminar sesiones: sólo administradores.
+      allow create, update, delete: if isAdmin();
+
+      // Copia independiente de los competidores de cada sesión.
+      match /participantes/{participanteId} {
+        allow read: if isSignedIn();
+        allow create, delete: if isAdmin();
+
+        // Recepción: pendiente -> en_proceso.
+        // Mesa: en_proceso -> entregado.
+        allow update: if isSignedIn()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly([
+              "estadoEntrega",
+              "mesaId",
+              "mesaNombre",
+              "encontradoAt",
+              "entregadoAt"
+            ])
+          && (
+            (
+              resource.data.estadoEntrega == "pendiente"
+              && request.resource.data.estadoEntrega == "en_proceso"
+              && request.resource.data.mesaId is string
+              && request.resource.data.mesaNombre is string
+              && request.resource.data.encontradoAt is timestamp
+              && request.resource.data.entregadoAt == null
+            )
+            ||
+            (
+              resource.data.estadoEntrega == "en_proceso"
+              && request.resource.data.estadoEntrega == "entregado"
+              && request.resource.data.mesaId == resource.data.mesaId
+              && request.resource.data.mesaNombre == resource.data.mesaNombre
+              && request.resource.data.entregadoAt is timestamp
+            )
+          );
+      }
+    }
+
     // 8) Regla global: los administradores conservan acceso total al resto del sistema.
     match /{document=**} {
       allow read, write: if isAdmin();

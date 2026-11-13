@@ -6,7 +6,6 @@ import {
   doc,
   getDocs,
   setDoc,
-  deleteDoc,
   writeBatch,
   serverTimestamp
 } from 'firebase/firestore';
@@ -269,29 +268,25 @@ export default function AdminBusquedaCompetidor({
           competidoresRef
         );
 
-      const entregasRef = collection(activeRef, 'entregas');
+      // La lista pública representa únicamente la publicación más reciente.
+      // Las sesiones de entrega viven en entregasKits/{sessionId} y no deben
+      // eliminarse ni reiniciarse al publicar otra carrera.
       const publicCompetidoresRef = collection(activeRef, 'publicCompetidores');
-      const previousDeliveries = await getDocs(entregasRef);
       const previousPublicCompetitors = await getDocs(publicCompetidoresRef);
-      if (previousDeliveries.size > 0) {
-        const confirmed = window.confirm(
-          `Esta publicación reemplazará ${previousSnapshot.size} competidores y eliminará el avance de entrega de ${previousDeliveries.size} registros.\n\n¿Estás seguro de publicar una nueva lista? Esta acción reinicia el proceso de entrega.`
-        );
-        if (!confirmed) return;
-      }
+
+      const confirmed = window.confirm(
+        `Esta publicación reemplazará ${previousSnapshot.size} competidores de la búsqueda pública y ${previousPublicCompetitors.size} registros públicos anteriores.\\n\\nEl historial de entregas y las sesiones guardadas se conservarán. ¿Deseas continuar?`
+      );
+      if (!confirmed) return;
 
       const cleanupChunkSize = 400;
-      for (let i = 0; i < previousDeliveries.docs.length; i += cleanupChunkSize) {
-        const batch = writeBatch(db);
-        previousDeliveries.docs.slice(i, i + cleanupChunkSize).forEach((deliveryDoc) => batch.delete(deliveryDoc.ref));
-        await batch.commit();
-      }
       for (let i = 0; i < previousPublicCompetitors.docs.length; i += cleanupChunkSize) {
         const batch = writeBatch(db);
-        previousPublicCompetitors.docs.slice(i, i + cleanupChunkSize).forEach((publicDoc) => batch.delete(publicDoc.ref));
+        previousPublicCompetitors.docs
+          .slice(i, i + cleanupChunkSize)
+          .forEach((publicDoc) => batch.delete(publicDoc.ref));
         await batch.commit();
       }
-      await deleteDoc(doc(db, 'configuracionEntrega', 'active'));
 
       /*
        * Firestore permite máximo 500

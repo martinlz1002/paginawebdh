@@ -73,10 +73,16 @@ export default function BuscarCompetidor() {
   const [processingIds, setProcessingIds] = useState<string[]>([]);
   const [deliveryMessage, setDeliveryMessage] = useState("");
   const [eventExists, setEventExists] = useState(true);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const marcarEncontrado = async (competidor: any) => {
     if (!stationPin) {
       setDeliveryMessage("Ingresa el PIN de recepción para marcar competidores.");
+      return;
+    }
+
+    if (!activeSessionId) {
+      setDeliveryMessage("No hay una sesión de entrega activa. Crea una desde Administración > Mesas de entrega.");
       return;
     }
 
@@ -85,67 +91,91 @@ export default function BuscarCompetidor() {
 
     try {
       await ensureEntregaAuth();
+
       const config = await loadEntregaConfig();
+      if (!config || config.id !== activeSessionId || config.estado !== "activa") {
+        throw new Error("La sesión de entrega ya no está activa. Actualiza la página.");
+      }
+
       if (!(await verifyEntregaPin(stationPin, config))) {
         throw new Error("PIN incorrecto o configuración de entrega incompleta.");
       }
 
-      const ranges = Array.isArray(config?.ranges) ? config.ranges : [];
+      const ranges = Array.isArray(config.ranges) ? config.ranges : [];
       const bib = normalizeBib(competidor.Bib);
-      if (!Number.isFinite(bib)) throw new Error("Este competidor no tiene un número Bib válido.");
+      if (!Number.isFinite(bib)) {
+        throw new Error("Este competidor no tiene un número Bib válido.");
+      }
 
       const mesa = getMesaForBib(ranges, bib);
-      if (!mesa) throw new Error(`El número ${bib} no pertenece a ningún rango de mesa configurado.`);
+      if (!mesa) {
+        throw new Error(`El número ${bib} no pertenece a ningún rango de mesa configurado.`);
+      }
 
-      const competitorRef = doc(db, "busquedaCompetidor", "active", "publicCompetidores", competidor.id);
-      const deliveryRef = doc(db, "busquedaCompetidor", "active", "entregas", competidor.id);
+      const competitorRef = doc(
+        db,
+        "busquedaCompetidor",
+        "active",
+        "publicCompetidores",
+        competidor.id
+      );
+      const participantRef = doc(
+        db,
+        "entregasKits",
+        activeSessionId,
+        "participantes",
+        competidor.id
+      );
 
       await runTransaction(db, async (transaction) => {
         const competitorSnapshot = await transaction.get(competitorRef);
-        const deliverySnapshot = await transaction.get(deliveryRef);
-        if (!competitorSnapshot.exists()) throw new Error("El competidor ya no está publicado.");
+        const participantSnapshot = await transaction.get(participantRef);
 
-        const current = competitorSnapshot.data();
-        if (current.estadoEntrega === "en_proceso" || current.estadoEntrega === "entregado" || deliverySnapshot.exists()) {
-          throw new Error(current.estadoEntrega === "entregado"
-            ? "Este kit ya fue entregado."
-            : "Este competidor ya fue enviado a una mesa.");
+        if (!competitorSnapshot.exists()) {
+          throw new Error("El competidor ya no está publicado.");
+        }
+        if (!participantSnapshot.exists()) {
+          throw new Error("Este competidor no forma parte de la sesión activa.");
         }
 
-        const details: Record<string, any> = {};
-        for (const field of visibleFields) {
-          if (/email|correo|celular|telefono|teléfono|phone|direccion|dirección/i.test(field)) continue;
-          const value = current[field];
-          if (value !== undefined && value !== null && String(value).trim() !== "") details[field] = value;
+        const current = competitorSnapshot.data();
+        const participant = participantSnapshot.data();
+
+        if (
+          participant.estadoEntrega === "en_proceso" ||
+          participant.estadoEntrega === "entregado"
+        ) {
+          throw new Error(
+            participant.estadoEntrega === "entregado"
+              ? "Este kit ya fue entregado."
+              : "Este competidor ya fue enviado a una mesa."
+          );
         }
 
         const now = serverTimestamp();
-        transaction.update(competitorRef, {
+
+        transaction.update(participantRef, {
           estadoEntrega: "en_proceso",
           mesaId: mesa.id,
           mesaNombre: mesa.nombre,
-        });
-        transaction.set(deliveryRef, {
-          competitorId: competidor.id,
-          estado: "en_proceso",
-          mesaId: mesa.id,
-          mesaNombre: mesa.nombre,
-          bib,
-          participant: String(current.Participant || "Sin nombre"),
-          routeName: String(current.RouteName || ""),
-          categoryName: String(current.CategoryName || ""),
-          talla: Object.entries(current).find(([key]) => /talla|playera|camiseta/i.test(key))?.[1] ?? "",
-          details,
           encontradoAt: now,
           entregadoAt: null,
         });
       });
 
-      setResults((prev) => prev.map((item) =>
-        item.id === competidor.id
-          ? { ...item, estadoEntrega: "en_proceso", mesaId: mesa.id, mesaNombre: mesa.nombre }
-          : item
-      ));
+      setResults((prev) =>
+        prev.map((item) =>
+          item.id === competidor.id
+            ? {
+                ...item,
+                estadoEntrega: "en_proceso",
+                mesaId: mesa.id,
+                mesaNombre: mesa.nombre,
+              }
+            : item
+        )
+      );
+
       setDeliveryMessage(`Competidor #${bib} enviado a ${mesa.nombre}.`);
     } catch (error: any) {
       console.error("Error asignando competidor a mesa:", error);
@@ -244,6 +274,13 @@ export default function BuscarCompetidor() {
       try {
         setLoadingConfig(true);
         await ensureEntregaAuth();
+
+        const entregaConfig = await loadEntregaConfig();
+        setActiveSessionId(
+          entregaConfig?.estado === "activa" && entregaConfig?.id
+            ? String(entregaConfig.id)
+            : null
+        );
 
         const ref = doc(
           db,
@@ -642,12 +679,58 @@ useEffect(() => {
        * Mostrar máximo 20 resultados.
        */
 
-      setResults(
-        resultadosOrdenados.slice(
-          0,
-          20
-        )
-      );
+      const resultadosVisibles = resultadosOrdenados.slice(0, 20);
+
+      // El estado de entrega pertenece a la sesión, no al índice público.
+      const resultadosConEstado = activeSessionId
+        ? await Promise.all(
+            resultadosVisibles.map(async (competidor) => {
+              try {
+                const participanteRef = doc(
+                  db,
+                  "entregasKits",
+                  activeSessionId,
+                  "participantes",
+                  competidor.id
+                );
+                const participanteSnap = await getDoc(participanteRef);
+
+                if (!participanteSnap.exists()) {
+                  return {
+                    ...competidor,
+                    estadoEntrega: "pendiente",
+                    mesaId: null,
+                    mesaNombre: null,
+                  };
+                }
+
+                const participante = participanteSnap.data();
+                return {
+                  ...competidor,
+                  estadoEntrega: participante.estadoEntrega || "pendiente",
+                  mesaId: participante.mesaId ?? null,
+                  mesaNombre: participante.mesaNombre ?? null,
+                };
+              } catch (error) {
+                console.error("Error consultando estado de entrega:", error);
+                return {
+                  ...competidor,
+                  estadoEntrega: "pendiente",
+                  mesaId: null,
+                  mesaNombre: null,
+                };
+              }
+            })
+          )
+        : resultadosVisibles.map((competidor) => ({
+            ...competidor,
+            estadoEntrega: "pendiente",
+            mesaId: null,
+            mesaNombre: null,
+          }));
+
+      if (cancelado) return;
+      setResults(resultadosConEstado);
 
     } catch (error) {
 
@@ -683,7 +766,7 @@ useEffect(() => {
     cancelado = true;
   };
 
-}, [debouncedSearch]);
+}, [debouncedSearch, activeSessionId]);
 
   /*
    * ==========================================
@@ -1035,7 +1118,11 @@ useEffect(() => {
           <label className="text-sm text-white/60">PIN de recepción
             <input type="password" inputMode="numeric" maxLength={8} value={stationPin} onChange={(e) => setStationPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="PIN de 4 a 8 dígitos" className="mt-1 block w-full sm:w-56 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-white tracking-[0.3em] outline-none focus:border-dh-purple" />
           </label>
-          <p className="text-xs text-white/40">Al marcar encontrado, se asignará automáticamente la mesa según su número.</p>
+          <p className="text-xs text-white/40">
+            {activeSessionId
+              ? "Al marcar encontrado, se asignará automáticamente la mesa según su número."
+              : "No hay una sesión de entrega activa. La consulta de competidores seguirá disponible, pero no se podrán asignar mesas."}
+          </p>
         </div>
         {deliveryMessage && <div className="mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/80">{deliveryMessage}</div>}
 
