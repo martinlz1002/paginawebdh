@@ -70,9 +70,25 @@ export default function AdminMesasEntrega() {
       setPin("");
       setMessage("Configuración guardada. El PIN quedó actualizado.");
     } catch (error: any) {
-      console.error(error);
-      setMessage(error?.message || "No se pudo guardar la configuración.");
-    } finally { setSaving(false); }
+  console.error("ERROR COMPLETO AL GUARDAR MESAS:", {
+    name: error?.name,
+    code: error?.code,
+    message: error?.message,
+    details: error?.details,
+    stack: error?.stack,
+    error
+  });
+
+  const codigo = error?.code || "sin-codigo";
+  const mensaje = error?.message || "Sin descripción";
+  const detalles = error?.details
+    ? JSON.stringify(error.details)
+    : "";
+
+  setMessage(`Código: ${codigo} | Error: ${mensaje} ${detalles}`);
+} finally {
+  setSaving(false);
+}
   };
 
   if (loading) return <div className="p-8 text-dh-muted">Cargando configuración de mesas...</div>;
