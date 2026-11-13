@@ -40,6 +40,7 @@ async function assertAdmin(context: any) {
 export const borrarInscripcionesDeCarrera = functions
   .runWith({ memory: "256MB", timeoutSeconds: 60 })
   .https.onCall(async (data: any, context: any) => {
+    let etapa = "inicio";
     await assertAdmin(context);
 
     const { carreraId } = data;
@@ -240,19 +241,24 @@ function validarRangos(ranges: any[]) {
 export const configurarMesasEntrega = functions
   .runWith({ memory: "256MB", timeoutSeconds: 60 })
   .https.onCall(async (data: any, context: any) => {
+    let etapa = "inicio";
+
     try {
+      etapa = "comprobar administrador";
       await assertAdmin(context);
 
+      etapa = "validar rangos";
       const ranges = validarRangos(data?.ranges);
       const pin = String(data?.pin || "");
 
-      if (!/^\d{4,8}$/.test(pin)) {
+      if (!/^\\d{4,8}$/.test(pin)) {
         throw new functions.https.HttpsError(
           "invalid-argument",
           "El PIN debe contener entre 4 y 8 dígitos."
         );
       }
 
+      etapa = "consultar evento activo";
       const activeRef = db.collection("busquedaCompetidor").doc("active");
       const activeEventSnap = await activeRef.get();
 
@@ -263,6 +269,7 @@ export const configurarMesasEntrega = functions
         );
       }
 
+      etapa = "consultar configuración existente";
       const configRef = db.collection("configuracionEntrega").doc("active");
       const configSnap = await configRef.get();
 
@@ -274,6 +281,7 @@ export const configurarMesasEntrega = functions
         ? storedRanges
         : [];
 
+      etapa = "consultar entregas existentes";
       const deliveriesSnap = await activeRef
         .collection("entregas")
         .limit(1)
@@ -298,6 +306,7 @@ export const configurarMesasEntrega = functions
         );
       }
 
+      etapa = "consultar competidores";
       const competitors = await activeRef
         .collection("competidores")
         .get();
@@ -307,6 +316,7 @@ export const configurarMesasEntrega = functions
         bib: Number(String(d.get("Bib") ?? "").trim())
       }));
 
+      etapa = "validar números de competidores";
       const unassigned = numbers.filter((item) =>
         !Number.isSafeInteger(item.bib) ||
         item.bib < 1 ||
@@ -329,6 +339,7 @@ export const configurarMesasEntrega = functions
         );
       }
 
+      etapa = "calcular competidores por mesa";
       const rangesWithCounts = ranges.map((range) => ({
         ...range,
         totalCompetidores: numbers.filter(
@@ -337,9 +348,11 @@ export const configurarMesasEntrega = functions
         ).length
       }));
 
+      etapa = "generar hash del PIN";
       const salt = randomBytes(16).toString("hex");
       const pinHash = scryptSync(pin, salt, 64).toString("hex");
 
+      etapa = "guardar configuración en Firestore";
       await configRef.set(
         {
           ranges: rangesWithCounts,
@@ -361,7 +374,13 @@ export const configurarMesasEntrega = functions
       };
 
     } catch (error: any) {
-      console.error("ERROR configurarMesasEntrega:", error);
+      console.error("ERROR configurarMesasEntrega:", {
+        etapa,
+        nombre: error?.name ?? null,
+        codigo: error?.code ?? null,
+        mensaje: error?.message ?? String(error),
+        stack: error?.stack ?? null
+      });
 
       if (error instanceof functions.https.HttpsError) {
         throw error;
@@ -369,11 +388,10 @@ export const configurarMesasEntrega = functions
 
       throw new functions.https.HttpsError(
         "internal",
-        error?.message || "Error inesperado al guardar la configuración."
+        `Error en etapa: ${etapa}. ${error?.message || "Error inesperado al guardar la configuración."}`
       );
     }
   });
-
 
 async function validarPinEntrega(pin: string) {
   const active = await db.collection("busquedaCompetidor").doc("active").get();
@@ -490,3 +508,18 @@ export const marcarKitEntregado = functions
       return { ok: true };
     });
   });
+
+  export const diagnosticoCallable = functions.https.onCall(
+  async (_data: any, context: any) => {
+    console.log("DIAGNOSTICO_CALLABLE_RECIBIDA", {
+      uid: context.auth?.uid ?? null,
+      project: process.env.GCLOUD_PROJECT,
+    });
+
+    return {
+      ok: true,
+      autenticado: Boolean(context.auth),
+      proyecto: process.env.GCLOUD_PROJECT,
+    };
+  }
+);
