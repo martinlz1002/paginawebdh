@@ -8,8 +8,9 @@ import {
   limit,
   query,
   where,
+  runTransaction,
+  serverTimestamp,
 } from "firebase/firestore";
-import { getFunctions, httpsCallable } from "firebase/functions";
 
 import * as XLSX from "xlsx";
 
@@ -28,7 +29,14 @@ import {
   Flag,
 } from "lucide-react";
 
-import { app, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
+import {
+  ensureEntregaAuth,
+  getMesaForBib,
+  loadEntregaConfig,
+  normalizeBib,
+  verifyEntregaPin,
+} from "@/lib/entregaKits";
 
 
 interface Competidor {
@@ -64,29 +72,88 @@ export default function BuscarCompetidor() {
   const [stationPin, setStationPin] = useState("");
   const [processingIds, setProcessingIds] = useState<string[]>([]);
   const [deliveryMessage, setDeliveryMessage] = useState("");
-  const functions = getFunctions(app, "us-central1");
-  const markFound = httpsCallable(functions, "marcarCompetidorEncontrado");
-
   const [eventExists, setEventExists] = useState(true);
 
   const marcarEncontrado = async (competidor: any) => {
-    if (!stationPin) { setDeliveryMessage("Ingresa el PIN de recepción para marcar competidores."); return; }
+    if (!stationPin) {
+      setDeliveryMessage("Ingresa el PIN de recepción para marcar competidores.");
+      return;
+    }
+
     setProcessingIds((prev) => [...prev, competidor.id]);
     setDeliveryMessage("");
-    try {
-      const response: any = await markFound({ competitorId: competidor.id, pin: stationPin });
-      setResults((prev) => prev.map((item) => item.id === competidor.id ? { ...item, estadoEntrega: "en_proceso", mesaId: response.data.mesaId, mesaNombre: response.data.mesaNombre } : item));
-      setDeliveryMessage(`Competidor #${response.data.bib} enviado a ${response.data.mesaNombre}.`);
-    } catch (error: any) {
-      setDeliveryMessage(error?.message || "No se pudo marcar como encontrado.");
-    } finally { setProcessingIds((prev) => prev.filter((id) => id !== competidor.id)); }
-  };
 
-  /*
-   * ==========================================
-   * ICONOS
-   * ==========================================
-   */
+    try {
+      await ensureEntregaAuth();
+      const config = await loadEntregaConfig();
+      if (!(await verifyEntregaPin(stationPin, config))) {
+        throw new Error("PIN incorrecto o configuración de entrega incompleta.");
+      }
+
+      const ranges = Array.isArray(config?.ranges) ? config.ranges : [];
+      const bib = normalizeBib(competidor.Bib);
+      if (!Number.isFinite(bib)) throw new Error("Este competidor no tiene un número Bib válido.");
+
+      const mesa = getMesaForBib(ranges, bib);
+      if (!mesa) throw new Error(`El número ${bib} no pertenece a ningún rango de mesa configurado.`);
+
+      const competitorRef = doc(db, "busquedaCompetidor", "active", "publicCompetidores", competidor.id);
+      const deliveryRef = doc(db, "busquedaCompetidor", "active", "entregas", competidor.id);
+
+      await runTransaction(db, async (transaction) => {
+        const competitorSnapshot = await transaction.get(competitorRef);
+        const deliverySnapshot = await transaction.get(deliveryRef);
+        if (!competitorSnapshot.exists()) throw new Error("El competidor ya no está publicado.");
+
+        const current = competitorSnapshot.data();
+        if (current.estadoEntrega === "en_proceso" || current.estadoEntrega === "entregado" || deliverySnapshot.exists()) {
+          throw new Error(current.estadoEntrega === "entregado"
+            ? "Este kit ya fue entregado."
+            : "Este competidor ya fue enviado a una mesa.");
+        }
+
+        const details: Record<string, any> = {};
+        for (const field of visibleFields) {
+          if (/email|correo|celular|telefono|teléfono|phone|direccion|dirección/i.test(field)) continue;
+          const value = current[field];
+          if (value !== undefined && value !== null && String(value).trim() !== "") details[field] = value;
+        }
+
+        const now = serverTimestamp();
+        transaction.update(competitorRef, {
+          estadoEntrega: "en_proceso",
+          mesaId: mesa.id,
+          mesaNombre: mesa.nombre,
+        });
+        transaction.set(deliveryRef, {
+          competitorId: competidor.id,
+          estado: "en_proceso",
+          mesaId: mesa.id,
+          mesaNombre: mesa.nombre,
+          bib,
+          participant: String(current.Participant || "Sin nombre"),
+          routeName: String(current.RouteName || ""),
+          categoryName: String(current.CategoryName || ""),
+          talla: Object.entries(current).find(([key]) => /talla|playera|camiseta/i.test(key))?.[1] ?? "",
+          details,
+          encontradoAt: now,
+          entregadoAt: null,
+        });
+      });
+
+      setResults((prev) => prev.map((item) =>
+        item.id === competidor.id
+          ? { ...item, estadoEntrega: "en_proceso", mesaId: mesa.id, mesaNombre: mesa.nombre }
+          : item
+      ));
+      setDeliveryMessage(`Competidor #${bib} enviado a ${mesa.nombre}.`);
+    } catch (error: any) {
+      console.error("Error asignando competidor a mesa:", error);
+      setDeliveryMessage(error?.message || "No se pudo marcar como encontrado.");
+    } finally {
+      setProcessingIds((prev) => prev.filter((id) => id !== competidor.id));
+    }
+  };
 
   const fieldIcons: Record<string, any> = {
     Estado: MapPin,
@@ -176,6 +243,7 @@ export default function BuscarCompetidor() {
     const cargarConfiguracion = async () => {
       try {
         setLoadingConfig(true);
+        await ensureEntregaAuth();
 
         const ref = doc(
           db,
