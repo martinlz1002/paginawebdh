@@ -110,6 +110,80 @@ export default function ManualPage() {
   const inscripcionesVisibles = (Array.isArray(inscripciones) ? inscripciones : [])
     .filter((i) => !pendienteVencidoManual(i, ahora));
 
+  // Controles del listado de inscripciones manuales.
+  const [busquedaLista, setBusquedaLista] = useState("");
+  const [filtroPagoManual, setFiltroPagoManual] = useState("todos");
+  const [filtroRutaManual, setFiltroRutaManual] = useState("todas");
+  const [filtroCategoriaManual, setFiltroCategoriaManual] = useState("todas");
+  const [filtroRamaManual, setFiltroRamaManual] = useState("todas");
+  const [ordenManual, setOrdenManual] = useState("numero-asc");
+
+  const rutasDisponibles = [...new Set(
+    inscripcionesVisibles.map((i) => String(i.ruta ?? "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "es"));
+
+  const categoriasDisponibles = [...new Set(
+    inscripcionesVisibles.map((i) => String(i.categoria ?? "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "es"));
+
+  const ramasDisponibles = [...new Set(
+    inscripcionesVisibles.map((i) => String(i.rama ?? "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "es"));
+
+  const inscripcionesFiltradas = (() => {
+    const q = busquedaLista.trim().toLocaleLowerCase("es");
+    const filtradas = inscripcionesVisibles.filter((i) => {
+      const nombre = String(i.nombres ?? [
+        i.nombre, i.paterno, i.materno
+      ].filter(Boolean).join(" ")).toLocaleLowerCase("es");
+      const numero = String(i.competitorNumber ?? i.ficha ?? i.bib ?? "");
+      const email = String(i.email ?? "").toLocaleLowerCase("es");
+      const status = String(i.paymentStatus ?? i.payment_status ?? "").toLowerCase();
+
+      const coincideBusqueda = !q || nombre.includes(q) ||
+        numero.toLowerCase().includes(q) || email.includes(q);
+      const coincidePago = filtroPagoManual === "todos" ||
+        (filtroPagoManual === "sin-estatus" ? !status : status === filtroPagoManual);
+      const coincideRuta = filtroRutaManual === "todas" ||
+        String(i.ruta ?? "") === filtroRutaManual;
+      const coincideCategoria = filtroCategoriaManual === "todas" ||
+        String(i.categoria ?? "") === filtroCategoriaManual;
+      const coincideRama = filtroRamaManual === "todas" ||
+        String(i.rama ?? "") === filtroRamaManual;
+
+      return coincideBusqueda && coincidePago && coincideRuta &&
+        coincideCategoria && coincideRama;
+    });
+
+    const fecha = (i: any) => obtenerFechaRegistro(i.timestamp)?.getTime() ?? 0;
+    const numero = (i: any) => Number(i.competitorNumber ?? i.ficha ?? i.bib ?? 0);
+    return filtradas.sort((a, b) => {
+      switch (ordenManual) {
+        case "numero-desc": return numero(b) - numero(a);
+        case "nombre-asc":
+          return String(a.nombres ?? a.nombre ?? "").localeCompare(
+            String(b.nombres ?? b.nombre ?? ""), "es"
+          );
+        case "nombre-desc":
+          return String(b.nombres ?? b.nombre ?? "").localeCompare(
+            String(a.nombres ?? a.nombre ?? ""), "es"
+          );
+        case "fecha-desc": return fecha(b) - fecha(a);
+        case "fecha-asc": return fecha(a) - fecha(b);
+        default: return numero(a) - numero(b);
+      }
+    });
+  })();
+
+  const limpiarFiltrosManual = () => {
+    setBusquedaLista("");
+    setFiltroPagoManual("todos");
+    setFiltroRutaManual("todas");
+    setFiltroCategoriaManual("todas");
+    setFiltroRamaManual("todas");
+    setOrdenManual("numero-asc");
+  };
+
   const [editando, setEditando] = useState<any | null>(null);
 const [editForm, setEditForm] = useState<Record<string, string>>({});
 const [editTab, setEditTab] = useState<"datos" | "carrera" | "pago">("datos");
@@ -180,11 +254,11 @@ const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
 };
 
 const exportExcelManual = () => {
-  if (!inscripcionesVisibles.length) {
+  if (!inscripcionesFiltradas.length) {
     return;
   }
 
-  const rows = inscripcionesVisibles.map((i: any) => ({
+  const rows = inscripcionesFiltradas.map((i: any) => ({
     Ficha: i.ficha ?? i.competitorNumber ?? "",
     Bib: i.bib ?? i.competitorNumber ?? "",
 
@@ -834,7 +908,7 @@ const guardarEdicion = async () => {
 
     <button
       onClick={exportExcelManual}
-      disabled={!inscripcionesVisibles.length}
+      disabled={!inscripcionesFiltradas.length}
       className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-4 py-2.5 text-white font-semibold hover:opacity-95 transition disabled:opacity-50"
     >
       📊 Exportar Excel
@@ -843,6 +917,73 @@ const guardarEdicion = async () => {
   </div>
 
 </div>
+
+        {!loadingList && (
+          <div className="mb-5 rounded-2xl border border-dh-purple/15 bg-[#111117] p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-white">Buscar y filtrar inscritos</h3>
+                <p className="text-xs text-white/50 mt-1">
+                  Mostrando {inscripcionesFiltradas.length} de {inscripcionesVisibles.length} inscritos visibles
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={limpiarFiltrosManual}
+                className="self-start rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white/75 hover:bg-white/10"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <input
+                type="search"
+                value={busquedaLista}
+                onChange={(e) => setBusquedaLista(e.target.value)}
+                placeholder="Buscar por nombre, número o correo..."
+                className="sm:col-span-2 lg:col-span-3 w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-dh-purple"
+              />
+
+              <select value={filtroPagoManual} onChange={(e) => setFiltroPagoManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todos">Todos los pagos</option>
+                <option value="paid">Pagado</option>
+                <option value="manual">Manual</option>
+                <option value="pending">Pendiente</option>
+                <option value="sin-estatus">Sin estatus</option>
+              </select>
+
+              <select value={filtroRutaManual} onChange={(e) => setFiltroRutaManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todas">Todas las rutas</option>
+                {rutasDisponibles.map((ruta) => <option key={ruta} value={ruta}>{ruta}</option>)}
+              </select>
+
+              <select value={filtroCategoriaManual} onChange={(e) => setFiltroCategoriaManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todas">Todas las categorías</option>
+                {categoriasDisponibles.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+
+              <select value={filtroRamaManual} onChange={(e) => setFiltroRamaManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todas">Ambas ramas</option>
+                {ramasDisponibles.map((rama) => <option key={rama} value={rama}>{rama}</option>)}
+              </select>
+
+              <select value={ordenManual} onChange={(e) => setOrdenManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="numero-asc">Ordenar: número menor a mayor</option>
+                <option value="numero-desc">Número mayor a menor</option>
+                <option value="nombre-asc">Nombre: A a Z</option>
+                <option value="nombre-desc">Nombre: Z a A</option>
+                <option value="fecha-desc">Más recientes primero</option>
+                <option value="fecha-asc">Más antiguos primero</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {loadingList ? (
           <p>Cargando...</p>
@@ -864,14 +1005,14 @@ const guardarEdicion = async () => {
               </thead>
 
               <tbody>
-  {inscripcionesVisibles.length === 0 ? (
+  {inscripcionesFiltradas.length === 0 ? (
     <tr>
       <td colSpan={9} className="text-center py-6 text-white/50">
-        No hay inscripciones aún 👀
+        No hay inscritos que coincidan con los filtros 👀
       </td>
     </tr>
   ) : (
-    inscripcionesVisibles.map((i, idx) => (
+    inscripcionesFiltradas.map((i, idx) => (
       <tr key={i.id} className="border-t hover:bg-white/5 transition">
         <td className="p-3 text-white/90">{i.competitorNumber || "-"}</td>
         <td className="p-3 text-white/90">{i.nombres || "-"}</td>
@@ -895,7 +1036,12 @@ const guardarEdicion = async () => {
               Manual
             </span>
           )}
-          {!i.paymentStatus && "-"}
+          {(i.paymentStatus ?? i.payment_status) === "pending" && (
+            <span className="px-3 py-1 text-xs rounded-full bg-orange-500/20 text-orange-300">
+              Pendiente
+            </span>
+          )}
+          {!i.paymentStatus && !i.payment_status && "-"}
         </td>
 
         <td className="p-3">
