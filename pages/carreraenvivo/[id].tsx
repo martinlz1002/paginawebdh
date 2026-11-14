@@ -1219,7 +1219,7 @@ const tramosVisuales = useMemo<TramoGoogle[]>(() => {
 // ==========================================
 //
 // 1. Todos los inscritos salen de META.
-// 2. Ritmo inicial: 2:55 min/km.
+// 2. Ritmo inicial: 3:30 min/km.
 // 3. Un checkpoint real coloca al corredor
 //    inmediatamente en ese punto.
 // 4. El ritmo del siguiente tramo se calcula con
@@ -1233,7 +1233,7 @@ const tramosVisuales = useMemo<TramoGoogle[]>(() => {
 // ==========================================
 
 const RITMO_INICIAL_MS_POR_KM =
-  175000;
+  210000;
 
 // ==========================================
 // DISTANCIA GPS
