@@ -1,6 +1,9 @@
 
 import { auth, db } from "@/lib/firebase";
-import { signInAnonymously } from "firebase/auth";
+import {
+  signInAnonymously,
+  onAuthStateChanged,
+} from "firebase/auth";
 import {
   collection,
   deleteDoc,
@@ -51,15 +54,39 @@ const SUBCOLECCION_PUBLICOS = "publicCompetidores";
 
 const MAX_BATCH_WRITES = 400;
 
+
 let anonymousSignIn: Promise<void> | null = null;
+let authInitialization: Promise<void> | null = null;
 
-/**
- * Las estaciones se abren mediante enlace.
- * Si el navegador no tiene sesión Firebase, crea una sesión anónima.
- */
+function waitForAuthInitialization(): Promise<void> {
+  if (auth.currentUser) {
+    return Promise.resolve();
+  }
+
+  if (!authInitialization) {
+    authInitialization = new Promise<void>((resolve) => {
+      const unsubscribe = onAuthStateChanged(auth, () => {
+        unsubscribe();
+        resolve();
+      });
+    }).finally(() => {
+      authInitialization = null;
+    });
+  }
+
+  return authInitialization;
+}
+
 export async function ensureEntregaAuth(): Promise<void> {
-  if (typeof window === "undefined" || auth.currentUser) return;
+  if (typeof window === "undefined") return;
 
+  // Esperar a que Firebase restaure la sesión anterior.
+  await waitForAuthInitialization();
+
+  // Si existe una cuenta iniciada, conservarla.
+  if (auth.currentUser) return;
+
+  // Sólo crear una cuenta anónima si no hay ninguna sesión.
   if (!anonymousSignIn) {
     anonymousSignIn = signInAnonymously(auth)
       .then(() => undefined)
@@ -70,6 +97,7 @@ export async function ensureEntregaAuth(): Promise<void> {
 
   await anonymousSignIn;
 }
+
 
 export function normalizeBib(value: unknown): number {
   const text = String(value ?? "").trim();
