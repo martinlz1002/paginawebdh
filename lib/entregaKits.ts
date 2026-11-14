@@ -381,20 +381,28 @@ export async function finalizeEntregaSession(
   }
 
   if (
-    controlSnapshot.exists() &&
-    controlSnapshot.data().sessionId === sessionId
+    !controlSnapshot.exists() ||
+    controlSnapshot.data().sessionId !== sessionId
   ) {
-    await updateDoc(controlRef, {
-      sessionId: null,
-      updatedAt: serverTimestamp(),
-    });
+    throw new Error(
+      "La sesión no coincide con el indicador de sesión activa."
+    );
   }
 
-  await updateDoc(sessionRef, {
+  const batch = writeBatch(db);
+
+  batch.update(controlRef, {
+    sessionId: null,
+    updatedAt: serverTimestamp(),
+  });
+
+  batch.update(sessionRef, {
     estado: "finalizada",
     finalizedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+
+  await batch.commit();
 }
 
 /**
