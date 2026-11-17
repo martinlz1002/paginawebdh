@@ -33,22 +33,406 @@ export default async function generarPDF(insc: InscView) {
   const { width, height } = page.getSize();
   const margin = 35;
 
-  // Fuentes
+  // ==========================================
+  // CONFIGURACIÓN DE CARRERA ESPECIAL
+  // ==========================================
+
+  const esAltata =
+    insc.titulo.trim().toLowerCase() ===
+    'carrera altata 130 6ta. 2026'.toLowerCase();
+
+  console.log('¿Carrera Altata especial?', esAltata);
+
+  // Altata necesita una composición más compacta para conservar
+  // el texto legal completo entre las dos filas de patrocinadores.
+  // Las demás carreras mantienen exactamente su tamaño anterior.
+  const fontSize = esAltata ? 9 : 12;
+  const lineHeight = fontSize * (esAltata ? 1.15 : 1.3);
+  const maxWidth = width - margin * 2;
+
   const normalFont = await doc.embedFont(StandardFonts.Helvetica);
   const boldFont = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  const fontSize = 12;
-const lineHeight = fontSize * 1.3;
-const maxWidth = width - margin * 2;
+  // ==========================================
+  // LOGOS DE PATROCINADORES
+  // ==========================================
+
+  const logosAltata = [
+    '/Altateno.png',
+    '/CLN_Apparels.png',
+    '/Impulsa.png',
+    '/Lafher_Inmobiliaria.png',
+    '/Panchito_Ritz.png',
+    '/RefripartesMX.png',
+    '/VP_Racing_Fuels.png',
+    '/Welding_Fab.png',
+  ];
+
+  // ==========================================
+  // HELPER: INSERTAR IMAGEN EN PDF
+  // ==========================================
+
+  async function embedImage(
+    imageBytes: ArrayBuffer,
+    contentType: string
+  ) {
+    const bytes = new Uint8Array(imageBytes);
+
+    const isPNG =
+      bytes.length >= 8 &&
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47;
+
+    const isJPG =
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+
+    if (isPNG) {
+      return await doc.embedPng(imageBytes);
+    }
+
+    if (isJPG) {
+      return await doc.embedJpg(imageBytes);
+    }
+
+    // Convertir otros formatos compatibles a PNG.
+    const blob = new Blob([imageBytes], {
+      type: contentType,
+    });
+
+    const bitmap = await createImageBitmap(blob);
+
+    const canvas = document.createElement('canvas');
+
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      bitmap.close();
+      throw new Error('No se pudo crear Canvas');
+    }
+
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+
+    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((result) => {
+        if (result) {
+          resolve(result);
+        } else {
+          reject(new Error('Error convirtiendo imagen a PNG'));
+        }
+      }, 'image/png');
+    });
+
+    return await doc.embedPng(await pngBlob.arrayBuffer());
+  }
+
+  // ==========================================
+  // HELPER: DIBUJAR LOGO CONSERVANDO PROPORCIÓN
+  // ==========================================
+
+  function drawLogoFit(
+    image: any,
+    x: number,
+    y: number,
+    boxWidth: number,
+    boxHeight: number
+  ) {
+    const scale = Math.min(
+      boxWidth / image.width,
+      boxHeight / image.height
+    );
+
+    const logoWidth = image.width * scale;
+    const logoHeight = image.height * scale;
+
+    page.drawImage(image, {
+      x: x + (boxWidth - logoWidth) / 2,
+      y: y + (boxHeight - logoHeight) / 2,
+      width: logoWidth,
+      height: logoHeight,
+    });
+  }
+
+  // ==========================================
+  // HELPER: CARGAR IMAGEN DESDE PUBLIC
+  // ==========================================
+
+  async function cargarLogoLocal(path: string) {
+    const response = await fetch(path);
+
+    if (!response.ok) {
+      throw new Error(
+        `No se pudo cargar ${path}: HTTP ${response.status}`
+      );
+    }
+
+    const bytes = await response.arrayBuffer();
+
+    if (!bytes.byteLength) {
+      throw new Error(`Imagen vacía: ${path}`);
+    }
+
+    return await embedImage(
+      bytes,
+      response.headers.get('content-type') || 'image/png'
+    );
+  }
+
+  // ==========================================
+  // FONDO DECORATIVO EXCLUSIVO DE ALTATA
+  // ==========================================
+
+  if (esAltata) {
+    const fondoResponse = await fetch('/fondo-altata.jpeg');
+
+    if (!fondoResponse.ok) {
+      throw new Error(
+        `No se pudo cargar /fondo-altata.jpeg: HTTP ${fondoResponse.status}`
+      );
+    }
+
+    const fondoBytes = await fondoResponse.arrayBuffer();
+    const fondoImage = await doc.embedJpg(fondoBytes);
+
+    // El fondo cubre toda la hoja. Se adapta al tamaño A4.
+    // Se dibuja antes de los logos y del texto para mantenerlos encima.
+    page.drawImage(fondoImage, {
+      x: 0,
+      y: 0,
+      width,
+      height,
+    });
+
+    console.log('✅ Fondo deportivo de Altata incorporado');
+  }
+
+  // ==========================================
+  // 1. DISTRIBUCIÓN DE LOGOTIPOS
+  // ==========================================
 
   let y = height - margin;
+
+  if (esAltata) {
+    console.group('🖼️ LOGOS CARRERA ALTATA');
+
+    // ------------------------------------------
+    // LOGO PRINCIPAL DE ALTATA
+    // ------------------------------------------
+
+    // El logo principal queda dentro de la zona blanca superior.
+    const mainLogoWidth = 250;
+    const mainLogoHeight = 75;
+
+    const mainLogoY = height - 125 - mainLogoHeight;
+
+    try {
+      if (insc.imagenUrl && insc.imagenUrl.trim() !== '') {
+        const originalUrl = new URL(insc.imagenUrl);
+
+        if (originalUrl.protocol !== 'https:') {
+          throw new Error('La URL del logo debe utilizar HTTPS');
+        }
+
+        const proxyUrl =
+          `/api/proxy-image?url=${encodeURIComponent(insc.imagenUrl)}`;
+
+        const response = await fetch(proxyUrl);
+
+        if (!response.ok) {
+          throw new Error(
+            `Error descargando logo principal: ${response.status}`
+          );
+        }
+
+        const bytes = await response.arrayBuffer();
+
+        const logoPrincipal = await embedImage(
+          bytes,
+          response.headers.get('content-type') || ''
+        );
+
+        drawLogoFit(
+          logoPrincipal,
+          (width - mainLogoWidth) / 2,
+          mainLogoY,
+          mainLogoWidth,
+          mainLogoHeight
+        );
+
+        console.log('✅ Logo principal de Altata incorporado');
+
+      } else {
+        throw new Error('La inscripción no tiene imagenUrl');
+      }
+
+    } catch (error) {
+      console.error('❌ Error cargando logo principal:', error);
+      throw error;
+    }
+
+    // ------------------------------------------
+    // CARGAR LOS 8 PATROCINADORES
+    // ------------------------------------------
+
+    const logosCargados: any[] = [];
+
+    for (const ruta of logosAltata) {
+      try {
+        const logo = await cargarLogoLocal(ruta);
+
+        logosCargados.push(logo);
+
+        console.log('✅ Logo cargado:', ruta);
+
+      } catch (error) {
+        console.error('❌ Error cargando patrocinador:', ruta, error);
+        throw error;
+      }
+    }
+
+    // Comprobar que estén los 8 patrocinadores.
+    if (logosCargados.length !== 8) {
+      throw new Error(
+        `Se esperaban 8 patrocinadores y se cargaron ${logosCargados.length}`
+      );
+    }
+
+    // ------------------------------------------
+    // LOS 8 PATROCINADORES EN LA PARTE INFERIOR
+    // Dos filas de cuatro, dentro de la zona blanca
+    // del marco y sin invadir el contenido central.
+    // ------------------------------------------
+
+    const sponsorWidth = maxWidth / 4;
+    const sponsorHeight = 30;
+    const sponsorGap = 8;
+
+    // Fila superior del bloque inferior: logos 1 al 4.
+    // Se baja el bloque completo para liberar más espacio a la carta.
+    const primeraFila = logosCargados.slice(0, 4);
+    const primeraFilaY = 175;
+
+    primeraFila.forEach((logo, index) => {
+      const x = margin + index * sponsorWidth;
+
+      drawLogoFit(
+        logo,
+        x + 5,
+        primeraFilaY,
+        sponsorWidth - 10,
+        sponsorHeight
+      );
+    });
+
+    // Fila inferior del bloque inferior: logos 5 al 8.
+    const segundaFila = logosCargados.slice(4, 8);
+    const segundaFilaY = primeraFilaY - sponsorHeight - sponsorGap;
+
+    segundaFila.forEach((logo, index) => {
+      const x = margin + index * sponsorWidth;
+
+      drawLogoFit(
+        logo,
+        x + 5,
+        segundaFilaY,
+        sponsorWidth - 10,
+        sponsorHeight
+      );
+    });
+
+    // El contenido comienza debajo del logo principal.
+    // Ya no hay patrocinadores entre el logo principal y la carta.
+    y = mainLogoY - 22;
+
+    console.log('Logo principal de Altata: arriba, tamaño grande');
+    console.log('Patrocinadores: 8 en la parte inferior, dos filas de cuatro');
+    console.log('Inicio del contenido central:', y);
+    console.log(
+      'Límite inferior del contenido:',
+      primeraFilaY + sponsorHeight + 12
+    );
+
+    console.groupEnd();
+
+  } else {
+
+    // ==========================================
+    // LOGO NORMAL PARA LAS DEMÁS CARRERAS
+    // ==========================================
+
+    if (insc.imagenUrl && insc.imagenUrl.trim() !== '') {
+      try {
+        const originalUrl = new URL(insc.imagenUrl);
+
+        if (originalUrl.protocol !== 'https:') {
+          throw new Error('La URL del logo debe utilizar HTTPS');
+        }
+
+        const proxyUrl =
+          `/api/proxy-image?url=${encodeURIComponent(insc.imagenUrl)}`;
+
+        const response = await fetch(proxyUrl);
+
+        if (!response.ok) {
+          throw new Error(
+            `Error del intermediario: ${response.status}`
+          );
+        }
+
+        const bytes = await response.arrayBuffer();
+
+        const logoImg = await embedImage(
+          bytes,
+          response.headers.get('content-type') || ''
+        );
+
+        drawLogoFit(
+          logoImg,
+          (width - 145) / 2,
+          height - margin - 55,
+          145,
+          55
+        );
+
+        y = height - margin - 73;
+
+        console.log('✅ Logo de carrera incorporado');
+
+      } catch (error) {
+        console.error('❌ ERROR AL CARGAR LOGO:', error);
+      }
+    }
+  }
 
   // ==========================================
   // HELPER: CONTROL DE ESPACIO
   // ==========================================
 
   function ensureSpace(linesCount: number = 1) {
-    if (y - linesCount * lineHeight < margin) {
+    const espacioNecesario = linesCount * lineHeight;
+
+    // El límite coincide con el borde superior del bloque inferior
+    // de patrocinadores, dejando un margen de seguridad.
+    const limiteInferior = esAltata
+      ? 175 + 30 + 12
+      : margin;
+
+    if (y - espacioNecesario < limiteInferior) {
+      if (esAltata) {
+        throw new Error(
+          'El contenido de la carta Altata excede el espacio disponible. ' +
+          'Se detuvo la generación para evitar cortar texto o invadir los logos.'
+        );
+      }
+
       page = doc.addPage([pageWidth, pageHeight]);
       y = height - margin;
     }
@@ -85,184 +469,6 @@ const maxWidth = width - margin * 2;
   }
 
   // ==========================================
-  // 1. LOGO DE LA CARRERA
-  // ==========================================
-
-  console.group('🖼️ DIAGNÓSTICO DEL LOGO');
-
-  if (insc.imagenUrl && insc.imagenUrl.trim() !== '') {
-    try {
-      console.log('1. URL original:', insc.imagenUrl);
-
-      // Validar URL original
-      const originalUrl = new URL(insc.imagenUrl);
-
-      if (originalUrl.protocol !== 'https:') {
-        throw new Error('La URL del logo debe utilizar HTTPS');
-      }
-
-      // Descargar mediante la API de Next.js
-      const proxyUrl =
-        `/api/proxy-image?url=${encodeURIComponent(insc.imagenUrl)}`;
-
-      console.log('2. Solicitando imagen mediante:', proxyUrl);
-
-      const response = await fetch(proxyUrl);
-
-      console.log('3. Estado HTTP:', response.status);
-      console.log('4. Respuesta correcta:', response.ok);
-      console.log(
-        '5. Content-Type:',
-        response.headers.get('content-type')
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-
-        throw new Error(
-          `Error del intermediario (${response.status}): ${errorText}`
-        );
-      }
-
-      const imageBytes = await response.arrayBuffer();
-
-      console.log(
-        '6. Tamaño descargado:',
-        imageBytes.byteLength,
-        'bytes'
-      );
-
-      if (imageBytes.byteLength === 0) {
-        throw new Error('La imagen descargada está vacía');
-      }
-
-      const contentType = (
-        response.headers.get('content-type') || ''
-      ).toLowerCase();
-
-      // Detectar formato mediante los bytes reales
-      const bytes = new Uint8Array(imageBytes);
-
-      const isPNG =
-        bytes.length >= 8 &&
-        bytes[0] === 0x89 &&
-        bytes[1] === 0x50 &&
-        bytes[2] === 0x4e &&
-        bytes[3] === 0x47 &&
-        bytes[4] === 0x0d &&
-        bytes[5] === 0x0a &&
-        bytes[6] === 0x1a &&
-        bytes[7] === 0x0a;
-
-      const isJPG =
-        bytes.length >= 3 &&
-        bytes[0] === 0xff &&
-        bytes[1] === 0xd8 &&
-        bytes[2] === 0xff;
-
-      console.log('7. Formato detectado:', {
-        isPNG,
-        isJPG,
-        contentType,
-      });
-
-      let logoImg;
-
-      if (isPNG) {
-        console.log('8. Insertando PNG...');
-        logoImg = await doc.embedPng(imageBytes);
-
-      } else if (isJPG) {
-        console.log('8. Insertando JPG...');
-        logoImg = await doc.embedJpg(imageBytes);
-
-      } else {
-        // Convertir WebP y otros formatos compatibles
-        // con el navegador a PNG.
-        console.log('8. Convirtiendo imagen a PNG...');
-
-        const imageBlob = new Blob([imageBytes], {
-          type: contentType,
-        });
-
-        const bitmap = await createImageBitmap(imageBlob);
-
-        const canvas = document.createElement('canvas');
-
-        canvas.width = bitmap.width;
-        canvas.height = bitmap.height;
-
-        const ctx = canvas.getContext('2d');
-
-        if (!ctx) {
-          bitmap.close();
-          throw new Error('No se pudo crear el contexto Canvas');
-        }
-
-        ctx.drawImage(bitmap, 0, 0);
-
-        bitmap.close();
-
-        const pngBlob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob((blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error('No se pudo convertir la imagen a PNG'));
-            }
-          }, 'image/png');
-        });
-
-        const pngBytes = await pngBlob.arrayBuffer();
-
-        logoImg = await doc.embedPng(pngBytes);
-
-        console.log('9. Imagen convertida correctamente');
-      }
-
-      console.log('10. Dimensiones originales:', {
-        ancho: logoImg.width,
-        alto: logoImg.height,
-      });
-
-      // Tamaño máximo del logo
-      const maxLogoWidth = 145;
-      const maxLogoHeight = 55;
-
-      // Conservar proporciones
-      const scale = Math.min(
-        maxLogoWidth / logoImg.width,
-        maxLogoHeight / logoImg.height
-      );
-
-      const logoWidth = logoImg.width * scale;
-      const logoHeight = logoImg.height * scale;
-
-      // Centrar horizontalmente
-      page.drawImage(logoImg, {
-        x: (width - logoWidth) / 2,
-        y: height - margin - logoHeight,
-        width: logoWidth,
-        height: logoHeight,
-      });
-
-      // Espacio debajo del logo
-      y = height - margin - logoHeight - 18;
-
-      console.log('✅ LOGO INCORPORADO CORRECTAMENTE AL PDF');
-
-    } catch (error) {
-      console.error('❌ ERROR AL CARGAR EL LOGO:', error);
-      console.error('URL original:', insc.imagenUrl);
-    }
-
-  } else {
-    console.warn('⚠️ La inscripción no tiene imagenUrl');
-  }
-
-  console.groupEnd();
-
-  // ==========================================
   // 2. ENCABEZADO
   // ==========================================
 
@@ -279,7 +485,7 @@ const maxWidth = width - margin * 2;
     size: fontSize,
   });
 
-  y -= lineHeight * 2;
+  y -= lineHeight * 1.7;
 
   // ==========================================
   // 3. TÍTULO DE LA CARRERA
@@ -299,7 +505,7 @@ const maxWidth = width - margin * 2;
     maxWidth,
   });
 
-  y -= lineHeight * 2;
+  y -= lineHeight * 1.7;
 
   // ==========================================
   // 4. TEXTO INTRODUCTORIO
@@ -328,7 +534,7 @@ const maxWidth = width - margin * 2;
     y -= lineHeight;
   }
 
-  y -= lineHeight * 1.5;
+  y -= lineHeight;
 
   // ==========================================
   // HELPER: CAMPOS ETIQUETA / VALOR
@@ -383,7 +589,7 @@ const maxWidth = width - margin * 2;
 
   drawField('Ficha de Inscripción', insc.id);
 
-  y -= lineHeight;
+  y -= lineHeight * 0.5;
 
   // ==========================================
   // 6. EXONERACIÓN DE RESPONSABILIDAD
@@ -409,9 +615,9 @@ const maxWidth = width - margin * 2;
     maxWidth
   );
 
-  for (const line of exLines) {
-    ensureSpace();
+  ensureSpace(exLines.length);
 
+  for (const line of exLines) {
     page.drawText(line, {
       x: margin,
       y,
@@ -422,7 +628,7 @@ const maxWidth = width - margin * 2;
     y -= lineHeight;
   }
 
-  y -= lineHeight;
+  y -= lineHeight * 0.7;
 
   // ==========================================
   // 7. ENTREGA DE KITS
@@ -445,7 +651,7 @@ const maxWidth = width - margin * 2;
 
   drawField('Horario', insc.kitHorario || 'Por definir');
 
-  y -= lineHeight;
+  y -= lineHeight * 0.5;
 
   // ==========================================
   // 8. REQUISITOS
@@ -477,18 +683,30 @@ const maxWidth = width - margin * 2;
       size: fontSize,
     });
 
-    y -= lineHeight * 1.6;
+    y -= lineHeight * 1.3;
   }
 
   // ==========================================
-  // 9. GUARDAR Y DESCARGAR PDF
+  // 9. VALIDAR PÁGINAS Y ESPACIO
+  // ==========================================
+
+  console.log('📄 Páginas generadas:', doc.getPageCount());
+  console.log('Espacio restante:', y);
+
+  if (esAltata && doc.getPageCount() !== 1) {
+    throw new Error(
+      'La confirmación especial de Altata debe tener una sola página.'
+    );
+  }
+
+  // ==========================================
+  // 10. GUARDAR Y DESCARGAR PDF
   // ==========================================
 
   console.log('📄 Generando archivo PDF...');
 
   const pdfBytes = await doc.save();
 
-  // ArrayBuffer independiente para evitar TS2322
   const pdfArrayBuffer = new ArrayBuffer(pdfBytes.byteLength);
 
   new Uint8Array(pdfArrayBuffer).set(pdfBytes);
@@ -513,5 +731,6 @@ const maxWidth = width - margin * 2;
   }, 1000);
 
   console.log('✅ PDF GENERADO Y DESCARGADO CORRECTAMENTE');
+
   console.groupEnd();
 }
