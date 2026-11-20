@@ -1,14 +1,19 @@
+
 import Head from "next/head";
 import { ReactNode } from "react";
 import Header from "./header";
 import Footer from "./Footer";
+import EmailVerificationNotice from "./EmailVerificationNotice";
 
 interface LayoutProps {
   children: ReactNode;
   title?: string;
 }
 
-export default function Layout({ children, title = "DH Time" }: LayoutProps) {
+export default function Layout({
+  children,
+  title = "DH Time",
+}: LayoutProps) {
   return (
     <>
       <Head>
@@ -18,11 +23,12 @@ export default function Layout({ children, title = "DH Time" }: LayoutProps) {
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
-      {/* ✅ Fondo global CLARO */}
       <main className="bg-dh-bg text-dh-ink min-h-screen">
         <Header />
 
-        {/* ✅ Contenido consistente */}
+        {/* Aviso debajo del encabezado */}
+        <EmailVerificationNotice />
+
         <div className="pt-4">
           {children}
         </div>

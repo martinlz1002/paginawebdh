@@ -1,8 +1,10 @@
+
 import React, {
   createContext,
   useContext,
   useEffect,
   useState,
+  useCallback,
 } from "react";
 
 import {
@@ -11,6 +13,7 @@ import {
 } from "firebase/auth";
 
 import { auth } from "@/lib/firebase";
+
 import {
   registrarUsuario,
   Usuario,
@@ -41,8 +44,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   const [loading, setLoading] = useState(true);
   const [authVersion, setAuthVersion] = useState(0);
 
+  // Registrar los datos pendientes cuando el correo ya esté verificado
+  const registrarUsuarioPendiente = useCallback(async () => {
+    if (typeof window === "undefined") return;
+
+    const pending = localStorage.getItem("pendingUser");
+
+    if (!pending) return;
+
+    try {
+      const uData = JSON.parse(pending) as Usuario;
+
+      await registrarUsuario(uData);
+
+      localStorage.removeItem("pendingUser");
+
+      console.log("Usuario registrado correctamente en Firestore");
+    } catch (error) {
+      console.error(
+        "Error registrando usuario pendiente:",
+        error
+      );
+    }
+  }, []);
+
   // Actualizar manualmente el usuario de Firebase
-  const refreshUser = async (): Promise<User | null> => {
+  const refreshUser = useCallback(async (): Promise<User | null> => {
     const currentUser = auth.currentUser;
 
     if (!currentUser) {
@@ -58,12 +85,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     if (updatedUser) {
       await updatedUser.getIdToken(true);
 
+      // Si ya verificó el correo, registrar sus datos en Firestore
+      if (updatedUser.emailVerified) {
+        await registrarUsuarioPendiente();
+      }
+
       setUser(updatedUser);
       setAuthVersion((v) => v + 1);
     }
 
     return updatedUser;
-  };
+  }, [registrarUsuarioPendiente]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(
@@ -74,34 +106,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
             await firebaseUser.getIdToken(true);
 
             if (firebaseUser.emailVerified) {
-              const pending =
-                typeof window !== "undefined"
-                  ? localStorage.getItem("pendingUser")
-                  : null;
-
-              if (pending) {
-                try {
-                  const uData = JSON.parse(pending) as Usuario;
-
-                  await registrarUsuario(uData);
-
-                  localStorage.removeItem("pendingUser");
-                } catch (error) {
-                  console.error(
-                    "Error registrando usuario pendiente:",
-                    error
-                  );
-                }
-              }
+              await registrarUsuarioPendiente();
             }
           }
 
           setUser(firebaseUser);
           setAuthVersion((v) => v + 1);
+
         } catch (error) {
-          console.error("Error actualizando autenticación:", error);
+          console.error(
+            "Error actualizando autenticación:",
+            error
+          );
+
           setUser(firebaseUser);
           setAuthVersion((v) => v + 1);
+
         } finally {
           setLoading(false);
         }
@@ -109,7 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [registrarUsuarioPendiente]);
 
   return (
     <AuthContext.Provider

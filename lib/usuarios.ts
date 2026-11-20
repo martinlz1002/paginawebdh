@@ -16,7 +16,7 @@ export interface Usuario {
   club?: string;
   fechaNacimiento: string; // YYYY-MM-DD
   edad: number;
-  rama: Rama; // ✅ NUEVO (obligatorio para evitar “Pendiente”)
+  rama: Rama; 
   pago?: boolean;
 }
 

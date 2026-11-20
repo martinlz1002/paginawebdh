@@ -394,6 +394,7 @@ export default async function generarPDF(insc: InscView) {
           response.headers.get('content-type') || ''
         );
 
+        // Logo del evento centrado en la parte superior.
         drawLogoFit(
           logoImg,
           (width - 145) / 2,
@@ -407,8 +408,27 @@ export default async function generarPDF(insc: InscView) {
         console.log('✅ Logo de carrera incorporado');
 
       } catch (error) {
-        console.error('❌ ERROR AL CARGAR LOGO:', error);
+        console.error('❌ ERROR AL CARGAR LOGO DE CARRERA:', error);
       }
+    }
+
+    // Logo DHTime independiente del logo del evento.
+    // Así también aparece si la carrera no tiene imagenUrl.
+    try {
+      const logoDHTime = await cargarLogoLocal('/logo-pestañas.png');
+
+      drawLogoFit(
+        logoDHTime,
+        margin,
+        height - margin - 40,
+        150,
+        40
+      );
+
+      console.log('✅ Logo DHTime incorporado en esquina superior izquierda');
+    } catch (logoError) {
+      console.error('❌ No se pudo cargar el logo DHTime:', logoError);
+      throw logoError;
     }
   }
 

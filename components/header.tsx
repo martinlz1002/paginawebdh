@@ -343,12 +343,12 @@ useEffect(() => {
       {/* ========================= */}
 
       <header
-        className={`fixed top-0 left-0 w-full z-50 transition-all duration-500 ${
-          scrolled
-            ? "bg-dh-bg/70 backdrop-blur-xl border-b border-white/5"
-            : "bg-transparent"
-        }`}
-      >
+  className={`sticky top-0 left-0 w-full z-50 transition-all duration-500 ${
+    scrolled
+      ? "bg-dh-bg/70 backdrop-blur-xl border-b border-white/5"
+      : "bg-transparent"
+  }`}
+>
         {/* 🌫️ Glow sutil */}
 
         <div className="absolute inset-0 -z-10 bg-dh-glow opacity-40" />
@@ -389,6 +389,16 @@ useEffect(() => {
 
               <span className="absolute left-0 -bottom-1 h-[2px] w-0 bg-dh-purple transition-all group-hover:w-full" />
             </Link>
+
+            {/* SOPORTE */}
+<Link
+  href="/soporte"
+  className="relative group text-white/70 hover:text-white transition"
+>
+  Soporte
+
+  <span className="absolute left-0 -bottom-1 h-[2px] w-0 bg-dh-purple transition-all group-hover:w-full" />
+</Link>
 
             {/* ===================== */}
             {/* EN VIVO */}
@@ -635,6 +645,15 @@ useEffect(() => {
               >
                 Inicio
               </Link>
+
+              {/* SOPORTE */}
+<Link
+  href="/soporte"
+  onClick={() => setMenuOpen(false)}
+  className="text-white/70 hover:text-white transition"
+>
+  Soporte
+</Link>
 
               {/* ===================== */}
               {/* EN VIVO */}
