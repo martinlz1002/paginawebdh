@@ -614,6 +614,8 @@ setTelefonoEmergencia("");
     await generarPDF({
       id: String(i.id ?? i.ficha ?? i.competitorNumber ?? ""),
       titulo: race?.titulo || i.carreraTitulo || "Evento",
+      // El logo pertenece a la carrera, no a la inscripción manual.
+      imagenUrl: (race as any)?.imagenUrl || i.imagenUrl || "",
       distancia: i.ruta || i.distancia || "",
       categoria: i.categoria || "",
       perfilNombre: i.nombre || "",
