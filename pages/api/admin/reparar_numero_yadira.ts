@@ -68,6 +68,11 @@ export default async function handler(
     const attemptRef = adminDb
       .collection("paymentAttempts")
       .doc(PAYMENT_ATTEMPT_ID);
+      console.info("[DIAGNOSTICO YADIRA]", {
+  projectId: admin.app().options.projectId,
+  databaseId: adminDb.databaseId,
+  attemptPath: attemptRef.path,
+});
     const raceRef = adminDb.collection("carreras").doc(CARRERA_ID);
     const allocatorRef = adminDb
       .collection("numberAllocators")
