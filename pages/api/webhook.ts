@@ -64,10 +64,20 @@ const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET");
 
 async function allocateNumberTx(
   tx: FirebaseFirestore.Transaction,
-  carreraId: string
+  carreraId: string,
+  preferredNumber?: number,
+  excludeInscripcionId?: string
 ): Promise<number> {
-  const carreraRef = db.collection("carreras").doc(carreraId);
+  // Documento compartido para serializar asignaciones de esta carrera.
+  // Mercado Pago, Stripe y cualquier otro asignador deben usarlo.
+  const allocatorRef = db
+    .collection("numberAllocators")
+    .doc(carreraId);
 
+  // Todas las lecturas se hacen antes de las escrituras.
+  const allocatorSnap = await tx.get(allocatorRef);
+
+  const carreraRef = db.collection("carreras").doc(carreraId);
   const carreraSnap = await tx.get(carreraRef);
 
   if (!carreraSnap.exists) {
@@ -76,14 +86,7 @@ async function allocateNumberTx(
 
   const maxCupo = Number(carreraSnap.get("maxCompetitors") || 0);
 
-  // ----------------------------------------------------------
-  // 1. NÚMEROS YA UTILIZADOS
-  //
-  // IMPORTANTE:
-  // Solo filtramos por carreraId en Firestore y hacemos el resto
-  // en memoria para evitar depender de índices compuestos.
-  // ----------------------------------------------------------
-
+  // Números asignados a otras inscripciones confirmadas.
   const usedSnap = await tx.get(
     db.collection("inscripciones").where("carreraId", "==", carreraId)
   );
@@ -91,16 +94,28 @@ async function allocateNumberTx(
   const used = new Set<number>();
 
   usedSnap.docs.forEach((doc) => {
+    if (doc.id === excludeInscripcionId) return;
+
     const data = doc.data();
+    const paymentStatus = String(data.paymentStatus || "")
+      .trim()
+      .toLowerCase();
 
-    const paymentStatus = String(data.paymentStatus || "").toLowerCase();
+    const confirmedStatuses = [
+      "paid",
+      "pagado",
+      "approved",
+      "aprobado",
+      "manual",
+    ];
 
-    if (paymentStatus !== "paid" && paymentStatus !== "manual") {
-      return;
-    }
+    if (!confirmedStatuses.includes(paymentStatus)) return;
 
     const rawNumber =
-      data.competitorNumber ?? data.ficha ?? data.bib ?? null;
+      data.competitorNumber ??
+      data.ficha ??
+      data.bib ??
+      null;
 
     const number = Number(rawNumber);
 
@@ -109,14 +124,7 @@ async function allocateNumberTx(
     }
   });
 
-  // ----------------------------------------------------------
-  // 2. RANGOS MANUALES ACTIVOS
-  //
-  // IMPORTANTE:
-  // Solo filtramos por carreraId en Firestore.
-  // expiresAt se revisa en memoria para evitar índice compuesto.
-  // ----------------------------------------------------------
-
+  // Rangos manuales reservados que sigan vigentes.
   const tempSnap = await tx.get(
     db.collection("tempusuarios").where("carreraId", "==", carreraId)
   );
@@ -128,9 +136,7 @@ async function allocateNumberTx(
     const data = doc.data();
     const range = data.range;
 
-    if (!range) {
-      return;
-    }
+    if (!range) return;
 
     const expiresAt = data.expiresAt;
 
@@ -154,32 +160,77 @@ async function allocateNumberTx(
     const start = Number(range.start);
     const end = Number(range.end);
 
-    if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      start <= 0 ||
+      end < start
+    ) {
       return;
     }
 
     for (let n = start; n <= end; n++) {
-      if (Number.isFinite(n) && n > 0) {
-        reserved.add(n);
-      }
+      reserved.add(n);
     }
   });
 
-  // ----------------------------------------------------------
-  // 3. PRIMER NÚMERO DISPONIBLE
-  // ----------------------------------------------------------
+  // Conservar un número existente solo si no pertenece a otra
+  // inscripción confirmada. El rango reservado no invalida un
+  // número que ya estaba asignado a esta misma inscripción.
+  if (
+    preferredNumber !== undefined &&
+    Number.isFinite(preferredNumber) &&
+    preferredNumber > 0
+  ) {
+    if (used.has(preferredNumber)) {
+      throw new Error(
+        `El número ${preferredNumber} ya está asignado a otra inscripción de la carrera ${carreraId}`
+      );
+    }
 
+    const revision = Number(allocatorSnap.get("revision") || 0);
+
+    tx.set(
+      allocatorRef,
+      {
+        revision: revision + 1,
+        updatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+
+    return preferredNumber;
+  }
+
+  // Buscar el primer número disponible.
   const limit = maxCupo > 0 ? maxCupo : 100000;
+  let assignedNumber = 0;
 
   for (let n = 1; n <= limit; n++) {
     if (!used.has(n) && !reserved.has(n)) {
-      return n;
+      assignedNumber = n;
+      break;
     }
   }
 
-  throw new Error(
-    `Ya no hay números disponibles para la carrera ${carreraId}`
+  if (!assignedNumber) {
+    throw new Error(
+      `Ya no hay números disponibles para la carrera ${carreraId}`
+    );
+  }
+
+  const revision = Number(allocatorSnap.get("revision") || 0);
+
+  tx.set(
+    allocatorRef,
+    {
+      revision: revision + 1,
+      updatedAt: Date.now(),
+    },
+    { merge: true }
   );
+
+  return assignedNumber;
 }
 
 // ============================================================
@@ -248,7 +299,7 @@ async function markPaymentStatus(
         // IDEMPOTENCIA
         // ----------------------------------------------------
 
-        if (data.paymentStatus === "paid") {
+        if (String(data.paymentStatus || "").trim().toLowerCase() === "paid") {
           console.log(
             "[webhook] Inscripción ya estaba pagada:",
             ref.path
@@ -256,43 +307,35 @@ async function markPaymentStatus(
           return;
         }
 
-        let competitorNumber = Number(data.competitorNumber);
-
         // ----------------------------------------------------
-        // YA TIENE NÚMERO
+        // VALIDAR / ASIGNAR NÚMERO CON BLOQUEO POR CARRERA
         // ----------------------------------------------------
 
-        if (
-          Number.isFinite(competitorNumber) &&
-          competitorNumber > 0
-        ) {
-          tx.update(ref, {
-            paymentStatus: "paid",
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+        const carreraId = String(data.carreraId || "").trim();
 
-          console.log(
-            "[webhook] Pago confirmado, conservando número:",
-            competitorNumber,
-            ref.path
-          );
-
-          return;
-        }
-
-        // ----------------------------------------------------
-        // ASIGNAR NÚMERO
-        // ----------------------------------------------------
-
-        if (!data.carreraId) {
+        if (!carreraId) {
           throw new Error(
             `La inscripción ${ref.path} no tiene carreraId`
           );
         }
 
+        const rawNumber =
+          data.competitorNumber ??
+          data.ficha ??
+          data.bib ??
+          null;
+
+        const existingNumber =
+          rawNumber === null ? 0 : Number(rawNumber);
+
+        const hasExistingNumber =
+          Number.isFinite(existingNumber) && existingNumber > 0;
+
         const assigned = await allocateNumberTx(
           tx,
-          String(data.carreraId)
+          carreraId,
+          hasExistingNumber ? existingNumber : undefined,
+          ref.id
         );
 
         tx.update(ref, {
@@ -304,7 +347,7 @@ async function markPaymentStatus(
         });
 
         console.log(
-          "[webhook] Pago confirmado y número asignado:",
+          "[webhook] Pago confirmado y número validado:",
           assigned,
           ref.path
         );
@@ -328,7 +371,7 @@ async function markPaymentStatus(
         const data = insSnap.data()!;
 
         // Nunca degradar una inscripción pagada.
-        if (data.paymentStatus === "paid") {
+        if (String(data.paymentStatus || "").trim().toLowerCase() === "paid") {
           return;
         }
 
@@ -356,7 +399,7 @@ async function markPaymentStatus(
         const data = insSnap.data()!;
 
         // Nunca eliminar el número de una inscripción pagada.
-        if (data.paymentStatus === "paid") {
+        if (String(data.paymentStatus || "").trim().toLowerCase() === "paid") {
           return;
         }
 

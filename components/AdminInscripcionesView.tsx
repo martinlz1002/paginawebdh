@@ -276,7 +276,9 @@ telefonoEmergencia: "",
           const fechaNacimiento = safeDateFromAny(raw.fechaNacimiento ?? raw.birthDate);
           const edad = fechaNacimiento && basis ? computeAge(fechaNacimiento, basis) : undefined;
 
-          const paymentStatus = (raw.paymentStatus || raw.payment_status || "desconocido").toString();
+          const paymentStatus = normalizePaymentStatus(
+  raw.paymentStatus || raw.payment_status
+);
           const ruta = (raw.ruta ?? raw.distancia ?? "").toString();
 
           const perfil: PerfilData = {
@@ -473,8 +475,7 @@ telefonoEmergencia: it.telefonoEmergencia || "",
 
     fechaNacimiento: yyyyMmDd,
 
-    // 🔥 ESTA LÍNEA ES LA QUE TE FALTABA
-    paymentStatus: it.paymentStatus || "manual",
+    paymentStatus: normalizePaymentStatus(it.paymentStatus),
   });
 
   setEditOpen(true);
@@ -671,6 +672,36 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
       <SortIcon k={key} />
     </button>
   );
+
+
+  function normalizePaymentStatus(value?: string): string {
+  const status = String(value || "")
+    .trim()
+    .toLowerCase();
+
+  const aliases: Record<string, string> = {
+    paid: "paid",
+    pagado: "paid",
+    approved: "paid",
+    aprobado: "paid",
+
+    pending: "pending",
+    pendiente: "pending",
+
+    manual: "manual",
+
+    expired: "expired",
+    expirado: "expired",
+
+    unpaid: "unpaid",
+    "no pagado": "unpaid",
+
+    failed: "failed",
+    fallido: "failed",
+  };
+
+  return aliases[status] || "pending";
+}
 
   return (
   <div className="w-full min-w-0 max-w-full bg-[#0c0c0f] text-white py-5 px-3 sm:py-8 sm:px-6">

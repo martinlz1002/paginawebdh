@@ -61,8 +61,19 @@ function getAdminDb() {
 async function allocateNumberTx(
   tx: FirebaseFirestore.Transaction,
   db: FirebaseFirestore.Firestore,
-  carreraId: string
+  carreraId: string,
+  preferredNumber?: number,
+  excludeInscripcionId?: string
 ): Promise<number> {
+  // Documento compartido para serializar asignaciones de esta carrera.
+  // Todos los procesos que asignen números deben usar este mismo documento.
+  const allocatorRef = db
+    .collection("numberAllocators")
+    .doc(carreraId);
+
+  // Todas las lecturas deben realizarse antes de cualquier escritura.
+  const allocatorSnap = await tx.get(allocatorRef);
+
   const carreraRef = db.collection("carreras").doc(carreraId);
   const carreraSnap = await tx.get(carreraRef);
 
@@ -72,21 +83,46 @@ async function allocateNumberTx(
 
   const maxCupo = Number(carreraSnap.get("maxCompetitors") || 0);
 
+  // Obtener inscripciones de la carrera.
   const usedSnap = await tx.get(
     db.collection("inscripciones").where("carreraId", "==", carreraId)
   );
 
   const used = new Set<number>();
-  usedSnap.docs.forEach((doc) => {
-    const data = doc.data();
-    const status = String(data.paymentStatus || "").toLowerCase();
-    if (status !== "paid" && status !== "manual") return;
 
-    const rawNumber = data.competitorNumber ?? data.ficha ?? data.bib ?? null;
+  usedSnap.docs.forEach((doc) => {
+    // No comparar la inscripción consigo misma.
+    if (doc.id === excludeInscripcionId) return;
+
+    const data = doc.data();
+    const status = String(data.paymentStatus || "")
+      .trim()
+      .toLowerCase();
+
+    const confirmedStatuses = [
+      "paid",
+      "pagado",
+      "approved",
+      "aprobado",
+      "manual",
+    ];
+
+    if (!confirmedStatuses.includes(status)) return;
+
+    const rawNumber =
+      data.competitorNumber ??
+      data.ficha ??
+      data.bib ??
+      null;
+
     const number = Number(rawNumber);
-    if (Number.isFinite(number) && number > 0) used.add(number);
+
+    if (Number.isFinite(number) && number > 0) {
+      used.add(number);
+    }
   });
 
+  // Obtener rangos manuales reservados que sigan vigentes.
   const tempSnap = await tx.get(
     db.collection("tempusuarios").where("carreraId", "==", carreraId)
   );
@@ -97,34 +133,103 @@ async function allocateNumberTx(
   tempSnap.docs.forEach((doc) => {
     const data = doc.data();
     const range = data.range;
+
     if (!range) return;
 
     const expiresAt = data.expiresAt;
+
     if (expiresAt) {
       let expiresMs = 0;
-      if (typeof expiresAt === "object" && typeof expiresAt.toDate === "function") {
+
+      if (
+        typeof expiresAt === "object" &&
+        typeof expiresAt.toDate === "function"
+      ) {
         expiresMs = expiresAt.toDate().getTime();
       } else {
         expiresMs = new Date(expiresAt).getTime();
       }
-      if (Number.isFinite(expiresMs) && expiresMs <= now) return;
+
+      if (Number.isFinite(expiresMs) && expiresMs <= now) {
+        return;
+      }
     }
 
     const start = Number(range.start);
     const end = Number(range.end);
-    if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      start <= 0 ||
+      end < start
+    ) {
+      return;
+    }
 
     for (let n = start; n <= end; n++) {
-      if (n > 0) reserved.add(n);
+      reserved.add(n);
     }
   });
 
-  const limit = maxCupo > 0 ? maxCupo : 100000;
-  for (let n = 1; n <= limit; n++) {
-    if (!used.has(n) && !reserved.has(n)) return n;
+  // Si la inscripción ya tenía número, conservarlo solamente
+  // cuando no esté asignado a otra inscripción confirmada.
+  if (
+    preferredNumber !== undefined &&
+    Number.isFinite(preferredNumber) &&
+    preferredNumber > 0
+  ) {
+    if (used.has(preferredNumber)) {
+      throw new Error(
+        `El número ${preferredNumber} ya está asignado a otra inscripción de la carrera ${carreraId}`
+      );
+    }
+
+    const revision = Number(allocatorSnap.get("revision") || 0);
+
+    // Esta escritura común provoca conflicto/reintento si otro
+    // proceso intenta asignar simultáneamente en la misma carrera.
+    tx.set(
+      allocatorRef,
+      {
+        revision: revision + 1,
+        updatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+
+    return preferredNumber;
   }
 
-  throw new Error(`Ya no hay números disponibles para la carrera ${carreraId}`);
+  // Buscar el primer número libre respetando cupo y rangos reservados.
+  const limit = maxCupo > 0 ? maxCupo : 100000;
+  let assignedNumber = 0;
+
+  for (let n = 1; n <= limit; n++) {
+    if (!used.has(n) && !reserved.has(n)) {
+      assignedNumber = n;
+      break;
+    }
+  }
+
+  if (!assignedNumber) {
+    throw new Error(
+      `Ya no hay números disponibles para la carrera ${carreraId}`
+    );
+  }
+
+  const revision = Number(allocatorSnap.get("revision") || 0);
+
+  tx.set(
+    allocatorRef,
+    {
+      revision: revision + 1,
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+
+  return assignedNumber;
 }
 
 export default async function handler(
@@ -713,10 +818,18 @@ if (
       }
 
       if (
-        String(freshInscripcion.paymentStatus || "").toLowerCase() === "paid" &&
+        String(freshInscripcion.paymentStatus || "").trim().toLowerCase() === "paid" &&
         String(freshInscripcion.paymentId || "") !== paymentId
       ) {
         throw new Error("La inscripción ya fue pagada con otro pago");
+      }
+
+      const carreraId = String(
+        freshInscripcion.carreraId || ""
+      ).trim();
+
+      if (!carreraId) {
+        throw new Error("La inscripción no tiene carreraId");
       }
 
       const rawNumber =
@@ -725,19 +838,21 @@ if (
         freshInscripcion.bib ??
         null;
 
-      const existingNumber = rawNumber === null ? 0 : Number(rawNumber);
+      const existingNumber =
+        rawNumber === null ? 0 : Number(rawNumber);
 
-      if (Number.isFinite(existingNumber) && existingNumber > 0) {
-        assignedNumber = existingNumber;
-      } else {
-        const carreraId = String(freshInscripcion.carreraId || "").trim();
-        if (!carreraId) {
-          throw new Error("La inscripción no tiene carreraId");
-        }
+      const hasExistingNumber =
+        Number.isFinite(existingNumber) && existingNumber > 0;
 
-        assignedNumber = await allocateNumberTx(transaction, db, carreraId);
-        repairedNumber = true;
-      }
+      assignedNumber = await allocateNumberTx(
+        transaction,
+        db,
+        carreraId,
+        hasExistingNumber ? existingNumber : undefined,
+        inscripcionDoc.id
+      );
+
+      repairedNumber = !hasExistingNumber;
 
       const now = admin.firestore.FieldValue.serverTimestamp();
 

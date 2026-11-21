@@ -79,15 +79,22 @@ async function allocateNumberTx(
     const data = doc.data();
 
     const status = String(
-      data.paymentStatus || ""
-    ).toLowerCase();
+  data.paymentStatus || ""
+)
+  .trim()
+  .toLowerCase();
 
-    if (
-      status !== "paid" &&
-      status !== "manual"
-    ) {
-      return;
-    }
+const esPagoConfirmado = [
+  "paid",
+  "pagado",
+  "approved",
+  "aprobado",
+  "manual",
+].includes(status);
+
+if (!esPagoConfirmado) {
+  return;
+}
 
     const rawNumber =
       data.competitorNumber ??
