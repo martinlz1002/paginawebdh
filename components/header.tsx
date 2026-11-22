@@ -486,7 +486,7 @@ useEffect(() => {
                     href="/perfil"
                     className="text-white/70 hover:text-white transition"
                   >
-                    Perfil
+                    Perfiles
                   </Link>
                 </>
               )}
