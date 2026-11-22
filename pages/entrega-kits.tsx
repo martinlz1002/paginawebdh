@@ -320,18 +320,21 @@ export default function EntregaKitsPage() {
               const routeName = item.RouteName || "";
               const categoryName = item.CategoryName || "";
               const talla =
-                item.talla ??
-                Object.entries(item).find(([key]) =>
-                  /talla|playera|camiseta/i.test(key)
-                )?.[1];
+  item.talla ??
+  Object.entries(item).find(([key]) =>
+    /talla|playera|camiseta/i.test(key)
+  )?.[1];
+
+const cortePlayera = item.PaymentTxnId;
+const tipoPlayera = item["Ficha express"];
 
               const details =
                 item.details && typeof item.details === "object"
                   ? Object.entries(item.details).filter(
                       ([key, value]) =>
-                        !/participant|bib|routename|categoryname|talla|playera|camiseta/i.test(
-                          key
-                        ) &&
+                        !/participant|bib|routename|categoryname|talla|playera|camiseta|ficha express|paymenttxnid/i.test(
+  key
+) &&
                         value !== undefined &&
                         value !== null &&
                         String(value).trim() !== ""
@@ -359,18 +362,55 @@ export default function EntregaKitsPage() {
                     {participant}
                   </h2>
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                    <div className="rounded-xl bg-white/5 p-3">
-                      <p className="text-xs text-white/45">Playera</p>
-                      <p className="text-2xl font-black text-emerald-300">
-                        {talla ? String(talla) : "Sin dato"}
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-white/5 p-3">
-                      <p className="text-xs text-white/45">Categoría</p>
-                      <p className="mt-1 font-bold">{categoryName || "-"}</p>
-                    </div>
-                  </div>
+                  
+<div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+
+  {/* TALLA */}
+  <div className="rounded-xl bg-white/5 p-3">
+    <p className="text-xs text-white/45">
+      TALLA
+    </p>
+    <p className="text-3xl font-black text-emerald-300">
+      {talla ? String(talla) : "Sin dato"}
+    </p>
+  </div>
+
+  {/* CORTE */}
+  <div className="rounded-xl bg-white/5 p-3">
+    <p className="text-xs text-white/45">
+      CORTE
+    </p>
+    <p className="mt-1 text-xl font-black text-violet-300">
+      {cortePlayera
+        ? String(cortePlayera)
+        : "Sin dato"}
+    </p>
+  </div>
+
+  {/* TIPO DE PLAYERA */}
+  <div className="col-span-2 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3">
+    <p className="text-xs font-bold text-white/45">
+      TIPO DE PLAYERA
+    </p>
+    <p className="mt-1 text-xl font-black text-white">
+      {tipoPlayera
+        ? String(tipoPlayera)
+        : "Sin dato"}
+    </p>
+  </div>
+
+  {/* CATEGORÍA */}
+  <div className="col-span-2 rounded-xl bg-white/5 p-3">
+    <p className="text-xs text-white/45">
+      CATEGORÍA
+    </p>
+    <p className="mt-1 font-bold">
+      {categoryName || "-"}
+    </p>
+  </div>
+
+</div>
+
 
                   {routeName && (
                     <p className="mt-3 text-sm text-white/60">

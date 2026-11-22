@@ -505,22 +505,34 @@ batch.set(
   }
 );
 
+
 const publicRef = doc(publicCompetidoresRef, compRef.id);
+
 const publicData: Record<string, any> = {
   Participant: competidor.Participant ?? '',
   Bib: competidor.Bib ?? '',
   RouteName: competidor.RouteName ?? '',
   CategoryName: competidor.CategoryName ?? '',
+
+  // Datos necesarios para la entrega de kits
+  'Ficha express': competidor['Ficha express'] ?? '',
+  PaymentTxnId: competidor.PaymentTxnId ?? '',
+
   participant_search: nombreCompleto,
   search_terms: searchTerms,
   estadoEntrega: 'pendiente',
   mesaId: null,
   mesaNombre: null
 };
+
 selectedFields.forEach((field) => {
-  if (competidor[field] !== undefined) publicData[field] = competidor[field];
+  if (competidor[field] !== undefined) {
+    publicData[field] = competidor[field];
+  }
 });
+
 batch.set(publicRef, publicData);
+
 
           }
         );
