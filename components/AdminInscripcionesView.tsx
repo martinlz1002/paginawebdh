@@ -13,6 +13,7 @@ import type { CarreraData } from "@/types/carrera";
 import * as XLSX from "xlsx";
 import {
   ArrowDownTrayIcon,
+  DocumentArrowDownIcon,
   PencilSquareIcon,
   XMarkIcon,
   CheckIcon,
@@ -21,6 +22,7 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
 } from "@heroicons/react/24/outline";
+import generarPDF from "@/lib/pdfConfirmacion";
 
 interface CarreraItem extends CarreraData {
   id: string;
@@ -180,9 +182,13 @@ export default function AdminInscripcionesView() {
 
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [editing, setEditing] = useState<InscripcionItem | null>(null);
   const [activeTab, setActiveTab] = useState<"datos" | "carrera" | "pago">("datos");
+
+  const [confirmSave, setConfirmSave] = useState(false);
 
   const [form, setForm] = useState({
     competitorNumber: 0,
@@ -223,6 +229,94 @@ telefonoEmergencia: "",
       setCarreras(snap.docs.map((d) => ({ id: d.id, ...(d.data() as CarreraData) })));
     })();
   }, []);
+
+  const cambiosPendientes = useMemo(() => {
+    if (!editing) return [];
+
+    const cambios: { campo: string; antes: string; despues: string }[] = [];
+
+    const agregar = (campo: string, antes: any, despues: any) => {
+      const anterior = String(antes ?? "").trim();
+      const nuevo = String(despues ?? "").trim();
+
+      if (anterior !== nuevo) {
+        cambios.push({
+          campo,
+          antes: anterior || "Sin especificar",
+          despues: nuevo || "Sin especificar",
+        });
+      }
+    };
+
+    const fechaOriginal = editing.perfil.fechaNacimiento instanceof Date
+      ? `${editing.perfil.fechaNacimiento.getFullYear()}-${String(editing.perfil.fechaNacimiento.getMonth() + 1).padStart(2, "0")}-${String(editing.perfil.fechaNacimiento.getDate()).padStart(2, "0")}`
+      : "";
+
+    agregar("Número de competidor", editing.competitorNumber, form.competitorNumber);
+    agregar("Ficha", editing.ficha ?? editing.competitorNumber, form.ficha);
+    agregar("Bib", editing.bib ?? editing.competitorNumber, form.bib);
+    agregar("Distancia", editing.ruta || editing.perfil.ruta, form.ruta);
+    agregar("Categoría", editing.categoria, form.categoria);
+    agregar("Rama", editing.rama || editing.perfil.rama, form.rama);
+    agregar("Nombre", editing.perfil.nombre, form.nombre);
+    agregar("Apellido paterno", editing.perfil.paterno, form.paterno);
+    agregar("Apellido materno", editing.perfil.materno, form.materno);
+    agregar("Fecha de nacimiento", fechaOriginal, form.fechaNacimiento);
+    agregar("Celular", editing.perfil.celular, form.celular);
+    agregar("Email", editing.perfil.email, form.email);
+    agregar("País", editing.perfil.pais, form.pais);
+    agregar("Estado", editing.perfil.estado, form.estado);
+    agregar("Ciudad", editing.perfil.ciudad, form.ciudad);
+    agregar("Club", editing.perfil.club, form.club);
+    agregar("Talla de playera", editing.tallaPlayera, form.tallaPlayera);
+    agregar("Teléfono de emergencia", editing.telefonoEmergencia, form.telefonoEmergencia);
+    agregar("Estado de pago", editing.paymentStatus, form.paymentStatus);
+
+    return cambios;
+  }, [editing, form]);
+
+  const fechaNacimientoEdicion = useMemo(
+  () => form.fechaNacimiento
+    ? new Date(`${form.fechaNacimiento}T12:00:00`)
+    : null,
+  [form.fechaNacimiento]
+);
+
+const edadEdicion = useMemo(() => {
+  if (!fechaNacimientoEdicion || !selectedCarreraInfo) return null;
+
+  const fechaCarrera = safeDateFromAny(
+    (selectedCarreraInfo as any).fecha
+  );
+
+  if (!fechaCarrera) return null;
+
+  // Igual que al cargar inscripciones: solo "eventDate" usa la fecha del evento.
+  const fechaBase =
+    (selectedCarreraInfo as any).ageBasis === "eventDate"
+      ? fechaCarrera
+      : new Date(fechaCarrera.getFullYear(), 11, 31);
+
+  return computeAge(fechaNacimientoEdicion, fechaBase);
+}, [fechaNacimientoEdicion, selectedCarreraInfo]);
+
+const distanciasDisponibles = useMemo(() => {
+  return (selectedCarreraInfo as any)?.distancias ?? [];
+}, [selectedCarreraInfo]);
+
+const categoriasDisponibles = useMemo(() => {
+  if (edadEdicion === null) return [];
+
+  const distanciaActual = distanciasDisponibles.find(
+    (d: any) => d.distancia === form.ruta
+  );
+
+  return (distanciaActual?.categorias ?? []).filter(
+    (c: any) =>
+      edadEdicion >= Number(c.minAge) &&
+      edadEdicion <= Number(c.maxAge)
+  );
+}, [edadEdicion, distanciasDisponibles, form.ruta]);
 
   // 🔁 Cargar inscripciones por carrera + filtro
   useEffect(() => {
@@ -434,6 +528,7 @@ i.telefonoEmergencia ?? "",
   }, [inscripciones, search, sortKey, sortDir, statusFilter, ahora]);
 
   const openEdit = (it: InscripcionItem) => {
+    setConfirmSave(false);
   setEditError(null);
   setEditing(it);
 
@@ -483,11 +578,12 @@ telefonoEmergencia: it.telefonoEmergencia || "",
 
   const closeEdit = () => {
     if (saving) return;
+    setConfirmSave(false);
     setEditOpen(false);
     setEditing(null);
   };
 
-  const saveEdit = async () => {
+  const saveEdit = async (confirmed = false) => {
     if (!editing) return;
     setEditError(null);
 
@@ -519,8 +615,34 @@ telefonoEmergencia: it.telefonoEmergencia || "",
       setEditError("Ciudad/Estado/País son obligatorios.");
       return;
     }
-    if (!form.fechaNacimiento) {
+    if (!form.fechaNacimiento || !fechaNacimientoEdicion) {
       setEditError("Fecha de nacimiento es obligatoria.");
+      return;
+    }
+
+    const distanciaConfig = distanciasDisponibles.find(
+      (d: any) => d.distancia === form.ruta
+    );
+
+    if (!distanciaConfig) {
+      setEditError("La distancia seleccionada no está configurada en esta carrera.");
+      return;
+    }
+
+    const categoriaValida = (distanciaConfig.categorias ?? []).some(
+      (categoria: any) =>
+        categoria.nombre === form.categoria &&
+        edadEdicion !== null &&
+        edadEdicion >= Number(categoria.minAge) &&
+        edadEdicion <= Number(categoria.maxAge)
+    );
+
+    if (!categoriaValida) {
+      setEditError(
+        edadEdicion === null
+          ? "No fue posible calcular la edad del competidor. Verifica la fecha de nacimiento y la fecha de la carrera."
+          : `La categoría seleccionada no corresponde a la edad del competidor (${edadEdicion} años) para esta distancia.`
+      );
       return;
     }
 
@@ -534,6 +656,11 @@ telefonoEmergencia: it.telefonoEmergencia || "",
     const bib = Number(form.bib || cn);
     const nombres = fullName(form.nombre, form.paterno, form.materno);
 
+    if (!confirmed && cambiosPendientes.length > 0) {
+      setConfirmSave(true);
+      return;
+    }
+
     setSaving(true);
     try {
       const ref = doc(db, "inscripciones", editing.id);
@@ -542,37 +669,31 @@ telefonoEmergencia: it.telefonoEmergencia || "",
         competitorNumber: cn,
         ficha,
         bib,
-
         nombre: form.nombre.trim(),
         paterno: form.paterno.trim(),
         materno: form.materno.trim(),
         nombres,
-
         rama: form.rama.trim(),
         ruta: form.ruta.trim(),
         distancia: form.ruta.trim(),
-
         categoria: form.categoria.trim(),
-
         tallaPlayera: form.tallaPlayera.trim() || null,
-telefonoEmergencia: form.telefonoEmergencia.trim() || null,
-
+        telefonoEmergencia: form.telefonoEmergencia.trim() || null,
         email: form.email.trim(),
         celular: form.celular.trim(),
         pais: form.pais.trim(),
         estado: form.estado.trim(),
         ciudad: form.ciudad.trim(),
         club: form.club.trim() || null,
-
-        fechaNacimiento: Timestamp.fromDate(new Date(form.fechaNacimiento)),
-        paymentStatus: form.paymentStatus
+        fechaNacimiento: Timestamp.fromDate(fechaNacimientoEdicion),
+        paymentStatus: form.paymentStatus,
       });
 
-      setInscripciones((prev) => {
-        const next = prev.map((x) => {
+      setInscripciones((prev) =>
+        prev.map((x) => {
           if (x.id !== editing.id) return x;
 
-          const updated: InscripcionItem = {
+          return {
             ...x,
             competitorNumber: cn,
             ficha,
@@ -580,12 +701,9 @@ telefonoEmergencia: form.telefonoEmergencia.trim() || null,
             categoria: form.categoria.trim(),
             ruta: form.ruta.trim(),
             rama: form.rama.trim(),
-
             tallaPlayera: form.tallaPlayera.trim(),
-telefonoEmergencia: form.telefonoEmergencia.trim(),
-
+            telefonoEmergencia: form.telefonoEmergencia.trim(),
             paymentStatus: form.paymentStatus,
-
             perfil: {
               ...x.perfil,
               nombre: form.nombre.trim(),
@@ -600,25 +718,14 @@ telefonoEmergencia: form.telefonoEmergencia.trim(),
               estado: form.estado.trim(),
               ciudad: form.ciudad.trim(),
               club: form.club.trim(),
-              fechaNacimiento: new Date(form.fechaNacimiento),
+              fechaNacimiento: fechaNacimientoEdicion,
+              edad: edadEdicion ?? undefined,
             },
           };
+        })
+      );
 
-          const raceFecha = safeDateFromAny((selectedCarreraInfo as any)?.fecha);
-          if (raceFecha && selectedCarreraInfo) {
-            const basis =
-              selectedCarreraInfo.ageBasis === "eventDate"
-                ? raceFecha
-                : new Date(raceFecha.getFullYear(), 11, 31);
-            updated.perfil.edad = computeAge(new Date(form.fechaNacimiento), basis);
-          }
-
-          return updated;
-        });
-
-        return next;
-      });
-
+      setConfirmSave(false);
       setEditOpen(false);
       setEditing(null);
     } catch (e: any) {
@@ -627,6 +734,7 @@ telefonoEmergencia: form.telefonoEmergencia.trim(),
       setSaving(false);
     }
   };
+
 
   const exportExcel = () => {
     const rows = visible.map((i) => ({
@@ -659,6 +767,46 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inscripciones");
     XLSX.writeFile(wb, `inscripciones_${selectedCarrera}.xlsx`);
+  };
+
+  // Genera la hoja individual usando exactamente el mismo generador
+  // que se utiliza en la vista de inscripciones manuales.
+  const descargarConfirmacion = async (i: InscripcionItem) => {
+    if (!selectedCarreraInfo) {
+      setPdfError("Primero selecciona una carrera.");
+      return;
+    }
+
+    setPdfError(null);
+    setPdfLoadingId(i.id);
+
+    try {
+      const carrera = selectedCarreraInfo as any;
+
+      await generarPDF({
+        id: String(i.id ?? i.ficha ?? i.competitorNumber ?? ""),
+        titulo: carrera.titulo || "Evento",
+        imagenUrl: carrera.imagenUrl || "",
+        distancia: i.ruta || i.perfil.ruta || "",
+        categoria: i.categoria || "",
+        perfilNombre: i.perfil.nombre || "",
+        perfilApPaterno: i.perfil.paterno || "",
+        perfilApMaterno: i.perfil.materno || "",
+        competitorNumber: i.competitorNumber ?? i.ficha ?? i.bib ?? undefined,
+        kitFecha: carrera.kitFecha || "",
+        kitLugar: carrera.kitLugar || "",
+        kitHorario: carrera.kitHorario || "",
+      });
+    } catch (error) {
+      console.error("Error generando confirmación:", error);
+      setPdfError(
+        `No se pudo generar la confirmación de ${
+          i.perfil.nombres || fullName(i.perfil.nombre, i.perfil.paterno, i.perfil.materno) || "esta inscripción"
+        }.`
+      );
+    } finally {
+      setPdfLoadingId(null);
+    }
   };
 
   const thBtn = (key: SortKey, label: string, className = "") => (
@@ -823,6 +971,11 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
 
         {/* TABLA */}
         <div>
+          {pdfError && (
+            <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              {pdfError}
+            </div>
+          )}
           {loading ? (
             <div className="text-white/50">Cargando inscripciones…</div>
           ) : visible.length > 0 ? (
@@ -890,12 +1043,27 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
                       </td>
 
                       <td className="p-4">
-                        <button
-                          onClick={() => openEdit(i)}
-                          className="bg-dh-purple/20 text-dh-purple px-4 py-2 rounded-xl font-semibold hover:bg-dh-purple/30 transition"
-                        >
-                          Editar
-                        </button>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            type="button"
+                            onClick={() => descargarConfirmacion(i)}
+                            disabled={pdfLoadingId === i.id || !selectedCarreraInfo}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-3 py-2 text-xs font-extrabold text-white hover:opacity-90 transition disabled:opacity-50 whitespace-nowrap"
+                            title="Descargar confirmación de inscripción"
+                          >
+                            <DocumentArrowDownIcon className="h-4 w-4" />
+                            {pdfLoadingId === i.id ? "Generando..." : "Descargar PDF"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => openEdit(i)}
+                            className="bg-dh-purple/20 text-dh-purple px-4 py-2 rounded-xl font-semibold hover:bg-dh-purple/30 transition"
+                          >
+                            <PencilSquareIcon className="w-4 h-4 inline mr-1" />
+                            Editar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -957,6 +1125,12 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
         ))}
       </div>
 
+      {editError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {editError}
+        </div>
+      )}
+
       {/* CONTENIDO POR TAB */}
       <div className="mt-4">
 
@@ -972,23 +1146,101 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
         {activeTab === "carrera" && (
   <div className="grid grid-cols-2 gap-4">
 
-    <input
-      value={form.ruta}
-      onChange={(e) =>
-        setForm({ ...form, ruta: e.target.value })
-      }
-      placeholder="Ruta"
-      className="input"
-    />
+    <div>
+  <label className="text-xs text-white/50 mb-1 block">
+    Distancia
+  </label>
 
-    <input
-      value={form.categoria}
-      onChange={(e) =>
-        setForm({ ...form, categoria: e.target.value })
-      }
-      placeholder="Categoría"
-      className="input"
-    />
+  <select
+    value={form.ruta}
+    onChange={(e) => {
+      const nuevaRuta = e.target.value;
+
+      setForm((prev) => {
+        const nuevaDistancia = distanciasDisponibles.find(
+          (d: any) => d.distancia === nuevaRuta
+        );
+
+        const categorias = (nuevaDistancia?.categorias ?? []).filter(
+          (c: any) =>
+            edadEdicion !== null &&
+            edadEdicion >= Number(c.minAge) &&
+            edadEdicion <= Number(c.maxAge)
+        );
+
+        const categoriaActualValida = categorias.some(
+          (c: any) => c.nombre === prev.categoria
+        );
+
+        return {
+          ...prev,
+          ruta: nuevaRuta,
+          categoria: categoriaActualValida
+            ? prev.categoria
+            : "",
+        };
+      });
+    }}
+    className="w-full input bg-[#1e1e27] text-white border border-white/15"
+  >
+    <option value="">Seleccionar distancia</option>
+
+    {distanciasDisponibles.map((d: any) => (
+      <option key={d.distancia} value={d.distancia}>
+        {d.distancia}
+      </option>
+    ))}
+  </select>
+</div>
+
+
+
+
+<div>
+  <label className="text-xs text-white/50 mb-1 block">
+    Categoría
+  </label>
+
+  <select
+    value={form.categoria}
+    onChange={(e) =>
+      setForm({
+        ...form,
+        categoria: e.target.value,
+      })
+    }
+    disabled={!form.ruta || edadEdicion === null}
+    className="w-full input bg-[#1e1e27] text-white border border-white/15 disabled:opacity-50"
+  >
+    <option value="">Seleccionar categoría</option>
+
+    {categoriasDisponibles.map((c: any) => (
+      <option key={c.nombre} value={c.nombre}>
+        {c.nombre}
+      </option>
+    ))}
+  </select>
+
+  {edadEdicion !== null && (
+    <p className="text-xs text-white/40 mt-1">
+      Edad para esta carrera: {edadEdicion} años
+    </p>
+  )}
+
+  {form.ruta && categoriasDisponibles.length === 0 && (
+    <p className="text-xs text-yellow-400 mt-1">
+      No hay categorías disponibles para esta edad en esta distancia.
+    </p>
+  )}
+
+  {form.categoria && !categoriasDisponibles.some(
+    (c: any) => c.nombre === form.categoria
+  ) && (
+    <p className="text-xs text-yellow-400 mt-1">
+      La categoría actual no corresponde a la edad registrada. Selecciona una categoría válida.
+    </p>
+  )}
+</div>
 
     <div>
       <label className="text-xs text-white/50 mb-1 block">
@@ -1085,7 +1337,7 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
         </button>
 
         <button
-          onClick={saveEdit}
+          onClick={() => saveEdit(false)}
           disabled={saving}
           className="px-5 py-2 rounded-xl bg-dh-purple text-black font-bold hover:scale-105 transition"
         >
@@ -1094,6 +1346,62 @@ TelefonoEmergencia: i.telefonoEmergencia ?? "",
 
       </div>
 
+    </div>
+  </div>
+)}
+
+{confirmSave && editOpen && editing && (
+  <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div className="bg-[#1b1b23] border border-dh-purple/30 rounded-3xl w-full max-w-lg p-6 shadow-2xl space-y-5">
+      <div>
+        <h3 className="text-xl font-black text-white">
+          Confirmar modificaciones
+        </h3>
+        <p className="text-sm text-white/50 mt-1">
+          Revisa los cambios que se realizarán a esta inscripción.
+        </p>
+      </div>
+
+      <div className="space-y-3 max-h-72 overflow-y-auto">
+        {cambiosPendientes.map((cambio, index) => (
+          <div
+            key={`${cambio.campo}-${index}`}
+            className="bg-[#111116] border border-white/5 rounded-xl p-4"
+          >
+            <p className="text-xs text-dh-purple font-bold uppercase mb-2">
+              {cambio.campo}
+            </p>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-white/50 line-through text-sm">
+                {cambio.antes}
+              </span>
+              <span className="text-dh-purple font-bold">→</span>
+              <span className="text-white font-bold text-sm">
+                {cambio.despues}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-3 justify-end pt-2">
+        <button
+          type="button"
+          onClick={() => setConfirmSave(false)}
+          disabled={saving}
+          className="px-5 py-3 rounded-xl border border-white/15 text-white/70 hover:bg-white/5"
+        >
+          Revisar
+        </button>
+        <button
+          type="button"
+          onClick={() => saveEdit(true)}
+          disabled={saving}
+          className="px-5 py-3 rounded-xl bg-dh-purple text-black font-extrabold hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Guardando..." : "Confirmar cambios"}
+        </button>
+      </div>
     </div>
   </div>
 )}
