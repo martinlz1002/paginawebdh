@@ -16,6 +16,7 @@ interface SidebarProps {
   | 'inscripciones'
   | 'eliminarInscripciones'
   | 'inscripcionesManuales'
+  | "usuarios"
   | 'galeria'
   | 'buscarCompetidor'
   | "mesasEntrega"
@@ -148,6 +149,27 @@ export default function AdminSidebar({ view, setView, open, onToggle }: SidebarP
           <TrashIcon className="w-5 h-5" />
           Eliminar Inscripciones
         </button>
+
+
+{/* Administración de usuarios */}
+<button
+  onClick={() => {
+    setView("usuarios");
+    onToggle();
+  }}
+  className={`
+    w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition
+    ${
+      view === "usuarios"
+        ? "bg-dh-purple text-dh-dark shadow-dhSm"
+        : "text-dh-muted hover:bg-dh-soft"
+    }
+  `}
+>
+  <UserGroupIcon className="w-5 h-5" />
+  Administración de usuarios
+</button>
+
 
 
         <button

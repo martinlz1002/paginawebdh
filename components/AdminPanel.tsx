@@ -16,6 +16,7 @@ import AdminBusquedaCompetidor from '@/components/AdminBusquedaCompetidor';
 import AdminOrganizadores from '@/components/AdminOrganizadores';
 import AdminMesasEntrega from '@/components/AdminMesasEntrega';
 import AdminEntregas from '@/components/AdminEntregas';
+import AdminUsuarios from '@/components/AdminUsuarios';
 
 type View =
   | 'crear'
@@ -23,6 +24,7 @@ type View =
   | 'inscripciones'
   | 'inscripcionesManuales'
   | 'eliminarInscripciones'
+  | 'usuarios'
   | 'galeria'
   | 'buscarCompetidor'
   | 'organizadores'
@@ -158,6 +160,8 @@ export default function AdminPanel() {
             feedback={feedback}
           />
         )}
+
+        {view === 'usuarios' && <AdminUsuarios />}
 
         {view === 'galeria' && <AdminGaleria />}
 
