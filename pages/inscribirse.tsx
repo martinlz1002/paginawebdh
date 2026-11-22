@@ -12,7 +12,6 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { app, db } from "@/lib/firebase";
-import { registrarInscripcion } from "@/lib/Inscripciones";
 import {
   UserIcon,
   CalendarIcon,
@@ -153,6 +152,22 @@ export default function InscribirsePage() {
   const distancias = useMemo(() => {
     return (carrera?.distancias ?? []) as any[];
   }, [carrera]);
+
+
+  // La selección de playera está activada por defecto
+// para mantener compatibilidad con carreras anteriores.
+const mostrarSeleccionPlayera =
+  carrera?.mostrarSeleccionPlayera !== false;
+
+  useEffect(() => {
+  console.log("DIAGNÓSTICO PLAYERA:", {
+    carreraId: carrera?.id,
+    titulo: carrera?.titulo,
+    mostrarSeleccionPlayera: carrera?.mostrarSeleccionPlayera,
+    tipo: typeof carrera?.mostrarSeleccionPlayera,
+    debeMostrar: carrera?.mostrarSeleccionPlayera !== false,
+  });
+}, [carrera]);
 
   // Auth listener
   useEffect(() => {
@@ -313,9 +328,9 @@ export default function InscribirsePage() {
     return setMensaje("Completa todos los campos.");
   }
 
-    if (!tallaPlayera) {
-    return setMensaje("Selecciona una talla de playera.");
-  }
+    if (mostrarSeleccionPlayera && !tallaPlayera) {
+  return setMensaje("Selecciona una talla de playera.");
+}
 
   if (!telefonoEmergencia) {
     return setMensaje("Ingresa un número de emergencia.");
@@ -389,21 +404,41 @@ export default function InscribirsePage() {
         ? "mercadopago"
         : "stripe";
 
-    const res = await fetch("/api/checkout_sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        carreraId: carrera.id,
-        perfilId,
-        categoria,
-        distancia,
-      }),
-    });
+    const idToken = await user.getIdToken();
+
+const res = await fetch("/api/checkout_sessions", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${idToken}`,
+  },
+  body: JSON.stringify({
+    carreraId: carrera.id,
+    perfilId,
+    categoria,
+    distancia,
+    rama: ramaFinal,
+    tallaPlayera: mostrarSeleccionPlayera ? tallaPlayera : "",
+telefonoEmergencia,
+  }),
+});
 
     const data = await res.json().catch(() => ({} as any));
 
     if (!res.ok) {
-      throw new Error(data?.error || `HTTP ${res.status}`);
+      const detalle =
+        data?.code === "CUPO_AGOTADO"
+          ? "La carrera ya alcanzó su cupo máximo. No es posible completar otra inscripción."
+          : data?.error || `HTTP ${res.status}`;
+      throw new Error(detalle);
+    }
+
+    // El servidor crea la inscripción y reserva el cupo antes de abrir el checkout.
+    // No volver a crearla desde el navegador para evitar duplicados.
+    if (!data?.inscripcionId || typeof data.inscripcionId !== "string") {
+      throw new Error(
+        "El servidor no devolvió el ID de la inscripción. No continúes con el pago."
+      );
     }
 
     // ============================================
@@ -447,63 +482,11 @@ if (!attemptId) {
     }
 
     // ============================================
-    // Registrar inscripción con el proveedor real
-    // ============================================
-
-    await registrarInscripcion({
-      carreraId: carrera.id,
-      carreraTitulo: carrera.titulo,
-      perfilId,
-
-      categoria,
-      distancia,
-      ruta: distancia,
-
-      // Proveedor correcto
-      paymentProvider,
-
-      paymentAttemptId: attemptId,
-
-      // Stripe: guardar sessionId
-      ...(paymentProvider === "stripe" && sessionId
-        ? { sessionId }
-        : {}),
-
-      // Mercado Pago: guardar preferenceId
-      ...(paymentProvider === "mercadopago" && preferenceId
-        ? { preferenceId }
-        : {}),
-
-      // Snapshot completo del participante
-      nombre: perfil.nombre,
-      paterno: perfil.apellidoPaterno,
-      materno: perfil.apellidoMaterno,
-      nombres: nombreCompleto,
-
-      rama: ramaFinal,
-
-      pais: perfil.pais,
-      estado: perfil.estado,
-      ciudad: perfil.ciudad,
-      celular: perfil.celular,
-      club: perfil.club,
-
-       tallaPlayera,
-       telefonoEmergencia,
-
-      fechaNacimiento: perfil.birthDate,
-      email: perfil.email,
-    });
-
-    // ============================================
     // Redirigir al checkout en la misma pestaña
     // ============================================
 
     window.location.href = checkoutUrl;
 
-    // (Opcional) Si quieres que siempre pase por /pago para fallback:
-    // router.push(`/pago?inscripcionId=${encodeURIComponent(INSCRIPCION_ID_AQUI)}`)
-    // pero para eso tendrías que devolver inscripcionId desde registrarInscripcion.
   } catch (err: any) {
     setMensaje("Error al iniciar pago: " + (err?.message || "desconocido"));
   } finally {
@@ -771,36 +754,38 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
       <div className="grid md:grid-cols-2 gap-6">
 
         {/* TALLA */}
-        <div className="rounded-2xl border border-dh-purple/15 bg-dh-purple/5 p-5">
-          <label className={labelBase}>
-            Talla de playera
-          </label>
+        {mostrarSeleccionPlayera && (
+  <div className="rounded-2xl border border-dh-purple/15 bg-dh-purple/5 p-5">
+    <label className={labelBase}>
+      Talla de playera
+    </label>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {["XS", "S", "M", "L", "XL", "XXL"].map((talla) => (
-              <button
-                key={talla}
-                type="button"
-                onClick={() => setTallaPlayera(talla)}
-                className={`rounded-xl border px-3 py-3 font-bold transition ${
-                  tallaPlayera === talla
-                    ? "border-dh-purple bg-dh-purple text-white shadow-md"
-    : "border-dh-purple/20 bg-white text-gray-900 hover:border-dh-purple hover:bg-dh-purple/5"
-                }`}
-              >
-                {talla}
-              </button>
-            ))}
-          </div>
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      {["XS", "S", "M", "L", "XL", "XXL"].map((talla) => (
+        <button
+          key={talla}
+          type="button"
+          onClick={() => setTallaPlayera(talla)}
+          className={`rounded-xl border px-3 py-3 font-bold transition ${
+            tallaPlayera === talla
+              ? "border-dh-purple bg-dh-purple text-white shadow-md"
+              : "border-dh-purple/20 bg-white text-gray-900 hover:border-dh-purple hover:bg-dh-purple/5"
+          }`}
+        >
+          {talla}
+        </button>
+      ))}
+    </div>
 
-          <div className="mt-4 rounded-xl bg-white/70 p-3 text-xs text-gray-600">
-            <strong>Importante:</strong> esta talla se solicita
-            únicamente con fines estadísticos para calcular la cantidad
-            de playeras necesarias. La talla seleccionada{" "}
-            <strong>no garantiza</strong> que se entregue esa talla
-            durante el evento.
-          </div>
-        </div>
+    <div className="mt-4 rounded-xl bg-white/70 p-3 text-xs text-gray-600">
+      <strong>Importante:</strong> esta talla se solicita
+      únicamente con fines estadísticos para calcular la cantidad
+      de playeras necesarias. La talla seleccionada{" "}
+      <strong>no garantiza</strong> que se entregue esa talla
+      durante el evento.
+    </div>
+  </div>
+)}
 
 
         {/* TELÉFONO DE EMERGENCIA */}
@@ -822,6 +807,14 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
             placeholder="Ej. 6681234567"
             className="w-full rounded-xl border border-dh-purple/20 bg-white px-4 py-3 text-gray-900 placeholder:text-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-purple/40"
           />
+
+          {telefonoEmergencia.length > 0 &&
+  telefonoEmergencia.length !== 10 && (
+    <p className="mt-2 text-sm font-semibold text-red-600">
+      El teléfono debe tener exactamente 10 dígitos.
+      Te faltan {10 - telefonoEmergencia.length} dígitos.
+    </p>
+  )}
 
           <p className="mt-3 text-xs text-dh-muted">
             Número telefónico de una persona a la que podamos contactar
@@ -872,14 +865,16 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
         </p>
       </div>
 
-      <div>
-        <span className="font-semibold text-dh-ink">
-          Talla de playera
-        </span>
-        <p className="text-dh-muted mt-1">
-          {tallaPlayera || "—"}
-        </p>
-      </div>
+      {mostrarSeleccionPlayera && (
+  <div>
+    <span className="font-semibold text-dh-ink">
+      Talla de playera
+    </span>
+    <p className="text-dh-muted mt-1">
+      {tallaPlayera || "—"}
+    </p>
+  </div>
+)}
 
       <div className="sm:col-span-2">
         <span className="font-semibold text-dh-ink">
@@ -916,22 +911,22 @@ const hayResultados = carreraFinalizada && resultadosPublicado && !!resultadosUr
     <button
       onClick={handlePagar}
       disabled={
-        carreraFinalizada ||
-        !abiertas ||
-        !perfilId ||
-        !distancia ||
-        !categoria ||
-        !tallaPlayera ||
-        telefonoEmergencia.length !== 10 ||
-        procesando ||
-        (ramaPendiente && !ramaManual)
-      }
+  carreraFinalizada ||
+  !abiertas ||
+  !perfilId ||
+  !distancia ||
+  !categoria ||
+  (mostrarSeleccionPlayera && !tallaPlayera) ||
+  telefonoEmergencia.length !== 10 ||
+  procesando ||
+  (ramaPendiente && !ramaManual)
+}
       className={`mt-6 w-full py-4 rounded-2xl font-extrabold transition ${
         perfilId &&
-        distancia &&
-        categoria &&
-        tallaPlayera &&
-        telefonoEmergencia.length === 10
+distancia &&
+categoria &&
+(!mostrarSeleccionPlayera || tallaPlayera) &&
+telefonoEmergencia.length === 10
           ? "bg-dh-purple text-white hover:opacity-95"
           : "bg-gray-300 text-gray-600 cursor-not-allowed"
       }`}

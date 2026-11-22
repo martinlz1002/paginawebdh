@@ -2,6 +2,7 @@ import { buffer } from "micro";
 import type { NextApiRequest, NextApiResponse } from "next";
 import Stripe from "stripe";
 import * as admin from "firebase-admin";
+import { confirmarCupoEnTransaccion } from "@/lib/cupos";
 
 export const config = {
   api: {
@@ -67,7 +68,7 @@ async function allocateNumberTx(
   carreraId: string,
   preferredNumber?: number,
   excludeInscripcionId?: string
-): Promise<number> {
+): Promise<{ number: number; allocatorRef: FirebaseFirestore.DocumentReference; revision: number }> {
   // Documento compartido para serializar asignaciones de esta carrera.
   // Mercado Pago, Stripe y cualquier otro asignador deben usarlo.
   const allocatorRef = db
@@ -189,17 +190,7 @@ async function allocateNumberTx(
     }
 
     const revision = Number(allocatorSnap.get("revision") || 0);
-
-    tx.set(
-      allocatorRef,
-      {
-        revision: revision + 1,
-        updatedAt: Date.now(),
-      },
-      { merge: true }
-    );
-
-    return preferredNumber;
+    return { number: preferredNumber, allocatorRef, revision };
   }
 
   // Buscar el primer número disponible.
@@ -220,17 +211,7 @@ async function allocateNumberTx(
   }
 
   const revision = Number(allocatorSnap.get("revision") || 0);
-
-  tx.set(
-    allocatorRef,
-    {
-      revision: revision + 1,
-      updatedAt: Date.now(),
-    },
-    { merge: true }
-  );
-
-  return assignedNumber;
+  return { number: assignedNumber, allocatorRef, revision };
 }
 
 // ============================================================
@@ -331,12 +312,30 @@ async function markPaymentStatus(
         const hasExistingNumber =
           Number.isFinite(existingNumber) && existingNumber > 0;
 
-        const assigned = await allocateNumberTx(
+        // Confirmar primero la reserva. Esta función realiza una lectura
+        // y una escritura, por eso se ejecuta después de todas las lecturas
+        // de allocateNumberTx y antes de las escrituras restantes.
+        const allocation = await allocateNumberTx(
           tx,
           carreraId,
           hasExistingNumber ? existingNumber : undefined,
           ref.id
         );
+
+        await confirmarCupoEnTransaccion(tx, db, carreraId, ref.id);
+
+        // Serializar la asignación del número después de completar todas
+        // las lecturas de la transacción.
+        tx.set(
+          allocation.allocatorRef,
+          {
+            revision: allocation.revision + 1,
+            updatedAt: Date.now(),
+          },
+          { merge: true }
+        );
+
+        const assigned = allocation.number;
 
         tx.update(ref, {
           paymentStatus: "paid",

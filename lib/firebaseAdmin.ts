@@ -21,8 +21,8 @@ if (!admin.apps.length) {
   }
 
   const privateKey = FIREBASE_PRIVATE_KEY
-    .replace(/\\n/g, "\n")
-    .trim();
+  .replace(/\\n/g, "\n")
+  .trim();
 
   admin.initializeApp({
     credential: admin.credential.cert({

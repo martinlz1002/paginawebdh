@@ -131,6 +131,15 @@ export default function AdminCarrerasForm({ initialValues, onSuccess }: AdminCar
 
   const [horaSalida, setHoraSalida] = useState(initialValues?.horaSalida || "");
   const [maxCompetitors, setMaxCompetitors] = useState<number>(initialValues?.maxCompetitors || 0);
+  // Cupo comercial de inscripciones. 0 = sin límite.
+  const [cupoMaximo, setCupoMaximo] = useState<number>(
+    Math.max(0, Math.floor(Number(initialValues?.cupoMaximo) || 0))
+  );
+
+  // Selección de playera. Por defecto se mantiene habilitada.
+const [mostrarSeleccionPlayera, setMostrarSeleccionPlayera] = useState<boolean>(
+  (initialValues as any)?.mostrarSeleccionPlayera !== false
+);
   const [ageBasis, setAgeBasis] = useState<AgeBasis>(initialValues?.ageBasis || "endOfYear");
 
   const [kitFecha, setKitFecha] = useState(initialValues?.kitFecha || "");
@@ -319,6 +328,12 @@ useEffect(() => {
     setFecha(toYYYYMMDD((initialValues as any)?.fecha));
     setHoraSalida(initialValues?.horaSalida || "");
     setMaxCompetitors(initialValues?.maxCompetitors || 0);
+    setCupoMaximo(
+      Math.max(0, Math.floor(Number(initialValues?.cupoMaximo) || 0))
+    );
+    setMostrarSeleccionPlayera(
+  (initialValues as any)?.mostrarSeleccionPlayera !== false
+);
     setAgeBasis(initialValues?.ageBasis || "endOfYear");
 
     // 🏁 RESULTADOS
@@ -539,6 +554,9 @@ const carreraFinalizada = fechaDate < today;
       fecha: (fecha || "").trim(), // ✅ string yyyy-mm-dd
       horaSalida,
       maxCompetitors,
+      // 0 significa que la carrera no tiene límite de inscripciones.
+      cupoMaximo: Math.max(0, Math.floor(Number(cupoMaximo) || 0)),
+      mostrarSeleccionPlayera,
       ageBasis,
       distancias: distanciasNorm,
 
@@ -1105,7 +1123,61 @@ paymentConfig: {
           className="w-full border border-dh-border rounded-xl px-3 py-2"
         />
       </div>
+
+      <div>
+        <label className="block font-semibold text-dh-ink mb-2">Cupo máximo de participantes</label>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          value={cupoMaximo}
+          onChange={(e) =>
+            setCupoMaximo(Math.max(0, Math.floor(Number(e.target.value) || 0)))
+          }
+          className="w-full border border-dh-border rounded-xl px-3 py-2"
+          placeholder="0 = Sin límite"
+        />
+        <p className="text-xs text-gray-500 mt-2">
+          Límite total de participantes, incluyendo inscripciones en línea y manuales.
+          Escribe 0 para permitir inscripciones ilimitadas.
+        </p>
+      </div>
     </div>
+
+    <div className="rounded-2xl border border-dh-purple/20 bg-dh-soft p-5 space-y-3">
+  <div>
+    <label className="block font-semibold text-dh-ink">
+      Selección de playera
+    </label>
+
+    <p className="text-sm text-dh-muted mt-1">
+      Define si los participantes deberán seleccionar su talla
+      durante el proceso de inscripción.
+    </p>
+  </div>
+
+  <button
+    type="button"
+    onClick={() =>
+      setMostrarSeleccionPlayera((actual) => !actual)
+    }
+    className={`relative w-32 h-12 rounded-full transition-all duration-300 font-bold ${
+      mostrarSeleccionPlayera
+        ? "bg-dh-purple text-white"
+        : "bg-gray-400 text-white"
+    }`}
+  >
+    <span
+      className={`absolute top-1.5 w-9 h-9 bg-white rounded-full shadow-md transition-all duration-300 ${
+        mostrarSeleccionPlayera ? "right-1.5" : "left-1.5"
+      }`}
+    />
+
+    <span className="relative z-10">
+      {mostrarSeleccionPlayera ? "Activada" : "Desactivada"}
+    </span>
+  </button>
+</div>
 
     <div>
       <label className="block font-semibold text-dh-ink mb-2">Descripción</label>

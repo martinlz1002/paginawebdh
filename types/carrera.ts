@@ -42,9 +42,14 @@ export interface CarreraData {
   // ✅ si aún existen carreras viejas sin distancias, no revientes
   distancias?: DistanciaConCategorias[];
 
-  // ✅ cupo/pool (compat)
-  maxCompetitors?: number; // 0 o undefined = sin límite
-  nextNumber?: number;     // usado por el pool
+  // ✅ cupo/pool de numeración
+maxCompetitors?: number; // Límite del rango de números
+nextNumber?: number;     // Usado por el pool
+
+// ✅ cupo comercial de inscripciones
+cupoMaximo?: number;     // 0 o undefined = sin límite
+
+mostrarSeleccionPlayera?: boolean;
 
   // ✅ base de edad (default endOfYear si falta)
   ageBasis?: AgeBasis;

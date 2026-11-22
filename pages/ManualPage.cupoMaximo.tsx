@@ -1,0 +1,1621 @@
+import { useRouter } from "next/router";
+import { useEffect, useRef, useState } from "react";
+import type { CarreraData } from "@/types/carrera";
+import * as XLSX from "xlsx";
+import {
+  LockClosedIcon,
+  UserIcon,
+  EnvelopeIcon,
+  PhoneIcon,
+  MapPinIcon,
+  CalendarIcon,
+  HashtagIcon,
+  TrophyIcon,
+  ChevronRightIcon,
+  DocumentArrowDownIcon,
+  PencilSquareIcon,
+XMarkIcon,
+} from "@heroicons/react/24/outline";
+import generarPDF from "@/lib/pdfConfirmacion";
+
+interface APIUser {
+  id: string;
+  carreraId: string;
+  range: { start: number; end: number };
+  username: string;
+  expiresAt: string;
+  expiresAtMs: number;
+}
+
+interface Categoria {
+  nombre: string;
+  minAge: number;
+  maxAge: number;
+}
+
+interface DistanciaConCategorias {
+  distancia: string;
+  categorias: Categoria[];
+}
+
+type Step = "checking" | "login" | "form" | "list" | "expired";
+
+function fullName(nombre: string, paterno: string, materno: string) {
+  return `${(nombre || "").trim()} ${(paterno || "").trim()} ${(materno || "").trim()}`
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const VEINTICUATRO_HORAS = 24 * 60 * 60 * 1000;
+
+function obtenerFechaRegistro(value: any): Date | null {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value?.toDate === "function") return value.toDate();
+  if (typeof value?._seconds === "number") return new Date(value._seconds * 1000);
+  if (typeof value?.seconds === "number") return new Date(value.seconds * 1000);
+  if (typeof value === "number") return new Date(value < 1e12 ? value * 1000 : value);
+  const fecha = new Date(value);
+  return Number.isFinite(fecha.getTime()) ? fecha : null;
+}
+
+function pendienteVencidoManual(inscripcion: any, ahora: number): boolean {
+  const status = String(inscripcion.paymentStatus ?? inscripcion.payment_status ?? "").toLowerCase();
+  if (status !== "pending") return false;
+  const fecha = obtenerFechaRegistro(inscripcion.timestamp);
+  if (!fecha) return false;
+  return ahora - fecha.getTime() >= VEINTICUATRO_HORAS;
+}
+
+// ✅ parse seguro para "YYYY-MM-DD" (evita desfase por timezone)
+function parseISODateYYYYMMDD(iso: any): Date {
+  if (!iso || typeof iso !== "string") return new Date("2000-01-01T00:00:00");
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) {
+    const d = new Date(iso);
+    return isNaN(d.getTime()) ? new Date("2000-01-01T00:00:00") : d;
+  }
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  return new Date(y, mo, day);
+}
+
+const inputBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-gray-900 placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+
+const selectBase =
+  "w-full rounded-xl border border-dh-purple/15 bg-white px-10 py-2.5 text-gray-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-dh-green/40";
+const cardBase =
+  "bg-white rounded-2xl border border-dh-purple/10 shadow-dh";
+
+export default function ManualPage() {
+  const router = useRouter();
+  const { id } = router.query as { id?: string };
+
+  const [step, setStep] = useState<Step>("checking");
+
+  const [inscripciones, setInscripciones] = useState<any[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+
+  const [ahora, setAhora] = useState(Date.now());
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setAhora(Date.now()), 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  // En esta vista las pendientes vencidas se ocultan siempre.
+  const inscripcionesVisibles = (Array.isArray(inscripciones) ? inscripciones : [])
+    .filter((i) => !pendienteVencidoManual(i, ahora));
+
+  // Controles del listado de inscripciones manuales.
+  const [busquedaLista, setBusquedaLista] = useState("");
+  const [filtroPagoManual, setFiltroPagoManual] = useState("todos");
+  const [filtroRutaManual, setFiltroRutaManual] = useState("todas");
+  const [filtroCategoriaManual, setFiltroCategoriaManual] = useState("todas");
+  const [filtroRamaManual, setFiltroRamaManual] = useState("todas");
+  const [ordenManual, setOrdenManual] = useState("numero-asc");
+
+  const rutasDisponibles = [...new Set(
+    inscripcionesVisibles.map((i) => String(i.ruta ?? "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "es"));
+
+  const categoriasDisponibles = [...new Set(
+    inscripcionesVisibles.map((i) => String(i.categoria ?? "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "es"));
+
+  const ramasDisponibles = [...new Set(
+    inscripcionesVisibles.map((i) => String(i.rama ?? "").trim()).filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b, "es"));
+
+  const inscripcionesFiltradas = (() => {
+    const q = busquedaLista.trim().toLocaleLowerCase("es");
+    const filtradas = inscripcionesVisibles.filter((i) => {
+      const nombre = String(i.nombres ?? [
+        i.nombre, i.paterno, i.materno
+      ].filter(Boolean).join(" ")).toLocaleLowerCase("es");
+      const numero = String(i.competitorNumber ?? i.ficha ?? i.bib ?? "");
+      const email = String(i.email ?? "").toLocaleLowerCase("es");
+      const status = String(i.paymentStatus ?? i.payment_status ?? "").toLowerCase();
+
+      const coincideBusqueda = !q || nombre.includes(q) ||
+        numero.toLowerCase().includes(q) || email.includes(q);
+      const coincidePago = filtroPagoManual === "todos" ||
+        (filtroPagoManual === "sin-estatus" ? !status : status === filtroPagoManual);
+      const coincideRuta = filtroRutaManual === "todas" ||
+        String(i.ruta ?? "") === filtroRutaManual;
+      const coincideCategoria = filtroCategoriaManual === "todas" ||
+        String(i.categoria ?? "") === filtroCategoriaManual;
+      const coincideRama = filtroRamaManual === "todas" ||
+        String(i.rama ?? "") === filtroRamaManual;
+
+      return coincideBusqueda && coincidePago && coincideRuta &&
+        coincideCategoria && coincideRama;
+    });
+
+    const fecha = (i: any) => obtenerFechaRegistro(i.timestamp)?.getTime() ?? 0;
+    const numero = (i: any) => Number(i.competitorNumber ?? i.ficha ?? i.bib ?? 0);
+    return filtradas.sort((a, b) => {
+      switch (ordenManual) {
+        case "numero-desc": return numero(b) - numero(a);
+        case "nombre-asc":
+          return String(a.nombres ?? a.nombre ?? "").localeCompare(
+            String(b.nombres ?? b.nombre ?? ""), "es"
+          );
+        case "nombre-desc":
+          return String(b.nombres ?? b.nombre ?? "").localeCompare(
+            String(a.nombres ?? a.nombre ?? ""), "es"
+          );
+        case "fecha-desc": return fecha(b) - fecha(a);
+        case "fecha-asc": return fecha(a) - fecha(b);
+        default: return numero(a) - numero(b);
+      }
+    });
+  })();
+
+  const limpiarFiltrosManual = () => {
+    setBusquedaLista("");
+    setFiltroPagoManual("todos");
+    setFiltroRutaManual("todas");
+    setFiltroCategoriaManual("todas");
+    setFiltroRamaManual("todas");
+    setOrdenManual("numero-asc");
+  };
+
+  const [editando, setEditando] = useState<any | null>(null);
+const [editForm, setEditForm] = useState<Record<string, string>>({});
+const [editTab, setEditTab] = useState<"datos" | "carrera" | "pago">("datos");
+const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+const [errorEdicion, setErrorEdicion] = useState<string | null>(null);
+const [mensajeLista, setMensajeLista] = useState("");
+
+  const [linkUser, setLinkUser] = useState<APIUser | null>(null);
+  const [race, setRace] = useState<(CarreraData & { id: string }) | null>(null);
+  const [distancias, setDistancias] = useState<DistanciaConCategorias[]>([]);
+  const [ageBasis, setAgeBasis] = useState<"endOfYear" | "eventDate">("endOfYear");
+
+  const [userCreds, setUserCreds] = useState({ username: "", password: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const [birthDate, setBirthDate] = useState("");
+  const [edad, setEdad] = useState(0);
+  const [distancia, setDistancia] = useState("");
+  const [dispCats, setDispCats] = useState<Categoria[]>([]);
+  const [categoria, setCategoria] = useState("");
+  const [available, setAvailable] = useState<number[]>([]);
+  const [numero, setNumero] = useState(0);
+
+  const [tallaPlayera, setTallaPlayera] = useState("");
+const [telefonoEmergencia, setTelefonoEmergencia] = useState("");
+
+  const [competidor, setCompetidor] = useState({
+    nombre: "",
+    apellidoPaterno: "",
+    apellidoMaterno: "",
+    rama: "",
+    email: "",
+    celular: "",
+    ciudad: "",
+    estado: "",
+    pais: "",
+    club: "",
+  });
+
+  const loadInscripciones = async () => {
+  if (!linkUser) return;
+
+  setLoadingList(true);
+
+  try {
+    const res = await fetch(
+      `/api/get-inscripciones-by-carrera?carreraId=${linkUser.carreraId}`
+    );
+
+    const data = await res.json();
+
+    console.log("🔥 DATA:", data);
+
+    if (!Array.isArray(data)) {
+      console.warn("No es array:", data);
+      setInscripciones([]);
+      return;
+    }
+
+    setInscripciones(data);
+  } catch (e) {
+    console.error("Error cargando inscripciones:", e);
+    setInscripciones([]);
+  } finally {
+    setLoadingList(false);
+  }
+};
+
+const exportExcelManual = () => {
+  if (!inscripcionesFiltradas.length) {
+    return;
+  }
+
+  const rows = inscripcionesFiltradas.map((i: any) => ({
+    Ficha: i.ficha ?? i.competitorNumber ?? "",
+    Bib: i.bib ?? i.competitorNumber ?? "",
+
+    Nombre: i.nombre ?? "",
+    Paterno: i.paterno ?? "",
+    Materno: i.materno ?? "",
+    Nombres: i.nombres ?? "",
+
+    Rama: i.rama ?? "",
+    Ruta: i.ruta ?? "",
+    Categoría: i.categoria ?? "",
+
+    TallaPlayera: i.tallaPlayera ?? "",
+    TelefonoEmergencia: i.telefonoEmergencia ?? "",
+
+    País: i.pais ?? "",
+    Estado: i.estado ?? "",
+    Ciudad: i.ciudad ?? "",
+    Celular: i.celular ?? "",
+    Club: i.club ?? "",
+
+    FechaNacimiento: i.fechaNacimiento
+      ? (() => {
+          const d =
+            typeof i.fechaNacimiento?.toDate === "function"
+              ? i.fechaNacimiento.toDate()
+              : new Date(i.fechaNacimiento);
+
+          return Number.isFinite(d.getTime())
+            ? d.toLocaleDateString("es-MX")
+            : "";
+        })()
+      : "",
+
+    Email: i.email ?? "",
+    PaymentStatus: i.paymentStatus ?? "",
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    ws,
+    "Inscripciones"
+  );
+
+  XLSX.writeFile(
+    wb,
+    `inscripciones_manuales_${linkUser?.carreraId ?? "evento"}.xlsx`
+  );
+};
+
+  const [loginLoading, setLoginLoading] = useState(false);
+
+  const timeoutRef = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
+
+  // ✅ Forzar login SIEMPRE al entrar a un link
+  useEffect(() => {
+    if (!id) return;
+    try {
+      localStorage.removeItem("tempUser");
+    } catch {}
+  }, [id]);
+
+  // 1) Validar link (API) + cargar carrera.
+  useEffect(() => {
+    if (!id) return;
+    cancelledRef.current = false;
+
+    const clearExpiryTimer = () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+
+    const run = async () => {
+      setError(null);
+      setStep("checking");
+      clearExpiryTimer();
+
+      try {
+        const res = await fetch(`/api/get-tempusuario?id=${id}&t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+
+        if (!res.ok) {
+          if (res.status === 410) {
+            setStep("expired");
+            return;
+          }
+          const msg = await res.text().catch(() => "");
+          throw new Error(`Error validando enlace (${res.status}). ${msg}`);
+        }
+
+        const u = (await res.json()) as APIUser;
+
+        if (!Number.isFinite(u.expiresAtMs)) throw new Error("expiresAtMs inválido.");
+        if (u.expiresAtMs <= Date.now()) {
+          setStep("expired");
+          return;
+        }
+
+        if (cancelledRef.current) return;
+        setLinkUser(u);
+
+        timeoutRef.current = window.setTimeout(() => setStep("expired"), u.expiresAtMs - Date.now());
+
+        const rc = await fetch(`/api/get-carrera?id=${u.carreraId}&t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
+
+        if (!rc.ok) {
+          const msg = await rc.text().catch(() => "");
+          throw new Error(`No se pudo cargar la carrera (${rc.status}). ${msg}`);
+        }
+
+        const d = (await rc.json()) as any;
+        if (cancelledRef.current) return;
+
+        setRace({ id: d.id, ...d });
+        setDistancias(Array.isArray(d.distancias) ? d.distancias : []);
+        setAgeBasis(d.ageBasis === "eventDate" ? "eventDate" : "endOfYear");
+
+        setStep("login");
+      } catch (e: any) {
+        console.error(e);
+        setError(e?.message || "Error cargando enlace temporal.");
+        setStep("login");
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelledRef.current = true;
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+    };
+  }, [id]);
+
+  // 2) Login
+  const handleLogin = async () => {
+    setError(null);
+    if (!linkUser || !id) return;
+
+    setLoginLoading(true);
+
+    try {
+      const res = await fetch(`/api/temp-login?t=${Date.now()}`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
+        body: JSON.stringify(userCreds),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.ok) throw new Error(data?.error || "Credenciales inválidas");
+
+      const u = data.user as APIUser;
+
+      if (u.id !== id) throw new Error("Estas credenciales no pertenecen a este enlace");
+      if (!Number.isFinite(u.expiresAtMs) || u.expiresAtMs <= Date.now()) {
+        setStep("expired");
+        return;
+      }
+
+      localStorage.setItem("tempUser", JSON.stringify({ ...u, password: userCreds.password }));
+
+      const availRes = await fetch(`/api/temp-avail?id=${id}&t=${Date.now()}`, {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache" },
+      });
+
+      if (!availRes.ok) {
+        if (availRes.status === 410) {
+          setStep("expired");
+          return;
+        }
+        const msg = await availRes.text().catch(() => "");
+        throw new Error(`Error obteniendo disponibilidad (${availRes.status}). ${msg}`);
+      }
+
+      const availJson = await availRes.json();
+      setAvailable((availJson.available || []) as number[]);
+      setStep("form");
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  // ✅ Edad + categorías (con parse seguro)
+  useEffect(() => {
+    if (!birthDate || !distancia || !race) return;
+
+    const bd = parseISODateYYYYMMDD(birthDate);
+
+    const raceFecha =
+      (race as any)?.fecha?.toDate ? (race as any).fecha.toDate() : new Date((race as any).fecha);
+
+    const basis = ageBasis === "endOfYear" ? new Date(raceFecha.getFullYear(), 11, 31) : raceFecha;
+
+    let age = basis.getFullYear() - bd.getFullYear();
+    const m = basis.getMonth() - bd.getMonth();
+    if (m < 0 || (m === 0 && basis.getDate() < bd.getDate())) age--;
+    setEdad(age);
+
+    const dist = distancias.find((d) => d.distancia === distancia);
+    if (!dist) {
+      setDispCats([]);
+      setCategoria("");
+      return;
+    }
+
+    setDispCats(dist.categorias.filter((c) => age >= c.minAge && age <= c.maxAge));
+    setCategoria("");
+  }, [birthDate, distancia, race, ageBasis, distancias]);
+
+  const handleSubmit = async () => {
+    setError(null);
+
+    if (!linkUser) return;
+
+    if (Date.now() > linkUser.expiresAtMs) {
+      setStep("expired");
+      return;
+    }
+
+    if (
+  !birthDate ||
+  !distancia ||
+  !categoria ||
+  numero === 0 ||
+  !tallaPlayera ||
+  !telefonoEmergencia
+)
+ {
+  setError("Por favor, completa todos los campos obligatorios.");
+  return;
+}
+
+    const campos = [
+      "nombre",
+      "apellidoPaterno",
+      "apellidoMaterno",
+      "rama",
+      "email",
+      "celular",
+      "ciudad",
+      "estado",
+      "pais",
+    ];
+    for (const campo of campos) {
+      if (!(competidor as any)[campo]) {
+        setError(`El campo ${campo} es obligatorio.`);
+        return;
+      }
+    }
+
+    if (!race?.titulo) {
+      setError("No se pudo obtener el nombre del evento (carreraTitulo).");
+      return;
+    }
+
+    const nombre = competidor.nombre.trim();
+    const paterno = competidor.apellidoPaterno.trim();
+    const materno = competidor.apellidoMaterno.trim();
+    const nombres = fullName(nombre, paterno, materno);
+
+    try {
+      const registroRes = await fetch("/api/registrar-inscripcion-manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({
+          credentials: userCreds,
+          tempId: linkUser.id,
+          carreraTitulo: race.titulo,
+          competitorNumber: numero,
+          nombre,
+          paterno,
+          materno,
+          nombres,
+          rama: competidor.rama,
+          ruta: distancia,
+          categoria,
+          tallaPlayera,
+          telefonoEmergencia,
+          email: competidor.email,
+          celular: competidor.celular,
+          ciudad: competidor.ciudad,
+          estado: competidor.estado,
+          pais: competidor.pais,
+          club: competidor.club,
+          fechaNacimiento: birthDate,
+        }),
+      });
+      const registroData = await registroRes.json().catch(() => null);
+      if (!registroRes.ok || !registroData?.ok) {
+        throw new Error(registroData?.error || "No se pudo registrar al competidor.");
+      }
+
+      setAvailable((av) => av.filter((n) => n !== numero));
+      setNumero(0);
+      setCategoria("");
+      setDistancia("");
+      setBirthDate("");
+      setEdad(0);
+      setDispCats([]);
+
+      setTallaPlayera("");
+setTelefonoEmergencia("");
+
+      setCompetidor({
+        nombre: "",
+        apellidoPaterno: "",
+        apellidoMaterno: "",
+        rama: "",
+        email: "",
+        celular: "",
+        ciudad: "",
+        estado: "",
+        pais: "",
+        club: "",
+      });
+
+      setSuccessMessage("✓ Competidor registrado correctamente.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setTimeout(() => setSuccessMessage(null), 4000);
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
+
+
+  const descargarConfirmacionManual = async (i: any) => {
+  try {
+    await generarPDF({
+      id: String(i.id ?? i.ficha ?? i.competitorNumber ?? ""),
+      titulo: race?.titulo || i.carreraTitulo || "Evento",
+      // El logo pertenece a la carrera, no a la inscripción manual.
+      imagenUrl: (race as any)?.imagenUrl || i.imagenUrl || "",
+      distancia: i.ruta || i.distancia || "",
+      categoria: i.categoria || "",
+      perfilNombre: i.nombre || "",
+      perfilApPaterno: i.paterno || i.apellidoPaterno || "",
+      perfilApMaterno: i.materno || i.apellidoMaterno || "",
+      competitorNumber:
+        i.competitorNumber ?? i.ficha ?? i.bib ?? undefined,
+      kitFecha: (race as any)?.kitFecha || i.kitFecha || "",
+      kitLugar: (race as any)?.kitLugar || i.kitLugar || "",
+      kitHorario: (race as any)?.kitHorario || i.kitHorario || "",
+    });
+  } catch (error) {
+    console.error("Error generando confirmación:", error);
+    setError("No se pudo generar la confirmación de inscripción.");
+  }
+};
+
+
+
+const abrirEditor = (i: any) => {
+  setMensajeLista("");
+  setEditando(i);
+  setEditTab("datos");
+  setErrorEdicion(null);
+
+  const fecha = i.fechaNacimiento;
+let fechaTexto = "";
+
+if (typeof fecha === "string") {
+  fechaTexto = fecha.slice(0, 10);
+} else if (fecha && typeof fecha === "object") {
+  if (typeof fecha._seconds === "number") {
+    fechaTexto = new Date(fecha._seconds * 1000)
+      .toISOString()
+      .slice(0, 10);
+  } else if (typeof fecha.seconds === "number") {
+    fechaTexto = new Date(fecha.seconds * 1000)
+      .toISOString()
+      .slice(0, 10);
+  }
+}
+
+  const campos = [
+    "nombre", "paterno", "materno", "rama",
+    "email", "celular", "ciudad", "estado",
+    "pais", "club", "ruta", "categoria",
+    "tallaPlayera", "telefonoEmergencia",
+    "paymentStatus",
+  ];
+
+  const form: Record<string, string> = {};
+
+  for (const campo of campos) {
+    form[campo] = String(i[campo] ?? "");
+  }
+
+  form.fechaNacimiento = fechaTexto;
+  setEditForm(form);
+};
+
+const cambiarCampo = (campo: string, valor: string) => {
+  setEditForm((prev) => ({
+    ...prev,
+    [campo]: valor,
+    ...(campo === "ruta" ? { categoria: "" } : {}),
+  }));
+};
+
+const guardarEdicion = async () => {
+  if (!editando || !linkUser || !id) return;
+
+  setErrorEdicion(null);
+
+  if (Date.now() >= linkUser.expiresAtMs) {
+    setStep("expired");
+    return;
+  }
+
+  if (
+    !editForm.nombre?.trim() ||
+    !editForm.paterno?.trim() ||
+    !editForm.materno?.trim() ||
+    !editForm.ruta ||
+    !editForm.categoria
+  ) {
+    setErrorEdicion("Completa los campos obligatorios.");
+    return;
+  }
+
+  const camposEditables = [
+    "nombre", "paterno", "materno", "rama",
+    "email", "celular", "ciudad", "estado",
+    "pais", "club", "ruta", "categoria",
+    "tallaPlayera", "telefonoEmergencia",
+    "fechaNacimiento",
+  ];
+
+  const cambios: Record<string, string> = {};
+
+  for (const campo of camposEditables) {
+    const nuevo = editForm[campo] ?? "";
+
+    if (
+      campo === "fechaNacimiento" &&
+      !nuevo &&
+      !editando.fechaNacimiento
+    ) continue;
+
+    if (
+      campo === "fechaNacimiento" &&
+      !nuevo &&
+      editando.fechaNacimiento
+    ) {
+      setErrorEdicion("La fecha de nacimiento no puede quedar vacía.");
+      return;
+    }
+
+    cambios[campo] = nuevo.trim();
+  }
+
+  setGuardandoEdicion(true);
+
+  try {
+    const res = await fetch("/api/actualizar-inscripcion-manual", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: editando.id,
+        tempId: linkUser.id,
+        cambios,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "No se pudo guardar.");
+    }
+
+    setInscripciones((prev) =>
+      prev.map((i) =>
+        i.id === editando.id
+          ? {
+              ...i,
+              ...cambios,
+              nombres: [
+                cambios.nombre,
+                cambios.paterno,
+                cambios.materno,
+              ].filter(Boolean).join(" "),
+            }
+          : i
+      )
+    );
+
+    setEditando(null);
+    setMensajeLista("Inscripción actualizada correctamente.");
+  } catch (e: any) {
+    setErrorEdicion(e.message || "Error al actualizar.");
+  } finally {
+    setGuardandoEdicion(false);
+  }
+};
+
+
+  // UI (lo demás igual)
+  if (step === "checking")
+    return (
+      <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
+        <div className={`${cardBase} p-6 w-full max-w-md text-center`}>
+          <p className="text-dh-ink font-medium">Cargando…</p>
+          <p className="text-gray-500 text-sm mt-2">Validando enlace temporal 🧾</p>
+        </div>
+      </div>
+    );
+
+  if (step === "expired")
+    return (
+      <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
+        <div className={`${cardBase} p-6 w-full max-w-md text-center`}>
+          <p className="text-xl font-bold text-dh-purple">Enlace expirado</p>
+          <p className="text-gray-600 mt-2">
+            Este enlace ya caducó. Pide al admin que genere uno nuevo.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-4 py-2.5 text-white font-semibold hover:opacity-95 transition"
+          >
+            Volver al inicio <ChevronRightIcon className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+    );
+
+  if (step === "login") {
+    return (
+      <div className="min-h-screen bg-dh-soft flex items-center justify-center p-6">
+        <div className={`${cardBase} w-full max-w-sm p-6`}>
+          <div className="text-center space-y-2 mb-5">
+            <h2 className="text-2xl font-extrabold text-dh-purple">Acceso Temporal</h2>
+            {race?.titulo ? (
+              <p className="text-sm text-gray-600">
+                Evento: <span className="font-semibold text-gray-800">{race.titulo}</span>
+              </p>
+            ) : (
+              <p className="text-sm text-gray-500">Ingresa tus credenciales para continuar.</p>
+            )}
+          </div>
+
+          {error && (
+            <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Usuario"
+                value={userCreds.username}
+                disabled={loginLoading}
+                onChange={(e) => setUserCreds((u) => ({ ...u, username: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <LockClosedIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                type="password"
+                placeholder="Contraseña"
+                value={userCreds.password}
+                disabled={loginLoading}
+                onChange={(e) => setUserCreds((u) => ({ ...u, password: e.target.value }))}
+              />
+            </div>
+
+            <button
+              className="w-full rounded-xl bg-dh-purple text-white py-2.5 font-semibold hover:opacity-95 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={handleLogin}
+              disabled={!linkUser || loginLoading}
+            >
+              {loginLoading ? "Verificando…" : "Entrar"}
+            </button>
+
+            {loginLoading && (
+              <p className="text-xs text-gray-500 text-center">
+                Un segundo… validando credenciales 🧾
+              </p>
+            )}
+
+            {linkUser?.range && (
+              <div className="mt-3 rounded-xl bg-dh-soft border border-dh-purple/10 p-3 text-sm text-gray-700">
+                <p className="font-semibold text-dh-ink">Rango asignado</p>
+                <p>
+                  Números:{" "}
+                  <span className="font-semibold text-dh-purple">
+                    {linkUser.range.start}–{linkUser.range.end}
+                  </span>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "list") {
+  return (
+    <div className="min-h-screen bg-dh-soft py-10 px-4">
+      <div className="max-w-5xl mx-auto">
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+
+  <h2 className="text-2xl font-bold text-dh-purple">
+    Inscripciones
+  </h2>
+
+  <div className="flex flex-wrap gap-3">
+
+    <button
+      onClick={() => setStep("form")}
+      className="text-sm text-dh-purple underline"
+    >
+      ← Volver a registrar
+    </button>
+
+    <button
+      onClick={exportExcelManual}
+      disabled={!inscripcionesFiltradas.length}
+      className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-4 py-2.5 text-white font-semibold hover:opacity-95 transition disabled:opacity-50"
+    >
+      📊 Exportar Excel
+    </button>
+
+  </div>
+
+</div>
+
+        {!loadingList && (
+          <div className="mb-5 rounded-2xl border border-dh-purple/15 bg-[#111117] p-4 sm:p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <h3 className="font-bold text-white">Buscar y filtrar inscritos</h3>
+                <p className="text-xs text-white/50 mt-1">
+                  Mostrando {inscripcionesFiltradas.length} de {inscripcionesVisibles.length} inscritos visibles
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={limpiarFiltrosManual}
+                className="self-start rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white/75 hover:bg-white/10"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <input
+                type="search"
+                value={busquedaLista}
+                onChange={(e) => setBusquedaLista(e.target.value)}
+                placeholder="Buscar por nombre, número o correo..."
+                className="sm:col-span-2 lg:col-span-3 w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-sm text-white placeholder:text-white/35 outline-none focus:border-dh-purple"
+              />
+
+              <select value={filtroPagoManual} onChange={(e) => setFiltroPagoManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todos">Todos los pagos</option>
+                <option value="paid">Pagado</option>
+                <option value="manual">Manual</option>
+                <option value="pending">Pendiente</option>
+                <option value="sin-estatus">Sin estatus</option>
+              </select>
+
+              <select value={filtroRutaManual} onChange={(e) => setFiltroRutaManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todas">Todas las rutas</option>
+                {rutasDisponibles.map((ruta) => <option key={ruta} value={ruta}>{ruta}</option>)}
+              </select>
+
+              <select value={filtroCategoriaManual} onChange={(e) => setFiltroCategoriaManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todas">Todas las categorías</option>
+                {categoriasDisponibles.map((cat) => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+
+              <select value={filtroRamaManual} onChange={(e) => setFiltroRamaManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="todas">Ambas ramas</option>
+                {ramasDisponibles.map((rama) => <option key={rama} value={rama}>{rama}</option>)}
+              </select>
+
+              <select value={ordenManual} onChange={(e) => setOrdenManual(e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-3 py-3 text-sm text-white">
+                <option value="numero-asc">Ordenar: número menor a mayor</option>
+                <option value="numero-desc">Número mayor a menor</option>
+                <option value="nombre-asc">Nombre: A a Z</option>
+                <option value="nombre-desc">Nombre: Z a A</option>
+                <option value="fecha-desc">Más recientes primero</option>
+                <option value="fecha-asc">Más antiguos primero</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {loadingList ? (
+          <p>Cargando...</p>
+        ) : (
+          <div className="bg-[#0c0c0f] border border-white/10 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm text-white">
+              <thead className="bg-white/5 text-white/80 text-sm">
+                <tr>
+                  <th className="p-3">#</th>
+                  <th className="p-3">Nombre</th>
+                  <th className="p-3">Ruta</th>
+                  <th className="p-3">Categoría</th>
+                  <th className="p-3">Talla</th>
+    <th className="p-3">Emergencia</th>
+                  <th className="p-3">Pago</th>
+                  <th className="p-3">Confirmación</th>
+                  <th className="p-3">Acciones</th>
+                </tr>
+              </thead>
+
+              <tbody>
+  {inscripcionesFiltradas.length === 0 ? (
+    <tr>
+      <td colSpan={9} className="text-center py-6 text-white/50">
+        No hay inscritos que coincidan con los filtros 👀
+      </td>
+    </tr>
+  ) : (
+    inscripcionesFiltradas.map((i, idx) => (
+      <tr key={i.id} className="border-t hover:bg-white/5 transition">
+        <td className="p-3 text-white/90">{i.competitorNumber || "-"}</td>
+        <td className="p-3 text-white/90">{i.nombres || "-"}</td>
+        <td className="p-3 text-white/90">{i.ruta || "-"}</td>
+        <td className="p-3 text-white/90">{i.categoria || "-"}</td>
+        <td className="p-3 text-white/90">
+  {i.tallaPlayera || "-"}
+</td>
+
+<td className="p-3 text-white/90">
+  {i.telefonoEmergencia || "-"}
+</td>
+        <td className="p-3 text-white/90">
+          {i.paymentStatus === "paid" && (
+            <span className="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
+              Pagado
+            </span>
+          )}
+          {i.paymentStatus === "manual" && (
+            <span className="px-3 py-1 text-xs rounded-full bg-yellow-500/20 text-yellow-400">
+              Manual
+            </span>
+          )}
+          {(i.paymentStatus ?? i.payment_status) === "pending" && (
+            <span className="px-3 py-1 text-xs rounded-full bg-orange-500/20 text-orange-300">
+              Pendiente
+            </span>
+          )}
+          {!i.paymentStatus && !i.payment_status && "-"}
+        </td>
+
+        <td className="p-3">
+  <button
+    type="button"
+    onClick={() => descargarConfirmacionManual(i)}
+    className="inline-flex items-center justify-center gap-2 rounded-xl bg-dh-purple px-3 py-2 text-xs font-extrabold text-white hover:opacity-90 transition whitespace-nowrap"
+    title="Descargar confirmación de inscripción"
+  >
+    <DocumentArrowDownIcon className="h-4 w-4" />
+    Descargar PDF
+  </button>
+</td>
+
+<td className="p-3">
+  <button
+    type="button"
+    onClick={() => abrirEditor(i)}
+    className="inline-flex items-center justify-center gap-2 rounded-xl border border-dh-purple bg-dh-purple/20 px-4 py-2 text-xs font-bold text-purple-200 hover:bg-dh-purple hover:text-white transition"
+  >
+    <PencilSquareIcon className="h-4 w-4" />
+    Editar
+  </button>
+</td>
+
+      </tr>
+    ))
+  )}
+</tbody>
+            </table>
+
+
+            
+{mensajeLista && (
+  <div className="my-4 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm text-green-700">
+    {mensajeLista}
+  </div>
+)}
+
+{editando && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
+    <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl border border-white/10 bg-[#16161d] p-6 text-white shadow-2xl">
+
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-extrabold text-dh-purple">
+          Editar inscripción #{editando.competitorNumber}
+        </h2>
+        <button
+          type="button"
+          disabled={guardandoEdicion}
+          onClick={() => setEditando(null)}
+          className="text-white/60 hover:text-white"
+        >
+          <XMarkIcon className="h-6 w-6" />
+        </button>
+      </div>
+
+      <div className="flex gap-6 border-b border-white/10 mb-6">
+        {(["datos", "carrera", "pago"] as const).map((tab) => (
+          <button
+            type="button"
+            key={tab}
+            onClick={() => {
+              setEditTab(tab);
+              setErrorEdicion(null);
+            }}
+            className={`pb-3 px-2 capitalize font-semibold transition ${
+              editTab === tab
+                ? "border-b-2 border-dh-purple text-white"
+                : "text-white/40 hover:text-white"
+            }`}
+          >
+            {tab === "datos" ? "Datos" : tab === "carrera" ? "Carrera" : "Pago"}
+          </button>
+        ))}
+      </div>
+
+      {errorEdicion && (
+        <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          {errorEdicion}
+        </div>
+      )}
+
+      {editTab === "datos" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {[
+            ["nombre", "Nombre"],
+            ["paterno", "Apellido paterno"],
+            ["materno", "Apellido materno"],
+            ["email", "Correo electrónico"],
+            ["celular", "Celular"],
+            ["ciudad", "Ciudad"],
+            ["estado", "Estado"],
+            ["pais", "País"],
+            ["club", "Club"],
+          ].map(([campo, etiqueta]) => (
+            <label key={campo} className="block">
+              <span className="block text-xs text-white/60 mb-2">
+                {etiqueta}
+              </span>
+              <input
+                type={campo === "email" ? "email" : "text"}
+                value={editForm[campo] ?? ""}
+                onChange={(e) => cambiarCampo(campo, e.target.value)}
+                className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white outline-none focus:border-dh-purple"
+              />
+            </label>
+          ))}
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">
+              Fecha de nacimiento
+            </span>
+            <input
+              type="date"
+              value={editForm.fechaNacimiento ?? ""}
+              onChange={(e) => cambiarCampo("fechaNacimiento", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            />
+          </label>
+        </div>
+      )}
+
+      {editTab === "carrera" && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Distancia</span>
+            <select
+              value={editForm.ruta ?? ""}
+              onChange={(e) => cambiarCampo("ruta", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Seleccionar</option>
+              {distancias.map((d) => (
+                <option
+                  key={d.distancia}
+                  value={d.distancia}
+                  className="bg-[#202029] text-white"
+                >
+                  {d.distancia}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Categoría</span>
+            <select
+              value={editForm.categoria ?? ""}
+              onChange={(e) => cambiarCampo("categoria", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Seleccionar</option>
+              {distancias
+                .find((d) => d.distancia === editForm.ruta)
+                ?.categorias.map((c) => (
+                  <option
+                    key={c.nombre}
+                    value={c.nombre}
+                    className="bg-[#202029] text-white"
+                  >
+                    {c.nombre}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Rama</span>
+            <select
+              value={editForm.rama ?? ""}
+              onChange={(e) => cambiarCampo("rama", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Seleccionar</option>
+              <option value="Femenil" className="bg-[#202029] text-white">Femenil</option>
+              <option value="Varonil" className="bg-[#202029] text-white">Varonil</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="block text-xs text-white/60 mb-2">Talla de playera</span>
+            <select
+              value={editForm.tallaPlayera ?? ""}
+              onChange={(e) => cambiarCampo("tallaPlayera", e.target.value)}
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            >
+              <option value="" className="bg-[#202029] text-white">Sin especificar</option>
+              {["XS", "S", "M", "L", "XL", "XXL"].map((t) => (
+                <option key={t} value={t} className="bg-[#202029] text-white">{t}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block sm:col-span-2">
+            <span className="block text-xs text-white/60 mb-2">
+              Teléfono de emergencia
+            </span>
+            <input
+              type="tel"
+              maxLength={10}
+              value={editForm.telefonoEmergencia ?? ""}
+              onChange={(e) =>
+                cambiarCampo(
+                  "telefonoEmergencia",
+                  e.target.value.replace(/\D/g, "").slice(0, 10)
+                )
+              }
+              className="w-full rounded-xl border border-white/15 bg-[#202029] px-4 py-3 text-white"
+            />
+          </label>
+        </div>
+      )}
+
+      {editTab === "pago" && (
+        <div className="space-y-3">
+          <label className="block text-xs text-white/60">
+            Estado de pago
+          </label>
+          <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-4 py-3 text-yellow-300 font-semibold">
+            {editForm.paymentStatus === "manual"
+              ? "Manual"
+              : editForm.paymentStatus || "Sin especificar"}
+          </div>
+          <p className="text-xs text-white/50">
+            El estado de pago no se modifica desde un acceso temporal.
+          </p>
+        </div>
+      )}
+
+      <div className="mt-8 flex justify-end gap-3 border-t border-white/10 pt-5">
+        <button
+          type="button"
+          disabled={guardandoEdicion}
+          onClick={() => setEditando(null)}
+          className="rounded-xl border border-white/20 px-5 py-2.5 font-semibold text-white hover:bg-white/10"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          disabled={guardandoEdicion}
+          onClick={guardarEdicion}
+          className="rounded-xl bg-dh-purple px-6 py-2.5 font-extrabold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {guardandoEdicion ? "Guardando..." : "Guardar cambios"}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+  // form (resto igual)
+  return (
+    <div className="min-h-screen bg-dh-soft py-10 px-4">
+      <div className="max-w-3xl mx-auto space-y-5">
+        <div className={`${cardBase} p-6`}>
+          <h2 className="text-2xl font-extrabold text-dh-purple">Inscripción Manual</h2>
+
+          {race?.titulo && (
+            <p className="text-sm text-gray-600 mt-1">
+              Evento: <span className="font-semibold text-gray-800">{race.titulo}</span>
+            </p>
+          )}
+
+          {successMessage && (
+            <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              ✅ {successMessage}
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <button
+    onClick={async () => {
+      await loadInscripciones();
+      setStep("list");
+    }}
+  className="w-full rounded-xl border border-dh-purple text-dh-purple py-2 font-semibold hover:bg-dh-purple/10 transition"
+>
+  Ver inscritos 👁️
+</button>
+
+        <div className={`${cardBase} p-6 space-y-5`}>
+          {/* Fecha de nacimiento */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Fecha de nacimiento
+            </label>
+            <div className="relative">
+              <CalendarIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="date"
+                className={inputBase}
+                value={birthDate}
+                onChange={(e) => setBirthDate(e.target.value)}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              Edad calculada: <span className="font-semibold text-dh-ink">{edad}</span> años
+              <span className="text-gray-400"> • </span>
+              Base:{" "}
+              <span className="font-medium">
+                {ageBasis === "endOfYear" ? "Fin de año" : "Fecha del evento"}
+              </span>
+            </p>
+          </div>
+
+          {/* Distancia / Categoría / Número */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Distancia</label>
+              <div className="relative">
+                <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select
+                  className={selectBase}
+                  value={distancia}
+                  onChange={(e) => setDistancia(e.target.value)}
+                >
+                  <option value="">-- Elige --</option>
+                  {distancias.map((d) => (
+                    <option key={d.distancia} value={d.distancia}>
+                      {d.distancia}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Categoría</label>
+              <div className="relative">
+                <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select
+                  className={selectBase}
+                  value={categoria}
+                  onChange={(e) => setCategoria(e.target.value)}
+                  disabled={!dispCats.length}
+                >
+                  <option value="">-- Elige --</option>
+                  {dispCats.map((c) => (
+                    <option key={c.nombre} value={c.nombre}>
+                      {c.nombre} ({c.minAge}–{c.maxAge})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {!dispCats.length && distancia && birthDate && (
+                <p className="text-xs text-gray-500 mt-2">
+                  No hay categorías para esa edad en esta distancia.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Número</label>
+              <div className="relative">
+                <HashtagIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <select
+                  className={selectBase}
+                  value={numero}
+                  onChange={(e) => setNumero(+e.target.value)}
+                >
+                  <option value={0}>-- Elige --</option>
+                  {available.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Disponibles: <span className="font-semibold">{available.length}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Rama */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Rama</label>
+            <div className="relative">
+              <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <select
+                className={selectBase}
+                value={competidor.rama}
+                onChange={(e) => setCompetidor((c) => ({ ...c, rama: e.target.value }))}
+              >
+                <option value="">-- Elige --</option>
+                <option value="Femenil">Femenil</option>
+                <option value="Varonil">Varonil</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Datos adicionales */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+  {/* Talla de playera */}
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      Talla de playera
+    </label>
+
+    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      {["XS", "S", "M", "L", "XL", "XXL"].map((talla) => (
+        <button
+          key={talla}
+          type="button"
+          onClick={() => setTallaPlayera(talla)}
+          className={`rounded-xl border px-3 py-2.5 font-bold transition ${
+            tallaPlayera === talla
+              ? "border-dh-purple bg-dh-purple text-white shadow-md"
+              : "border-dh-purple/20 bg-white text-gray-900 hover:border-dh-purple hover:bg-dh-purple/5"
+          }`}
+        >
+          {talla}
+        </button>
+      ))}
+    </div>
+
+    <p className="text-xs text-gray-500 mt-2">
+      Esta talla se solicita únicamente con fines estadísticos.
+      No garantiza la entrega de esa talla durante el evento.
+    </p>
+  </div>
+
+
+  {/* Teléfono de emergencia */}
+  <div>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      Número de emergencia
+    </label>
+
+    <div className="relative">
+      <PhoneIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+
+      <input
+        type="tel"
+        inputMode="numeric"
+        maxLength={10}
+        className={inputBase}
+        placeholder="Ej. 6681234567"
+        value={telefonoEmergencia}
+        onChange={(e) =>
+          setTelefonoEmergencia(
+            e.target.value.replace(/\D/g, "").slice(0, 10)
+          )
+        }
+      />
+    </div>
+
+    <p className="text-xs text-gray-500 mt-2">
+      Número telefónico de una persona a la que podamos contactar
+      en caso de emergencia durante el evento.
+    </p>
+  </div>
+
+</div>
+
+          {/* Datos del competidor */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Nombre"
+                value={competidor.nombre}
+                onChange={(e) => setCompetidor((c) => ({ ...c, nombre: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Apellido paterno"
+                value={competidor.apellidoPaterno}
+                onChange={(e) => setCompetidor((c) => ({ ...c, apellidoPaterno: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <UserIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Apellido materno"
+                value={competidor.apellidoMaterno}
+                onChange={(e) => setCompetidor((c) => ({ ...c, apellidoMaterno: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <EnvelopeIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Email"
+                value={competidor.email}
+                onChange={(e) => setCompetidor((c) => ({ ...c, email: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <PhoneIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Celular"
+                value={competidor.celular}
+                onChange={(e) => setCompetidor((c) => ({ ...c, celular: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Ciudad"
+                value={competidor.ciudad}
+                onChange={(e) => setCompetidor((c) => ({ ...c, ciudad: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Estado"
+                value={competidor.estado}
+                onChange={(e) => setCompetidor((c) => ({ ...c, estado: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative">
+              <MapPinIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="País"
+                value={competidor.pais}
+                onChange={(e) => setCompetidor((c) => ({ ...c, pais: e.target.value }))}
+              />
+            </div>
+
+            <div className="relative md:col-span-2">
+              <TrophyIcon className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                className={inputBase}
+                placeholder="Club (opcional)"
+                value={competidor.club}
+                onChange={(e) => setCompetidor((c) => ({ ...c, club: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <button
+            className="w-full rounded-xl bg-dh-purple text-white py-3 font-extrabold hover:opacity-95 transition shadow-md"
+            onClick={handleSubmit}
+          >
+            Registrar Competidor
+          </button>
+
+          <p className="text-xs text-gray-500 text-center">
+            Tip: si el enlace expira, te va a mandar a “Enlace expirado” automáticamente.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

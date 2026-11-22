@@ -5,6 +5,7 @@ import type {
 
 import * as admin from "firebase-admin";
 import crypto from "crypto";
+import { confirmarCupoEnTransaccion } from "@/lib/cupos";
 
 /**
  * ============================================================
@@ -923,7 +924,9 @@ await db.runTransaction(async (transaction) => {
   if (
     String(freshAttempt.paymentProvider || "").toLowerCase() !==
       "mercadopago" ||
-    String(freshInscripcion.paymentAttemptId || "") !== attemptId
+    String(freshInscripcion.paymentAttemptId || "") !== attemptId ||
+    (freshAttempt.inscripcionId &&
+      String(freshAttempt.inscripcionId) !== inscripcionDoc.id)
   ) {
     throw new Error(
       "El intento y la inscripción no coinciden"
@@ -1005,6 +1008,23 @@ await db.runTransaction(async (transaction) => {
       }
     );
   }
+
+  // La reserva pasa a confirmada en la misma transacción que registra
+  // el pago y asigna el número. La operación es idempotente.
+  const carreraIdParaCupo = String(
+    freshInscripcion.carreraId || freshAttempt.carreraId || ""
+  ).trim();
+
+  if (!carreraIdParaCupo) {
+    throw new Error("La inscripción no tiene carreraId para confirmar su cupo");
+  }
+
+  await confirmarCupoEnTransaccion(
+    transaction,
+    db,
+    carreraIdParaCupo,
+    inscripcionDoc.id
+  );
 
   const now =
     admin.firestore.FieldValue.serverTimestamp();
