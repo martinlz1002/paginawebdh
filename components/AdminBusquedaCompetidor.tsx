@@ -514,8 +514,9 @@ const publicData: Record<string, any> = {
   RouteName: competidor.RouteName ?? '',
   CategoryName: competidor.CategoryName ?? '',
 
-  // Datos necesarios para la entrega de kits
-  'Ficha express': competidor['Ficha express'] ?? '',
+  // Datos de playera
+  'Ficha Express': competidor['Ficha Express'] ?? '',
+  ReceiptId: competidor.ReceiptId ?? '',
   PaymentTxnId: competidor.PaymentTxnId ?? '',
 
   participant_search: nombreCompleto,

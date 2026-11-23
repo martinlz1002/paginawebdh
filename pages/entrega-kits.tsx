@@ -319,20 +319,15 @@ export default function EntregaKitsPage() {
               const participant = item.Participant || "Sin nombre";
               const routeName = item.RouteName || "";
               const categoryName = item.CategoryName || "";
-              const talla =
-  item.talla ??
-  Object.entries(item).find(([key]) =>
-    /talla|playera|camiseta/i.test(key)
-  )?.[1];
-
-const cortePlayera = item.PaymentTxnId;
-const tipoPlayera = item["Ficha express"];
+              const talla = item.PaymentTxnId;
+const cortePlayera = item.ReceiptId;
+const tipoPlayera = item["Ficha Express"];
 
               const details =
                 item.details && typeof item.details === "object"
                   ? Object.entries(item.details).filter(
                       ([key, value]) =>
-                        !/participant|bib|routename|categoryname|talla|playera|camiseta|ficha express|paymenttxnid/i.test(
+                        !/participant|bib|routename|categoryname|talla|playera|camiseta|ficha express|receiptid|paymenttxnid/i.test(
   key
 ) &&
                         value !== undefined &&
