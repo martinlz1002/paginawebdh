@@ -536,21 +536,73 @@ export default function AdminMesasEntrega() {
             <p className="text-xs text-dh-muted">El PIN funciona como control operativo de la interfaz. No es una barrera de seguridad validada por un backend.</p>
           </div>
 
-          {configured && origin && (
-            <div className="space-y-3 rounded-2xl border border-dh-border bg-dh-panel p-5">
-              <h3 className="font-bold">Enlaces de las estaciones</h3>
-              <div className="rounded-lg bg-dh-soft p-3">
-                <p className="text-sm font-semibold">Recepción</p>
-                <a className="break-all text-xs text-dh-purple underline" href={`${origin}/buscar-competidor?session=${encodeURIComponent(session.id)}`} target="_blank" rel="noreferrer">{origin}/buscar-competidor?session={session.id}</a>
-              </div>
-              {ranges.map((range) => (
-                <div key={range.id} className="rounded-lg bg-dh-soft p-3">
-                  <p className="text-sm font-semibold">{range.nombre}</p>
-                  <a className="break-all text-xs text-dh-purple underline" href={`${origin}/entrega-kits?session=${encodeURIComponent(session.id)}&mesa=${encodeURIComponent(range.id)}`} target="_blank" rel="noreferrer">{origin}/entrega-kits?session={session.id}&mesa={range.id}</a>
-                </div>
-              ))}
-            </div>
-          )}
+          
+{configured && origin && (
+  <div className="space-y-3 rounded-2xl border border-dh-border bg-dh-panel p-5">
+    <h3 className="font-bold">Enlaces de las estaciones</h3>
+
+    {/* TABLERO GENERAL */}
+    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-bold text-emerald-600">
+            📺 Tablero de llamados para TV
+          </p>
+          <p className="mt-1 text-xs text-dh-muted">
+            Pantalla general con competidores llamados y mesa asignada.
+          </p>
+        </div>
+
+        <a
+          href={`${origin}/tablero-entregas`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+        >
+          Abrir tablero ↗
+        </a>
+      </div>
+
+      <a
+        className="mt-3 block break-all text-xs text-dh-purple underline"
+        href={`${origin}/tablero-entregas`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {origin}/tablero-entregas
+      </a>
+    </div>
+
+    {/* RECEPCIÓN */}
+    <div className="rounded-lg bg-dh-soft p-3">
+      <p className="text-sm font-semibold">Recepción</p>
+      <a
+        className="break-all text-xs text-dh-purple underline"
+        href={`${origin}/buscar-competidor?session=${encodeURIComponent(session.id)}`}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {origin}/buscar-competidor?session={session.id}
+      </a>
+    </div>
+
+    {/* MESAS */}
+    {ranges.map((range) => (
+      <div key={range.id} className="rounded-lg bg-dh-soft p-3">
+        <p className="text-sm font-semibold">{range.nombre}</p>
+        <a
+          className="break-all text-xs text-dh-purple underline"
+          href={`${origin}/entrega-kits?session=${encodeURIComponent(session.id)}&mesa=${encodeURIComponent(range.id)}`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          {origin}/entrega-kits?session={session.id}&mesa={range.id}
+        </a>
+      </div>
+    ))}
+  </div>
+)}
+
 
           <button onClick={save} disabled={saving || !pin || ranges.length === 0} className="rounded-xl bg-dh-purple px-6 py-3 font-bold text-dh-dark disabled:opacity-50">{saving ? "Guardando..." : "Guardar configuración"}</button>
         </>
