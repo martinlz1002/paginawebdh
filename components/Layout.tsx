@@ -4,6 +4,7 @@ import { ReactNode } from "react";
 import Header from "./header";
 import Footer from "./Footer";
 import EmailVerificationNotice from "./EmailVerificationNotice";
+import AgeCorrectionNotice from "@/components/AgeCorrectionNotice";
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,6 +29,8 @@ export default function Layout({
 
         {/* Aviso debajo del encabezado */}
         <EmailVerificationNotice />
+
+        <AgeCorrectionNotice />
 
         <div className="pt-4">
           {children}

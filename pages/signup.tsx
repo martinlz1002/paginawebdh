@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
@@ -13,27 +14,46 @@ import {
   UserIcon,
   EnvelopeIcon,
   LockClosedIcon,
-  PhoneIcon,
-  CalendarIcon,
-  BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
 import { Country, State, City } from "country-state-city";
 import { Usuario } from "@/lib/usuarios";
 
 type Rama = "Femenil" | "Varonil" | "";
 
+// Calcula la edad exacta considerando mes y día
 function calcularEdad(fechaNacimiento: string): number {
   const hoy = new Date();
   const nacimiento = new Date(fechaNacimiento + "T00:00:00");
+
   let edad = hoy.getFullYear() - nacimiento.getFullYear();
+
   const m = hoy.getMonth() - nacimiento.getMonth();
-  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
+
+  if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
+    edad--;
+  }
+
   return edad;
+}
+
+// Genera la fecha máxima permitida para nacimiento (2 años cumplidos)
+function obtenerFechaMaximaNacimiento(): string {
+  const hoy = new Date();
+
+  hoy.setFullYear(hoy.getFullYear() - 2);
+
+  const año = hoy.getFullYear();
+  const mes = String(hoy.getMonth() + 1).padStart(2, "0");
+  const dia = String(hoy.getDate()).padStart(2, "0");
+
+  return `${año}-${mes}-${dia}`;
 }
 
 export default function RegistroUsuarioPage() {
   const router = useRouter();
   const auth = getAuth(app);
+
+  const fechaMaximaNacimiento = obtenerFechaMaximaNacimiento();
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -52,15 +72,22 @@ export default function RegistroUsuarioPage() {
     rama: "" as Rama,
   });
 
-  const [mensaje, setMensaje] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const [mensaje, setMensaje] = useState<{
+    type: "error" | "success";
+    text: string;
+  } | null>(null);
 
   const [paises] = useState(Country.getAllCountries());
   const [estados, setEstados] = useState<any[]>([]);
   const [ciudades, setCiudades] = useState<any[]>([]);
 
   useEffect(() => {
-    if (formData.pais) setEstados(State.getStatesOfCountry(formData.pais));
-    else setEstados([]);
+    if (formData.pais) {
+      setEstados(State.getStatesOfCountry(formData.pais));
+    } else {
+      setEstados([]);
+    }
+
     setFormData((fd) => ({ ...fd, estado: "", ciudad: "" }));
     setCiudades([]);
   }, [formData.pais]);
@@ -71,43 +98,119 @@ export default function RegistroUsuarioPage() {
     } else {
       setCiudades([]);
     }
+
     setFormData((fd) => ({ ...fd, ciudad: "" }));
   }, [formData.estado]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
+
     setFormData((p) => ({ ...p, [name]: value }));
+
+    if (name === "fechaNacimiento") {
+      setMensaje(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje(null);
 
-    if (formData.email !== formData.confirmEmail)
-      return setMensaje({ type: "error", text: "Los correos no coinciden." });
+    // Validación de fecha de nacimiento
+    if (!formData.fechaNacimiento) {
+      return setMensaje({
+        type: "error",
+        text: "Ingresa tu fecha de nacimiento.",
+      });
+    }
 
-    if (formData.password.length < 6)
-      return setMensaje({ type: "error", text: "Mínimo 6 caracteres." });
+    // Evitar fechas inválidas o futuras
+    const nacimiento = new Date(formData.fechaNacimiento + "T00:00:00");
 
-    if (formData.password !== formData.confirmPassword)
-      return setMensaje({ type: "error", text: "Las contraseñas no coinciden." });
+    if (isNaN(nacimiento.getTime())) {
+      return setMensaje({
+        type: "error",
+        text: "La fecha de nacimiento no es válida.",
+      });
+    }
 
-    if (!formData.rama)
-      return setMensaje({ type: "error", text: "Selecciona tu rama." });
+    // Validar edad mínima de 2 años
+    if (formData.fechaNacimiento > fechaMaximaNacimiento) {
+      return setMensaje({
+        type: "error",
+        text: "El competidor debe tener al menos 2 años de edad para registrarse.",
+      });
+    }
+
+    if (calcularEdad(formData.fechaNacimiento) < 2) {
+      return setMensaje({
+        type: "error",
+        text: "El competidor debe tener al menos 2 años de edad para registrarse.",
+      });
+    }
+
+    if (formData.email !== formData.confirmEmail) {
+      return setMensaje({
+        type: "error",
+        text: "Los correos no coinciden.",
+      });
+    }
+
+    if (formData.password.length < 6) {
+      return setMensaje({
+        type: "error",
+        text: "Mínimo 6 caracteres.",
+      });
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      return setMensaje({
+        type: "error",
+        text: "Las contraseñas no coinciden.",
+      });
+    }
+
+    if (!formData.rama) {
+      return setMensaje({
+        type: "error",
+        text: "Selecciona tu rama.",
+      });
+    }
 
     try {
-      const methods = await fetchSignInMethodsForEmail(auth, formData.email);
-      if (methods.length)
-        return setMensaje({ type: "error", text: "Correo ya registrado." });
+      const methods = await fetchSignInMethodsForEmail(
+        auth,
+        formData.email
+      );
+
+      if (methods.length) {
+        return setMensaje({
+          type: "error",
+          text: "Correo ya registrado.",
+        });
+      }
     } catch (err: any) {
-      return setMensaje({ type: "error", text: err.message });
+      return setMensaje({
+        type: "error",
+        text: err.message,
+      });
     }
 
     let userCred;
+
     try {
-      userCred = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      userCred = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
     } catch (err: any) {
-      return setMensaje({ type: "error", text: err.message });
+      return setMensaje({
+        type: "error",
+        text: err.message,
+      });
     }
 
     try {
@@ -130,10 +233,15 @@ export default function RegistroUsuarioPage() {
       } as any;
 
       localStorage.setItem("pendingUser", JSON.stringify(pending));
+
       router.push("/verify-email");
     } catch (err: any) {
       await deleteUser(userCred.user);
-      return setMensaje({ type: "error", text: err.message });
+
+      return setMensaje({
+        type: "error",
+        text: err.message,
+      });
     }
   };
 
@@ -162,6 +270,7 @@ export default function RegistroUsuarioPage() {
               {["nombre", "apPaterno", "apMaterno"].map((n) => (
                 <div key={n} className="relative">
                   <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+
                   <input
                     name={n}
                     placeholder={n}
@@ -179,6 +288,7 @@ export default function RegistroUsuarioPage() {
               {["email", "confirmEmail"].map((n) => (
                 <div key={n} className="relative">
                   <EnvelopeIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+
                   <input
                     name={n}
                     type="email"
@@ -197,6 +307,7 @@ export default function RegistroUsuarioPage() {
               {["password", "confirmPassword"].map((n) => (
                 <div key={n} className="relative">
                   <LockClosedIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+
                   <input
                     name={n}
                     type="password"
@@ -212,6 +323,7 @@ export default function RegistroUsuarioPage() {
 
             {/* Datos personales */}
             <div className="grid md:grid-cols-2 gap-4">
+
               <input
                 name="celular"
                 placeholder="Celular"
@@ -221,14 +333,26 @@ export default function RegistroUsuarioPage() {
                 className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4"
               />
 
-              <input
-                type="date"
-                name="fechaNacimiento"
-                value={formData.fechaNacimiento}
-                onChange={handleChange}
-                required
-                className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4"
-              />
+              <div className="flex flex-col">
+                <label className="text-white/70 text-sm mb-2">
+                  Fecha de nacimiento
+                </label>
+
+                <input
+                  type="date"
+                  name="fechaNacimiento"
+                  value={formData.fechaNacimiento}
+                  onChange={handleChange}
+                  max={fechaMaximaNacimiento}
+                  required
+                  className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white"
+                />
+
+                <p className="text-xs text-white/50 mt-2">
+                  Debes tener al menos 2 años de edad.
+                </p>
+              </div>
+
             </div>
 
             {/* Rama */}
@@ -246,6 +370,7 @@ export default function RegistroUsuarioPage() {
 
             {/* Ubicación */}
             <div className="grid md:grid-cols-3 gap-4">
+
               <select
                 name="pais"
                 value={formData.pais}
@@ -254,6 +379,7 @@ export default function RegistroUsuarioPage() {
                 className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
               >
                 <option value="">País</option>
+
                 {paises.map((c) => (
                   <option key={c.isoCode} value={c.isoCode}>
                     {c.name}
@@ -270,6 +396,7 @@ export default function RegistroUsuarioPage() {
                 className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
               >
                 <option value="">Estado</option>
+
                 {estados.map((s) => (
                   <option key={s.isoCode} value={s.isoCode}>
                     {s.name}
@@ -286,14 +413,17 @@ export default function RegistroUsuarioPage() {
                 className="bg-white/10 border border-white/10 rounded-2xl py-3 px-4 text-white [&>option]:text-black [&>option]:bg-white"
               >
                 <option value="">Ciudad</option>
+
                 {ciudades.map((c) => (
                   <option key={c.name} value={c.name}>
                     {c.name}
                   </option>
                 ))}
               </select>
+
             </div>
 
+            {/* Club */}
             <input
               name="club"
               placeholder="Club (opcional)"
@@ -302,19 +432,28 @@ export default function RegistroUsuarioPage() {
               className="w-full bg-white/10 border border-white/10 rounded-2xl py-3 px-4"
             />
 
+            {/* Botón */}
             <button
               type="submit"
               className="w-full mt-6 bg-dh-purple text-black font-bold py-4 rounded-2xl hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(0,255,120,0.4)] transition-all"
             >
               Crear cuenta
             </button>
+
           </form>
 
           {mensaje && (
-            <p className={`mt-6 text-center ${mensaje.type === "error" ? "text-red-400" : "text-purple-400"}`}>
+            <p
+              className={`mt-6 text-center ${
+                mensaje.type === "error"
+                  ? "text-red-400"
+                  : "text-purple-400"
+              }`}
+            >
               {mensaje.text}
             </p>
           )}
+
         </div>
       </motion.div>
     </div>
