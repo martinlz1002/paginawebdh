@@ -69,7 +69,6 @@ export default function AgeCorrectionNotice() {
           edad--;
         }
 
-        // Detectar perfiles con menos de 2 años
         if (!cancelled) {
           setNeedsCorrection(edad < 2);
         }
@@ -85,12 +84,38 @@ export default function AgeCorrectionNotice() {
       }
     };
 
+    // Comprobación inicial
     checkBirthDate();
+
+    // Comprobar cuando cambia la ruta
+    const handleRouteChange = () => {
+      checkBirthDate();
+    };
+
+    router.events.on("routeChangeComplete", handleRouteChange);
+
+    // Comprobar al volver a la pestaña
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        checkBirthDate();
+      }
+    };
+
+    const handleFocus = () => {
+      checkBirthDate();
+    };
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       cancelled = true;
+
+      router.events.off("routeChangeComplete", handleRouteChange);
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [user?.uid, loading]);
+  }, [user?.uid, loading, router.events]);
 
   if (
     loading ||
