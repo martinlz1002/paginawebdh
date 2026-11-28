@@ -30,25 +30,23 @@ type Participant = {
 
 const SESSIONS_COLLECTION = "entregasKits";
 
-function exportarKitsEntregados(participants: Participant[], tituloEvento?: string) {
+function exportarKitsEntregados(
+  participants: any[],
+  tituloEvento: string
+) {
+  // Únicamente competidores que ya fueron entregados
   const entregados = participants
     .filter((p) => p.estadoEntrega === "entregado")
-    .sort((a, b) => Number(a.Bib || 0) - Number(b.Bib || 0));
+    .sort(
+      (a, b) =>
+        Number(a.Bib ?? a.bib ?? 0) -
+        Number(b.Bib ?? b.bib ?? 0)
+    );
 
-  if (!entregados.length) {
+  if (entregados.length === 0) {
     alert("No hay kits entregados para exportar.");
     return;
   }
-
-  const obtener = (p: any, keys: string[]) => {
-    for (const key of keys) {
-      const value = p[key];
-      if (value !== undefined && value !== null && String(value).trim() !== "") {
-        return String(value);
-      }
-    }
-    return "";
-  };
 
   const encabezados = [
     "Número",
@@ -59,40 +57,60 @@ function exportarKitsEntregados(participants: Participant[], tituloEvento?: stri
     "Corte",
   ];
 
-  const filas = entregados.map((p: any) => [
-    obtener(p, ["Bib", "bib", "numero", "Número"]),
-    obtener(p, ["Nombre", "nombre", "name", "NombreCompleto", "nombreCompleto"]),
-    obtener(p, ["mesaNombre", "Mesa", "mesa"]),
-    obtener(p, ["ReciptId", "receiptId", "talla", "Talla", "shirtSize"]),
-    obtener(p, ["Ficha express", "FichaExpress", "fichaExpress", "tipoPlayera", "tipo"]),
-    obtener(p, ["PaymentTxnId", "paymentTxnId", "corte", "Corte"]),
-  ]);
+  const filas = entregados.map((p) => {
+    const numero = p.Bib ?? p.bib ?? "";
+    const nombre = p.Participant ?? "";
+    const mesa = p.mesaNombre ?? "";
 
-  const escapar = (valor: string) =>
-    `"${String(valor).replace(/"/g, '""')}"`;
+    // Mapeo correcto de los campos
+    const talla = p.PaymentTxnId ?? "";
+    const tipo = p["Ficha Express"] ?? "";
+    const corte = p.ReceiptId ?? "";
 
-  const contenido = [
-    encabezados.map(escapar).join(","),
-    ...filas.map((fila) => fila.map(escapar).join(",")),
+    return [
+      numero,
+      nombre,
+      mesa,
+      talla,
+      tipo,
+      corte,
+    ];
+  });
+
+  // Escapar correctamente valores para CSV
+  const escaparCSV = (valor: any) => {
+    const texto = String(valor ?? "");
+    return `"${texto.replace(/"/g, '""')}"`;
+  };
+
+  const contenidoCSV = [
+    encabezados.map(escaparCSV).join(","),
+    ...filas.map((fila) =>
+      fila.map(escaparCSV).join(",")
+    ),
   ].join("\r\n");
 
-  const blob = new Blob(["\uFEFF" + contenido], {
+  // BOM para que Excel reconozca correctamente UTF-8
+  const BOM = "\uFEFF";
+
+  const blob = new Blob([BOM + contenidoCSV], {
     type: "text/csv;charset=utf-8;",
   });
 
   const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
+  const enlace = document.createElement("a");
 
-  const nombreEvento = (tituloEvento || "EntregaKits")
+  const nombreEvento = (tituloEvento || "Evento")
     .replace(/[\\/:*?"<>|]/g, "")
     .replace(/\s+/g, "_");
 
-  link.download = `Kits_Entregados_${nombreEvento}.csv`;
+  enlace.href = url;
+  enlace.download = `Kits_Entregados_${nombreEvento}.csv`;
 
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  document.body.appendChild(enlace);
+  enlace.click();
+  document.body.removeChild(enlace);
+
   URL.revokeObjectURL(url);
 }
 
@@ -520,7 +538,12 @@ export default function AdminMesasEntrega() {
 
             <div className="flex flex-wrap gap-3">
   <button
-    onClick={() => exportarKitsEntregados(participants, session.tituloEvento)}
+    onClick={() =>
+  exportarKitsEntregados(
+    participants,
+    session.tituloEvento || "Entrega de kits"
+  )
+}
     disabled={loadingStats || stats.entregados === 0}
     className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700 disabled:opacity-40"
   >
