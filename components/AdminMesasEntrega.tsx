@@ -30,6 +30,72 @@ type Participant = {
 
 const SESSIONS_COLLECTION = "entregasKits";
 
+function exportarKitsEntregados(participants: Participant[], tituloEvento?: string) {
+  const entregados = participants
+    .filter((p) => p.estadoEntrega === "entregado")
+    .sort((a, b) => Number(a.Bib || 0) - Number(b.Bib || 0));
+
+  if (!entregados.length) {
+    alert("No hay kits entregados para exportar.");
+    return;
+  }
+
+  const obtener = (p: any, keys: string[]) => {
+    for (const key of keys) {
+      const value = p[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return String(value);
+      }
+    }
+    return "";
+  };
+
+  const encabezados = [
+    "Número",
+    "Nombre",
+    "Mesa",
+    "Talla",
+    "Tipo",
+    "Corte",
+  ];
+
+  const filas = entregados.map((p: any) => [
+    obtener(p, ["Bib", "bib", "numero", "Número"]),
+    obtener(p, ["Nombre", "nombre", "name", "NombreCompleto", "nombreCompleto"]),
+    obtener(p, ["mesaNombre", "Mesa", "mesa"]),
+    obtener(p, ["ReciptId", "receiptId", "talla", "Talla", "shirtSize"]),
+    obtener(p, ["Ficha express", "FichaExpress", "fichaExpress", "tipoPlayera", "tipo"]),
+    obtener(p, ["PaymentTxnId", "paymentTxnId", "corte", "Corte"]),
+  ]);
+
+  const escapar = (valor: string) =>
+    `"${String(valor).replace(/"/g, '""')}"`;
+
+  const contenido = [
+    encabezados.map(escapar).join(","),
+    ...filas.map((fila) => fila.map(escapar).join(",")),
+  ].join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + contenido], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+
+  const nombreEvento = (tituloEvento || "EntregaKits")
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, "_");
+
+  link.download = `Kits_Entregados_${nombreEvento}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminMesasEntrega() {
   const [session, setSession] = useState<EntregaSession | null>(null);
   const [history, setHistory] = useState<EntregaSession[]>([]);
@@ -450,6 +516,17 @@ export default function AdminMesasEntrega() {
               </div>
               <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600">● Actualización en tiempo real</span>
             </div>
+
+
+            <div className="flex flex-wrap gap-3">
+  <button
+    onClick={() => exportarKitsEntregados(participants, session.tituloEvento)}
+    disabled={loadingStats || stats.entregados === 0}
+    className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-bold text-white transition hover:bg-emerald-700 disabled:opacity-40"
+  >
+    📊 Exportar kits entregados ({stats.entregados})
+  </button>
+</div>
 
             {loadingStats ? (
               <p className="py-6 text-center text-sm text-dh-muted">Cargando estadísticas...</p>
